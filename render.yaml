@@ -1,12 +1,14 @@
 # render.yaml — BRAJEN SEO Web App
 # Deploy: Connect GitHub repo → Render auto-deploys
+# ⚠️ IMPORTANT: Update start command in Render Dashboard to match below!
+# Dashboard currently overrides this with --workers 2 --threads 4 → causes OOM!
 
 services:
   - type: web
     name: brajen-seo
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 2 --threads 4
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1 --threads 2 --max-requests 50 --max-requests-jitter 5
     envVars:
       - key: BRAJEN_API_URL
         value: https://master-seo-api.onrender.com
