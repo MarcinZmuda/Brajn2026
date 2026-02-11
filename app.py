@@ -24,6 +24,13 @@ from flask import (
 import requests as http_requests
 import anthropic
 
+# Optional: OpenAI
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
 # ============================================================
 # CONFIG
 # ============================================================
@@ -33,10 +40,13 @@ app.secret_key = os.environ.get("SECRET_KEY", "brajen-seo-secret-" + str(uuid.uu
 BRAJEN_API = os.environ.get("BRAJEN_API_URL", "https://master-seo-api.onrender.com")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-6")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "brajen2024")
 APP_USERNAME = os.environ.get("APP_USERNAME", "brajen")
 
-REQUEST_TIMEOUT = 120  # Render cold start can be slow
+REQUEST_TIMEOUT = 120
+EDITORIAL_TIMEOUT = 300  # Editorial review needs more time
 MAX_RETRIES = 3
 RETRY_DELAYS = [5, 15, 30]
 
@@ -82,16 +92,17 @@ def logout():
 # ============================================================
 # BRAJEN API CLIENT
 # ============================================================
-def brajen_call(method, endpoint, json_data=None):
+def brajen_call(method, endpoint, json_data=None, timeout=None):
     """Call BRAJEN API with retry logic for cold starts."""
     url = f"{BRAJEN_API}{endpoint}"
+    req_timeout = timeout or REQUEST_TIMEOUT
 
     for attempt in range(MAX_RETRIES):
         try:
             if method == "get":
-                resp = http_requests.get(url, timeout=REQUEST_TIMEOUT)
+                resp = http_requests.get(url, timeout=req_timeout)
             else:
-                resp = http_requests.post(url, json=json_data, timeout=REQUEST_TIMEOUT)
+                resp = http_requests.post(url, json=json_data, timeout=req_timeout)
 
             if resp.status_code in (200, 201):
                 content_type = resp.headers.get("content-type", "")
@@ -176,13 +187,26 @@ PYTANIA PAA (People Also Ask z Google):
 PRZYCZYNOWE ZALEŻNOŚCI (cause→effect z konkurencji):
 {json.dumps(causal_triplets.get("triplets", [])[:5], ensure_ascii=False, indent=2) if causal_triplets.get("triplets") else "Brak"}
 
-{f'WSKAZÓWKI UŻYTKOWNIKA (hinty do struktury — nie muszą być użyte dosłownie):{chr(10)}{json.dumps(user_h2_hints, ensure_ascii=False, indent=2)}' if user_h2_hints else ''}
+{f"""═══ FRAZY H2 UŻYTKOWNIKA ═══
 
-═══ KONTEKST TEMATYCZNY (frazy do tekstu) ═══
+Użytkownik podał te frazy z myślą o nagłówkach H2.
+Wykorzystaj je w nagłówkach tam, gdzie brzmią naturalnie po polsku.
+Nie musisz użyć każdej — ale nie ignoruj ich. Dopasuj z wyczuciem.
 
-Poniższe frazy będą użyte W TREŚCI artykułu (nie w nagłówkach!).
-Podaję je tylko żebyś wiedział jaki zakres tematyczny artykuł musi pokryć.
-Zaplanuj H2 tak, by każda fraza miała naturalną sekcję, w której może się pojawić:
+Przykład: fraza "przeprowadzka – od czego zacząć" → H2: "Przeprowadzka – od czego zacząć"
+Przykład: fraza "dzień przeprowadzki" → H2: "Dzień przeprowadzki – o czym pamiętać"
+Przykład: fraza "kartony do przeprowadzki" → H2: "Kartony do przeprowadzki i materiały pakowe"
+
+Jeśli fraza brzmi sztucznie jako nagłówek — lepiej ją przeformułuj lub pomiń w H2 (i tak trafi do treści).
+
+FRAZY H2:
+{json.dumps(user_h2_hints, ensure_ascii=False)}
+""" if user_h2_hints else ""}
+═══ KONTEKST TEMATYCZNY (frazy BASIC/EXTENDED) ═══
+
+Poniższe frazy będą użyte W TREŚCI artykułu (nie w nagłówkach).
+Podaję je tylko żebyś wiedział jaki zakres tematyczny artykuł musi pokryć,
+i zaplanował H2 tak, by każda fraza miała naturalną sekcję do której pasuje:
 
 {json.dumps(all_user_phrases, ensure_ascii=False)}
 
@@ -192,9 +216,10 @@ Zaplanuj H2 tak, by każda fraza miała naturalną sekcję, w której może się
    {'Tryb fast: max 3 sekcje + FAQ.' if mode == 'fast' else 'Typowo 5-10 sekcji — tyle ile wymaga temat. Nie za mało (płytko), nie za dużo (po łebkach).'}
 2. OSTATNI H2 MUSI być: "Najczęściej zadawane pytania"
 3. Pokryj najważniejsze wzorce z konkurencji + luki treściowe (przewaga nad konkurencją)
-4. NIE upychaj fraz w nagłówkach! H2 mają być naturalne, czytelne, po polsku
+4. {'Uwzględnij frazy H2 użytkownika w nagłówkach, o ile brzmią naturalnie. Resztę dopasuj z S1.' if user_h2_hints else 'Dobierz nagłówki na podstawie S1 i luk treściowych.'}
 5. Logiczna narracja — od ogółu do szczegółu, chronologicznie, lub problemowo
 6. NIE powtarzaj hasła głównego dosłownie w każdym H2
+7. H2 muszą brzmieć naturalnie po polsku — żadnego keyword stuffingu
 
 ═══ FORMAT ODPOWIEDZI ═══
 
@@ -232,111 +257,274 @@ Odpowiedz TYLKO JSON array, bez markdown, bez komentarzy:
 
 
 # ============================================================
-# ANTHROPIC CLAUDE TEXT GENERATION
+# TEXT GENERATION (Claude + OpenAI)
 # ============================================================
-def generate_batch_text(pre_batch, h2, batch_type, article_memory=None):
-    """Generate batch text using Anthropic Claude API."""
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
+def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="claude"):
+    """Generate batch text using FULL pre_batch data — mirrors what Custom GPT received.
+    
+    Custom GPT got the entire pre_batch_info response and used gpt_instructions_v39
+    plus ALL contextual fields. We must do the same.
+    """
+    
+    # ─── SYSTEM PROMPT = gpt_instructions_v39 (same as Custom GPT) ───
     gpt_instructions = pre_batch.get("gpt_instructions_v39", "")
+    gpt_prompt = pre_batch.get("gpt_prompt", "")
+    system_prompt = gpt_instructions if gpt_instructions else gpt_prompt
+    
+    if not system_prompt:
+        system_prompt = "Jesteś ekspertem SEO. Pisz naturalnie po polsku, unikaj sztucznego tonu AI."
+
+    # ─── USER PROMPT = FULL batch context (all fields Custom GPT could see) ───
     keywords_info = pre_batch.get("keywords", {})
     keyword_limits = pre_batch.get("keyword_limits", {})
     batch_length = pre_batch.get("batch_length", {})
-    style = pre_batch.get("style_instructions", {})
-    enhanced = pre_batch.get("enhanced", {})
-    entity_seo = pre_batch.get("entity_seo", {})
-    legal_ctx = pre_batch.get("legal_context")
-    medical_ctx = pre_batch.get("medical_context")
+    enhanced = pre_batch.get("enhanced") or {}
+    style = pre_batch.get("style_instructions") or {}
+    semantic_plan = pre_batch.get("semantic_batch_plan") or {}
+    ngrams = pre_batch.get("ngrams_for_batch", [])
+    entity_seo = pre_batch.get("entity_seo") or {}
+    serp = pre_batch.get("serp_enrichment") or {}
+    legal_ctx = pre_batch.get("legal_context") or {}
+    medical_ctx = pre_batch.get("medical_context") or {}
+    coverage = pre_batch.get("coverage") or {}
+    density = pre_batch.get("density") or {}
+    main_kw = pre_batch.get("main_keyword") or {}
+    soft_caps = pre_batch.get("soft_cap_recommendations") or {}
+    dynamic_sections = pre_batch.get("dynamic_sections") or {}
+    h2_plan = pre_batch.get("h2_plan", [])
+    h2_remaining = pre_batch.get("h2_remaining", [])
+    batch_number = pre_batch.get("batch_number", 1)
+    total_batches = pre_batch.get("total_planned_batches", 1)
+    intro_guidance = pre_batch.get("intro_guidance", "")
+    entities_for_batch = pre_batch.get("entities_for_batch") or {}
+    section_length_guidance = pre_batch.get("section_length_guidance") or {}
+    ngram_guidance = pre_batch.get("ngram_guidance") or {}
 
-    system_prompt = f"""Jesteś ekspertem SEO piszącym artykuł po polsku. Twoim zadaniem jest napisanie JEDNEJ sekcji artykułu.
+    # Build STOP keywords clearly
+    stop_kws = keyword_limits.get("stop_keywords", [])
+    stop_list = [s.get("keyword", s) if isinstance(s, dict) else s for s in stop_kws]
+    
+    caution_kws = keyword_limits.get("caution_keywords", [])
+    caution_list = [c.get("keyword", c) if isinstance(c, dict) else c for c in caution_kws]
 
-INSTRUKCJE Z API (gpt_instructions_v39):
-{gpt_instructions}
-
-STYL:
-{json.dumps(style, ensure_ascii=False, indent=2) if style else 'Naturalny, ekspercki ton.'}
-
-ZASADY:
-- Pisz TYLKO sekcję dla podanego H2
-- Zaczynaj od: h2: {h2}
-- Długość: {json.dumps(batch_length, ensure_ascii=False) if batch_length else '350-500 słów'}
-- Passage-first writing: pod H2 pierwszy akapit = samodzielna odpowiedź (zdanie 1: odpowiedź/definicja, zdanie 2: konkret, zdanie 3: doprecyzowanie)
-- NIE używaj fraz z listy STOP
-- Używaj fraz MUST i EXTENDED naturalnie — nie upychaj
-- CV (humanizacja): 0.35-0.45, zdania: 20% krótkie, 55% średnie, 25% długie
-- Unikaj: "warto podkreślić", "należy pamiętać", "kluczowym aspektem", "w kontekście"
-- Format: h2: Tytuł\\n\\nAkapit 1\\n\\nAkapit 2\\n\\nh3: Podsekcja (opcjonalnie)\\n\\nTreść
-
-{f'ENTITY SEO: {json.dumps(entity_seo, ensure_ascii=False)[:500]}' if entity_seo else ''}
-{f'KONTEKST PRAWNY (YMYL): {json.dumps(legal_ctx, ensure_ascii=False)[:500]}' if legal_ctx else ''}
-{f'KONTEKST MEDYCZNY (YMYL): {json.dumps(medical_ctx, ensure_ascii=False)[:500]}' if medical_ctx else ''}"""
-
-    user_prompt = f"""Napisz sekcję artykułu SEO.
-
+    # Build comprehensive user prompt
+    sections = []
+    
+    # Core batch info
+    sections.append(f"""═══ BATCH {batch_number}/{total_batches} ═══
+Typ: {batch_type}
 H2: {h2}
-Typ batcha: {batch_type}
+Zaczynaj DOKŁADNIE od: h2: {h2}
+Długość: {json.dumps(batch_length, ensure_ascii=False) if batch_length else '350-500 słów'}""")
 
-FRAZY MUST (MUSISZ użyć w tym batchu):
-{json.dumps(keywords_info.get('basic_must_use', []), ensure_ascii=False)}
+    # Intro guidance (for first batch)
+    if intro_guidance and batch_type == "INTRO":
+        sections.append(f"INTRO GUIDANCE:\n{json.dumps(intro_guidance, ensure_ascii=False) if isinstance(intro_guidance, dict) else intro_guidance}")
 
-FRAZY EXTENDED (użyj jeśli naturalnie pasują):
-{json.dumps(keywords_info.get('extended_this_batch', []), ensure_ascii=False)}
+    # Keywords — MUST use
+    must_use = [kw.get('keyword', kw) if isinstance(kw, dict) else kw for kw in keywords_info.get('basic_must_use', [])]
+    ext_use = [kw.get('keyword', kw) if isinstance(kw, dict) else kw for kw in keywords_info.get('extended_this_batch', [])]
+    
+    sections.append(f"""═══ FRAZY ═══
+🔴 MUST (użyj w tekście — obowiązkowe):
+{json.dumps(must_use, ensure_ascii=False)}
 
-FRAZY STOP (NIE UŻYWAJ — przekroczone!):
-{json.dumps(keyword_limits.get('stop_keywords', []), ensure_ascii=False)}
+🟡 EXTENDED (użyj naturalnie jeśli pasują):
+{json.dumps(ext_use, ensure_ascii=False)}
 
-FRAZY CAUTION (max 1× jeśli użyjesz):
-{json.dumps(keyword_limits.get('caution_keywords', []), ensure_ascii=False)}
+🛑 STOP — NIE UŻYWAJ (przekroczone limity!):
+{json.dumps(stop_list, ensure_ascii=False)}
 
-KONTEKST Z POPRZEDNICH BATCHY:
-{json.dumps(article_memory, ensure_ascii=False)[:1000] if article_memory else 'Brak (pierwszy batch)'}
+⚠️ OSTROŻNIE — max 1× jeśli użyjesz:
+{json.dumps(caution_list, ensure_ascii=False)}""")
 
-Zacznij tekst DOKŁADNIE od: h2: {h2}
-Nie dodawaj niczego przed h2."""
+    # Semantic batch plan
+    if semantic_plan:
+        sections.append(f"═══ SEMANTIC BATCH PLAN ═══\n{json.dumps(semantic_plan, ensure_ascii=False)}")
 
+    # Article memory (anti-Frankenstein)
+    if article_memory:
+        mem_str = json.dumps(article_memory, ensure_ascii=False)
+        sections.append(f"═══ ARTICLE MEMORY (nie powtarzaj!) ═══\n{mem_str[:2000]}")
+
+    # Style instructions
+    if style:
+        sections.append(f"═══ STYL ═══\n{json.dumps(style, ensure_ascii=False)}")
+
+    # Dynamic sections (anti-Frankenstein token budgeting)
+    if dynamic_sections:
+        sections.append(f"═══ DYNAMIC SECTIONS ═══\n{json.dumps(dynamic_sections, ensure_ascii=False)[:1500]}")
+
+    # Entity SEO
+    if entity_seo and entity_seo.get("enabled"):
+        sections.append(f"═══ ENTITY SEO ═══\n{json.dumps(entity_seo, ensure_ascii=False)[:1000]}")
+    
+    # Entities for this batch
+    if entities_for_batch:
+        sections.append(f"═══ ENTITIES FOR BATCH ═══\n{json.dumps(entities_for_batch, ensure_ascii=False)[:800]}")
+
+    # N-grams
+    if ngrams:
+        sections.append(f"═══ N-GRAMY ═══\n{json.dumps(ngrams[:10], ensure_ascii=False)}")
+
+    # N-gram guidance (overused, synonyms, LSI)
+    if ngram_guidance:
+        sections.append(f"═══ NGRAM GUIDANCE ═══\n{json.dumps(ngram_guidance, ensure_ascii=False)[:800]}")
+
+    # SERP enrichment (PAA, LSI, related)
+    if serp:
+        paa = serp.get("paa_for_batch", [])
+        lsi = serp.get("lsi_keywords", [])
+        if paa or lsi:
+            sections.append(f"═══ SERP ENRICHMENT ═══\nPAA: {json.dumps(paa[:5], ensure_ascii=False)}\nLSI: {json.dumps(lsi[:8], ensure_ascii=False)}")
+
+    # Enhanced data (experience markers, continuation, etc.)
+    if enhanced:
+        enhanced_parts = []
+        if enhanced.get("continuation_context"):
+            enhanced_parts.append(f"Continuation: {json.dumps(enhanced['continuation_context'], ensure_ascii=False)[:500]}")
+        if enhanced.get("experience_markers"):
+            enhanced_parts.append(f"Experience markers: {json.dumps(enhanced['experience_markers'], ensure_ascii=False)[:300]}")
+        if enhanced.get("paa_from_serp"):
+            enhanced_parts.append(f"PAA from SERP: {json.dumps(enhanced['paa_from_serp'][:5], ensure_ascii=False)}")
+        if enhanced.get("entities_to_define"):
+            enhanced_parts.append(f"Entities to define: {json.dumps(enhanced['entities_to_define'], ensure_ascii=False)[:500]}")
+        if enhanced.get("relations_to_establish"):
+            enhanced_parts.append(f"Relations: {json.dumps(enhanced['relations_to_establish'], ensure_ascii=False)[:500]}")
+        if enhanced.get("phrase_hierarchy"):
+            enhanced_parts.append(f"Phrase hierarchy: {json.dumps(enhanced['phrase_hierarchy'], ensure_ascii=False)[:500]}")
+        if enhanced_parts:
+            sections.append(f"═══ ENHANCED CONTEXT ═══\n" + "\n".join(enhanced_parts))
+
+    # Soft cap recommendations
+    if soft_caps:
+        sections.append(f"═══ SOFT CAPS ═══\n{json.dumps(soft_caps, ensure_ascii=False)[:500]}")
+
+    # Section length guidance
+    if section_length_guidance:
+        sections.append(f"═══ SECTION LENGTH ═══\n{json.dumps(section_length_guidance, ensure_ascii=False)}")
+
+    # Coverage and density context
+    if coverage:
+        sections.append(f"═══ COVERAGE ═══\n{json.dumps(coverage, ensure_ascii=False)}")
+    if density:
+        sections.append(f"═══ DENSITY ═══\n{json.dumps(density, ensure_ascii=False)}")
+
+    # Main keyword info
+    if main_kw:
+        sections.append(f"═══ MAIN KEYWORD ═══\n{json.dumps(main_kw, ensure_ascii=False)}")
+
+    # Legal/Medical YMYL context
+    if legal_ctx and legal_ctx.get("active"):
+        sections.append(f"═══ KONTEKST PRAWNY (YMYL) ═══\n{json.dumps(legal_ctx, ensure_ascii=False)[:1000]}")
+    if medical_ctx and medical_ctx.get("active"):
+        sections.append(f"═══ KONTEKST MEDYCZNY (YMYL) ═══\n{json.dumps(medical_ctx, ensure_ascii=False)[:1000]}")
+
+    # H2 plan and remaining
+    if h2_remaining:
+        sections.append(f"═══ H2 REMAINING ═══\n{json.dumps(h2_remaining, ensure_ascii=False)}")
+
+    # Format instruction
+    sections.append("""═══ FORMAT ═══
+Pisz TYLKO treść batcha. Zaczynaj od h2: [tytuł].
+Format: h2: Tytuł\\n\\nAkapit 1\\n\\nAkapit 2\\n\\nh3: Podsekcja (opcjonalnie)
+NIE dodawaj komentarzy, wyjaśnień ani podsumowań poza treścią batcha.""")
+
+    user_prompt = "\n\n".join(sections)
+
+    if engine == "openai" and OPENAI_API_KEY:
+        return _generate_openai(system_prompt, user_prompt)
+    else:
+        return _generate_claude(system_prompt, user_prompt)
+
+
+def _generate_claude(system_prompt, user_prompt):
+    """Generate text using Anthropic Claude."""
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     response = client.messages.create(
         model=ANTHROPIC_MODEL,
-        max_tokens=2000,
+        max_tokens=4000,
         system=system_prompt,
-        messages=[
-            {"role": "user", "content": user_prompt}
-        ],
+        messages=[{"role": "user", "content": user_prompt}],
         temperature=0.7
     )
     return response.content[0].text.strip()
 
 
-def generate_faq_text(paa_data, pre_batch=None):
-    """Generate FAQ section using PAA data via Anthropic Claude."""
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+def _generate_openai(system_prompt, user_prompt):
+    """Generate text using OpenAI GPT."""
+    if not OPENAI_AVAILABLE:
+        logger.warning("OpenAI not installed, falling back to Claude")
+        return _generate_claude(system_prompt, user_prompt)
+    
+    client = openai.OpenAI(api_key=OPENAI_API_KEY)
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=0.7,
+        max_tokens=4000
+    )
+    return response.choices[0].message.content.strip()
+
+
+def generate_faq_text(paa_data, pre_batch=None, engine="claude"):
+    """Generate FAQ section using PAA data + full pre_batch context."""
 
     paa_questions = paa_data.get("serp_paa", [])
     unused = paa_data.get("unused_keywords", {})
     avoid = paa_data.get("avoid_in_faq", [])
     instructions = paa_data.get("instructions", "")
 
-    # Also get enhanced PAA from pre_batch if available
-    enhanced_paa = []
+    # Get gpt_instructions from pre_batch (same as Custom GPT)
+    system_prompt = ""
     if pre_batch:
-        enhanced = pre_batch.get("enhanced", {})
+        system_prompt = pre_batch.get("gpt_instructions_v39", "") or pre_batch.get("gpt_prompt", "")
+    if not system_prompt:
+        system_prompt = "Jesteś ekspertem SEO piszącym sekcję FAQ po polsku. Pisz naturalnie, bez sztucznego tonu."
+
+    # Enhanced PAA from pre_batch
+    enhanced_paa = []
+    enhanced = {}
+    if pre_batch:
+        enhanced = pre_batch.get("enhanced") or {}
         enhanced_paa = enhanced.get("paa_from_serp", [])
 
-    prompt = f"""Napisz sekcję FAQ dla artykułu SEO po polsku.
+    # Keywords context
+    keywords_info = {}
+    keyword_limits = {}
+    if pre_batch:
+        keywords_info = pre_batch.get("keywords", {})
+        keyword_limits = pre_batch.get("keyword_limits", {})
+
+    stop_kws = keyword_limits.get("stop_keywords", [])
+    stop_list = [s.get("keyword", s) if isinstance(s, dict) else s for s in stop_kws]
+    
+    user_prompt = f"""═══ BATCH FAQ ═══
+Napisz sekcję FAQ dla artykułu SEO po polsku.
+Zaczynaj DOKŁADNIE od: h2: Najczęściej zadawane pytania
 
 Pytania PAA z Google SERP:
 {json.dumps(paa_questions, ensure_ascii=False)}
 
-{f'Dodatkowe PAA: {json.dumps(enhanced_paa, ensure_ascii=False)}' if enhanced_paa else ''}
+{f'Dodatkowe PAA z enhanced: {json.dumps(enhanced_paa, ensure_ascii=False)}' if enhanced_paa else ''}
 
-Nieużyte frazy (wpleć w odpowiedzi):
+Nieużyte frazy (wpleć naturalnie w odpowiedzi):
 {json.dumps(unused, ensure_ascii=False)}
 
 NIE powtarzaj tematów już pokrytych w artykule:
 {json.dumps(avoid, ensure_ascii=False)}
 
-{f'Instrukcje API: {instructions}' if instructions else ''}
+🛑 STOP — NIE UŻYWAJ tych fraz:
+{json.dumps(stop_list, ensure_ascii=False)}
 
-FORMAT:
+{f'Instrukcje API: {instructions}' if instructions else ''}
+{f'Article memory: {json.dumps(pre_batch.get("article_memory"), ensure_ascii=False)[:1000]}' if pre_batch and pre_batch.get("article_memory") else ''}
+{f'Style: {json.dumps(pre_batch.get("style_instructions"), ensure_ascii=False)}' if pre_batch and pre_batch.get("style_instructions") else ''}
+
+═══ FORMAT ═══
 h2: Najczęściej zadawane pytania
 
 h3: [Pytanie 1]
@@ -345,16 +533,12 @@ h3: [Pytanie 1]
 h3: [Pytanie 2]
 [Odpowiedź 60-120 słów]
 
-...
+Wybierz 4-6 najlepszych pytań. Pisz TYLKO treść batcha, bez komentarzy."""
 
-Wybierz 4-6 najlepszych pytań. Zacznij DOKŁADNIE od: h2: Najczęściej zadawane pytania"""
-
-    response = client.messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=1500,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.6
-    )
+    if engine == "openai" and OPENAI_API_KEY:
+        return _generate_openai(system_prompt, user_prompt)
+    else:
+        return _generate_claude(system_prompt, user_prompt)
     return response.content[0].text.strip()
 
 
@@ -392,11 +576,25 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "done",
                             "detail": f"{h2_patterns} H2 patterns | {causal_count} causal triplets | {gaps_count} content gaps"})
+        
+        # Send full S1 data for UI display
         yield emit("s1_data", {
-            "h2_patterns": h2_patterns,
-            "causal_triplets": causal_count,
-            "content_gaps": gaps_count,
-            "suggested_h2s": suggested_h2s
+            "h2_patterns_count": h2_patterns,
+            "causal_triplets_count": causal_count,
+            "content_gaps_count": gaps_count,
+            "suggested_h2s": suggested_h2s,
+            "search_intent": s1.get("search_intent", ""),
+            "competitor_h2_patterns": s1.get("competitor_h2_patterns", [])[:20],
+            "content_gaps": s1.get("content_gaps", {}),
+            "causal_triplets": s1.get("causal_triplets", {}).get("chains", s1.get("causal_triplets", {}).get("singles", []))[:10],
+            "causal_instruction": s1.get("causal_triplets", {}).get("agent_instruction", ""),
+            "paa_questions": (s1.get("paa_questions") or s1.get("serp_data", {}).get("paa_questions", []))[:10],
+            "entity_seo": {
+                "top_entities": s1.get("entity_seo", {}).get("top_entities", s1.get("entity_seo", {}).get("entities", []))[:10],
+                "must_mention": s1.get("entity_seo", {}).get("must_mention_entities", [])[:5]
+            },
+            "ngrams": s1.get("ngrams", [])[:15],
+            "median_length": s1.get("serp_data", {}).get("median_length", s1.get("median_length", 0))
         })
 
         # ─── KROK 2: YMYL Detection ───
@@ -558,7 +756,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             pre_batch = pre_result["data"]
             batch_type = pre_batch.get("batch_type", "CONTENT")
-            current_h2 = h2_structure[min(batch_num-1, len(h2_structure)-1)]
+
+            # Get current H2 from API (most reliable) or fallback to our plan
+            h2_remaining = pre_batch.get("h2_remaining", [])
+            semantic_plan = pre_batch.get("semantic_batch_plan") or {}
+            if h2_remaining:
+                current_h2 = h2_remaining[0]
+            elif semantic_plan.get("h2"):
+                current_h2 = semantic_plan["h2"]
+            else:
+                current_h2 = h2_structure[min(batch_num-1, len(h2_structure)-1)]
 
             must_kw = pre_batch.get("keywords", {}).get("basic_must_use", [])
             ext_kw = pre_batch.get("keywords", {}).get("extended_this_batch", [])
@@ -567,8 +774,48 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"Typ: {batch_type} | H2: {current_h2}"})
             yield emit("log", {"msg": f"MUST: {len(must_kw)} | EXTENDED: {len(ext_kw)} | STOP: {len(stop_kw)}"})
 
-            # 6c: Generate text
-            yield emit("log", {"msg": f"Generuję tekst przez {ANTHROPIC_MODEL}..."})
+            # Emit batch instructions for UI display
+            caution_kw = pre_batch.get("keyword_limits", {}).get("caution_keywords", [])
+            batch_length_info = pre_batch.get("batch_length", {})
+            enhanced_data = pre_batch.get("enhanced") or {}
+            
+            yield emit("batch_instructions", {
+                "batch": batch_num,
+                "total": total_batches,
+                "batch_type": batch_type,
+                "h2": current_h2,
+                "h2_remaining": h2_remaining[:5],
+                "target_words": batch_length_info.get("target", batch_length_info.get("recommended", "?")),
+                "word_range": f"{batch_length_info.get('min', '?')}-{batch_length_info.get('max', '?')}",
+                "must_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in must_kw],
+                "extended_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in ext_kw],
+                "stop_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in stop_kw][:10],
+                "caution_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in caution_kw][:10],
+                "coverage": pre_batch.get("coverage", {}),
+                "density": pre_batch.get("density", {}),
+                "has_gpt_instructions": bool(pre_batch.get("gpt_instructions_v39")),
+                "has_article_memory": bool(pre_batch.get("article_memory")),
+                "has_enhanced": bool(enhanced_data),
+                "has_style": bool(pre_batch.get("style_instructions")),
+                "has_legal": bool(pre_batch.get("legal_context", {}).get("active")),
+                "has_medical": bool(pre_batch.get("medical_context", {}).get("active")),
+                "semantic_plan": {
+                    "h2": (pre_batch.get("semantic_batch_plan") or {}).get("h2"),
+                    "profile": (pre_batch.get("semantic_batch_plan") or {}).get("profile"),
+                    "score": (pre_batch.get("semantic_batch_plan") or {}).get("score")
+                },
+                "entities_to_define": (enhanced_data.get("entities_to_define") or [])[:5],
+                "experience_markers": bool(enhanced_data.get("experience_markers")),
+                "continuation_context": bool(enhanced_data.get("continuation_context")),
+                "paa_from_serp": (enhanced_data.get("paa_from_serp") or [])[:3],
+                "main_keyword_ratio": (pre_batch.get("main_keyword") or {}).get("ratio"),
+                "intro_guidance": pre_batch.get("intro_guidance", "") if batch_type == "INTRO" else ""
+            })
+
+            # 6c: Generate text            has_instructions = bool(pre_batch.get("gpt_instructions_v39"))
+            has_enhanced = bool(pre_batch.get("enhanced"))
+            has_memory = bool(pre_batch.get("article_memory"))
+            yield emit("log", {"msg": f"Generuję tekst przez {ANTHROPIC_MODEL}... [instructions={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'}]"})
 
             if batch_type == "FAQ":
                 # FAQ batch: first analyze PAA
@@ -585,18 +832,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"Wygenerowano {word_count} słów"})
 
             # 6d-6g: Submit with retry logic
-            retry_count = 0
-            max_fix_retries = 2
-            forced = False
+            # Max 4 attempts: original + 2 synonym fixes + 1 forced
+            max_attempts = 4
             batch_accepted = False
 
-            while retry_count <= max_fix_retries:
+            for attempt in range(max_attempts):
+                forced = (attempt == max_attempts - 1)  # Last attempt is always forced
                 submit_data = {"text": text}
                 if forced:
                     submit_data["forced"] = True
-                    yield emit("log", {"msg": "⚡ Forced mode ON"})
+                    yield emit("log", {"msg": "⚡ Forced mode ON — wymuszam zapis"})
 
-                yield emit("log", {"msg": f"POST /batch_simple (próba {retry_count + 1})"})
+                yield emit("log", {"msg": f"POST /batch_simple (próba {attempt + 1}/{max_attempts})"})
                 submit_result = brajen_call("post", f"/api/project/{project_id}/batch_simple", submit_data)
 
                 if not submit_result["ok"]:
@@ -620,31 +867,29 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     "exceeded": [e.get("keyword", "") for e in exceeded] if exceeded else []
                 })
 
-                if accepted and action == "CONTINUE":
+                if accepted:
                     batch_accepted = True
                     yield emit("log", {"msg": f"✅ Batch {batch_num} accepted! Score: {quality.get('score')}/100"})
                     break
-                elif action == "FIX_AND_RETRY" and retry_count < max_fix_retries:
-                    retry_count += 1
-                    fixes = result.get("fixes_needed", [])
-                    yield emit("log", {"msg": f"🔧 FIX_AND_RETRY — {fixes}"})
 
-                    # Handle exceeded keywords
-                    if exceeded:
-                        for exc in exceeded:
-                            kw = exc.get("keyword", "")
-                            synonyms = exc.get("synonyms", [])
-                            if synonyms and kw:
-                                syn = synonyms[0] if isinstance(synonyms[0], str) else str(synonyms[0])
-                                text = text.replace(kw, syn, 1)
-                                yield emit("log", {"msg": f"Zamiana: '{kw}' → '{syn}'"})
-
-                    if retry_count == max_fix_retries:
-                        forced = True
-                else:
-                    yield emit("log", {"msg": f"Action: {action} — kontynuuję"})
-                    batch_accepted = accepted
+                # Not accepted — fix and retry (unless this was forced)
+                if forced:
+                    yield emit("log", {"msg": f"⚠️ Batch {batch_num} odrzucony nawet w forced mode — kontynuuję"})
                     break
+
+                # Fix exceeded keywords by replacing with synonyms
+                fixes_applied = 0
+                if exceeded:
+                    for exc in exceeded:
+                        kw = exc.get("keyword", "")
+                        synonyms = exc.get("synonyms", [])
+                        if synonyms and kw and kw in text:
+                            syn = synonyms[0] if isinstance(synonyms[0], str) else str(synonyms[0])
+                            text = text.replace(kw, syn, 1)
+                            fixes_applied += 1
+                            yield emit("log", {"msg": f"🔧 Zamiana: '{kw}' → '{syn}'"})
+
+                yield emit("log", {"msg": f"🔄 Retry — naprawiono {fixes_applied} fraz, próba {attempt + 2}/{max_attempts}"})
 
             # Save FAQ if applicable
             if batch_type == "FAQ" and batch_accepted:
@@ -705,11 +950,26 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # ─── KROK 8: Final Review ───
         yield emit("step", {"step": 8, "name": "Final Review", "status": "running"})
+        yield emit("log", {"msg": "GET /final_review..."})
         final_result = brajen_call("get", f"/api/project/{project_id}/final_review")
         if final_result["ok"]:
             final = final_result["data"]
+            final_score = final.get("quality_score", final.get("score", "?"))
+            final_status = final.get("status", "?")
+            missing_kw = final.get("missing_keywords", [])
+            issues = final.get("issues", [])
+
+            yield emit("final_review", {
+                "score": final_score,
+                "status": final_status,
+                "missing_keywords_count": len(missing_kw) if isinstance(missing_kw, list) else 0,
+                "missing_keywords": missing_kw[:10] if isinstance(missing_kw, list) else [],
+                "issues_count": len(issues) if isinstance(issues, list) else 0,
+                "issues": issues[:5] if isinstance(issues, list) else []
+            })
+
             yield emit("step", {"step": 8, "name": "Final Review", "status": "done",
-                                "detail": f"Quality: {final.get('quality_score', '?')}/100"})
+                                "detail": f"Score: {final_score}/100 | Status: {final_status}"})
 
             # YMYL validation
             if is_legal:

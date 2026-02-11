@@ -282,6 +282,105 @@
         .stat-value { font-size: 18px; font-weight: 600; color: #fff; }
         .stat-label { font-size: 11px; color: #666; margin-top: 2px; }
 
+        /* Collapsible info panels */
+        .info-panel {
+            background: #141420;
+            border: 1px solid #2a2a3a;
+            border-radius: 12px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+        .info-panel-header {
+            padding: 12px 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 13px;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .info-panel-header:hover { background: #1a1a2e; }
+        .info-panel-header .toggle { color: #666; transition: transform 0.2s; }
+        .info-panel-header.open .toggle { transform: rotate(180deg); }
+        .info-panel-body {
+            display: none;
+            padding: 0 16px 14px;
+            font-size: 12px;
+            color: #999;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .info-panel-body.open { display: block; }
+        .info-section {
+            margin: 10px 0;
+            padding: 8px 0;
+            border-top: 1px solid #1e1e30;
+        }
+        .info-section:first-child { border-top: none; }
+        .info-section-title {
+            font-weight: 600;
+            font-size: 12px;
+            color: #8b8ba3;
+            margin-bottom: 6px;
+        }
+        .info-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin: 2px 3px 2px 0;
+        }
+        .info-tag.green { background: #0d3320; color: #22c55e; }
+        .info-tag.red { background: #3d1515; color: #ef4444; }
+        .info-tag.yellow { background: #3d3015; color: #f59e0b; }
+        .info-tag.blue { background: #152040; color: #60a5fa; }
+        .info-tag.purple { background: #251540; color: #a78bfa; }
+        .info-tag.gray { background: #1a1a2a; color: #888; }
+        .kw-chip {
+            display: inline-block;
+            padding: 2px 7px;
+            margin: 2px;
+            background: #1a1a2e;
+            border: 1px solid #2a2a3a;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #ccc;
+        }
+        .kw-chip.must { border-color: #ef4444; color: #fca5a5; }
+        .kw-chip.ext { border-color: #f59e0b; color: #fcd34d; }
+        .kw-chip.stop { border-color: #666; color: #888; text-decoration: line-through; }
+        .batch-detail-card {
+            background: #0d0d18;
+            border: 1px solid #1e1e30;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin: 6px 0;
+        }
+        .batch-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            color: #ccc;
+        }
+        .batch-detail-body {
+            display: none;
+            margin-top: 8px;
+            font-size: 11px;
+        }
+        .batch-detail-body.open { display: block; }
+        .context-flags {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
         /* Article preview */
         .article-preview {
             background: #141420;
@@ -387,7 +486,7 @@
                 <textarea id="h2Structure" rows="6" placeholder="Zostaw puste → system wygeneruje z analizy S1&#10;&#10;Lub podaj wskazówki (nie muszą być dokładne):&#10;Jak zacząć przeprowadzkę&#10;Pakowanie rzeczy&#10;Dzień przeprowadzki"></textarea>
                 <div class="help-text">
                     <strong>Puste = auto:</strong> system przeanalizuje konkurencję (S1) i sam zdecyduje ile i jakie H2 potrzeba.<br>
-                    <strong>Podane = wskazówki:</strong> system je zoptymalizuje na podstawie S1. Frazy BASIC/EXTENDED idą do tekstu, nie do nagłówków.
+                    <strong>Podane = wskazówki:</strong> system wykorzysta je w nagłówkach H2 tam gdzie brzmią naturalnie, resztę dopasuje z S1.
                 </div>
             </div>
 
@@ -514,6 +613,34 @@
                     <div id="h2PlanList" style="font-size: 14px; line-height: 1.8;"></div>
                 </div>
 
+                <!-- S1 Analysis panel (collapsible) -->
+                <div class="info-panel" id="s1Panel" style="display: none;">
+                    <div class="info-panel-header" onclick="togglePanel('s1Panel')">
+                        <span>📊 Analiza S1 — dane z konkurencji</span>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="info-panel-body" id="s1PanelBody">
+                        <div class="info-section" id="s1Intent"></div>
+                        <div class="info-section" id="s1Stats"></div>
+                        <div class="info-section" id="s1H2Patterns"></div>
+                        <div class="info-section" id="s1SuggestedH2"></div>
+                        <div class="info-section" id="s1ContentGaps"></div>
+                        <div class="info-section" id="s1CausalTriplets"></div>
+                        <div class="info-section" id="s1PAA"></div>
+                        <div class="info-section" id="s1Entities"></div>
+                        <div class="info-section" id="s1Ngrams"></div>
+                    </div>
+                </div>
+
+                <!-- Batch Instructions panel (collapsible, grows per batch) -->
+                <div class="info-panel" id="batchInstrPanel" style="display: none;">
+                    <div class="info-panel-header" onclick="togglePanel('batchInstrPanel')">
+                        <span>🎯 Instrukcje per batch (pre_batch_info)</span>
+                        <span class="toggle">▼</span>
+                    </div>
+                    <div class="info-panel-body" id="batchInstrBody"></div>
+                </div>
+
                 <!-- Batch progress bar -->
                 <div class="batch-progress" id="batchProgress" style="display: none;">
                     <div class="batch-header">
@@ -526,8 +653,33 @@
                     <div class="batch-results" id="batchResults"></div>
                 </div>
 
-                <!-- Editorial card -->
+                <!-- Final Review card -->
+                <div class="editorial-card" id="finalReviewCard" style="display: none;">
+                    <div style="font-size: 13px; font-weight: 600; color: #f59e0b; margin-bottom: 10px;">🔍 FINAL REVIEW</div>
+                    <div class="editorial-stats" style="grid-template-columns: repeat(4, 1fr);">
+                        <div class="stat-box">
+                            <div class="stat-value" id="frScore">—</div>
+                            <div class="stat-label">Score</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="frStatus">—</div>
+                            <div class="stat-label">Status</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="frMissing">—</div>
+                            <div class="stat-label">Brakujące frazy</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="frIssues">—</div>
+                            <div class="stat-label">Problemy</div>
+                        </div>
+                    </div>
+                    <div id="frDetails" style="font-size: 12px; color: #888; margin-top: 8px; max-height: 100px; overflow-y: auto;"></div>
+                </div>
+
+                <!-- Editorial Review card -->
                 <div class="editorial-card" id="editorialCard" style="display: none;">
+                    <div style="font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 10px;">✍️ EDITORIAL REVIEW</div>
                     <div class="editorial-score" id="editorialScore">—<span>/10</span></div>
                     <div class="editorial-stats">
                         <div class="stat-box">
@@ -617,6 +769,171 @@
             if (detail && detailEl) detailEl.textContent = detail;
         }
 
+        // ─── Info Panel Functions ───
+        function togglePanel(id) {
+            const body = document.getElementById(id + 'Body') || document.getElementById(id).querySelector('.info-panel-body');
+            const header = document.getElementById(id).querySelector('.info-panel-header');
+            body.classList.toggle('open');
+            header.classList.toggle('open');
+        }
+
+        function toggleBatchDetail(id) {
+            const body = document.getElementById(id);
+            body.classList.toggle('open');
+        }
+
+        function kwChips(list, cls) {
+            if (!list || !list.length) return '<span style="color:#555">—</span>';
+            return list.map(k => `<span class="kw-chip ${cls}">${typeof k === 'object' ? (k.keyword || JSON.stringify(k)) : k}</span>`).join('');
+        }
+
+        function infoTag(label, active, color) {
+            return `<span class="info-tag ${active ? color : 'gray'}">${active ? '✅' : '—'} ${label}</span>`;
+        }
+
+        function renderS1Panel(d) {
+            document.getElementById('s1Panel').style.display = '';
+
+            // Intent
+            document.getElementById('s1Intent').innerHTML = d.search_intent
+                ? `<div class="info-section-title">🔍 Search Intent</div><span class="info-tag blue">${d.search_intent}</span>
+                   ${d.median_length ? `<span class="info-tag gray">Mediana: ${d.median_length} słów</span>` : ''}`
+                : '';
+
+            // Stats
+            document.getElementById('s1Stats').innerHTML = `
+                <div class="info-section-title">📈 Statystyki</div>
+                <span class="info-tag purple">${d.h2_patterns_count} H2 patterns</span>
+                <span class="info-tag yellow">${d.causal_triplets_count} causal triplets</span>
+                <span class="info-tag green">${d.content_gaps_count} content gaps</span>
+            `;
+
+            // Competitor H2 patterns
+            const h2p = d.competitor_h2_patterns || [];
+            document.getElementById('s1H2Patterns').innerHTML = h2p.length ? `
+                <div class="info-section-title">📋 Wzorce H2 konkurencji (${h2p.length})</div>
+                ${h2p.map((h, i) => {
+                    const label = typeof h === 'string' ? h : (h.pattern || h.h2 || h.title || JSON.stringify(h));
+                    const count = typeof h === 'object' ? (h.count || h.frequency || '') : '';
+                    return `<div style="margin:2px 0;color:#bbb">${i+1}. ${label}${count ? ' <span class="info-tag gray">×'+count+'</span>' : ''}</div>`;
+                }).join('')}` : '';
+
+            // Suggested new H2s
+            const sh2 = d.suggested_h2s || [];
+            document.getElementById('s1SuggestedH2').innerHTML = sh2.length ? `
+                <div class="info-section-title">💡 Sugerowane nowe H2 (luki)</div>
+                ${sh2.map(h => `<span class="info-tag green">${h}</span>`).join('')}` : '';
+
+            // Content gaps
+            const cg = d.content_gaps || {};
+            const gaps = cg.paa_unanswered || cg.subtopic_missing || cg.depth_missing || [];
+            document.getElementById('s1ContentGaps').innerHTML = gaps.length ? `
+                <div class="info-section-title">🕳️ Luki treściowe</div>
+                ${gaps.slice(0,8).map(g => {
+                    const label = typeof g === 'string' ? g : (g.question || g.topic || g.gap || JSON.stringify(g));
+                    return `<span class="info-tag yellow">${label}</span>`;
+                }).join('')}` : '';
+
+            // Causal triplets
+            const ct = d.causal_triplets || [];
+            document.getElementById('s1CausalTriplets').innerHTML = ct.length ? `
+                <div class="info-section-title">🔗 Zależności przyczynowe</div>
+                ${ct.slice(0,6).map(t => {
+                    if (typeof t === 'string') return `<div style="color:#bbb;margin:2px 0">${t}</div>`;
+                    const cause = t.cause || t.from || '';
+                    const effect = t.effect || t.to || '';
+                    return `<div style="color:#bbb;margin:2px 0">${cause} → ${effect}</div>`;
+                }).join('')}
+                ${d.causal_instruction ? `<div style="margin-top:6px;color:#888;font-style:italic">${d.causal_instruction.substring(0,200)}...</div>` : ''}` : '';
+
+            // PAA
+            const paa = d.paa_questions || [];
+            document.getElementById('s1PAA').innerHTML = paa.length ? `
+                <div class="info-section-title">❓ PAA (People Also Ask)</div>
+                ${paa.slice(0,8).map(q => `<div style="color:#bbb;margin:2px 0">• ${typeof q === 'string' ? q : (q.question || JSON.stringify(q))}</div>`).join('')}` : '';
+
+            // Entities
+            const ent = d.entity_seo || {};
+            const topEnt = ent.top_entities || [];
+            const mustEnt = ent.must_mention || [];
+            document.getElementById('s1Entities').innerHTML = (topEnt.length || mustEnt.length) ? `
+                <div class="info-section-title">🏷️ Entity SEO</div>
+                ${mustEnt.length ? '<div style="margin-bottom:4px"><strong>Must mention:</strong> ' + mustEnt.map(e => `<span class="info-tag red">${typeof e === 'string' ? e : (e.entity || e.name || JSON.stringify(e))}</span>`).join('') + '</div>' : ''}
+                ${topEnt.slice(0,8).map(e => `<span class="info-tag blue">${typeof e === 'string' ? e : (e.entity || e.name || JSON.stringify(e))}</span>`).join('')}` : '';
+
+            // Ngrams
+            const ng = d.ngrams || [];
+            document.getElementById('s1Ngrams').innerHTML = ng.length ? `
+                <div class="info-section-title">📊 Top N-gramy</div>
+                ${ng.slice(0,12).map(n => `<span class="info-tag gray">${typeof n === 'string' ? n : (n.ngram || n.phrase || n[0] || JSON.stringify(n))}</span>`).join('')}` : '';
+        }
+
+        function renderBatchInstructions(d) {
+            document.getElementById('batchInstrPanel').style.display = '';
+            const body = document.getElementById('batchInstrBody');
+            const cardId = `batchDetail${d.batch}`;
+
+            const card = document.createElement('div');
+            card.className = 'batch-detail-card';
+            card.innerHTML = `
+                <div class="batch-detail-header" onclick="toggleBatchDetail('${cardId}Body')">
+                    <span><strong>Batch ${d.batch}/${d.total}</strong> — ${d.batch_type} — <em>${d.h2}</em></span>
+                    <span style="color:#666">▶</span>
+                </div>
+                <div class="batch-detail-body" id="${cardId}Body">
+                    <div style="margin:6px 0">
+                        <span class="info-tag purple">${d.batch_type}</span>
+                        <span class="info-tag gray">${d.word_range} słów</span>
+                        ${d.semantic_plan.profile ? `<span class="info-tag blue">profil: ${d.semantic_plan.profile}</span>` : ''}
+                        ${d.semantic_plan.score ? `<span class="info-tag gray">score: ${d.semantic_plan.score}</span>` : ''}
+                    </div>
+                    <div class="context-flags">
+                        ${infoTag('gpt_instructions_v39', d.has_gpt_instructions, 'green')}
+                        ${infoTag('article_memory', d.has_article_memory, 'green')}
+                        ${infoTag('enhanced', d.has_enhanced, 'green')}
+                        ${infoTag('style', d.has_style, 'green')}
+                        ${infoTag('experience_markers', d.experience_markers, 'blue')}
+                        ${infoTag('continuation', d.continuation_context, 'blue')}
+                        ${d.has_legal ? infoTag('YMYL legal', true, 'red') : ''}
+                        ${d.has_medical ? infoTag('YMYL medical', true, 'red') : ''}
+                    </div>
+                    <div class="info-section">
+                        <div class="info-section-title">🔴 MUST keywords (${d.must_keywords.length})</div>
+                        ${kwChips(d.must_keywords, 'must')}
+                    </div>
+                    <div class="info-section">
+                        <div class="info-section-title">🟡 EXTENDED (${d.extended_keywords.length})</div>
+                        ${kwChips(d.extended_keywords, 'ext')}
+                    </div>
+                    ${d.stop_keywords.length ? `<div class="info-section">
+                        <div class="info-section-title">🛑 STOP (${d.stop_keywords.length})</div>
+                        ${kwChips(d.stop_keywords, 'stop')}
+                    </div>` : ''}
+                    ${d.caution_keywords.length ? `<div class="info-section">
+                        <div class="info-section-title">⚠️ CAUTION (${d.caution_keywords.length})</div>
+                        ${kwChips(d.caution_keywords, 'ext')}
+                    </div>` : ''}
+                    ${d.entities_to_define.length ? `<div class="info-section">
+                        <div class="info-section-title">🏷️ Entities to define</div>
+                        ${d.entities_to_define.map(e => `<span class="info-tag blue">${typeof e === 'string' ? e : (e.entity || e.name || JSON.stringify(e))}</span>`).join('')}
+                    </div>` : ''}
+                    ${d.paa_from_serp.length ? `<div class="info-section">
+                        <div class="info-section-title">❓ PAA for batch</div>
+                        ${d.paa_from_serp.map(q => `<div style="color:#bbb;margin:2px 0">• ${typeof q === 'string' ? q : (q.question || JSON.stringify(q))}</div>`).join('')}
+                    </div>` : ''}
+                    ${d.coverage && d.coverage.overall !== undefined ? `<div class="info-section">
+                        <div class="info-section-title">📊 Coverage</div>
+                        <span class="info-tag ${d.coverage.overall > 70 ? 'green' : 'yellow'}">Overall: ${typeof d.coverage.overall === 'number' ? d.coverage.overall + '%' : d.coverage.overall}</span>
+                    </div>` : ''}
+                    ${d.h2_remaining.length > 1 ? `<div class="info-section">
+                        <div class="info-section-title">📋 Remaining H2s</div>
+                        ${d.h2_remaining.slice(1).map(h => `<span class="info-tag gray">${h}</span>`).join('')}
+                    </div>` : ''}
+                </div>
+            `;
+            body.appendChild(card);
+        }
+
         function stopWorkflow() {
             if (eventSource) {
                 eventSource.close();
@@ -666,7 +983,11 @@
             document.getElementById('batchProgress').style.display = 'none';
             document.getElementById('batchResults').innerHTML = '';
             document.getElementById('editorialCard').style.display = 'none';
+            document.getElementById('finalReviewCard').style.display = 'none';
             document.getElementById('h2PlanCard').style.display = 'none';
+            document.getElementById('s1Panel').style.display = 'none';
+            document.getElementById('batchInstrPanel').style.display = 'none';
+            document.getElementById('batchInstrBody').innerHTML = '';
             document.getElementById('doneBanner').style.display = 'none';
             document.getElementById('exportButtons').style.display = 'none';
             document.getElementById('articlePreview').style.display = 'none';
@@ -742,6 +1063,16 @@
                     ).join('');
                 });
 
+                eventSource.addEventListener('s1_data', (e) => {
+                    const d = JSON.parse(e.data);
+                    renderS1Panel(d);
+                });
+
+                eventSource.addEventListener('batch_instructions', (e) => {
+                    const d = JSON.parse(e.data);
+                    renderBatchInstructions(d);
+                });
+
                 eventSource.addEventListener('batch_start', (e) => {
                     const d = JSON.parse(e.data);
                     document.getElementById('batchProgress').style.display = '';
@@ -770,6 +1101,28 @@
                     document.getElementById('editChanges').textContent = `${d.changes_applied}/${d.changes_applied + d.changes_failed}`;
                     document.getElementById('editWords').textContent = `${d.word_count_before || '?'}→${d.word_count_after || '?'}`;
                     document.getElementById('editRollback').textContent = d.rollback ? '⚠️ TAK' : '✅ NIE';
+                });
+
+                eventSource.addEventListener('final_review', (e) => {
+                    const d = JSON.parse(e.data);
+                    document.getElementById('finalReviewCard').style.display = '';
+                    document.getElementById('frScore').textContent = `${d.score}/100`;
+                    document.getElementById('frStatus').textContent = d.status;
+                    document.getElementById('frStatus').style.color = d.status === 'PASS' ? '#22c55e' : d.status === 'WARN' ? '#f59e0b' : '#ef4444';
+                    document.getElementById('frMissing').textContent = d.missing_keywords_count || 0;
+                    document.getElementById('frIssues').textContent = d.issues_count || 0;
+
+                    // Show details if there are missing keywords or issues
+                    let details = '';
+                    if (d.missing_keywords && d.missing_keywords.length > 0) {
+                        const kwList = d.missing_keywords.map(k => typeof k === 'string' ? k : k.keyword || JSON.stringify(k));
+                        details += `<div style="margin-top:4px;"><strong>Brakujące:</strong> ${kwList.join(', ')}</div>`;
+                    }
+                    if (d.issues && d.issues.length > 0) {
+                        const issueList = d.issues.map(i => typeof i === 'string' ? i : i.message || JSON.stringify(i));
+                        details += `<div style="margin-top:4px;"><strong>Problemy:</strong> ${issueList.join('; ')}</div>`;
+                    }
+                    document.getElementById('frDetails').innerHTML = details;
                 });
 
                 eventSource.addEventListener('article', (e) => {
