@@ -1,5 +1,5 @@
 """
-BRAJEN SEO Web App v45.2.2
+BRAJEN SEO Web App v45.2.3
 ==========================
 Standalone web app that orchestrates BRAJEN SEO API + Anthropic Claude for text generation.
 Replaces unreliable GPT Custom Actions with deterministic code-driven workflow.
@@ -16,7 +16,8 @@ import hashlib
 import logging
 import threading
 import queue
-from datetime import datetime
+import gc
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import (
@@ -55,8 +56,40 @@ RETRY_DELAYS = [5, 15, 30]
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Store active jobs in memory (for SSE)
+# Store active jobs in memory (for SSE) — with cleanup
 active_jobs = {}
+_active_workflow_count = 0
+_jobs_lock = threading.Lock()
+MAX_CONCURRENT_WORKFLOWS = 1  # Prevent OOM from parallel workflows
+
+# Singleton Anthropic client — reuse connection pool instead of creating new client per call
+_claude_client = None
+def get_claude_client():
+    global _claude_client
+    if _claude_client is None:
+        _claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    return _claude_client
+
+
+def _cleanup_old_jobs():
+    """Remove completed/stale jobs older than 10 minutes to prevent memory leak."""
+    cutoff = (datetime.now() - timedelta(minutes=10)).isoformat()
+    stale = [jid for jid, j in active_jobs.items()
+             if j.get("status") in ("done", "error") or j.get("created", "") < cutoff]
+    for jid in stale:
+        # Clean up /tmp export files
+        j = active_jobs[jid]
+        for k in ("export_html", "export_docx"):
+            path = j.get(k)
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+        del active_jobs[jid]
+    if stale:
+        gc.collect()
+        logger.info(f"🧹 Cleaned {len(stale)} stale jobs, {len(active_jobs)} remaining")
 
 
 # ============================================================
@@ -148,9 +181,7 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
     Number of H2s is determined by analysis AND recommended article length.
     User phrases are context for topic coverage, NOT for stuffing into H2 titles.
     """
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    
-    # Extract S1 insights
+    client = get_claude_client()
     competitor_h2 = (s1_data.get("competitor_h2_patterns") or [])
     suggested_h2s = (s1_data.get("content_gaps") or {}).get("suggested_new_h2s", [])
     content_gaps = (s1_data.get("content_gaps") or {})
@@ -493,7 +524,7 @@ NIE dodawaj komentarzy, wyjaśnień ani podsumowań poza treścią batcha.""")
 
 def _generate_claude(system_prompt, user_prompt):
     """Generate text using Anthropic Claude."""
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    client = get_claude_client()
     response = client.messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=4000,
@@ -827,68 +858,102 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "done",
                             "detail": f"{h2_patterns} H2 patterns | {causal_count} causal triplets | {gaps_count} content gaps"})
         
-        # Send FULL S1 data for UI display — all available fields
+        # Send FULL S1 data for UI display — all 10 analysis sections
         entity_seo_full = s1.get("entity_seo") or {}
         causal_full = s1.get("causal_triplets") or {}
         content_gaps_full = s1.get("content_gaps") or {}
         length_analysis = s1.get("length_analysis") or {}
         serp_analysis = s1.get("serp_analysis") or {}
+        sem_hints = s1.get("semantic_enhancement_hints") or {}
 
         yield emit("s1_data", {
-            # ─── Stats ───
-            "h2_patterns_count": h2_patterns,
-            "causal_triplets_count": causal_count,
-            "content_gaps_count": gaps_count,
+            # ─── 1️⃣ SERP & Competitor Structure ───
             "search_intent": s1.get("search_intent", ""),
-
-            # ─── Length Analysis ───
             "recommended_length": s1.get("recommended_length", 0),
             "median_length": length_analysis.get("median", s1.get("median_length", 0)),
             "average_length": length_analysis.get("average", 0),
             "analyzed_urls": length_analysis.get("analyzed_urls", 0),
             "word_counts": length_analysis.get("word_counts", []),
-
-            # ─── Competitor H2 Patterns ───
+            "h2_patterns_count": h2_patterns,
             "competitor_h2_patterns": (s1.get("competitor_h2_patterns") or [])[:25],
+            "serp_sources": (serp_analysis.get("sources") or serp_analysis.get("competitors") or s1.get("serp_sources") or [])[:10],
+            "featured_snippet": s1.get("featured_snippet") or serp_analysis.get("featured_snippet") or None,
+            "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview") or None,
+            "related_searches": (s1.get("related_searches") or serp_analysis.get("related_searches") or [])[:10],
 
-            # ─── Content Gaps (full) ───
-            "content_gaps": content_gaps_full,
-            "suggested_h2s": suggested_h2s,
-            "paa_unanswered": content_gaps_full.get("paa_unanswered", []),
-            "subtopic_missing": content_gaps_full.get("subtopic_missing", []),
-            "depth_missing": content_gaps_full.get("depth_missing", []),
-            "gaps_instruction": content_gaps_full.get("agent_instruction", ""),
-
-            # ─── Causal Triplets (full) ───
+            # ─── 2️⃣ Causal Triplets ───
+            "causal_triplets_count": causal_count,
             "causal_chains": causal_full.get("chains", [])[:15],
             "causal_singles": causal_full.get("singles", [])[:15],
             "causal_instruction": causal_full.get("agent_instruction", ""),
             "causal_count_chains": len(causal_full.get("chains", [])),
             "causal_count_singles": len(causal_full.get("singles", [])),
 
-            # ─── PAA Questions ───
-            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or [])[:15],
+            # ─── 3️⃣ Gap Analysis ───
+            "content_gaps_count": gaps_count,
+            "content_gaps": content_gaps_full,
+            "suggested_h2s": suggested_h2s,
+            "paa_unanswered": content_gaps_full.get("paa_unanswered", []),
+            "subtopic_missing": content_gaps_full.get("subtopic_missing", []),
+            "depth_missing": content_gaps_full.get("depth_missing", []),
+            "gaps_instruction": content_gaps_full.get("agent_instruction", ""),
+            "information_gain": content_gaps_full.get("information_gain", []),
 
-            # ─── Entity SEO (full) ───
+            # ─── 4️⃣ Entity SEO ───
             "entity_seo": {
-                "top_entities": (entity_seo_full.get("top_entities") or entity_seo_full.get("entities") or [])[:15],
+                "top_entities": (entity_seo_full.get("top_entities") or entity_seo_full.get("entities") or [])[:20],
                 "must_mention": (entity_seo_full.get("must_mention_entities") or [])[:10],
-                "relations": (entity_seo_full.get("relations") or [])[:10],
+                "relations": (entity_seo_full.get("relations") or entity_seo_full.get("entity_relationships") or [])[:15],
                 "entity_count": len(entity_seo_full.get("top_entities") or entity_seo_full.get("entities") or []),
                 "categories": entity_seo_full.get("categories", []),
+                "topical_coverage": (entity_seo_full.get("topical_coverage") or s1.get("topical_coverage") or [])[:15],
             },
 
-            # ─── N-grams ───
+            # ─── 5️⃣ N-grams & Collocations ───
             "ngrams": (s1.get("ngrams") or s1.get("hybrid_ngrams") or [])[:20],
-
-            # ─── Semantic Keyphrases ───
             "semantic_keyphrases": (s1.get("semantic_keyphrases") or [])[:15],
 
-            # ─── SERP Data ───
-            "featured_snippet": s1.get("featured_snippet") or serp_analysis.get("featured_snippet") or None,
-            "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview") or None,
-            "related_searches": (s1.get("related_searches") or serp_analysis.get("related_searches") or [])[:10],
-            "serp_sources": (serp_analysis.get("sources") or serp_analysis.get("competitors") or [])[:8],
+            # ─── 6️⃣ Phrase Hierarchy (will be enriched after KROK 5) ───
+            "phrase_hierarchy_preview": s1.get("phrase_hierarchy") or {},
+
+            # ─── 7️⃣ Depth Analysis (extracted from S1 competitor data) ───
+            "depth_signals": {
+                "numbers_used": bool(s1.get("depth_numbers") or any("liczb" in str(d).lower() for d in content_gaps_full.get("depth_missing", []))),
+                "dates_used": bool(s1.get("depth_dates")),
+                "institutions_cited": bool(s1.get("depth_institutions")),
+                "research_cited": bool(s1.get("depth_research")),
+                "laws_referenced": bool(s1.get("depth_laws")),
+                "exceptions_noted": bool(s1.get("depth_exceptions")),
+                "comparisons_made": bool(s1.get("depth_comparisons")),
+                "step_by_step": bool(s1.get("depth_step_by_step")),
+            },
+            "depth_missing_items": content_gaps_full.get("depth_missing", []),
+
+            # ─── 8️⃣ YMYL Signals (preliminary from S1) ───
+            "ymyl_hints": {
+                "legal_signals": bool(s1.get("ymyl_legal") or s1.get("legal_signals")),
+                "medical_signals": bool(s1.get("ymyl_medical") or s1.get("medical_signals")),
+                "needs_citations": bool(s1.get("needs_citations")),
+                "needs_disclaimer": bool(s1.get("needs_disclaimer")),
+            },
+
+            # ─── 9️⃣ PAA / FAQ Potential ───
+            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or [])[:15],
+            "paa_unanswered_count": len(content_gaps_full.get("paa_unanswered", [])),
+
+            # ─── 🔟 Agent Instructions ───
+            "agent_instructions": {
+                "gaps": content_gaps_full.get("agent_instruction", ""),
+                "causal": causal_full.get("agent_instruction", ""),
+                "semantic": (sem_hints.get("checkpoints") or {}),
+            },
+
+            # ─── Semantic Enhancement Hints ───
+            "semantic_hints": {
+                "critical_entities": sem_hints.get("critical_entities", []),
+                "high_entities": sem_hints.get("high_entities", []),
+                "must_topics": sem_hints.get("must_topics", []),
+            },
         })
 
         # ─── KROK 2: YMYL Detection ───
@@ -1024,6 +1089,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # Store project_id in job
         job["project_id"] = project_id
+        
+        # 🧹 Free S1 data — no longer needed after project creation
+        del s1_result, entity_seo_full, causal_full, content_gaps_full, length_analysis, serp_analysis, sem_hints
+        project_payload = None  # Release reference to s1 data
+        s1 = None
+        gc.collect()
+        logger.info(f"🧹 S1 data freed after project {project_id} creation")
 
         # ─── KROK 5: Phrase Hierarchy ───
         yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "running"})
@@ -1363,6 +1435,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             yield emit("step", {"step": 6, "name": "Batch Loop", "status": "running",
                                 "detail": f"{batch_num}/{total_batches} batchy"})
+            # 🧹 Free batch memory after each iteration
+            gc.collect()
 
         yield emit("step", {"step": 6, "name": "Batch Loop", "status": "done",
                             "detail": f"{total_batches}/{total_batches} batchy"})
@@ -1524,7 +1598,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         export_result = brajen_call("get", f"/api/project/{project_id}/export/html")
         if export_result["ok"]:
             if export_result.get("binary"):
-                # Save binary export
                 export_path = f"/tmp/brajen_export_{project_id}.html"
                 with open(export_path, "wb") as f:
                     f.write(export_result["content"])
@@ -1535,6 +1608,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 with open(export_path, "w", encoding="utf-8") as f:
                     f.write(content)
                 job["export_html"] = export_path
+        del export_result  # Free binary content from memory
 
         # Export DOCX
         export_docx = brajen_call("get", f"/api/project/{project_id}/export/docx")
@@ -1543,11 +1617,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             with open(export_path, "wb") as f:
                 f.write(export_docx["content"])
             job["export_docx"] = export_path
+        del export_docx  # Free binary content from memory
 
         yield emit("step", {"step": 10, "name": "Export", "status": "done",
                             "detail": "HTML + DOCX gotowe"})
 
         # ─── DONE ───
+        job["status"] = "done"
         yield emit("done", {
             "project_id": project_id,
             "word_count": stats.get("word_count", 0) if full_result["ok"] else 0,
@@ -1556,11 +1632,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "docx": bool(job.get("export_docx"))
             }
         })
+        # Free large data from memory — keep only export paths
+        for k in ("basic_terms", "extended_terms", "h2_structure"):
+            job.pop(k, None)
+        gc.collect()
 
     except Exception as e:
         logger.exception(f"Workflow error: {e}")
+        job["status"] = "error"
         yield emit("workflow_error", {"step": 0, "msg": f"Unexpected error: {str(e)}"})
-
+        gc.collect()
 
 # ============================================================
 # ROUTES
@@ -1575,6 +1656,17 @@ def index():
 @login_required
 def start_workflow():
     """Start workflow and return job_id."""
+    global _active_workflow_count
+    
+    # Cleanup old jobs to free memory
+    _cleanup_old_jobs()
+    
+    # Concurrency limit — prevent OOM from parallel workflows
+    with _jobs_lock:
+        running = sum(1 for j in active_jobs.values() if j.get("status") == "running")
+        if running >= MAX_CONCURRENT_WORKFLOWS:
+            return jsonify({"error": f"⚠️ Już działa {running} workflow — poczekaj na zakończenie"}), 429
+    
     data = request.json
 
     main_keyword = data.get("main_keyword", "").strip()
@@ -1654,15 +1746,24 @@ def stream_workflow(job_id):
             return
         data["_workflow_started"] = True
         
-        yield from run_workflow_sse(
-            job_id=job_id,
-            main_keyword=data["main_keyword"],
-            mode=data["mode"],
-            h2_structure=data["h2_structure"],
-            basic_terms=bt,
-            extended_terms=et
-        )
-        data["_workflow_started"] = False  # Allow restart after completion
+        try:
+            yield from run_workflow_sse(
+                job_id=job_id,
+                main_keyword=data["main_keyword"],
+                mode=data["mode"],
+                h2_structure=data["h2_structure"],
+                basic_terms=bt,
+                extended_terms=et
+            )
+        finally:
+            # Memory cleanup after workflow ends (success or error)
+            data["_workflow_started"] = False
+            data["status"] = "done"
+            # Remove large data from job dict to free memory
+            for key in ["basic_terms", "extended_terms", "h2_structure"]:
+                data.pop(key, None)
+            gc.collect()
+            logger.info(f"🧹 Workflow {job_id} finished — memory released")
 
     return Response(
         stream_with_context(stream_with_keepalive(generate_with_terms, keepalive_interval=15)),
@@ -1700,8 +1801,17 @@ def download_export(job_id, fmt):
 
 @app.route("/api/health")
 def health():
-    """Health check."""
-    return jsonify({"status": "ok", "version": "45.2.2"})
+    """Health check with memory info."""
+    import resource
+    mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024  # KB→MB on Linux
+    running = sum(1 for j in active_jobs.values() if j.get("status") == "running")
+    return jsonify({
+        "status": "ok",
+        "version": "45.2.3",
+        "memory_mb": round(mem_mb, 1),
+        "active_jobs": len(active_jobs),
+        "running_workflows": running
+    })
 
 
 # ============================================================
