@@ -250,7 +250,7 @@ function tBd(id){document.getElementById(id).classList.toggle('open')}
 function kc(l,c){if(!l||!l.length)return'<span style="color:var(--mg)">—</span>';return l.map(k=>`<span class="chip ${c}">${typeof k==='object'?(k.keyword||JSON.stringify(k)):k}</span>`).join('')}
 function fl(l,a,c){return`<span class="tag ${a?c:'d'}">${a?'✅':'—'} ${l}</span>`}
 function ss(v){if(v==null)return'';if(typeof v==='string')return v;return typeof v==='object'?JSON.stringify(v):String(v)}
-function el(i){if(typeof i==='string')return i;return i.entity||i.name||i.phrase||i.ngram||i.question||i.pattern||i.h2||i.title||i.topic||i.gap||JSON.stringify(i)}
+function el(i){if(typeof i==='string')return i;return i.text||i.entity||i.name||i.phrase||i.ngram||i.question||i.pattern||i.h2||i.title||i.topic||i.gap||i.keyword||(typeof i==='object'?Object.values(i).find(v=>typeof v==='string'&&v.length>1&&v.length<100)||JSON.stringify(i):String(i))}
 function fc(f){const p=f.split('/');if(p.length!==2)return M;const[n,d]=p.map(Number);if(!d)return M;const r=(n/d)*100;return r>=70?G:r>=40?W:R}
 
 // ═══ S1 PANEL ═══
@@ -304,7 +304,15 @@ function rBI(d){
     if(d.entities_to_define&&d.entities_to_define.length)x+=`<div class="sub"><div class="sub-t">Entities</div>${d.entities_to_define.map(e=>`<span class="tag o">${el(e)}</span>`).join('')}</div>`;
     if(d.relations_to_establish&&d.relations_to_establish.length)x+=`<div class="sub"><div class="sub-t">Relations</div>${d.relations_to_establish.map(r=>`<span class="tag p">${el(r)}</span>`).join('')}</div>`;
     if(d.paa_from_serp&&d.paa_from_serp.length)x+=`<div class="sub"><div class="sub-t">PAA</div>${d.paa_from_serp.map(q=>`<div style="color:var(--lg);font-size:10px">• ${el(q)}</div>`).join('')}</div>`;
-    if(d.coverage&&d.coverage.basic!==undefined)x+=`<div class="sub"><div class="sub-t">Coverage</div><span class="tag ${d.coverage.basic>50?'g':'w'}">Basic: ${d.coverage.basic}%</span>${d.coverage.extended!==undefined?`<span class="tag ${d.coverage.extended>50?'g':'w'}">Ext: ${d.coverage.extended}%</span>`:''}${d.coverage.overall!==undefined?`<span class="tag ${d.coverage.overall>70?'g':'w'}">All: ${d.coverage.overall}%</span>`:''}</div>`;
+    if(d.coverage&&(d.coverage.basic!==undefined||d.coverage.overall!==undefined)){
+        // FIX: Extract numeric value from coverage (may be object {percent:X} or number)
+        const cv=v=>{if(typeof v==='number')return v.toFixed(1);if(v&&typeof v==='object')return(v.percent||v.pct||v.value||0).toFixed(1);return'?'};
+        const cn=v=>{const n=parseFloat(cv(v));return isNaN(n)?0:n};
+        x+=`<div class="sub"><div class="sub-t">Coverage</div>`;
+        if(d.coverage.basic!==undefined)x+=`<span class="tag ${cn(d.coverage.basic)>50?'g':'w'}">Basic: ${cv(d.coverage.basic)}%</span>`;
+        if(d.coverage.extended!==undefined)x+=`<span class="tag ${cn(d.coverage.extended)>50?'g':'w'}">Ext: ${cv(d.coverage.extended)}%</span>`;
+        if(d.coverage.overall!==undefined)x+=`<span class="tag ${cn(d.coverage.overall)>70?'g':'w'}">All: ${cv(d.coverage.overall)}%</span>`;
+        x+=`</div>`}
     if(d.article_memory_summary){const am=d.article_memory_summary;x+=`<div class="sub"><div class="sub-t">Article Memory</div>${am.word_count?`<span class="tag d">${am.word_count} słów</span>`:''}${am.h2_completed&&am.h2_completed.length?am.h2_completed.map(h=>`<span class="tag g">${h}</span>`).join(''):''}${am.preview?`<div class="pre">${am.preview}</div>`:''}</div>`}
     if(d.style_summary){const s=d.style_summary;x+=`<div class="sub"><div class="sub-t">Style</div>${s.tone?`<span class="tag o">${s.tone}</span>`:''}${s.overused_words&&s.overused_words.length?s.overused_words.map(w=>`<span class="tag r">${w}</span>`).join(''):''}</div>`}
     if(d.continuation_preview){const cp=d.continuation_preview;x+=`<div class="sub"><div class="sub-t">Kontynuacja</div>${cp.last_topic?`<span class="tag d">${cp.last_topic}</span>`:''}${cp.transition_hint?`<span class="tag o">${cp.transition_hint}</span>`:''}</div>`}
@@ -391,7 +399,7 @@ async function startWorkflow(){
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
 
         let rr=0;
-        es.onerror=()=>{rr++;if(es.readyState===EventSource.CLOSED||rr>5){log(`❌ SSE lost (${rr}x)`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}else log(`⚠️ Reconnect ${rr}/5`)};
+        es.onerror=()=>{rr++;if(rr>2||es.readyState===EventSource.CLOSED){log(`❌ SSE lost (${rr}x) — workflow continues server-side`);es.close();es=null;document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}else{log(`⚠️ Reconnect ${rr}/2`)}};
         es.onopen=()=>{if(rr>0){log('✅ Reconnected');rr=0}};
     }catch(err){log(`❌ ${err.message}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}
 }
