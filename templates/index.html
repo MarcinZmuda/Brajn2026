@@ -3,1214 +3,398 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BRAJEN SEO — Content Engine</title>
+    <title>BRAJEN SEO</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0a0f;
-            color: #e0e0e0;
-            min-height: 100vh;
+        :root {
+            --black: #000000; --mg: #565656; --lg: #9e9e9e; --orange: #fba92c; --white: #ffffff;
+            --bg: #050505; --s1: #0c0c0c; --s2: #111; --s3: #181818; --s4: #1e1e1e;
+            --b1: #1a1a1a; --b2: #252525; --b3: #333;
+            --og: rgba(251,169,44,.08); --og2: rgba(251,169,44,.15); --og3: rgba(251,169,44,.25);
+            --w5: rgba(255,255,255,.05); --w8: rgba(255,255,255,.08); --w12: rgba(255,255,255,.12);
+            --gn: #34d399; --gnd: rgba(52,211,153,.1); --rd: #f87171; --rdd: rgba(248,113,113,.1);
+            --yl: #fbbf24; --yld: rgba(251,191,36,.1);
+            --r: 12px; --rs: 8px; --rl: 16px;
         }
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;-webkit-font-smoothing:antialiased;overflow:hidden}
+        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--b3)}
 
-        /* ─── HEADER ─── */
-        header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 32px;
-            border-bottom: 1px solid #1a1a2a;
-            background: #0e0e18;
-        }
-        .header-left { display: flex; align-items: center; gap: 12px; }
-        .header-left h1 { font-size: 20px; font-weight: 700; color: #fff; }
-        .header-left span { font-size: 12px; color: #6366f1; background: #1e1b4b; padding: 2px 8px; border-radius: 4px; }
-        .header-right { display: flex; align-items: center; gap: 16px; }
-        .header-right .user { color: #888; font-size: 13px; }
-        .header-right a { color: #6366f1; text-decoration: none; font-size: 13px; }
+        /* ═══ HEADER ═══ */
+        .hd{display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:52px;background:var(--black);border-bottom:1px solid var(--b1);backdrop-filter:blur(20px);position:relative;z-index:99}
+        .hd::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--orange),transparent);opacity:.15}
+        .hd-l{display:flex;align-items:center;gap:12px}
+        .hd-l h1{font-size:15px;font-weight:700;letter-spacing:-.4px}
+        .hd-l h1 b{color:var(--orange);font-weight:800}
+        .hd-badge{font-size:9px;color:var(--orange);background:var(--og);padding:3px 10px;border-radius:99px;font-weight:600;letter-spacing:.8px;border:1px solid rgba(251,169,44,.15)}
+        .hd-r{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--lg)}
+        .hd-r a{color:var(--lg);text-decoration:none;transition:color .15s}
+        .hd-r a:hover{color:var(--orange)}
 
-        /* ─── LAYOUT ─── */
-        .container {
-            display: grid;
-            grid-template-columns: 420px 1fr;
-            min-height: calc(100vh - 57px);
-        }
-        @media (max-width: 900px) {
-            .container { grid-template-columns: 1fr; }
-        }
+        /* ═══ LAYOUT ═══ */
+        .layout{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 52px)}
+        @media(max-width:960px){.layout{grid-template-columns:1fr}}
 
-        /* ─── LEFT PANEL (FORM) ─── */
-        .panel-left {
-            padding: 24px;
-            border-right: 1px solid #1a1a2a;
-            overflow-y: auto;
-            max-height: calc(100vh - 57px);
+        /* ═══ SIDEBAR ═══ */
+        .sidebar{padding:24px 20px;border-right:1px solid var(--b1);overflow-y:auto;background:var(--s1)}
+        .lbl{font-size:10px;font-weight:600;color:var(--lg);text-transform:uppercase;letter-spacing:1.5px;margin:20px 0 8px}
+        .lbl:first-child{margin-top:0}
+        input[type="text"],textarea{
+            width:100%;padding:10px 14px;background:var(--s2);border:1px solid var(--b1);
+            border-radius:var(--rs);color:var(--white);font-size:13px;font-family:inherit;
+            outline:none;transition:all .2s
         }
-        .section-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #6366f1;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
-            margin-top: 20px;
+        input::placeholder,textarea::placeholder{color:var(--mg)}
+        input:focus,textarea:focus{border-color:rgba(251,169,44,.4);box-shadow:0 0 0 3px var(--og)}
+        textarea{resize:vertical;min-height:72px;line-height:1.5}
+        .hint{font-size:10px;color:var(--mg);margin-top:5px;line-height:1.5}
+        .modes{display:flex;gap:6px;margin-bottom:12px}
+        .mbtn{
+            flex:1;padding:12px 8px;background:var(--s2);border:1px solid var(--b1);
+            border-radius:var(--rs);color:var(--mg);cursor:pointer;text-align:center;
+            transition:all .2s;font-family:inherit
         }
-        .section-title:first-child { margin-top: 0; }
+        .mbtn.on{border-color:var(--orange);color:var(--orange);background:var(--og)}
+        .mbtn:hover:not(.on){border-color:var(--b3);background:var(--s3)}
+        .mbtn strong{display:block;font-size:13px;font-weight:600;margin-bottom:2px}
+        .mbtn small{font-size:10px;color:var(--mg)}
+        .btn-go{
+            width:100%;padding:12px;margin-top:20px;
+            background:var(--orange);color:var(--black);border:none;border-radius:var(--rs);
+            font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;
+            letter-spacing:-.2px;transition:all .2s;position:relative;overflow:hidden
+        }
+        .btn-go:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 8px 24px rgba(251,169,44,.2)}
+        .btn-go:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none;filter:none}
+        .btn-go::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);transform:translateX(-100%);transition:transform .5s}
+        .btn-go:hover::after{transform:translateX(100%)}
+        .btn-stop{
+            width:100%;padding:12px;margin-top:6px;
+            background:var(--rdd);color:var(--rd);border:1px solid rgba(248,113,113,.15);
+            border-radius:var(--rs);font-size:13px;font-weight:600;font-family:inherit;
+            cursor:pointer;transition:all .15s;display:none
+        }
+        .btn-stop:hover{background:rgba(248,113,113,.18)}
+        .tbtn{background:none;border:none;color:var(--mg);font-size:10px;cursor:pointer;font-family:inherit;letter-spacing:.5px;text-transform:uppercase}
+        .tbtn:hover{color:var(--orange)}
 
-        .form-group { margin-bottom: 14px; }
-        .form-group label {
-            display: block;
-            font-size: 13px;
-            color: #999;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-        input[type="text"], textarea, select {
-            width: 100%;
-            padding: 10px 14px;
-            background: #141420;
-            border: 1px solid #2a2a3a;
-            border-radius: 8px;
-            color: #fff;
-            font-size: 14px;
-            font-family: inherit;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        input:focus, textarea:focus, select:focus { border-color: #6366f1; }
-        textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+        /* ═══ MAIN ═══ */
+        .main{padding:24px 28px;overflow-y:auto;background:var(--bg)}
 
-        .mode-toggle {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 14px;
+        .welcome{text-align:center;padding:80px 20px}
+        .w-icon{
+            width:56px;height:56px;border-radius:14px;
+            background:linear-gradient(135deg,var(--og2),var(--og));
+            display:inline-flex;align-items:center;justify-content:center;
+            font-size:24px;margin-bottom:18px;border:1px solid rgba(251,169,44,.12)
         }
-        .mode-btn {
-            flex: 1;
-            padding: 12px;
-            background: #141420;
-            border: 1px solid #2a2a3a;
-            border-radius: 8px;
-            color: #999;
-            font-size: 13px;
-            cursor: pointer;
-            text-align: center;
-            transition: all 0.2s;
-        }
-        .mode-btn.active {
-            border-color: #6366f1;
-            color: #fff;
-            background: #1e1b4b;
-        }
-        .mode-btn:hover:not(.active) { border-color: #444; }
-        .mode-label { font-weight: 600; font-size: 15px; display: block; margin-bottom: 2px; }
-        .mode-desc { font-size: 11px; color: #666; }
+        .welcome h2{font-size:18px;font-weight:700;margin-bottom:6px;letter-spacing:-.4px}
+        .welcome p{color:var(--mg);font-size:13px;line-height:1.6}
 
-        .help-text { font-size: 11px; color: #555; margin-top: 4px; line-height: 1.4; }
+        /* ═══ STEPS ═══ */
+        .steps{margin-bottom:24px}
+        .stp{display:flex;align-items:center;gap:12px;padding:9px 0}
+        .stp+.stp{border-top:1px solid var(--w5)}
+        .stp-i{
+            width:28px;height:28px;border-radius:var(--rs);display:flex;align-items:center;
+            justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;transition:all .3s
+        }
+        .stp-i.pending{background:var(--s3);color:var(--mg)}
+        .stp-i.running{background:var(--og);color:var(--orange);animation:blink 1.8s ease-in-out infinite}
+        .stp-i.done{background:var(--gnd);color:var(--gn)}
+        .stp-i.warning{background:var(--yld);color:var(--yl)}
+        .stp-i.error{background:var(--rdd);color:var(--rd)}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+        .stp-n{font-size:12px;font-weight:500;color:var(--white);flex:1}
+        .stp-d{font-size:10px;color:var(--mg);margin-top:1px}
 
-        .btn-start {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-top: 20px;
-        }
-        .btn-start:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-start:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .btn-stop {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #dc2626, #b91c1c);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-top: 8px;
-            display: none;
-        }
-        .btn-stop:hover { opacity: 0.9; }
+        /* ═══ CARDS ═══ */
+        .crd{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:18px;margin:12px 0;position:relative;overflow:hidden}
+        .crd::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--b2),transparent)}
+        .crd-t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--lg);margin-bottom:14px}
+        .crd-t b{color:var(--orange)}
 
-        /* ─── RIGHT PANEL (PROGRESS) ─── */
-        .panel-right {
-            padding: 24px 32px;
-            overflow-y: auto;
-            max-height: calc(100vh - 57px);
-        }
+        .sg{display:grid;gap:8px;margin-top:12px}
+        .sg3{grid-template-columns:repeat(3,1fr)}.sg4{grid-template-columns:repeat(4,1fr)}
+        .sc{text-align:center;padding:12px 6px;background:var(--s2);border-radius:var(--r);border:1px solid var(--b1)}
+        .sv{font-size:20px;font-weight:800;color:var(--white);letter-spacing:-.8px}.sv.xl{font-size:40px}
+        .sv span{font-size:14px;color:var(--mg);font-weight:400}
+        .sl{font-size:9px;color:var(--mg);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
 
-        .welcome {
-            text-align: center;
-            padding: 80px 20px;
-            color: #555;
-        }
-        .welcome .icon { font-size: 48px; margin-bottom: 16px; }
-        .welcome h2 { color: #888; font-size: 18px; margin-bottom: 8px; }
+        /* ═══ PROGRESS ═══ */
+        .pg-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+        .pg-lbl{font-size:12px;font-weight:500;color:var(--white)}
+        .pg-ct{font-size:12px;font-weight:700;color:var(--orange);font-family:'JetBrains Mono',monospace}
+        .pg-bar{width:100%;height:3px;background:var(--s3);border-radius:2px;overflow:hidden}
+        .pg-fill{height:100%;background:linear-gradient(90deg,var(--orange),#fcd34d);border-radius:2px;transition:width .5s ease;box-shadow:0 0 8px rgba(251,169,44,.3)}
+        .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:12px}
+        .bchip{padding:4px 12px;border-radius:99px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;letter-spacing:.3px}
+        .bchip.pend{background:var(--s3);color:var(--mg);border:1px solid var(--b1)}
+        .bchip.ok{background:var(--gnd);color:var(--gn);border:1px solid rgba(52,211,153,.2)}
+        .bchip.bad{background:var(--rdd);color:var(--rd);border:1px solid rgba(248,113,113,.2)}
 
-        /* Steps */
-        .steps { margin-bottom: 24px; }
-        .step {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 10px 0;
-            border-bottom: 1px solid #1a1a2a;
-        }
-        .step-icon {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            flex-shrink: 0;
-            margin-top: 2px;
-        }
-        .step-icon.pending { background: #1a1a2a; color: #555; }
-        .step-icon.running { background: #1e1b4b; color: #818cf8; animation: pulse 1.5s infinite; }
-        .step-icon.done { background: #064e3b; color: #34d399; }
-        .step-icon.warning { background: #3b2e1a; color: #fbbf24; }
-        .step-icon.error { background: #3b1a1a; color: #f87171; }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .step-info { flex: 1; }
-        .step-name { font-size: 14px; font-weight: 500; color: #ccc; }
-        .step-detail { font-size: 12px; color: #666; margin-top: 2px; }
+        /* ═══ COLLAPSIBLE ═══ */
+        .pnl{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);margin:12px 0;overflow:hidden}
+        .pnl-h{padding:13px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:12px;color:var(--white);transition:background .12s;user-select:none}
+        .pnl-h:hover{background:var(--w5)}
+        .pnl-h .arr{color:var(--mg);transition:transform .25s;font-size:10px}
+        .pnl-h.open .arr{transform:rotate(180deg)}
+        .pnl-b{display:none;padding:0 18px 16px;font-size:11px;color:rgba(255,255,255,.7);line-height:1.65;max-height:700px;overflow-y:auto}
+        .pnl-b.open{display:block}
+        .sec{margin:10px 0;padding:10px 0;border-top:1px solid var(--w5)}.sec:first-child{border-top:none}
+        .sec-t{font-weight:700;font-size:10px;color:var(--orange);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+        .tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:10px;margin:2px;font-weight:500;gap:4px}
+        .tag.g{background:var(--gnd);color:var(--gn)}.tag.r{background:var(--rdd);color:var(--rd)}
+        .tag.w{background:var(--yld);color:var(--yl)}.tag.o{background:var(--og);color:var(--orange)}
+        .tag.d{background:var(--w5);color:var(--lg)}.tag.p{background:rgba(139,92,246,.1);color:#a78bfa}
+        .tag.c{background:rgba(6,182,212,.1);color:#22d3ee}.tag.pk{background:rgba(236,72,153,.1);color:#f472b6}
+        .chip{display:inline-block;padding:3px 8px;margin:2px;background:var(--s3);border:1px solid var(--b1);border-radius:4px;font-size:10px;color:rgba(255,255,255,.7);font-family:'JetBrains Mono',monospace}
+        .chip.must{border-color:var(--rd);color:var(--rd);background:var(--rdd)}
+        .chip.ext{border-color:var(--orange);color:var(--orange);background:var(--og)}
+        .chip.stop{border-color:var(--b2);color:var(--mg);text-decoration:line-through}
 
-        /* Batch progress */
-        .batch-progress {
-            background: #141420;
-            border: 1px solid #2a2a3a;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
-        }
-        .batch-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .batch-title { font-size: 14px; font-weight: 600; color: #fff; }
-        .batch-counter { font-size: 13px; color: #6366f1; }
-        .progress-bar {
-            width: 100%;
-            height: 6px;
-            background: #1a1a2a;
-            border-radius: 3px;
-            overflow: hidden;
-        }
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #6366f1, #8b5cf6);
-            border-radius: 3px;
-            transition: width 0.5s ease;
-        }
+        .bd{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:12px;margin:6px 0}
+        .bd-h{display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:11px;font-weight:600}
+        .bd-b{display:none;margin-top:10px;font-size:11px}.bd-b.open{display:block}
+        .flags{display:flex;gap:3px;flex-wrap:wrap;margin:8px 0}
+        .sub{margin:8px 0;padding:8px 0;border-top:1px dashed var(--w5)}.sub:first-child{border-top:none}
+        .sub-t{font-weight:700;font-size:9px;color:var(--lg);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px}
+        .pre{background:var(--black);border:1px solid var(--b1);border-radius:var(--rs);padding:10px;font-size:10px;color:var(--lg);max-height:100px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;margin-top:5px;font-family:'JetBrains Mono',monospace;line-height:1.5}
 
-        /* Batch results grid */
-        .batch-results {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            gap: 6px;
-            margin-top: 12px;
-        }
-        .batch-chip {
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            text-align: center;
-            font-weight: 500;
-        }
-        .batch-chip.accepted { background: #064e3b; color: #34d399; }
-        .batch-chip.rejected { background: #3b1a1a; color: #f87171; }
-        .batch-chip.pending { background: #1a1a2a; color: #555; }
+        /* ═══ COMPLIANCE ═══ */
+        .cr{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px}
+        .cr .i{width:16px;text-align:center;flex-shrink:0;font-size:11px}
+        .cr.ok .i{color:var(--gn)}.cr.no .i{color:var(--rd)}.cr.half .i{color:var(--yl)}
+        .cr .l{flex:1;color:rgba(255,255,255,.7)}.cr .p{font-size:10px;color:var(--mg);width:36px;text-align:right;font-family:'JetBrains Mono',monospace}
+        .cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:6px;margin:12px 0}
+        .cs{text-align:center;padding:10px 4px;background:var(--s2);border-radius:var(--r);border:1px solid var(--b1)}
+        .cs .v{font-size:16px;font-weight:800;letter-spacing:-.5px}.cs .lb{font-size:8px;color:var(--mg);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
 
-        /* Log console */
-        .log-console {
-            background: #0e0e16;
-            border: 1px solid #1a1a2a;
-            border-radius: 10px;
-            padding: 12px 16px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-            font-size: 12px;
-            line-height: 1.6;
-        }
-        .log-line { color: #666; }
-        .log-line .ts { color: #444; }
-        .log-line .msg { color: #999; }
+        /* ═══ ARTICLE ═══ */
+        .art{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:24px;margin:14px 0;max-height:480px;overflow-y:auto;line-height:1.8;font-size:14px}
+        .art h2{color:var(--orange);font-size:17px;margin:22px 0 8px;font-weight:700;letter-spacing:-.3px}.art h2:first-child{margin-top:0}
+        .art h3{color:var(--white);font-size:14px;margin:16px 0 6px;font-weight:600}
+        .art p{color:rgba(255,255,255,.65);margin-bottom:12px}
 
-        /* Editorial */
-        .editorial-card {
-            background: #141420;
-            border: 1px solid #2a2a3a;
-            border-radius: 12px;
-            padding: 16px;
-            margin: 16px 0;
-        }
-        .editorial-score {
-            font-size: 36px;
-            font-weight: 700;
-            color: #fff;
-            text-align: center;
-        }
-        .editorial-score span { font-size: 16px; color: #666; }
-        .editorial-stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin-top: 12px;
-        }
-        .stat-box {
-            text-align: center;
-            padding: 8px;
-            background: #1a1a2a;
-            border-radius: 8px;
-        }
-        .stat-value { font-size: 18px; font-weight: 600; color: #fff; }
-        .stat-label { font-size: 11px; color: #666; margin-top: 2px; }
+        .exp{display:flex;gap:8px;margin-top:14px}
+        .btn-e{flex:1;padding:11px;border-radius:var(--rs);border:1px solid var(--b1);background:var(--s1);color:var(--white);font-size:12px;font-weight:600;cursor:pointer;text-align:center;text-decoration:none;transition:all .15s;font-family:inherit}
+        .btn-e:hover{border-color:var(--orange);color:var(--orange)}
+        .btn-e.pri{background:var(--orange);border-color:var(--orange);color:var(--black)}
+        .btn-e.pri:hover{filter:brightness(1.1)}
 
-        /* Collapsible info panels */
-        .info-panel {
-            background: #141420;
-            border: 1px solid #2a2a3a;
-            border-radius: 12px;
-            margin: 12px 0;
-            overflow: hidden;
-        }
-        .info-panel-header {
-            padding: 12px 16px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: 600;
-            font-size: 13px;
-            user-select: none;
-            transition: background 0.2s;
-        }
-        .info-panel-header:hover { background: #1a1a2e; }
-        .info-panel-header .toggle { color: #666; transition: transform 0.2s; }
-        .info-panel-header.open .toggle { transform: rotate(180deg); }
-        .info-panel-body {
-            display: none;
-            padding: 0 16px 14px;
-            font-size: 12px;
-            color: #999;
-            line-height: 1.6;
-            max-height: 500px;
-            overflow-y: auto;
-        }
-        .info-panel-body.open { display: block; }
-        .info-section {
-            margin: 10px 0;
-            padding: 8px 0;
-            border-top: 1px solid #1e1e30;
-        }
-        .info-section:first-child { border-top: none; }
-        .info-section-title {
-            font-weight: 600;
-            font-size: 12px;
-            color: #8b8ba3;
-            margin-bottom: 6px;
-        }
-        .info-tag {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            margin: 2px 3px 2px 0;
-        }
-        .info-tag.green { background: #0d3320; color: #22c55e; }
-        .info-tag.red { background: #3d1515; color: #ef4444; }
-        .info-tag.yellow { background: #3d3015; color: #f59e0b; }
-        .info-tag.blue { background: #152040; color: #60a5fa; }
-        .info-tag.purple { background: #251540; color: #a78bfa; }
-        .info-tag.gray { background: #1a1a2a; color: #888; }
-        .kw-chip {
-            display: inline-block;
-            padding: 2px 7px;
-            margin: 2px;
-            background: #1a1a2e;
-            border: 1px solid #2a2a3a;
-            border-radius: 4px;
-            font-size: 11px;
-            color: #ccc;
-        }
-        .kw-chip.must { border-color: #ef4444; color: #fca5a5; }
-        .kw-chip.ext { border-color: #f59e0b; color: #fcd34d; }
-        .kw-chip.stop { border-color: #666; color: #888; text-decoration: line-through; }
-        .batch-detail-card {
-            background: #0d0d18;
-            border: 1px solid #1e1e30;
-            border-radius: 8px;
-            padding: 10px 12px;
-            margin: 6px 0;
-        }
-        .batch-detail-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 600;
-            color: #ccc;
-        }
-        .batch-detail-body {
-            display: none;
-            margin-top: 8px;
-            font-size: 11px;
-        }
-        .batch-detail-body.open { display: block; }
-        .context-flags {
-            display: flex;
-            gap: 4px;
-            flex-wrap: wrap;
-            margin-top: 6px;
-        }
+        .done{background:linear-gradient(135deg,var(--og2),var(--og));border:1px solid rgba(251,169,44,.15);border-radius:var(--rl);padding:22px;text-align:center;margin:14px 0}
+        .done h2{color:var(--orange);font-size:17px;font-weight:800;margin-bottom:3px;letter-spacing:-.3px}
+        .done p{color:rgba(255,255,255,.6);font-size:12px}
 
-        /* Article preview */
-        .article-preview {
-            background: #141420;
-            border: 1px solid #2a2a3a;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 16px 0;
-            max-height: 500px;
-            overflow-y: auto;
-            line-height: 1.7;
-            font-size: 14px;
-        }
-        .article-preview h2 { color: #fff; font-size: 18px; margin: 20px 0 10px; }
-        .article-preview h2:first-child { margin-top: 0; }
-        .article-preview h3 { color: #ccc; font-size: 15px; margin: 16px 0 8px; }
-        .article-preview p { color: #aaa; margin-bottom: 12px; }
-
-        /* Export buttons */
-        .export-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 16px;
-        }
-        .btn-export {
-            flex: 1;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #2a2a3a;
-            background: #141420;
-            color: #ccc;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            text-align: center;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-        .btn-export:hover { border-color: #6366f1; color: #fff; }
-        .btn-export.primary {
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            border-color: transparent;
-            color: #fff;
-        }
-
-        /* Done banner */
-        .done-banner {
-            background: linear-gradient(135deg, #064e3b, #065f46);
-            border: 1px solid #10b981;
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            margin: 16px 0;
-        }
-        .done-banner h2 { color: #34d399; font-size: 20px; margin-bottom: 4px; }
-        .done-banner p { color: #6ee7b7; font-size: 14px; }
-
-        /* Toggle sections */
-        .toggle-btn {
-            background: none;
-            border: none;
-            color: #6366f1;
-            font-size: 12px;
-            cursor: pointer;
-            padding: 4px 0;
-        }
-        .collapsed { display: none; }
+        .logbox{background:var(--black);border:1px solid var(--b1);border-radius:var(--r);padding:12px 14px;max-height:220px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.7}
+        .log-line{color:var(--lg)}.log-line .ts{color:var(--mg)}
     </style>
 </head>
 <body>
-    <header>
-        <div class="header-left">
-            <h1>🧠 BRAJEN SEO</h1>
-            <span>v45.2.2</span>
+<div class="hd">
+    <div class="hd-l"><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge">V45.2</span></div>
+    <div class="hd-r"><span>{{ username }}</span><a href="/logout">Wyloguj</a></div>
+</div>
+<div class="layout">
+    <div class="sidebar">
+        <div class="lbl">Keyword</div>
+        <input type="text" id="mainKeyword" placeholder="np. od czego zacząć przeprowadzkę">
+        <div class="lbl">Tryb</div>
+        <div class="modes">
+            <div class="mbtn on" data-mode="standard" onclick="selMode('standard')"><strong>Standard</strong><small>6–9 batchy</small></div>
+            <div class="mbtn" data-mode="fast" onclick="selMode('fast')"><strong>Fast</strong><small>3 batche</small></div>
         </div>
-        <div class="header-right">
-            <span class="user">{{ username }}</span>
-            <a href="/logout">Wyloguj</a>
-        </div>
-    </header>
-
-    <div class="container">
-        <!-- ═══ LEFT: FORM ═══ -->
-        <div class="panel-left">
-            <div class="section-title">Hasło główne</div>
-            <div class="form-group">
-                <input type="text" id="mainKeyword" placeholder="np. od czego zacząć przeprowadzkę">
-            </div>
-
-            <div class="section-title">Tryb artykułu</div>
-            <div class="mode-toggle">
-                <div class="mode-btn active" data-mode="standard" onclick="selectMode('standard')">
-                    <span class="mode-label">🐢 STANDARD</span>
-                    <span class="mode-desc">6–9 batchy, 1 H2/batch</span>
-                </div>
-                <div class="mode-btn" data-mode="fast" onclick="selectMode('fast')">
-                    <span class="mode-label">🚀 FAST</span>
-                    <span class="mode-desc">3 batche, 2–3 H2/batch</span>
-                </div>
-            </div>
-
-            <div class="section-title">Nagłówki H2 <span style="color:#555; font-weight:400;">(opcjonalne)</span></div>
-            <div class="form-group">
-                <textarea id="h2Structure" rows="6" placeholder="Zostaw puste → system wygeneruje z analizy S1&#10;&#10;Lub podaj wskazówki (nie muszą być dokładne):&#10;Jak zacząć przeprowadzkę&#10;Pakowanie rzeczy&#10;Dzień przeprowadzki"></textarea>
-                <div class="help-text">
-                    <strong>Puste = auto:</strong> system przeanalizuje konkurencję (S1) i sam zdecyduje ile i jakie H2 potrzeba.<br>
-                    <strong>Podane = wskazówki:</strong> system wykorzysta je w nagłówkach H2 tam gdzie brzmią naturalnie, resztę dopasuje z S1.
-                </div>
-            </div>
-
-            <div class="section-title">
-                Frazy BASIC
-                <button class="toggle-btn" onclick="toggleSection('basicSection')">[pokaż/ukryj]</button>
-            </div>
-            <div id="basicSection">
-                <div class="form-group">
-                    <textarea id="basicTerms" rows="6" placeholder="fraza: min-maxx&#10;np:&#10;przeprowadzki: 11-25x&#10;pakować: 7-17x&#10;karton: 6-13x"></textarea>
-                    <div class="help-text">Format: fraza: min-maxx (np. pakować: 7-17x). Opcjonalne.</div>
-                </div>
-            </div>
-
-            <div class="section-title">
-                Frazy EXTENDED
-                <button class="toggle-btn" onclick="toggleSection('extendedSection')">[pokaż/ukryj]</button>
-            </div>
-            <div id="extendedSection">
-                <div class="form-group">
-                    <textarea id="extendedTerms" rows="6" placeholder="fraza: min-maxx&#10;np:&#10;przygotować się do przeprowadzki: 1-2x&#10;dzień przeprowadzki: 1x"></textarea>
-                    <div class="help-text">Format: fraza: min-maxx. Opcjonalne.</div>
-                </div>
-            </div>
-
-            <button class="btn-start" id="btnStart" onclick="startWorkflow()">
-                🚀 Uruchom workflow
-            </button>
-            <button class="btn-stop" id="btnStop" onclick="stopWorkflow()">
-                ⛔ Zatrzymaj workflow
-            </button>
-        </div>
-
-        <!-- ═══ RIGHT: PROGRESS ═══ -->
-        <div class="panel-right">
-            <div id="welcomeScreen" class="welcome">
-                <div class="icon">🧠</div>
-                <h2>BRAJEN SEO Engine</h2>
-                <p>Wpisz hasło główne i nagłówki H2, aby uruchomić pełny workflow.</p>
-                <p style="margin-top: 16px; font-size: 12px; color: #444;">
-                    S1 Analysis → YMYL → Create Project → Phrase Hierarchy →<br>
-                    Batch Loop (Claude) → PAA/FAQ → Editorial Review → Export
-                </p>
-            </div>
-
-            <div id="progressScreen" style="display: none;">
-                <!-- Steps -->
-                <div class="steps" id="stepsContainer">
-                    <div class="step" data-step="1">
-                        <div class="step-icon pending" id="stepIcon1">1</div>
-                        <div class="step-info">
-                            <div class="step-name">S1 Analysis</div>
-                            <div class="step-detail" id="stepDetail1">Oczekuje...</div>
-                        </div>
-                    </div>
-                    <div class="step" data-step="2">
-                        <div class="step-icon pending" id="stepIcon2">2</div>
-                        <div class="step-info">
-                            <div class="step-name">YMYL Detection</div>
-                            <div class="step-detail" id="stepDetail2">Oczekuje...</div>
-                        </div>
-                    </div>
-                    <div class="step" data-step="3">
-                        <div class="step-icon pending" id="stepIcon3">3</div>
-                        <div class="step-info">
-                            <div class="step-name">H2 Planning</div>
-                            <div class="step-detail" id="stepDetail3">Oczekuje...</div>
-                        </div>
-                    </div>
-                    <div class="step" data-step="4">
-                        <div class="step-icon pending" id="stepIcon4">4</div>
-                        <div class="step-info">
-                            <div class="step-name">Create Project</div>
-                            <div class="step-detail" id="stepDetail4">Oczekuje...</div>
-                        </div>
-                    </div>
-                    <div class="step" data-step="5">
-                        <div class="step-icon pending" id="stepIcon5">5</div>
-                        <div class="step-info">
-                            <div class="step-name">Phrase Hierarchy</div>
-                            <div class="step-detail" id="stepDetail5">Oczekuje...</div>
-                        </div>
-                    </div>
-                    <div class="step" data-step="6">
-                        <div class="step-icon pending" id="stepIcon6">6</div>
-                        <div class="step-info">
-                            <div class="step-name">Batch Loop</div>
-                            <div class="step-detail" id="stepDetail6">Oczekuje...</div>
-                        </div>
-                    </div>
-                    <div class="step" data-step="7">
-                        <div class="step-icon pending" id="stepIcon7">7</div>
-                        <div class="step-info">
-                            <div class="step-name">PAA / FAQ</div>
-                            <div class="step-detail" id="stepDetail7">Oczekuje...</div>
-                        </div>
-                    </div>
-                    <div class="step" data-step="8">
-                        <div class="step-icon pending" id="stepIcon8">8</div>
-                        <div class="step-info">
-                            <div class="step-name">Final Review</div>
-                            <div class="step-detail" id="stepDetail8">Oczekuje...</div>
-                        </div>
-                    </div>
-                    <div class="step" data-step="9">
-                        <div class="step-icon pending" id="stepIcon9">9</div>
-                        <div class="step-info">
-                            <div class="step-name">Editorial Review</div>
-                            <div class="step-detail" id="stepDetail9">Oczekuje...</div>
-                        </div>
-                    </div>
-                    <div class="step" data-step="10">
-                        <div class="step-icon pending" id="stepIcon10">10</div>
-                        <div class="step-info">
-                            <div class="step-name">Export</div>
-                            <div class="step-detail" id="stepDetail10">Oczekuje...</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- H2 Plan display -->
-                <div class="editorial-card" id="h2PlanCard" style="display: none;">
-                    <div style="font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 10px;">📋 WYGENEROWANY PLAN H2</div>
-                    <div id="h2PlanList" style="font-size: 14px; line-height: 1.8;"></div>
-                </div>
-
-                <!-- S1 Analysis panel (collapsible) -->
-                <div class="info-panel" id="s1Panel" style="display: none;">
-                    <div class="info-panel-header" onclick="togglePanel('s1Panel')">
-                        <span>📊 Analiza S1 — dane z konkurencji</span>
-                        <span class="toggle">▼</span>
-                    </div>
-                    <div class="info-panel-body" id="s1PanelBody">
-                        <div class="info-section" id="s1Intent"></div>
-                        <div class="info-section" id="s1Stats"></div>
-                        <div class="info-section" id="s1H2Patterns"></div>
-                        <div class="info-section" id="s1SuggestedH2"></div>
-                        <div class="info-section" id="s1ContentGaps"></div>
-                        <div class="info-section" id="s1CausalTriplets"></div>
-                        <div class="info-section" id="s1PAA"></div>
-                        <div class="info-section" id="s1Entities"></div>
-                        <div class="info-section" id="s1Ngrams"></div>
-                    </div>
-                </div>
-
-                <!-- Batch Instructions panel (collapsible, grows per batch) -->
-                <div class="info-panel" id="batchInstrPanel" style="display: none;">
-                    <div class="info-panel-header" onclick="togglePanel('batchInstrPanel')">
-                        <span>🎯 Instrukcje per batch (pre_batch_info)</span>
-                        <span class="toggle">▼</span>
-                    </div>
-                    <div class="info-panel-body" id="batchInstrBody"></div>
-                </div>
-
-                <!-- Batch progress bar -->
-                <div class="batch-progress" id="batchProgress" style="display: none;">
-                    <div class="batch-header">
-                        <span class="batch-title">📝 Generowanie batchy</span>
-                        <span class="batch-counter" id="batchCounter">0/0</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="batchProgressFill" style="width: 0%;"></div>
-                    </div>
-                    <div class="batch-results" id="batchResults"></div>
-                </div>
-
-                <!-- Final Review card -->
-                <div class="editorial-card" id="finalReviewCard" style="display: none;">
-                    <div style="font-size: 13px; font-weight: 600; color: #f59e0b; margin-bottom: 10px;">🔍 FINAL REVIEW</div>
-                    <div class="editorial-stats" style="grid-template-columns: repeat(4, 1fr);">
-                        <div class="stat-box">
-                            <div class="stat-value" id="frScore">—</div>
-                            <div class="stat-label">Score</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="stat-value" id="frStatus">—</div>
-                            <div class="stat-label">Status</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="stat-value" id="frMissing">—</div>
-                            <div class="stat-label">Brakujące frazy</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="stat-value" id="frIssues">—</div>
-                            <div class="stat-label">Problemy</div>
-                        </div>
-                    </div>
-                    <div id="frDetails" style="font-size: 12px; color: #888; margin-top: 8px; max-height: 100px; overflow-y: auto;"></div>
-                </div>
-
-                <!-- Editorial Review card -->
-                <div class="editorial-card" id="editorialCard" style="display: none;">
-                    <div style="font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 10px;">✍️ EDITORIAL REVIEW</div>
-                    <div class="editorial-score" id="editorialScore">—<span>/10</span></div>
-                    <div class="editorial-stats">
-                        <div class="stat-box">
-                            <div class="stat-value" id="editChanges">—</div>
-                            <div class="stat-label">Zmiany</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="stat-value" id="editWords">—</div>
-                            <div class="stat-label">Słowa</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="stat-value" id="editRollback">—</div>
-                            <div class="stat-label">Rollback</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Done banner -->
-                <div class="done-banner" id="doneBanner" style="display: none;">
-                    <h2>✅ Artykuł gotowy!</h2>
-                    <p id="doneDetail"></p>
-                </div>
-
-                <!-- Export buttons -->
-                <div class="export-buttons" id="exportButtons" style="display: none;">
-                    <a class="btn-export primary" id="exportHtml">📄 Pobierz HTML</a>
-                    <a class="btn-export" id="exportDocx">📋 Pobierz DOCX</a>
-                </div>
-
-                <!-- Article preview -->
-                <div class="section-title" style="margin-top: 20px;">
-                    Podgląd artykułu
-                    <button class="toggle-btn" onclick="toggleSection('articlePreview')">[pokaż/ukryj]</button>
-                </div>
-                <div class="article-preview" id="articlePreview" style="display: none;"></div>
-
-                <!-- Log console -->
-                <div class="section-title" style="margin-top: 20px;">
-                    Logi
-                    <button class="toggle-btn" onclick="toggleSection('logConsole')">[pokaż/ukryj]</button>
-                </div>
-                <div class="log-console" id="logConsole"></div>
-            </div>
+        <div class="lbl">Nagłówki H2 <span style="opacity:.4;font-weight:400">opcjonalne</span></div>
+        <textarea id="h2Structure" rows="4" placeholder="Puste = auto z S1&#10;Lub wpisz wskazówki"></textarea>
+        <div class="hint">Puste → system sam wygeneruje z analizy konkurencji.</div>
+        <div class="lbl">Frazy BASIC <button class="tbtn" onclick="tog('bsc')">pokaż</button></div>
+        <div id="bsc" style="display:none"><textarea id="basicTerms" rows="3" placeholder="fraza: min-maxx"></textarea></div>
+        <div class="lbl">Frazy EXTENDED <button class="tbtn" onclick="tog('ext')">pokaż</button></div>
+        <div id="ext" style="display:none"><textarea id="extendedTerms" rows="3" placeholder="fraza: min-maxx"></textarea></div>
+        <button class="btn-go" id="btnStart" onclick="startWorkflow()">Uruchom workflow →</button>
+        <button class="btn-stop" id="btnStop" onclick="stopWF()">Zatrzymaj</button>
+    </div>
+    <div class="main">
+        <div id="wel" class="welcome"><div class="w-icon">⚡</div><h2>BRAJEN SEO Engine</h2><p>Wpisz keyword i uruchom workflow</p></div>
+        <div id="prog" style="display:none">
+            <div class="steps" id="stC"></div>
+            <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
+            <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" onclick="tPnl('s1P')"><span>📊 Analiza S1</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B"></div></div>
+            <div class="pnl" id="biP" style="display:none"><div class="pnl-h" onclick="tPnl('biP')"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
+            <div class="crd" id="bpC" style="display:none"><div class="pg-top"><span class="pg-lbl">Generowanie</span><span class="pg-ct" id="bCt">0/0</span></div><div class="pg-bar"><div class="pg-fill" id="bFill" style="width:0%"></div></div><div class="chips" id="bRes"></div></div>
+            <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frD" style="font-size:11px;color:var(--mg);margin-top:10px;max-height:60px;overflow-y:auto"></div></div>
+            <div class="crd" id="edC" style="display:none"><div class="crd-t"><b>Editorial</b> Review</div><div class="sv xl" style="text-align:center" id="edSc">—<span>/10</span></div><div class="sg sg3"><div class="sc"><div class="sv" id="edCh">—</div><div class="sl">Zmiany</div></div><div class="sc"><div class="sv" id="edW">—</div><div class="sl">Słowa</div></div><div class="sc"><div class="sv" id="edR">—</div><div class="sl">Rollback</div></div></div></div>
+            <div class="pnl" id="cpP" style="display:none"><div class="pnl-h" onclick="tPnl('cpP')"><span>✅ S1 Compliance</span><span class="arr">▼</span></div><div class="pnl-b" id="cpB"></div></div>
+            <div class="done" id="doneB" style="display:none"><h2>✓ Artykuł gotowy</h2><p id="doneD"></p></div>
+            <div class="exp" id="expB" style="display:none"><a class="btn-e pri" id="exH">HTML</a><a class="btn-e" id="exD">DOCX</a></div>
+            <div style="margin-top:20px"><span class="lbl">Podgląd <button class="tbtn" onclick="tog('artP')">pokaż</button></span></div>
+            <div class="art" id="artP" style="display:none"></div>
+            <div style="margin-top:16px"><span class="lbl">Logi <button class="tbtn" onclick="tog('logC')">pokaż</button></span></div>
+            <div class="logbox" id="logC"></div>
         </div>
     </div>
+</div>
+<script>
+(function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Final Review','Editorial','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
-    <script>
-        let currentMode = 'standard';
-        let currentJobId = null;
-        let totalBatches = 0;
-        let eventSource = null;
+let mode='standard',jid=null,tb=0,es=null;
+const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
-        function selectMode(mode) {
-            currentMode = mode;
-            document.querySelectorAll('.mode-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.mode === mode);
-            });
-        }
+function selMode(m){mode=m;document.querySelectorAll('.mbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===m))}
+function tog(id){const e=document.getElementById(id);e.style.display=e.style.display==='none'?'':'none'}
+function log(m){const c=document.getElementById('logC');c.innerHTML+=`<div class="log-line"><span class="ts">${new Date().toLocaleTimeString('pl-PL')}</span> ${m}</div>`;c.scrollTop=c.scrollHeight}
+function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);if(!i)return;i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d}
+function tPnl(id){const p=document.getElementById(id),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');b.classList.toggle('open');h.classList.toggle('open')}
+function tBd(id){document.getElementById(id).classList.toggle('open')}
 
-        function toggleSection(id) {
-            const el = document.getElementById(id);
-            if (el.style.display === 'none') {
-                el.style.display = '';
-            } else {
-                el.style.display = 'none';
-            }
-        }
+function kc(l,c){if(!l||!l.length)return'<span style="color:var(--mg)">—</span>';return l.map(k=>`<span class="chip ${c}">${typeof k==='object'?(k.keyword||JSON.stringify(k)):k}</span>`).join('')}
+function fl(l,a,c){return`<span class="tag ${a?c:'d'}">${a?'✅':'—'} ${l}</span>`}
+function ss(v){if(v==null)return'';if(typeof v==='string')return v;return typeof v==='object'?JSON.stringify(v):String(v)}
+function el(i){if(typeof i==='string')return i;return i.entity||i.name||i.phrase||i.ngram||i.question||i.pattern||i.h2||i.title||i.topic||i.gap||JSON.stringify(i)}
+function fc(f){const p=f.split('/');if(p.length!==2)return M;const[n,d]=p.map(Number);if(!d)return M;const r=(n/d)*100;return r>=70?G:r>=40?W:R}
 
-        function addLog(msg) {
-            const console = document.getElementById('logConsole');
-            const time = new Date().toLocaleTimeString('pl-PL');
-            console.innerHTML += `<div class="log-line"><span class="ts">[${time}]</span> <span class="msg">${msg}</span></div>`;
-            console.scrollTop = console.scrollHeight;
-        }
+// ═══ S1 PANEL ═══
+function rS1(d){
+    document.getElementById('s1P').style.display='';
+    let h='';
+    h+=`<div class="sec"><div class="sec-t">Search Intent & Długość</div>
+        ${d.search_intent?`<span class="tag o">${d.search_intent}</span>`:''}
+        <span class="tag w">Rekomendacja: ${d.recommended_length||'?'} słów</span>
+        <span class="tag d">Mediana: ${d.median_length||'?'}</span>
+        ${d.average_length?`<span class="tag d">Średnia: ${d.average_length}</span>`:''}
+        ${d.analyzed_urls?`<span class="tag d">${d.analyzed_urls} stron</span>`:''}
+    </div>`;
+    const wc=d.word_counts||[];
+    if(wc.length){const mx=Math.max(...wc.slice(0,10));h+=`<div class="sec"><div class="sec-t">Rozkład długości</div><div style="display:flex;gap:3px;align-items:flex-end;height:50px">${wc.slice(0,10).map(w=>{const ht=mx>0?Math.round((w/mx)*44)+6:16;return`<div style="width:28px;text-align:center"><div style="background:var(--orange);height:${ht}px;border-radius:3px 3px 0 0;opacity:.7"></div><div style="font-size:8px;color:var(--mg);margin-top:2px">${w}</div></div>`}).join('')}</div></div>`}
+    const ng=d.ngrams||[];
+    if(ng.length)h+=`<div class="sec"><div class="sec-t">N-gramy (${ng.length})</div>${ng.map(n=>{const l=el(n),w=typeof n==='object'?(n.weight||n.score||''):'';return`<span class="tag c">${l}${w?` · ${w}`:''}</span>`}).join('')}</div>`;
+    const ent=d.entity_seo||{},tE=ent.top_entities||[],mE=ent.must_mention||[],eR=ent.relations||[];
+    if(tE.length||mE.length){h+=`<div class="sec"><div class="sec-t">Entity SEO (${ent.entity_count||tE.length})</div>`;if(mE.length)h+=`<div style="margin-bottom:6px"><strong style="color:var(--rd);font-size:10px">MUST:</strong> ${mE.map(e=>`<span class="tag r">${el(e)}</span>`).join('')}</div>`;h+=tE.map(e=>`<span class="tag o">${el(e)}</span>`).join('');if(eR.length)h+=`<div style="margin-top:6px">${eR.map(r=>typeof r==='string'?`<span class="tag p">${r}</span>`:`<span class="tag p">${r.from||'?'} → ${r.to||'?'}</span>`).join('')}</div>`;h+=`</div>`}
+    const skp=d.semantic_keyphrases||[];
+    if(skp.length)h+=`<div class="sec"><div class="sec-t">Semantic Keyphrases (${skp.length})</div>${skp.map(k=>`<span class="tag pk">${el(k)}</span>`).join('')}</div>`;
+    const h2p=d.competitor_h2_patterns||[];
+    if(h2p.length)h+=`<div class="sec"><div class="sec-t">Wzorce H2 (${h2p.length})</div>${h2p.map((x,i)=>`<div style="color:var(--lg);font-size:11px;padding:2px 0">${i+1}. ${el(x)}</div>`).join('')}</div>`;
+    const sh2=d.suggested_h2s||[];
+    if(sh2.length)h+=`<div class="sec"><div class="sec-t">Sugerowane H2</div>${sh2.map(x=>`<span class="tag g">${ss(x)}</span>`).join('')}</div>`;
+    const pU=d.paa_unanswered||[],sM=d.subtopic_missing||[],dM=d.depth_missing||[];
+    if(pU.length||sM.length||dM.length){h+=`<div class="sec"><div class="sec-t">Luki treściowe</div>`;if(pU.length)h+=`<div style="margin:4px 0">PAA: ${pU.slice(0,6).map(g=>`<span class="tag w">${el(g)}</span>`).join('')}</div>`;if(sM.length)h+=`<div style="margin:4px 0">Podtematy: ${sM.slice(0,6).map(g=>`<span class="tag o">${el(g)}</span>`).join('')}</div>`;if(dM.length)h+=`<div style="margin:4px 0">Głębia: ${dM.slice(0,6).map(g=>`<span class="tag p">${el(g)}</span>`).join('')}</div>`;if(d.gaps_instruction)h+=`<div class="pre">${d.gaps_instruction.substring(0,300)}</div>`;h+=`</div>`}
+    const cc=d.causal_chains||[],cs=d.causal_singles||[];
+    if(cc.length||cs.length){h+=`<div class="sec"><div class="sec-t">Causal (${(d.causal_count_chains||0)+(d.causal_count_singles||0)})</div>`;[...cc.slice(0,6),...cs.slice(0,6)].forEach(t=>{h+=`<div style="color:var(--lg);font-size:11px;padding:2px 0">${t.cause||t.from||''} <span style="color:var(--orange)">→</span> ${t.effect||t.to||''}</div>`});if(d.causal_instruction)h+=`<div class="pre">${d.causal_instruction.substring(0,300)}</div>`;h+=`</div>`}
+    const paa=d.paa_questions||[];
+    if(paa.length)h+=`<div class="sec"><div class="sec-t">PAA (${paa.length})</div>${paa.map(q=>`<div style="color:var(--lg);font-size:11px;padding:2px 0">• ${el(q)}</div>`).join('')}</div>`;
+    const fs=d.featured_snippet,aio=d.ai_overview,rs=d.related_searches||[];
+    if(fs||aio||rs.length){h+=`<div class="sec"><div class="sec-t">SERP</div>`;if(fs)h+=`<span class="tag g">${(typeof fs==='string'?fs:(fs.text||JSON.stringify(fs))).substring(0,120)}</span>`;if(aio)h+=`<span class="tag o">${(typeof aio==='string'?aio:(aio.text||JSON.stringify(aio))).substring(0,120)}</span>`;if(rs.length)h+=`<div style="margin-top:4px">${rs.map(r=>`<span class="tag d">${ss(r)}</span>`).join('')}</div>`;h+=`</div>`}
+    document.getElementById('s1B').innerHTML=h;
+}
 
-        function updateStep(step, status, detail) {
-            const icon = document.getElementById(`stepIcon${step}`);
-            const detailEl = document.getElementById(`stepDetail${step}`);
-            if (!icon) return;
+// ═══ BATCH INSTRUCTIONS ═══
+function rBI(d){
+    document.getElementById('biP').style.display='';
+    const body=document.getElementById('biB'),cid=`bd${d.batch}`;
+    const card=document.createElement('div');card.className='bd';
+    let x=`<div style="margin:4px 0"><span class="tag p">${d.batch_type}</span><span class="tag d">${d.word_range} słów</span>`;
+    if(d.semantic_plan&&d.semantic_plan.profile)x+=`<span class="tag o">${d.semantic_plan.profile}</span>`;
+    if(d.batch_length_detail&&d.batch_length_detail.complexity_score)x+=`<span class="tag c">cmplx: ${d.batch_length_detail.complexity_score}</span>`;
+    if(d.main_keyword_ratio)x+=`<span class="tag d">MK: ${d.main_keyword_ratio}</span>`;x+=`</div>`;
+    x+=`<div class="flags">${fl('instructions',d.has_gpt_instructions,'g')}${fl('prompt',d.has_gpt_prompt,'g')}${fl('memory',d.has_article_memory,'g')}${fl('enhanced',d.has_enhanced,'g')}${fl('style',d.has_style,'g')}${fl('exp_markers',d.experience_markers,'o')}${fl('continuation',d.continuation_context,'o')}${fl('cont_v39',d.has_continuation_v39,'o')}${fl('causal',d.has_causal_context,'p')}${fl('info_gain',d.has_information_gain,'p')}${fl('smart',d.has_smart_instructions,'p')}${fl('hierarchy',d.has_phrase_hierarchy,'o')}${d.has_legal?fl('YMYL legal',1,'r'):''}${d.has_medical?fl('YMYL med',1,'r'):''}</div>`;
+    x+=`<div class="sub"><div class="sub-t">MUST (${d.must_keywords.length})</div>${kc(d.must_keywords,'must')}</div>`;
+    x+=`<div class="sub"><div class="sub-t">EXTENDED (${d.extended_keywords.length})</div>${kc(d.extended_keywords,'ext')}</div>`;
+    if(d.stop_keywords&&d.stop_keywords.length)x+=`<div class="sub"><div class="sub-t">STOP</div>${kc(d.stop_keywords,'stop')}</div>`;
+    if(d.caution_keywords&&d.caution_keywords.length)x+=`<div class="sub"><div class="sub-t">CAUTION</div>${kc(d.caution_keywords,'ext')}</div>`;
+    if(d.entities_to_define&&d.entities_to_define.length)x+=`<div class="sub"><div class="sub-t">Entities</div>${d.entities_to_define.map(e=>`<span class="tag o">${el(e)}</span>`).join('')}</div>`;
+    if(d.relations_to_establish&&d.relations_to_establish.length)x+=`<div class="sub"><div class="sub-t">Relations</div>${d.relations_to_establish.map(r=>`<span class="tag p">${el(r)}</span>`).join('')}</div>`;
+    if(d.paa_from_serp&&d.paa_from_serp.length)x+=`<div class="sub"><div class="sub-t">PAA</div>${d.paa_from_serp.map(q=>`<div style="color:var(--lg);font-size:10px">• ${el(q)}</div>`).join('')}</div>`;
+    if(d.coverage&&d.coverage.basic!==undefined)x+=`<div class="sub"><div class="sub-t">Coverage</div><span class="tag ${d.coverage.basic>50?'g':'w'}">Basic: ${d.coverage.basic}%</span>${d.coverage.extended!==undefined?`<span class="tag ${d.coverage.extended>50?'g':'w'}">Ext: ${d.coverage.extended}%</span>`:''}${d.coverage.overall!==undefined?`<span class="tag ${d.coverage.overall>70?'g':'w'}">All: ${d.coverage.overall}%</span>`:''}</div>`;
+    if(d.article_memory_summary){const am=d.article_memory_summary;x+=`<div class="sub"><div class="sub-t">Article Memory</div>${am.word_count?`<span class="tag d">${am.word_count} słów</span>`:''}${am.h2_completed&&am.h2_completed.length?am.h2_completed.map(h=>`<span class="tag g">${h}</span>`).join(''):''}${am.preview?`<div class="pre">${am.preview}</div>`:''}</div>`}
+    if(d.style_summary){const s=d.style_summary;x+=`<div class="sub"><div class="sub-t">Style</div>${s.tone?`<span class="tag o">${s.tone}</span>`:''}${s.overused_words&&s.overused_words.length?s.overused_words.map(w=>`<span class="tag r">${w}</span>`).join(''):''}</div>`}
+    if(d.continuation_preview){const cp=d.continuation_preview;x+=`<div class="sub"><div class="sub-t">Kontynuacja</div>${cp.last_topic?`<span class="tag d">${cp.last_topic}</span>`:''}${cp.transition_hint?`<span class="tag o">${cp.transition_hint}</span>`:''}</div>`}
+    if(d.legal_context_preview)x+=`<div class="sub"><div class="sub-t">⚖️ Legal</div><span class="tag r">Active</span>${d.legal_context_preview.instruction_preview?`<div class="pre">${d.legal_context_preview.instruction_preview}</div>`:''}</div>`;
+    if(d.medical_context_preview)x+=`<div class="sub"><div class="sub-t">🏥 Medical</div><span class="tag r">Active</span>${d.medical_context_preview.instruction_preview?`<div class="pre">${d.medical_context_preview.instruction_preview}</div>`:''}</div>`;
+    if(d.phrase_hierarchy_data)x+=`<div class="sub"><div class="sub-t">Hierarchy</div>${d.phrase_hierarchy_data.strategy?`<span class="tag p">${d.phrase_hierarchy_data.strategy}</span>`:''}${(d.phrase_hierarchy_data.roots_covered||[]).map(r=>`<span class="tag c">${ss(r)}</span>`).join('')}</div>`;
+    if(d.intro_guidance)x+=`<div class="sub"><div class="sub-t">Intro</div><div class="pre">${d.intro_guidance.substring(0,250)}</div></div>`;
+    if(d.causal_context_preview)x+=`<div class="sub"><div class="sub-t">Causal</div><div class="pre">${d.causal_context_preview}</div></div>`;
+    if(d.information_gain_preview)x+=`<div class="sub"><div class="sub-t">Info Gain</div><div class="pre">${d.information_gain_preview}</div></div>`;
+    if(d.smart_instructions_preview)x+=`<div class="sub"><div class="sub-t">Smart Instr</div><div class="pre">${d.smart_instructions_preview}</div></div>`;
+    if(d.gpt_instructions_preview)x+=`<div class="sub"><div class="sub-t">GPT Instr v39</div><div class="pre">${d.gpt_instructions_preview}</div></div>`;
+    if(d.h2_remaining&&d.h2_remaining.length>1)x+=`<div class="sub"><div class="sub-t">H2 remaining</div>${d.h2_remaining.slice(1).map(h=>`<span class="tag d">${h}</span>`).join('')}</div>`;
+    card.innerHTML=`<div class="bd-h" onclick="tBd('${cid}')"><span><strong style="color:var(--orange)">B${d.batch}</strong>/${d.total} · <span class="tag p" style="margin:0">${d.batch_type}</span> · <span style="color:var(--lg)">${d.h2}</span></span><span style="color:var(--mg)">▸</span></div><div class="bd-b" id="${cid}">${x}</div>`;
+    body.appendChild(card);
+}
 
-            icon.className = `step-icon ${status}`;
-            if (status === 'done') icon.textContent = '✓';
-            else if (status === 'running') icon.textContent = '⟳';
-            else if (status === 'warning') icon.textContent = '!';
-            else if (status === 'error') icon.textContent = '✗';
+// ═══ S1 COMPLIANCE ═══
+function rCP(d){
+    document.getElementById('cpP').style.display='';
+    const body=document.getElementById('cpB'),s=d.summary||{};
+    let h=`<div class="cg">
+        <div class="cs"><div class="v" style="color:${fc(s.entities||'0/0')}">${s.entities||'—'}</div><div class="lb">Encje</div></div>
+        <div class="cs"><div class="v" style="color:${fc(s.entities_must||'0/0')}">${s.entities_must||'—'}</div><div class="lb">Must</div></div>
+        <div class="cs"><div class="v" style="color:${fc(s.causal_triplets||'0/0')}">${s.causal_triplets||'—'}</div><div class="lb">Causal</div></div>
+        <div class="cs"><div class="v" style="color:${fc(s.content_gaps||'0/0')}">${s.content_gaps||'—'}</div><div class="lb">Gaps</div></div>
+        <div class="cs"><div class="v" style="color:${fc(s.ngrams||'0/0')}">${s.ngrams||'—'}</div><div class="lb">N-gram</div></div>
+        <div class="cs"><div class="v" style="color:${fc(s.paa||'0/0')}">${s.paa||'—'}</div><div class="lb">PAA</div></div>
+        <div class="cs"><div class="v" style="color:${fc(s.semantic_keyphrases||'0/0')}">${s.semantic_keyphrases||'—'}</div><div class="lb">Sem KP</div></div>
+        <div class="cs"><div class="v" style="color:var(--orange)">${s.editorial_score||'—'}</div><div class="lb">Editorial</div></div>
+    </div>`;
+    if(d.entities&&d.entities.length)h+=`<div class="sec"><div class="sec-t">Encje</div>${d.entities.map(e=>`<div class="cr ${e.found?'ok':'no'}"><span class="i">${e.found?'✓':'✗'}</span><span class="l">${e.entity}${e.must?' <span class="tag r" style="font-size:8px;padding:1px 6px">MUST</span>':''}</span></div>`).join('')}</div>`;
+    if(d.causal_triplets&&d.causal_triplets.length)h+=`<div class="sec"><div class="sec-t">Causal Triplets</div>${d.causal_triplets.map(t=>{const st=t.fulfilled?'ok':(t.cause_found||t.effect_found?'half':'no');return`<div class="cr ${st}"><span class="i">${t.fulfilled?'✓':(t.cause_found||t.effect_found?'~':'✗')}</span><span class="l"><span style="color:${t.cause_found?G:R}">${t.cause}</span> → <span style="color:${t.effect_found?G:R}">${t.effect}</span></span></div>`}).join('')}</div>`;
+    if(d.ngrams&&d.ngrams.length)h+=`<div class="sec"><div class="sec-t">N-gramy</div>${d.ngrams.map(n=>`<div class="cr ${n.found?'ok':'no'}"><span class="i">${n.found?'✓':'✗'}</span><span class="l">${n.ngram}</span>${n.weight?`<span class="p">${n.weight}</span>`:''}</div>`).join('')}</div>`;
+    if(d.semantic_keyphrases&&d.semantic_keyphrases.length)h+=`<div class="sec"><div class="sec-t">Semantic KP</div>${d.semantic_keyphrases.map(k=>`<div class="cr ${k.found?'ok':'no'}"><span class="i">${k.found?'✓':'✗'}</span><span class="l">${k.phrase}</span></div>`).join('')}</div>`;
+    if(d.paa_questions&&d.paa_questions.length)h+=`<div class="sec"><div class="sec-t">PAA</div>${d.paa_questions.map(p=>`<div class="cr ${p.addressed?'ok':'no'}"><span class="i">${p.addressed?'✓':'✗'}</span><span class="l">${p.question}</span><span class="p">${p.coverage_pct}%</span></div>`).join('')}</div>`;
+    if(d.content_gaps_h2&&d.content_gaps_h2.length)h+=`<div class="sec"><div class="sec-t">H2 Gaps</div>${d.content_gaps_h2.map(g=>`<div class="cr ${g.covered?'ok':(g.coverage_pct>25?'half':'no')}"><span class="i">${g.covered?'✓':(g.coverage_pct>25?'~':'✗')}</span><span class="l">${g.h2}</span><span class="p">${g.coverage_pct}%</span></div>`).join('')}</div>`;
+    if(d.content_gaps_paa&&d.content_gaps_paa.length)h+=`<div class="sec"><div class="sec-t">PAA Gaps</div>${d.content_gaps_paa.map(p=>`<div class="cr ${p.answered?'ok':'no'}"><span class="i">${p.answered?'✓':'✗'}</span><span class="l">${p.question}</span><span class="p">${p.coverage_pct}%</span></div>`).join('')}</div>`;
+    body.innerHTML=h;
+    if(!body.classList.contains('open'))tPnl('cpP');
+}
 
-            if (detail && detailEl) detailEl.textContent = detail;
-        }
+// ═══ WORKFLOW ═══
+function stopWF(){if(es){es.close();es=null}log('⛔ Zatrzymano');document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}
+function pt(t){return t.split('\n').map(l=>l.trim()).filter(l=>l.length>0)}
 
-        // ─── Info Panel Functions ───
-        function togglePanel(id) {
-            const body = document.getElementById(id + 'Body') || document.getElementById(id).querySelector('.info-panel-body');
-            const header = document.getElementById(id).querySelector('.info-panel-header');
-            body.classList.toggle('open');
-            header.classList.toggle('open');
-        }
+async function startWorkflow(){
+    const kw=document.getElementById('mainKeyword').value.trim();
+    if(!kw){alert('Wpisz keyword!');return}
+    const h2=(document.getElementById('h2Structure').value.trim()||'').split('\n').map(l=>l.trim()).filter(l=>l);
+    const bt=pt(document.getElementById('basicTerms').value.trim());
+    const et=pt(document.getElementById('extendedTerms').value.trim());
 
-        function toggleBatchDetail(id) {
-            const body = document.getElementById(id);
-            body.classList.toggle('open');
-        }
+    document.getElementById('btnStart').disabled=true;document.getElementById('btnStart').textContent='Workflow w toku…';
+    document.getElementById('btnStop').style.display='';
+    document.getElementById('wel').style.display='none';document.getElementById('prog').style.display='';
 
-        function kwChips(list, cls) {
-            if (!list || !list.length) return '<span style="color:#555">—</span>';
-            return list.map(k => `<span class="kw-chip ${cls}">${typeof k === 'object' ? (k.keyword || JSON.stringify(k)) : k}</span>`).join('');
-        }
+    for(let i=1;i<=10;i++)uStep(i,'pending','—');
+    ['logC','bRes','biB','s1B','cpB'].forEach(id=>document.getElementById(id).innerHTML='');
+    ['bpC','edC','frC','h2C','s1P','biP','cpP','doneB','expB','artP'].forEach(id=>document.getElementById(id).style.display='none');
+    log(`Start: "${kw}" [${mode}]`);
 
-        function infoTag(label, active, color) {
-            return `<span class="info-tag ${active ? color : 'gray'}">${active ? '✅' : '—'} ${label}</span>`;
-        }
+    try{
+        const resp=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({main_keyword:kw,mode:mode,h2_structure:h2,basic_terms:bt,extended_terms:et})});
+        const data=await resp.json();
+        if(data.error){log(`❌ ${data.error}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';return}
+        jid=data.job_id;log(`Job: ${jid}`);
 
-        function renderS1Panel(d) {
-            document.getElementById('s1Panel').style.display = '';
+        const par=new URLSearchParams();par.set('basic_terms',JSON.stringify(bt));par.set('extended_terms',JSON.stringify(et));
+        if(es)es.close();es=new EventSource(`/api/stream/${jid}?${par.toString()}`);
 
-            // Intent
-            document.getElementById('s1Intent').innerHTML = d.search_intent
-                ? `<div class="info-section-title">🔍 Search Intent</div><span class="info-tag blue">${d.search_intent}</span>
-                   ${d.median_length ? `<span class="info-tag gray">Mediana: ${d.median_length} słów</span>` : ''}`
-                : '';
+        es.addEventListener('step',e=>{const d=JSON.parse(e.data);uStep(d.step,d.status,d.detail||'')});
+        es.addEventListener('log',e=>{log(JSON.parse(e.data).msg)});
+        es.addEventListener('project',e=>{const d=JSON.parse(e.data);tb=d.total_batches;log(`Project: ${d.project_id}`);const r=document.getElementById('bRes');r.innerHTML='';for(let i=1;i<=tb;i++)r.innerHTML+=`<div class="bchip pend" id="bc${i}">B${i}</div>`});
+        es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:13px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${h}</div>`).join('')});
+        es.addEventListener('s1_data',e=>{rS1(JSON.parse(e.data))});
+        es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
+        es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
+        es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`});
+        es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);document.getElementById('edC').style.display='';document.getElementById('edSc').innerHTML=`${d.score}<span>/10</span>`;document.getElementById('edCh').textContent=`${d.changes_applied}/${d.changes_applied+d.changes_failed}`;document.getElementById('edW').textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;document.getElementById('edR').textContent=d.rollback?'⚠️ TAK':'✓ NIE'});
+        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=d.issues_count||0;let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', ')}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; ')}</div>`;document.getElementById('frD').innerHTML=dt});
+        es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
+        es.addEventListener('article',e=>{const d=JSON.parse(e.data);const pv=document.getElementById('artP');let html=(d.text||'').replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';pv.innerHTML=html;pv.style.display=''});
+        es.addEventListener('done',e=>{const d=JSON.parse(e.data);document.getElementById('doneB').style.display='';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html)document.getElementById('exH').href=`/api/export/${jid}/html`;if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
+        es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
 
-            // Stats
-            document.getElementById('s1Stats').innerHTML = `
-                <div class="info-section-title">📈 Statystyki</div>
-                <span class="info-tag purple">${d.h2_patterns_count} H2 patterns</span>
-                <span class="info-tag yellow">${d.causal_triplets_count} causal triplets</span>
-                <span class="info-tag green">${d.content_gaps_count} content gaps</span>
-            `;
-
-            // Competitor H2 patterns
-            const h2p = d.competitor_h2_patterns || [];
-            document.getElementById('s1H2Patterns').innerHTML = h2p.length ? `
-                <div class="info-section-title">📋 Wzorce H2 konkurencji (${h2p.length})</div>
-                ${h2p.map((h, i) => {
-                    const label = typeof h === 'string' ? h : (h.pattern || h.h2 || h.title || JSON.stringify(h));
-                    const count = typeof h === 'object' ? (h.count || h.frequency || '') : '';
-                    return `<div style="margin:2px 0;color:#bbb">${i+1}. ${label}${count ? ' <span class="info-tag gray">×'+count+'</span>' : ''}</div>`;
-                }).join('')}` : '';
-
-            // Suggested new H2s
-            const sh2 = d.suggested_h2s || [];
-            document.getElementById('s1SuggestedH2').innerHTML = sh2.length ? `
-                <div class="info-section-title">💡 Sugerowane nowe H2 (luki)</div>
-                ${sh2.map(h => `<span class="info-tag green">${h}</span>`).join('')}` : '';
-
-            // Content gaps
-            const cg = d.content_gaps || {};
-            const gaps = [...(cg.paa_unanswered || []), ...(cg.subtopic_missing || []), ...(cg.depth_missing || []), ...(cg.gaps || [])];
-            document.getElementById('s1ContentGaps').innerHTML = gaps.length ? `
-                <div class="info-section-title">🕳️ Luki treściowe</div>
-                ${gaps.slice(0,8).map(g => {
-                    const label = typeof g === 'string' ? g : (g.question || g.topic || g.gap || JSON.stringify(g));
-                    return `<span class="info-tag yellow">${label}</span>`;
-                }).join('')}` : '';
-
-            // Causal triplets
-            const ct = d.causal_triplets || [];
-            document.getElementById('s1CausalTriplets').innerHTML = ct.length ? `
-                <div class="info-section-title">🔗 Zależności przyczynowe</div>
-                ${ct.slice(0,6).map(t => {
-                    if (typeof t === 'string') return `<div style="color:#bbb;margin:2px 0">${t}</div>`;
-                    const cause = t.cause || t.from || '';
-                    const effect = t.effect || t.to || '';
-                    return `<div style="color:#bbb;margin:2px 0">${cause} → ${effect}</div>`;
-                }).join('')}
-                ${d.causal_instruction ? `<div style="margin-top:6px;color:#888;font-style:italic">${d.causal_instruction.substring(0,200)}...</div>` : ''}` : '';
-
-            // PAA
-            const paa = d.paa_questions || [];
-            document.getElementById('s1PAA').innerHTML = paa.length ? `
-                <div class="info-section-title">❓ PAA (People Also Ask)</div>
-                ${paa.slice(0,8).map(q => `<div style="color:#bbb;margin:2px 0">• ${typeof q === 'string' ? q : (q.question || JSON.stringify(q))}</div>`).join('')}` : '';
-
-            // Entities
-            const ent = d.entity_seo || {};
-            const topEnt = ent.top_entities || [];
-            const mustEnt = ent.must_mention || [];
-            document.getElementById('s1Entities').innerHTML = (topEnt.length || mustEnt.length) ? `
-                <div class="info-section-title">🏷️ Entity SEO</div>
-                ${mustEnt.length ? '<div style="margin-bottom:4px"><strong>Must mention:</strong> ' + mustEnt.map(e => `<span class="info-tag red">${typeof e === 'string' ? e : (e.entity || e.name || JSON.stringify(e))}</span>`).join('') + '</div>' : ''}
-                ${topEnt.slice(0,8).map(e => `<span class="info-tag blue">${typeof e === 'string' ? e : (e.entity || e.name || JSON.stringify(e))}</span>`).join('')}` : '';
-
-            // Ngrams
-            const ng = d.ngrams || [];
-            document.getElementById('s1Ngrams').innerHTML = ng.length ? `
-                <div class="info-section-title">📊 Top N-gramy</div>
-                ${ng.slice(0,12).map(n => `<span class="info-tag gray">${typeof n === 'string' ? n : (n.ngram || n.phrase || n[0] || JSON.stringify(n))}</span>`).join('')}` : '';
-        }
-
-        function renderBatchInstructions(d) {
-            document.getElementById('batchInstrPanel').style.display = '';
-            const body = document.getElementById('batchInstrBody');
-            const cardId = `batchDetail${d.batch}`;
-
-            const card = document.createElement('div');
-            card.className = 'batch-detail-card';
-            card.innerHTML = `
-                <div class="batch-detail-header" onclick="toggleBatchDetail('${cardId}Body')">
-                    <span><strong>Batch ${d.batch}/${d.total}</strong> — ${d.batch_type} — <em>${d.h2}</em></span>
-                    <span style="color:#666">▶</span>
-                </div>
-                <div class="batch-detail-body" id="${cardId}Body">
-                    <div style="margin:6px 0">
-                        <span class="info-tag purple">${d.batch_type}</span>
-                        <span class="info-tag gray">${d.word_range} słów</span>
-                        ${d.semantic_plan.profile ? `<span class="info-tag blue">profil: ${d.semantic_plan.profile}</span>` : ''}
-                        ${d.semantic_plan.score ? `<span class="info-tag gray">score: ${d.semantic_plan.score}</span>` : ''}
-                    </div>
-                    <div class="context-flags">
-                        ${infoTag('gpt_instructions_v39', d.has_gpt_instructions, 'green')}
-                        ${infoTag('gpt_prompt', d.has_gpt_prompt, 'green')}
-                        ${infoTag('article_memory', d.has_article_memory, 'green')}
-                        ${infoTag('enhanced', d.has_enhanced, 'green')}
-                        ${infoTag('style', d.has_style, 'green')}
-                        ${infoTag('experience_markers', d.experience_markers, 'blue')}
-                        ${infoTag('continuation', d.continuation_context, 'blue')}
-                        ${infoTag('causal_context', d.has_causal_context, 'purple')}
-                        ${infoTag('information_gain', d.has_information_gain, 'purple')}
-                        ${infoTag('smart_instructions', d.has_smart_instructions, 'purple')}
-                        ${infoTag('phrase_hierarchy', d.has_phrase_hierarchy, 'blue')}
-                        ${d.has_legal ? infoTag('YMYL legal', true, 'red') : ''}
-                        ${d.has_medical ? infoTag('YMYL medical', true, 'red') : ''}
-                    </div>
-                    <div class="info-section">
-                        <div class="info-section-title">🔴 MUST keywords (${d.must_keywords.length})</div>
-                        ${kwChips(d.must_keywords, 'must')}
-                    </div>
-                    <div class="info-section">
-                        <div class="info-section-title">🟡 EXTENDED (${d.extended_keywords.length})</div>
-                        ${kwChips(d.extended_keywords, 'ext')}
-                    </div>
-                    ${d.stop_keywords.length ? `<div class="info-section">
-                        <div class="info-section-title">🛑 STOP (${d.stop_keywords.length})</div>
-                        ${kwChips(d.stop_keywords, 'stop')}
-                    </div>` : ''}
-                    ${d.caution_keywords.length ? `<div class="info-section">
-                        <div class="info-section-title">⚠️ CAUTION (${d.caution_keywords.length})</div>
-                        ${kwChips(d.caution_keywords, 'ext')}
-                    </div>` : ''}
-                    ${d.entities_to_define.length ? `<div class="info-section">
-                        <div class="info-section-title">🏷️ Entities to define</div>
-                        ${d.entities_to_define.map(e => `<span class="info-tag blue">${typeof e === 'string' ? e : (e.entity || e.name || JSON.stringify(e))}</span>`).join('')}
-                    </div>` : ''}
-                    ${d.paa_from_serp.length ? `<div class="info-section">
-                        <div class="info-section-title">❓ PAA for batch</div>
-                        ${d.paa_from_serp.map(q => `<div style="color:#bbb;margin:2px 0">• ${typeof q === 'string' ? q : (q.question || JSON.stringify(q))}</div>`).join('')}
-                    </div>` : ''}
-                    ${d.coverage && d.coverage.overall !== undefined ? `<div class="info-section">
-                        <div class="info-section-title">📊 Coverage</div>
-                        <span class="info-tag ${d.coverage.overall > 70 ? 'green' : 'yellow'}">Overall: ${typeof d.coverage.overall === 'number' ? d.coverage.overall + '%' : d.coverage.overall}</span>
-                    </div>` : ''}
-                    ${d.h2_remaining.length > 1 ? `<div class="info-section">
-                        <div class="info-section-title">📋 Remaining H2s</div>
-                        ${d.h2_remaining.slice(1).map(h => `<span class="info-tag gray">${h}</span>`).join('')}
-                    </div>` : ''}
-                </div>
-            `;
-            body.appendChild(card);
-        }
-
-        function stopWorkflow() {
-            if (eventSource) {
-                eventSource.close();
-                eventSource = null;
-            }
-            addLog('⛔ Workflow zatrzymany przez użytkownika');
-            document.getElementById('btnStart').disabled = false;
-            document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
-            document.getElementById('btnStop').style.display = 'none';
-        }
-
-        function parseTerms(text) {
-            return text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        }
-
-        async function startWorkflow() {
-            const keyword = document.getElementById('mainKeyword').value.trim();
-            const h2Text = document.getElementById('h2Structure').value.trim();
-            const basicText = document.getElementById('basicTerms').value.trim();
-            const extendedText = document.getElementById('extendedTerms').value.trim();
-
-            if (!keyword) {
-                alert('Wpisz hasło główne!');
-                return;
-            }
-
-            const h2List = h2Text ? h2Text.split('\n').map(l => l.trim()).filter(l => l) : [];
-            // H2 is now optional — if empty, will be auto-generated from S1
-
-            const basicTerms = parseTerms(basicText);
-            const extendedTerms = parseTerms(extendedText);
-
-            // Disable form
-            document.getElementById('btnStart').disabled = true;
-            document.getElementById('btnStart').textContent = '⏳ Workflow w toku...';
-            document.getElementById('btnStop').style.display = '';
-
-            // Show progress
-            document.getElementById('welcomeScreen').style.display = 'none';
-            document.getElementById('progressScreen').style.display = '';
-
-            // Reset steps (including step 3)
-            for (let i of [1,2,3,4,5,6,7,8,9,10]) {
-                updateStep(i, 'pending', 'Oczekuje...');
-            }
-            document.getElementById('logConsole').innerHTML = '';
-            document.getElementById('batchProgress').style.display = 'none';
-            document.getElementById('batchResults').innerHTML = '';
-            document.getElementById('editorialCard').style.display = 'none';
-            document.getElementById('finalReviewCard').style.display = 'none';
-            document.getElementById('h2PlanCard').style.display = 'none';
-            document.getElementById('s1Panel').style.display = 'none';
-            document.getElementById('batchInstrPanel').style.display = 'none';
-            document.getElementById('batchInstrBody').innerHTML = '';
-            document.getElementById('doneBanner').style.display = 'none';
-            document.getElementById('exportButtons').style.display = 'none';
-            document.getElementById('articlePreview').style.display = 'none';
-
-            addLog(`Startuję workflow: "${keyword}" [${currentMode}]`);
-
-            // Start job
-            try {
-                const resp = await fetch('/api/start', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        main_keyword: keyword,
-                        mode: currentMode,
-                        h2_structure: h2List,
-                        basic_terms: basicTerms,
-                        extended_terms: extendedTerms
-                    })
-                });
-
-                const data = await resp.json();
-                if (data.error) {
-                    addLog(`❌ Error: ${data.error}`);
-                    document.getElementById('btnStart').disabled = false;
-                    document.getElementById('btnStart').textContent = '🚀 Uruchom workflow';
-                    return;
-                }
-
-                currentJobId = data.job_id;
-                addLog(`Job ID: ${currentJobId}`);
-
-                // Connect SSE
-                const params = new URLSearchParams();
-                params.set('basic_terms', JSON.stringify(basicTerms));
-                params.set('extended_terms', JSON.stringify(extendedTerms));
-
-                if (eventSource) eventSource.close();
-                eventSource = new EventSource(`/api/stream/${currentJobId}?${params.toString()}`);
-
-                eventSource.addEventListener('step', (e) => {
-                    const d = JSON.parse(e.data);
-                    updateStep(d.step, d.status, d.detail || '');
-                });
-
-                eventSource.addEventListener('log', (e) => {
-                    const d = JSON.parse(e.data);
-                    addLog(d.msg);
-                });
-
-                eventSource.addEventListener('project', (e) => {
-                    const d = JSON.parse(e.data);
-                    totalBatches = d.total_batches;
-                    addLog(`Project ID: ${d.project_id}`);
-
-                    // Init batch chips
-                    const results = document.getElementById('batchResults');
-                    results.innerHTML = '';
-                    for (let i = 1; i <= totalBatches; i++) {
-                        results.innerHTML += `<div class="batch-chip pending" id="batchChip${i}">B${i}</div>`;
-                    }
-                });
-
-                eventSource.addEventListener('h2_plan', (e) => {
-                    const d = JSON.parse(e.data);
-                    const card = document.getElementById('h2PlanCard');
-                    const list = document.getElementById('h2PlanList');
-                    card.style.display = '';
-                    list.innerHTML = d.h2_list.map((h2, i) =>
-                        `<div style="padding: 4px 0; border-bottom: 1px solid #1a1a2a;">
-                            <span style="color: #6366f1; font-weight: 600;">${i+1}.</span>
-                            <span style="color: #ccc;">${h2}</span>
-                        </div>`
-                    ).join('');
-                });
-
-                eventSource.addEventListener('s1_data', (e) => {
-                    const d = JSON.parse(e.data);
-                    renderS1Panel(d);
-                });
-
-                eventSource.addEventListener('batch_instructions', (e) => {
-                    const d = JSON.parse(e.data);
-                    renderBatchInstructions(d);
-                });
-
-                eventSource.addEventListener('batch_start', (e) => {
-                    const d = JSON.parse(e.data);
-                    document.getElementById('batchProgress').style.display = '';
-                    document.getElementById('batchCounter').textContent = `${d.batch}/${d.total}`;
-                    const pct = ((d.batch - 1) / d.total * 100);
-                    document.getElementById('batchProgressFill').style.width = pct + '%';
-                });
-
-                eventSource.addEventListener('batch_result', (e) => {
-                    const d = JSON.parse(e.data);
-                    const chip = document.getElementById(`batchChip${d.batch}`);
-                    if (chip) {
-                        chip.className = `batch-chip ${d.accepted ? 'accepted' : 'rejected'}`;
-                        chip.textContent = `B${d.batch} ${d.quality_score || '?'}`;
-                        chip.title = `Grade: ${d.quality_grade || '?'} | Depth: ${d.depth_score || '?'}`;
-                    }
-                    const pct = (d.batch / totalBatches * 100);
-                    document.getElementById('batchProgressFill').style.width = pct + '%';
-                    document.getElementById('batchCounter').textContent = `${d.batch}/${totalBatches}`;
-                });
-
-                eventSource.addEventListener('editorial', (e) => {
-                    const d = JSON.parse(e.data);
-                    document.getElementById('editorialCard').style.display = '';
-                    document.getElementById('editorialScore').innerHTML = `${d.score}<span>/10</span>`;
-                    document.getElementById('editChanges').textContent = `${d.changes_applied}/${d.changes_applied + d.changes_failed}`;
-                    document.getElementById('editWords').textContent = `${d.word_count_before || '?'}→${d.word_count_after || '?'}`;
-                    document.getElementById('editRollback').textContent = d.rollback ? '⚠️ TAK' : '✅ NIE';
-                });
-
-                eventSource.addEventListener('final_review', (e) => {
-                    const d = JSON.parse(e.data);
-                    document.getElementById('finalReviewCard').style.display = '';
-                    document.getElementById('frScore').textContent = `${d.score}/100`;
-                    document.getElementById('frStatus').textContent = d.status;
-                    document.getElementById('frStatus').style.color = d.status === 'PASS' ? '#22c55e' : d.status === 'WARN' ? '#f59e0b' : '#ef4444';
-                    document.getElementById('frMissing').textContent = d.missing_keywords_count || 0;
-                    document.getElementById('frIssues').textContent = d.issues_count || 0;
-
-                    // Show details if there are missing keywords or issues
-                    let details = '';
-                    if (d.missing_keywords && d.missing_keywords.length > 0) {
-                        const kwList = d.missing_keywords.map(k => typeof k === 'string' ? k : k.keyword || JSON.stringify(k));
-                        details += `<div style="margin-top:4px;"><strong>Brakujące:</strong> ${kwList.join(', ')}</div>`;
-                    }
-                    if (d.issues && d.issues.length > 0) {
-                        const issueList = d.issues.map(i => typeof i === 'string' ? i : i.message || JSON.stringify(i));
-                        details += `<div style="margin-top:4px;"><strong>Problemy:</strong> ${issueList.join('; ')}</div>`;
-                    }
-                    document.getElementById('frDetails').innerHTML = details;
-                });
-
-                eventSource.addEventListener('article', (e) => {
-                    const d = JSON.parse(e.data);
-                    const preview = document.getElementById('articlePreview');
-                    // Convert h2/h3 markers to HTML
-                    let html = (d.text || '')
-                        .replace(/^h2:\s*(.+)$/gm, '<h2>$1</h2>')
-                        .replace(/^h3:\s*(.+)$/gm, '<h3>$1</h3>')
-                        .replace(/\n\n/g, '</p><p>')
-                        .replace(/^\s*<\/p>/, '')
-                    ;
-                    if (!html.startsWith('<')) html = '<p>' + html;
-                    if (!html.endsWith('>')) html += '</p>';
-                    preview.innerHTML = html;
-                    preview.style.display = '';
-                });
-
-                eventSource.addEventListener('done', (e) => {
-                    const d = JSON.parse(e.data);
-                    document.getElementById('doneBanner').style.display = '';
-                    document.getElementById('doneDetail').textContent =
-                        `Project: ${d.project_id} | ${d.word_count} słów`;
-
-                    // Export buttons
-                    if (d.exports) {
-                        document.getElementById('exportButtons').style.display = '';
-                        if (d.exports.html) {
-                            document.getElementById('exportHtml').href = `/api/export/${currentJobId}/html`;
-                        }
-                        if (d.exports.docx) {
-                            document.getElementById('exportDocx').href = `/api/export/${currentJobId}/docx`;
-                        }
-                    }
-
-                    // Re-enable form
-                    document.getElementById('btnStart').disabled = false;
-                    document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
-                    document.getElementById('btnStop').style.display = 'none';
-
-                    eventSource.close();
-                });
-
-                eventSource.addEventListener('workflow_error', (e) => {
-                    const d = JSON.parse(e.data);
-                    addLog(`❌ ERROR: ${d.msg}`);
-                    if (d.step) updateStep(d.step, 'error', d.msg);
-
-                    document.getElementById('btnStart').disabled = false;
-                    document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
-                    document.getElementById('btnStop').style.display = 'none';
-                    eventSource.close();
-                });
-
-                let sseRetries = 0;
-                const MAX_SSE_RETRIES = 5;
-
-                eventSource.onerror = () => {
-                    sseRetries++;
-                    if (eventSource.readyState === EventSource.CLOSED || sseRetries > MAX_SSE_RETRIES) {
-                        addLog(`❌ Połączenie SSE utracone (po ${sseRetries} próbach). Workflow przerwany.`);
-                        document.getElementById('btnStart').disabled = false;
-                        document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
-                        document.getElementById('btnStop').style.display = 'none';
-                    } else {
-                        addLog(`⚠️ SSE reconnect... (próba ${sseRetries}/${MAX_SSE_RETRIES})`);
-                    }
-                };
-
-                eventSource.onopen = () => {
-                    if (sseRetries > 0) {
-                        addLog('✅ SSE reconnected!');
-                        sseRetries = 0;
-                    }
-                };
-
-            } catch (err) {
-                addLog(`❌ Fatal: ${err.message}`);
-                document.getElementById('btnStart').disabled = false;
-                document.getElementById('btnStart').textContent = '🚀 Uruchom workflow';
-                document.getElementById('btnStop').style.display = 'none';
-            }
-        }
-    </script>
+        let rr=0;
+        es.onerror=()=>{rr++;if(es.readyState===EventSource.CLOSED||rr>5){log(`❌ SSE lost (${rr}x)`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}else log(`⚠️ Reconnect ${rr}/5`)};
+        es.onopen=()=>{if(rr>0){log('✅ Reconnected');rr=0}};
+    }catch(err){log(`❌ ${err.message}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}
+}
+</script>
 </body>
 </html>
