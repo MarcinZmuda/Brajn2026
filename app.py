@@ -14,6 +14,8 @@ import time
 import uuid
 import hashlib
 import logging
+import threading
+import queue
 from datetime import datetime
 from functools import wraps
 
@@ -811,8 +813,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "batch_type": batch_type,
                 "h2": current_h2,
                 "h2_remaining": h2_remaining[:5],
-                "target_words": batch_length_info.get("target", batch_length_info.get("recommended", "?")),
-                "word_range": f"{batch_length_info.get('min', '?')}-{batch_length_info.get('max', '?')}",
+                "target_words": batch_length_info.get("suggested_min", batch_length_info.get("target", "?")),
+                "word_range": f"{batch_length_info.get('suggested_min', '?')}-{batch_length_info.get('suggested_max', '?')}",
                 "must_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in must_kw],
                 "extended_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in ext_kw],
                 "stop_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in stop_kw][:10],
@@ -1160,10 +1162,37 @@ def start_workflow():
     return jsonify({"job_id": job_id})
 
 
+def stream_with_keepalive(generator_fn, keepalive_interval=15):
+    """Run SSE generator in background thread, inject keepalive pings to prevent proxy timeouts."""
+    q = queue.Queue()
+
+    def run():
+        try:
+            for item in generator_fn():
+                q.put(item)
+        except Exception as e:
+            q.put(f"event: error\ndata: {json.dumps({'msg': str(e)})}\n\n")
+        finally:
+            q.put(None)  # sentinel = stream finished
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+
+    while True:
+        try:
+            item = q.get(timeout=keepalive_interval)
+            if item is None:
+                break
+            yield item
+        except queue.Empty:
+            # No event for {keepalive_interval}s — send SSE comment to keep connection alive
+            yield ": keepalive\n\n"
+
+
 @app.route("/api/stream/<job_id>")
 @login_required
 def stream_workflow(job_id):
-    """SSE endpoint for workflow progress."""
+    """SSE endpoint for workflow progress with keepalive."""
     job = active_jobs.get(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
@@ -1187,7 +1216,7 @@ def stream_workflow(job_id):
         )
 
     return Response(
-        stream_with_context(generate_with_terms()),
+        stream_with_context(stream_with_keepalive(generate_with_terms, keepalive_interval=15)),
         mimetype="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

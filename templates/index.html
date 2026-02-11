@@ -1182,11 +1182,26 @@
                     eventSource.close();
                 });
 
+                let sseRetries = 0;
+                const MAX_SSE_RETRIES = 5;
+
                 eventSource.onerror = () => {
-                    addLog('⚠️ Połączenie SSE utracone');
-                    document.getElementById('btnStart').disabled = false;
-                    document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
-                    document.getElementById('btnStop').style.display = 'none';
+                    sseRetries++;
+                    if (eventSource.readyState === EventSource.CLOSED || sseRetries > MAX_SSE_RETRIES) {
+                        addLog(`❌ Połączenie SSE utracone (po ${sseRetries} próbach). Workflow przerwany.`);
+                        document.getElementById('btnStart').disabled = false;
+                        document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
+                        document.getElementById('btnStop').style.display = 'none';
+                    } else {
+                        addLog(`⚠️ SSE reconnect... (próba ${sseRetries}/${MAX_SSE_RETRIES})`);
+                    }
+                };
+
+                eventSource.onopen = () => {
+                    if (sseRetries > 0) {
+                        addLog('✅ SSE reconnected!');
+                        sseRetries = 0;
+                    }
                 };
 
             } catch (err) {
