@@ -170,6 +170,39 @@
         .cs{text-align:center;padding:10px 4px;background:var(--s2);border-radius:var(--r);border:1px solid var(--b1)}
         .cs .v{font-size:16px;font-weight:800;letter-spacing:-.5px}.cs .lb{font-size:8px;color:var(--mg);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
 
+        /* ═══ S1 PANEL ═══ */
+        .s1-sec{margin:0;padding:0;border-top:1px solid var(--w8)}
+        .s1-sec:first-child{border-top:none}
+        .s1-hdr{display:flex;align-items:center;gap:10px;padding:12px 0;cursor:pointer;user-select:none}
+        .s1-hdr:hover{opacity:.85}
+        .s1-num{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;background:var(--og);color:var(--orange)}
+        .s1-ttl{flex:1;font-size:11px;font-weight:700;color:var(--white);letter-spacing:-.1px}
+        .s1-ttl small{font-weight:400;color:var(--mg);margin-left:6px}
+        .s1-arr{color:var(--mg);font-size:9px;transition:transform .2s}
+        .s1-sec.open .s1-arr{transform:rotate(180deg)}
+        .s1-body{display:none;padding:0 0 14px 34px;font-size:11px;color:rgba(255,255,255,.7)}
+        .s1-sec.open .s1-body{display:block}
+        .s1-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin:8px 0}
+        .s1-stat{text-align:center;padding:10px 6px;background:var(--s2);border-radius:var(--rs);border:1px solid var(--b1)}
+        .s1-stat .v{font-size:18px;font-weight:800;color:var(--orange);letter-spacing:-.5px}
+        .s1-stat .l{font-size:8px;color:var(--mg);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+        .s1-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;color:var(--lg)}
+        .s1-row .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+        .s1-row .dot.on{background:var(--gn)}.s1-row .dot.off{background:var(--b3)}.s1-row .dot.warn{background:var(--yl)}
+        .s1-bar-row{display:flex;align-items:flex-end;gap:3px;height:50px;margin:8px 0}
+        .s1-bar-col{text-align:center;flex:1}
+        .s1-bar-col .bar{background:var(--orange);border-radius:3px 3px 0 0;opacity:.7;min-height:4px}
+        .s1-bar-col .lbl{font-size:8px;color:var(--mg);margin-top:2px}
+        .s1-cause{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11px}
+        .s1-cause .from{color:var(--lg)}.s1-cause .arrow{color:var(--orange);font-weight:700}.s1-cause .to{color:var(--lg)}
+        .s1-ent{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;margin:2px;border-radius:99px;font-size:10px;font-weight:500}
+        .s1-ent.must{background:var(--rdd);color:var(--rd);border:1px solid rgba(248,113,113,.15)}
+        .s1-ent.top{background:var(--og);color:var(--orange)}
+        .s1-ent.rel{background:rgba(139,92,246,.1);color:#a78bfa}
+        .s1-ymyl{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;margin:3px;border-radius:var(--rs);font-size:11px;font-weight:500;background:var(--s2);border:1px solid var(--b1)}
+        .s1-ymyl.active{border-color:var(--rd);background:var(--rdd);color:var(--rd)}
+        .s1-instr{background:var(--black);border:1px solid var(--b1);border-radius:var(--rs);padding:12px;font-size:10px;color:var(--lg);white-space:pre-wrap;word-break:break-word;margin:6px 0;font-family:'JetBrains Mono',monospace;line-height:1.5;max-height:180px;overflow-y:auto}
+
         /* ═══ ARTICLE ═══ */
         .art{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:24px;margin:14px 0;max-height:480px;overflow-y:auto;line-height:1.8;font-size:14px}
         .art h2{color:var(--orange);font-size:17px;margin:22px 0 8px;font-weight:700;letter-spacing:-.3px}.art h2:first-child{margin-top:0}
@@ -219,7 +252,7 @@
         <div id="prog" style="display:none">
             <div class="steps" id="stC"></div>
             <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
-            <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" onclick="tPnl('s1P')"><span>📊 Analiza S1</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B"></div></div>
+            <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" onclick="tPnl('s1P')"><span>📊 Analiza S1 — Pełna mapa tematu</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B" style="max-height:900px"></div></div>
             <div class="pnl" id="biP" style="display:none"><div class="pnl-h" onclick="tPnl('biP')"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
             <div class="crd" id="bpC" style="display:none"><div class="pg-top"><span class="pg-lbl">Generowanie</span><span class="pg-ct" id="bCt">0/0</span></div><div class="pg-bar"><div class="pg-fill" id="bFill" style="width:0%"></div></div><div class="chips" id="bRes"></div></div>
             <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frD" style="font-size:11px;color:var(--mg);margin-top:10px;max-height:60px;overflow-y:auto"></div></div>
@@ -253,38 +286,131 @@ function ss(v){if(v==null)return'';if(typeof v==='string')return v;return typeof
 function el(i){if(typeof i==='string')return i;return i.text||i.entity||i.name||i.phrase||i.ngram||i.question||i.pattern||i.h2||i.title||i.topic||i.gap||i.keyword||(typeof i==='object'?Object.values(i).find(v=>typeof v==='string'&&v.length>1&&v.length<100)||JSON.stringify(i):String(i))}
 function fc(f){const p=f.split('/');if(p.length!==2)return M;const[n,d]=p.map(Number);if(!d)return M;const r=(n/d)*100;return r>=70?G:r>=40?W:R}
 
-// ═══ S1 PANEL ═══
+// ═══ S1 PANEL (10 Sections) ═══
+function tS1(id){const s=document.getElementById(id);s.classList.toggle('open')}
+function s1Sec(n,title,badge,body){return`<div class="s1-sec" id="s1s${n}"><div class="s1-hdr" onclick="tS1('s1s${n}')"><div class="s1-num">${n}</div><div class="s1-ttl">${title}${badge?` <small>${badge}</small>`:''}</div><span class="s1-arr">▼</span></div><div class="s1-body">${body}</div></div>`}
+
 function rS1(d){
     document.getElementById('s1P').style.display='';
     let h='';
-    h+=`<div class="sec"><div class="sec-t">Search Intent & Długość</div>
-        ${d.search_intent?`<span class="tag o">${d.search_intent}</span>`:''}
-        <span class="tag w">Rekomendacja: ${d.recommended_length||'?'} słów</span>
-        <span class="tag d">Mediana: ${d.median_length||'?'}</span>
-        ${d.average_length?`<span class="tag d">Średnia: ${d.average_length}</span>`:''}
-        ${d.analyzed_urls?`<span class="tag d">${d.analyzed_urls} stron</span>`:''}
-    </div>`;
+
+    // ─── 1️⃣ SERP & Competitor Structure ───
+    let b1='';
+    b1+=`<div class="s1-grid">`;
+    b1+=`<div class="s1-stat"><div class="v">${d.recommended_length||'?'}</div><div class="l">Rekomendacja</div></div>`;
+    b1+=`<div class="s1-stat"><div class="v">${d.median_length||'?'}</div><div class="l">Mediana</div></div>`;
+    b1+=`<div class="s1-stat"><div class="v">${d.average_length||'?'}</div><div class="l">Średnia</div></div>`;
+    b1+=`<div class="s1-stat"><div class="v">${d.analyzed_urls||'?'}</div><div class="l">Stron</div></div>`;
+    b1+=`<div class="s1-stat"><div class="v">${d.h2_patterns_count||0}</div><div class="l">Wzorców H2</div></div>`;
+    b1+=`</div>`;
+    if(d.search_intent)b1+=`<div style="margin:8px 0"><span class="tag o" style="font-size:11px">🎯 ${d.search_intent}</span></div>`;
     const wc=d.word_counts||[];
-    if(wc.length){const mx=Math.max(...wc.slice(0,10));h+=`<div class="sec"><div class="sec-t">Rozkład długości</div><div style="display:flex;gap:3px;align-items:flex-end;height:50px">${wc.slice(0,10).map(w=>{const ht=mx>0?Math.round((w/mx)*44)+6:16;return`<div style="width:28px;text-align:center"><div style="background:var(--orange);height:${ht}px;border-radius:3px 3px 0 0;opacity:.7"></div><div style="font-size:8px;color:var(--mg);margin-top:2px">${w}</div></div>`}).join('')}</div></div>`}
-    const ng=d.ngrams||[];
-    if(ng.length)h+=`<div class="sec"><div class="sec-t">N-gramy (${ng.length})</div>${ng.map(n=>{const l=el(n),w=typeof n==='object'?(n.weight||n.score||''):'';return`<span class="tag c">${l}${w?` · ${w}`:''}</span>`}).join('')}</div>`;
-    const ent=d.entity_seo||{},tE=ent.top_entities||[],mE=ent.must_mention||[],eR=ent.relations||[];
-    if(tE.length||mE.length){h+=`<div class="sec"><div class="sec-t">Entity SEO (${ent.entity_count||tE.length})</div>`;if(mE.length)h+=`<div style="margin-bottom:6px"><strong style="color:var(--rd);font-size:10px">MUST:</strong> ${mE.map(e=>`<span class="tag r">${el(e)}</span>`).join('')}</div>`;h+=tE.map(e=>`<span class="tag o">${el(e)}</span>`).join('');if(eR.length)h+=`<div style="margin-top:6px">${eR.map(r=>typeof r==='string'?`<span class="tag p">${r}</span>`:`<span class="tag p">${r.from||'?'} → ${r.to||'?'}</span>`).join('')}</div>`;h+=`</div>`}
-    const skp=d.semantic_keyphrases||[];
-    if(skp.length)h+=`<div class="sec"><div class="sec-t">Semantic Keyphrases (${skp.length})</div>${skp.map(k=>`<span class="tag pk">${el(k)}</span>`).join('')}</div>`;
+    if(wc.length){const mx=Math.max(...wc.slice(0,10));b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Rozkład długości top ${wc.length}</div><div class="s1-bar-row">${wc.slice(0,10).map(w=>{const ht=mx>0?Math.round((w/mx)*44)+4:10;return`<div class="s1-bar-col"><div class="bar" style="height:${ht}px"></div><div class="lbl">${w}</div></div>`}).join('')}</div></div>`}
     const h2p=d.competitor_h2_patterns||[];
-    if(h2p.length)h+=`<div class="sec"><div class="sec-t">Wzorce H2 (${h2p.length})</div>${h2p.map((x,i)=>`<div style="color:var(--lg);font-size:11px;padding:2px 0">${i+1}. ${el(x)}</div>`).join('')}</div>`;
-    const sh2=d.suggested_h2s||[];
-    if(sh2.length)h+=`<div class="sec"><div class="sec-t">Sugerowane H2</div>${sh2.map(x=>`<span class="tag g">${ss(x)}</span>`).join('')}</div>`;
-    const pU=d.paa_unanswered||[],sM=d.subtopic_missing||[],dM=d.depth_missing||[];
-    if(pU.length||sM.length||dM.length){h+=`<div class="sec"><div class="sec-t">Luki treściowe</div>`;if(pU.length)h+=`<div style="margin:4px 0">PAA: ${pU.slice(0,6).map(g=>`<span class="tag w">${el(g)}</span>`).join('')}</div>`;if(sM.length)h+=`<div style="margin:4px 0">Podtematy: ${sM.slice(0,6).map(g=>`<span class="tag o">${el(g)}</span>`).join('')}</div>`;if(dM.length)h+=`<div style="margin:4px 0">Głębia: ${dM.slice(0,6).map(g=>`<span class="tag p">${el(g)}</span>`).join('')}</div>`;if(d.gaps_instruction)h+=`<div class="pre">${d.gaps_instruction.substring(0,300)}</div>`;h+=`</div>`}
-    const cc=d.causal_chains||[],cs=d.causal_singles||[];
-    if(cc.length||cs.length){h+=`<div class="sec"><div class="sec-t">Causal (${(d.causal_count_chains||0)+(d.causal_count_singles||0)})</div>`;[...cc.slice(0,6),...cs.slice(0,6)].forEach(t=>{h+=`<div style="color:var(--lg);font-size:11px;padding:2px 0">${t.cause||t.from||''} <span style="color:var(--orange)">→</span> ${t.effect||t.to||''}</div>`});if(d.causal_instruction)h+=`<div class="pre">${d.causal_instruction.substring(0,300)}</div>`;h+=`</div>`}
-    const paa=d.paa_questions||[];
-    if(paa.length)h+=`<div class="sec"><div class="sec-t">PAA (${paa.length})</div>${paa.map(q=>`<div style="color:var(--lg);font-size:11px;padding:2px 0">• ${el(q)}</div>`).join('')}</div>`;
+    if(h2p.length)b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Dominujące wzorce H2</div>${h2p.slice(0,12).map((x,i)=>`<div style="color:var(--lg);font-size:11px;padding:2px 0"><span style="color:var(--orange);font-weight:700;width:18px;display:inline-block">${i+1}.</span>${el(x)}</div>`).join('')}</div>`;
+    const ss2=d.serp_sources||[];
+    if(ss2.length)b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Źródła SERP</div>${ss2.slice(0,8).map(s=>`<div style="font-size:10px;color:var(--mg);padding:2px 0">${typeof s==='string'?s:(s.url||s.title||s.domain||JSON.stringify(s)).substring(0,80)}</div>`).join('')}</div>`;
     const fs=d.featured_snippet,aio=d.ai_overview,rs=d.related_searches||[];
-    if(fs||aio||rs.length){h+=`<div class="sec"><div class="sec-t">SERP</div>`;if(fs)h+=`<span class="tag g">${(typeof fs==='string'?fs:(fs.text||JSON.stringify(fs))).substring(0,120)}</span>`;if(aio)h+=`<span class="tag o">${(typeof aio==='string'?aio:(aio.text||JSON.stringify(aio))).substring(0,120)}</span>`;if(rs.length)h+=`<div style="margin-top:4px">${rs.map(r=>`<span class="tag d">${ss(r)}</span>`).join('')}</div>`;h+=`</div>`}
+    if(fs)b1+=`<div style="margin:6px 0"><span class="tag g" style="white-space:normal;line-height:1.4">📋 Featured Snippet: ${(typeof fs==='string'?fs:(fs.text||JSON.stringify(fs))).substring(0,150)}</span></div>`;
+    if(aio)b1+=`<div style="margin:6px 0"><span class="tag o" style="white-space:normal;line-height:1.4">🤖 AI Overview: ${(typeof aio==='string'?aio:(aio.text||JSON.stringify(aio))).substring(0,150)}</span></div>`;
+    if(rs.length)b1+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Related Searches</div>${rs.map(r=>`<span class="tag d">${ss(r)}</span>`).join('')}</div>`;
+    h+=s1Sec(1,'Analiza SERP i struktury konkurencji',`${d.analyzed_urls||'?'} stron`,b1);
+
+    // ─── 2️⃣ Causal Triplets ───
+    let b2='';
+    const cc=d.causal_chains||[],csi=d.causal_singles||[];
+    const totalC=(d.causal_count_chains||0)+(d.causal_count_singles||0);
+    if(cc.length){b2+=`<div style="font-size:9px;color:var(--mg);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Łańcuchy (A → B → C)</div>`;cc.slice(0,8).forEach(t=>{b2+=`<div class="s1-cause"><span class="from">${t.cause||t.from||'?'}</span><span class="arrow">→</span><span class="to">${t.effect||t.to||'?'}</span></div>`})}
+    if(csi.length){b2+=`<div style="font-size:9px;color:var(--mg);margin:8px 0 6px;text-transform:uppercase;letter-spacing:.5px">Relacje kauzalne</div>`;csi.slice(0,8).forEach(t=>{b2+=`<div class="s1-cause"><span class="from">${t.cause||t.from||'?'}</span><span class="arrow">→</span><span class="to">${t.effect||t.to||'?'}</span></div>`})}
+    if(d.causal_instruction)b2+=`<div style="margin-top:8px"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja</div><div class="s1-instr">${d.causal_instruction}</div></div>`;
+    if(!totalC)b2+=`<div style="color:var(--mg);font-style:italic">Brak danych kauzalnych z konkurencji</div>`;
+    h+=s1Sec(2,'Causal Triplets — mapa przyczynowo-skutkowa',`${totalC} relacji`,b2);
+
+    // ─── 3️⃣ Gap Analysis ───
+    let b3='';
+    const pU=d.paa_unanswered||[],sM=d.subtopic_missing||[],dM=d.depth_missing||[],sh2=d.suggested_h2s||[];
+    const totalGaps=pU.length+sM.length+dM.length;
+    if(pU.length){b3+=`<div style="margin:6px 0"><div style="font-size:9px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px"><span style="color:var(--rd)">🔴</span> PAA Unanswered (${pU.length})</div>${pU.map(g=>`<span class="tag r">${el(g)}</span>`).join('')}</div>`}
+    if(sM.length){b3+=`<div style="margin:6px 0"><div style="font-size:9px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px"><span style="color:var(--orange)">🟠</span> Subtopic Missing (${sM.length})</div>${sM.map(g=>`<span class="tag o">${el(g)}</span>`).join('')}</div>`}
+    if(dM.length){b3+=`<div style="margin:6px 0"><div style="font-size:9px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px"><span style="color:var(--yl)">🟡</span> Depth Missing (${dM.length})</div>${dM.map(g=>`<span class="tag w">${el(g)}</span>`).join('')}</div>`}
+    if(sh2.length){b3+=`<div style="margin:8px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">✨ Sugerowane nowe H2</div>${sh2.map(x=>`<span class="tag g">${ss(x)}</span>`).join('')}</div>`}
+    if(d.gaps_instruction)b3+=`<div style="margin-top:8px"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja priorytetów</div><div class="s1-instr">${d.gaps_instruction}</div></div>`;
+    if(!totalGaps&&!sh2.length)b3+=`<div style="color:var(--mg);font-style:italic">Brak wykrytych luk (możliwe przy CSS-heavy stronach)</div>`;
+    h+=s1Sec(3,'Gap Analysis — przewagi konkurencyjne',`${totalGaps} luk`,b3);
+
+    // ─── 4️⃣ Entity SEO ───
+    let b4='';
+    const ent=d.entity_seo||{},tE=ent.top_entities||[],mE=ent.must_mention||[],eR=ent.relations||[],tC=ent.topical_coverage||[];
+    if(mE.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--rd);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">MUST MENTION</div>${mE.map(e=>`<span class="s1-ent must">${el(e)}</span>`).join('')}</div>`;
+    if(tE.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Top encje (${ent.entity_count||tE.length})</div>${tE.slice(0,15).map(e=>{const name=el(e),typ=typeof e==='object'?(e.type||''):'',imp=typeof e==='object'?(e.importance||''):'';return`<span class="s1-ent top">${name}${typ?` <span style="font-size:8px;opacity:.5">${typ}</span>`:''}${imp?` <span style="font-size:8px;opacity:.5">${typeof imp==='number'?imp.toFixed(2):imp}</span>`:''}</span>`}).join('')}</div>`;
+    if(eR.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Relacje między encjami</div>${eR.map(r=>{if(typeof r==='string')return`<span class="s1-ent rel">${r}</span>`;return`<span class="s1-ent rel">${r.from||r.subject||'?'} → ${r.to||r.object||'?'}${r.relation?` (${r.relation})`:''}</span>`}).join('')}</div>`;
+    if(tC.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Topical Coverage</div>${tC.slice(0,10).map(t=>{const topic=typeof t==='string'?t:(t.subtopic||t.topic||el(t)),pri=typeof t==='object'?(t.priority||''):'';return`<span class="tag ${pri==='MUST'?'r':pri==='HIGH'?'o':'d'}">${topic}${pri?` · ${pri}`:''}</span>`}).join('')}</div>`;
+    if(!tE.length&&!mE.length)b4+=`<div style="color:var(--mg);font-style:italic">Brak danych encji (CSS contamination?)</div>`;
+    h+=s1Sec(4,'Encje — mapa bytów tematu',`${ent.entity_count||tE.length} encji`,b4);
+
+    // ─── 5️⃣ N-grams & Collocations ───
+    let b5='';
+    const ng=d.ngrams||[],skp=d.semantic_keyphrases||[];
+    if(ng.length)b5+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">N-gramy (${ng.length})</div>${ng.map(n=>{const l=el(n),w=typeof n==='object'?(n.weight||n.score||''):'';return`<span class="tag c">${l}${w?` <span style="opacity:.5">· ${typeof w==='number'?w.toFixed(2):w}</span>`:''}</span>`}).join('')}</div>`;
+    if(skp.length)b5+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Semantic Keyphrases (${skp.length})</div>${skp.map(k=>`<span class="tag pk">${el(k)}</span>`).join('')}</div>`;
+    if(!ng.length&&!skp.length)b5+=`<div style="color:var(--mg);font-style:italic">Brak danych n-gramów</div>`;
+    h+=s1Sec(5,'N-gramy i kolokacje',`${ng.length+skp.length} fraz`,b5);
+
+    // ─── 6️⃣ Phrase Hierarchy ───
+    let b6='';
+    const ph=d.phrase_hierarchy_preview||{};
+    const phKeys=Object.keys(ph);
+    if(phKeys.length){phKeys.forEach(strategy=>{const data=ph[strategy];b6+=`<div style="margin:6px 0"><span class="tag ${strategy==='extensions_sufficient'?'g':strategy==='need_standalone'?'r':'o'}" style="font-size:11px;font-weight:600">${strategy}</span>`;if(data&&data.description)b6+=`<div style="color:var(--lg);font-size:10px;margin:4px 0">${data.description}</div>`;if(data&&data.roots&&data.roots.length)b6+=`<div style="margin-top:4px">${data.roots.map(r=>`<span class="tag d">${typeof r==='string'?r:(r.root||el(r))} ${typeof r==='object'&&r.extensions?`<span style="opacity:.5">(${r.extensions} ext)</span>`:''}</span>`).join('')}</div>`;b6+=`</div>`})}else{b6+=`<div style="color:var(--mg);font-style:italic">Dane hierarchii fraz pojawią się w KROK 5</div>`}
+    h+=s1Sec(6,'Phrase Hierarchy — strategia słów kluczowych',phKeys.length?phKeys.join(', '):'',b6);
+
+    // ─── 7️⃣ Depth Analysis ───
+    let b7='';
+    const ds=d.depth_signals||{},dmi=d.depth_missing_items||[];
+    const depthItems=[
+        ['🔢','Liczby / dane ilościowe',ds.numbers_used],['📅','Daty / ramy czasowe',ds.dates_used],
+        ['🏛️','Instytucje / organizacje',ds.institutions_cited],['📚','Badania / źródła',ds.research_cited],
+        ['⚖️','Przepisy prawne',ds.laws_referenced],['⚠️','Wyjątki / edge cases',ds.exceptions_noted],
+        ['⚖','Porównania',ds.comparisons_made],['📋','Procesy krok po kroku',ds.step_by_step]
+    ];
+    b7+=`<div style="font-size:9px;color:var(--mg);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Sygnały głębokości w konkurencji</div>`;
+    depthItems.forEach(([icon,label,val])=>{b7+=`<div class="s1-row"><div class="dot ${val?'on':'off'}"></div>${icon} ${label}</div>`});
+    if(dmi.length)b7+=`<div style="margin-top:8px"><div style="font-size:9px;color:var(--yl);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Luki głębokości do wykorzystania</div>${dmi.map(g=>`<span class="tag w">${el(g)}</span>`).join('')}</div>`;
+    h+=s1Sec(7,'Analiza głębokości konkurencji',`${depthItems.filter(x=>x[2]).length}/8 sygnałów`,b7);
+
+    // ─── 8️⃣ YMYL Signals ───
+    let b8='';
+    const ym=d.ymyl_hints||{};
+    b8+=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">`;
+    b8+=`<div class="s1-ymyl ${ym.legal_signals?'active':''}">⚖️ Prawo ${ym.legal_signals?'WYKRYTO':'—'}</div>`;
+    b8+=`<div class="s1-ymyl ${ym.medical_signals?'active':''}">🏥 Zdrowie ${ym.medical_signals?'WYKRYTO':'—'}</div>`;
+    b8+=`<div class="s1-ymyl ${ym.needs_citations?'active':''}">📚 Cytowania ${ym.needs_citations?'WYMAGANE':'—'}</div>`;
+    b8+=`<div class="s1-ymyl ${ym.needs_disclaimer?'active':''}">⚠️ Disclaimer ${ym.needs_disclaimer?'POTRZEBNY':'—'}</div>`;
+    b8+=`</div>`;
+    const anyYmyl=ym.legal_signals||ym.medical_signals||ym.needs_citations||ym.needs_disclaimer;
+    if(anyYmyl)b8+=`<div style="margin-top:6px;font-size:10px;color:var(--rd)">⚠️ Szczegółowa walidacja YMYL w KROK 2</div>`;
+    h+=s1Sec(8,'Wstępne sygnały YMYL',anyYmyl?'⚠️ WYKRYTO':'✓ BRAK',b8);
+
+    // ─── 9️⃣ PAA / FAQ Potential ───
+    let b9='';
+    const paa=d.paa_questions||[];
+    const paaUn=d.paa_unanswered_count||0;
+    if(paa.length){b9+=`<div class="s1-grid" style="grid-template-columns:repeat(2,1fr)"><div class="s1-stat"><div class="v">${paa.length}</div><div class="l">Pytań z SERP</div></div><div class="s1-stat"><div class="v" style="color:var(--rd)">${paaUn}</div><div class="l">Niedopowiedz.</div></div></div>`;b9+=`<div style="margin:8px 0">${paa.map((q,i)=>{const txt=el(q),isUnanswered=pU.some(u=>el(u)===txt);return`<div style="padding:3px 0;font-size:11px;color:var(--lg)"><span style="color:${isUnanswered?'var(--rd)':'var(--orange)'};font-weight:700">${isUnanswered?'✗':'•'}</span> ${txt}</div>`}).join('')}</div>`}else{b9+=`<div style="color:var(--mg);font-style:italic">Brak pytań PAA z SERP</div>`}
+    h+=s1Sec(9,'Potencjał FAQ / PAA',`${paa.length} pytań`,b9);
+
+    // ─── 🔟 Agent Instructions ───
+    let b10='';
+    const ai=d.agent_instructions||{},sh=d.semantic_hints||{};
+    if(ai.gaps)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📋 Priorytety luk</div><div class="s1-instr">${ai.gaps}</div></div>`;
+    if(ai.causal)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔗 Instrukcje kauzalne</div><div class="s1-instr">${ai.causal}</div></div>`;
+    if(ai.semantic&&Object.keys(ai.semantic).length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🎯 Checkpoints semantyczne</div><div class="s1-instr">${Object.entries(ai.semantic).map(([k,v])=>`${k}: ${v}`).join('\n')}</div></div>`;
+    if(sh.critical_entities&&sh.critical_entities.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--rd);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🔴 Critical entities</div>${sh.critical_entities.map(e=>`<span class="s1-ent must">${e.text||el(e)}${e.importance?` · ${e.importance.toFixed(2)}`:''}</span>`).join('')}</div>`;
+    if(sh.must_topics&&sh.must_topics.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📌 Must topics</div>${sh.must_topics.map(t=>`<span class="tag o">${t.topic||el(t)}</span>`).join('')}</div>`;
+    if(!ai.gaps&&!ai.causal&&!(sh.critical_entities&&sh.critical_entities.length))b10+=`<div style="color:var(--mg);font-style:italic">Agent instructions wygenerowane wewnętrznie — używane automatycznie w batch loop</div>`;
+    h+=s1Sec(10,'Instrukcje dla modelu',``,b10);
+
     document.getElementById('s1B').innerHTML=h;
+    // Auto-expand first section
+    document.getElementById('s1s1').classList.add('open');
 }
 
 // ═══ BATCH INSTRUCTIONS ═══
@@ -377,7 +503,7 @@ async function startWorkflow(){
     try{
         const resp=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({main_keyword:kw,mode:mode,h2_structure:h2,basic_terms:bt,extended_terms:et})});
         const data=await resp.json();
-        if(data.error){log(`❌ ${data.error}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';return}
+        if(!resp.ok||data.error){log(`❌ ${data.error||'Server error '+resp.status}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';if(resp.status===429)log('⏳ Poczekaj na zakończenie bieżącego workflow');return}
         jid=data.job_id;log(`Job: ${jid}`);
 
         const par=new URLSearchParams();par.set('basic_terms',JSON.stringify(bt));par.set('extended_terms',JSON.stringify(et));
@@ -387,7 +513,7 @@ async function startWorkflow(){
         es.addEventListener('log',e=>{log(JSON.parse(e.data).msg)});
         es.addEventListener('project',e=>{const d=JSON.parse(e.data);tb=d.total_batches;log(`Project: ${d.project_id}`);const r=document.getElementById('bRes');r.innerHTML='';for(let i=1;i<=tb;i++)r.innerHTML+=`<div class="bchip pend" id="bc${i}">B${i}</div>`});
         es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:13px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${h}</div>`).join('')});
-        es.addEventListener('s1_data',e=>{rS1(JSON.parse(e.data))});
+        es.addEventListener('s1_data',e=>{rS1(JSON.parse(e.data));const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}});
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
         es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
         es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`});
