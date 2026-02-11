@@ -127,6 +127,21 @@
             cursor: not-allowed;
             transform: none;
         }
+        .btn-stop {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+            display: none;
+        }
+        .btn-stop:hover { opacity: 0.9; }
 
         /* ─── RIGHT PANEL (PROGRESS) ─── */
         .panel-right {
@@ -367,10 +382,13 @@
                 </div>
             </div>
 
-            <div class="section-title">Nagłówki H2</div>
+            <div class="section-title">Nagłówki H2 <span style="color:#555; font-weight:400;">(opcjonalne)</span></div>
             <div class="form-group">
-                <textarea id="h2Structure" rows="8" placeholder="Jeden H2 na linię, np:&#10;Przeprowadzka – od czego zacząć&#10;Cztery tygodnie przed przeprowadzką&#10;Tydzień przed przeprowadzką&#10;Dzień przeprowadzki&#10;Samodzielna przeprowadzka czy firma&#10;Rozpakowywanie w nowym miejscu&#10;Najczęściej zadawane pytania"></textarea>
-                <div class="help-text">Jeden nagłówek na linię. Ostatni = FAQ. Jeśli puste, API zaproponuje na podstawie S1.</div>
+                <textarea id="h2Structure" rows="6" placeholder="Zostaw puste → system wygeneruje z analizy S1&#10;&#10;Lub podaj wskazówki (nie muszą być dokładne):&#10;Jak zacząć przeprowadzkę&#10;Pakowanie rzeczy&#10;Dzień przeprowadzki"></textarea>
+                <div class="help-text">
+                    <strong>Puste = auto:</strong> system przeanalizuje konkurencję (S1) i sam zdecyduje ile i jakie H2 potrzeba.<br>
+                    <strong>Podane = wskazówki:</strong> system je zoptymalizuje na podstawie S1. Frazy BASIC/EXTENDED idą do tekstu, nie do nagłówków.
+                </div>
             </div>
 
             <div class="section-title">
@@ -397,6 +415,9 @@
 
             <button class="btn-start" id="btnStart" onclick="startWorkflow()">
                 🚀 Uruchom workflow
+            </button>
+            <button class="btn-stop" id="btnStop" onclick="stopWorkflow()">
+                ⛔ Zatrzymaj workflow
             </button>
         </div>
 
@@ -429,55 +450,68 @@
                             <div class="step-detail" id="stepDetail2">Oczekuje...</div>
                         </div>
                     </div>
+                    <div class="step" data-step="3">
+                        <div class="step-icon pending" id="stepIcon3">3</div>
+                        <div class="step-info">
+                            <div class="step-name">H2 Planning</div>
+                            <div class="step-detail" id="stepDetail3">Oczekuje...</div>
+                        </div>
+                    </div>
                     <div class="step" data-step="4">
-                        <div class="step-icon pending" id="stepIcon4">3</div>
+                        <div class="step-icon pending" id="stepIcon4">4</div>
                         <div class="step-info">
                             <div class="step-name">Create Project</div>
                             <div class="step-detail" id="stepDetail4">Oczekuje...</div>
                         </div>
                     </div>
                     <div class="step" data-step="5">
-                        <div class="step-icon pending" id="stepIcon5">4</div>
+                        <div class="step-icon pending" id="stepIcon5">5</div>
                         <div class="step-info">
                             <div class="step-name">Phrase Hierarchy</div>
                             <div class="step-detail" id="stepDetail5">Oczekuje...</div>
                         </div>
                     </div>
                     <div class="step" data-step="6">
-                        <div class="step-icon pending" id="stepIcon6">5</div>
+                        <div class="step-icon pending" id="stepIcon6">6</div>
                         <div class="step-info">
                             <div class="step-name">Batch Loop</div>
                             <div class="step-detail" id="stepDetail6">Oczekuje...</div>
                         </div>
                     </div>
                     <div class="step" data-step="7">
-                        <div class="step-icon pending" id="stepIcon7">6</div>
+                        <div class="step-icon pending" id="stepIcon7">7</div>
                         <div class="step-info">
                             <div class="step-name">PAA / FAQ</div>
                             <div class="step-detail" id="stepDetail7">Oczekuje...</div>
                         </div>
                     </div>
                     <div class="step" data-step="8">
-                        <div class="step-icon pending" id="stepIcon8">7</div>
+                        <div class="step-icon pending" id="stepIcon8">8</div>
                         <div class="step-info">
                             <div class="step-name">Final Review</div>
                             <div class="step-detail" id="stepDetail8">Oczekuje...</div>
                         </div>
                     </div>
                     <div class="step" data-step="9">
-                        <div class="step-icon pending" id="stepIcon9">8</div>
+                        <div class="step-icon pending" id="stepIcon9">9</div>
                         <div class="step-info">
                             <div class="step-name">Editorial Review</div>
                             <div class="step-detail" id="stepDetail9">Oczekuje...</div>
                         </div>
                     </div>
                     <div class="step" data-step="10">
-                        <div class="step-icon pending" id="stepIcon10">9</div>
+                        <div class="step-icon pending" id="stepIcon10">10</div>
                         <div class="step-info">
                             <div class="step-name">Export</div>
                             <div class="step-detail" id="stepDetail10">Oczekuje...</div>
                         </div>
                     </div>
+                </div>
+
+                <!-- H2 Plan display -->
+                <div class="editorial-card" id="h2PlanCard" style="display: none;">
+                    <div style="font-size: 13px; font-weight: 600; color: #6366f1; margin-bottom: 10px;">📋 WYGENEROWANY PLAN H2</div>
+                    <div id="h2PlanList" style="font-size: 14px; line-height: 1.8;"></div>
                 </div>
 
                 <!-- Batch progress bar -->
@@ -583,6 +617,17 @@
             if (detail && detailEl) detailEl.textContent = detail;
         }
 
+        function stopWorkflow() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            addLog('⛔ Workflow zatrzymany przez użytkownika');
+            document.getElementById('btnStart').disabled = false;
+            document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
+            document.getElementById('btnStop').style.display = 'none';
+        }
+
         function parseTerms(text) {
             return text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         }
@@ -599,10 +644,7 @@
             }
 
             const h2List = h2Text ? h2Text.split('\n').map(l => l.trim()).filter(l => l) : [];
-            if (h2List.length === 0) {
-                alert('Wpisz przynajmniej jeden nagłówek H2!');
-                return;
-            }
+            // H2 is now optional — if empty, will be auto-generated from S1
 
             const basicTerms = parseTerms(basicText);
             const extendedTerms = parseTerms(extendedText);
@@ -610,19 +652,21 @@
             // Disable form
             document.getElementById('btnStart').disabled = true;
             document.getElementById('btnStart').textContent = '⏳ Workflow w toku...';
+            document.getElementById('btnStop').style.display = '';
 
             // Show progress
             document.getElementById('welcomeScreen').style.display = 'none';
             document.getElementById('progressScreen').style.display = '';
 
-            // Reset steps
-            for (let i of [1,2,4,5,6,7,8,9,10]) {
+            // Reset steps (including step 3)
+            for (let i of [1,2,3,4,5,6,7,8,9,10]) {
                 updateStep(i, 'pending', 'Oczekuje...');
             }
             document.getElementById('logConsole').innerHTML = '';
             document.getElementById('batchProgress').style.display = 'none';
             document.getElementById('batchResults').innerHTML = '';
             document.getElementById('editorialCard').style.display = 'none';
+            document.getElementById('h2PlanCard').style.display = 'none';
             document.getElementById('doneBanner').style.display = 'none';
             document.getElementById('exportButtons').style.display = 'none';
             document.getElementById('articlePreview').style.display = 'none';
@@ -683,6 +727,19 @@
                     for (let i = 1; i <= totalBatches; i++) {
                         results.innerHTML += `<div class="batch-chip pending" id="batchChip${i}">B${i}</div>`;
                     }
+                });
+
+                eventSource.addEventListener('h2_plan', (e) => {
+                    const d = JSON.parse(e.data);
+                    const card = document.getElementById('h2PlanCard');
+                    const list = document.getElementById('h2PlanList');
+                    card.style.display = '';
+                    list.innerHTML = d.h2_list.map((h2, i) =>
+                        `<div style="padding: 4px 0; border-bottom: 1px solid #1a1a2a;">
+                            <span style="color: #6366f1; font-weight: 600;">${i+1}.</span>
+                            <span style="color: #ccc;">${h2}</span>
+                        </div>`
+                    ).join('');
                 });
 
                 eventSource.addEventListener('batch_start', (e) => {
@@ -751,6 +808,7 @@
                     // Re-enable form
                     document.getElementById('btnStart').disabled = false;
                     document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
+                    document.getElementById('btnStop').style.display = 'none';
 
                     eventSource.close();
                 });
@@ -762,20 +820,22 @@
 
                     document.getElementById('btnStart').disabled = false;
                     document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
+                    document.getElementById('btnStop').style.display = 'none';
                     eventSource.close();
                 });
 
                 eventSource.onerror = () => {
-                    // Connection lost
                     addLog('⚠️ Połączenie SSE utracone');
                     document.getElementById('btnStart').disabled = false;
                     document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
+                    document.getElementById('btnStop').style.display = 'none';
                 };
 
             } catch (err) {
                 addLog(`❌ Fatal: ${err.message}`);
                 document.getElementById('btnStart').disabled = false;
                 document.getElementById('btnStart').textContent = '🚀 Uruchom workflow';
+                document.getElementById('btnStop').style.display = 'none';
             }
         }
     </script>

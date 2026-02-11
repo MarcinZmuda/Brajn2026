@@ -127,6 +127,111 @@ def brajen_call(method, endpoint, json_data=None):
 
 
 # ============================================================
+# H2 PLAN GENERATOR (from S1 + user phrases)
+# ============================================================
+def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, user_h2_hints=None):
+    """
+    Generate optimal H2 structure from S1 analysis data.
+    Number of H2s is determined by analysis, not hardcoded.
+    User phrases are context for topic coverage, NOT for stuffing into H2 titles.
+    """
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    
+    # Extract S1 insights
+    competitor_h2 = s1_data.get("competitor_h2_patterns", [])
+    suggested_h2s = s1_data.get("content_gaps", {}).get("suggested_new_h2s", [])
+    content_gaps = s1_data.get("content_gaps", {})
+    causal_triplets = s1_data.get("causal_triplets", {})
+    paa = s1_data.get("paa_questions", []) or s1_data.get("serp_data", {}).get("paa_questions", [])
+    
+    # Parse user phrases (strip ranges) — for topic context only
+    all_user_phrases = []
+    for term_str in (basic_terms + extended_terms):
+        kw = term_str.strip().split(":")[0].strip()
+        if kw:
+            all_user_phrases.append(kw)
+    
+    # Count competitor H2s to understand typical depth
+    avg_competitor_h2 = len(competitor_h2) if competitor_h2 else 0
+    
+    prompt = f"""Jesteś ekspertem SEO. Zaprojektuj optymalną strukturę nagłówków H2 dla artykułu po polsku.
+
+HASŁO GŁÓWNE: {main_keyword}
+TRYB: {mode} ({'standard = pełny artykuł' if mode == 'standard' else 'fast = krótki artykuł, max 3 sekcje'})
+
+═══ DANE Z ANALIZY KONKURENCJI (S1) ═══
+
+WZORCE H2 KONKURENCJI (najczęstsze tematy sekcji u konkurentów):
+{json.dumps(competitor_h2[:20], ensure_ascii=False, indent=2)}
+
+SUGEROWANE NOWE H2 (luki — tego NIKT z konkurencji nie pokrywa):
+{json.dumps(suggested_h2s, ensure_ascii=False, indent=2)}
+
+LUKI TREŚCIOWE:
+{json.dumps(content_gaps.get("gaps", [])[:10], ensure_ascii=False, indent=2) if content_gaps.get("gaps") else "Brak"}
+
+PYTANIA PAA (People Also Ask z Google):
+{json.dumps(paa[:8], ensure_ascii=False, indent=2) if paa else "Brak"}
+
+PRZYCZYNOWE ZALEŻNOŚCI (cause→effect z konkurencji):
+{json.dumps(causal_triplets.get("triplets", [])[:5], ensure_ascii=False, indent=2) if causal_triplets.get("triplets") else "Brak"}
+
+{f'WSKAZÓWKI UŻYTKOWNIKA (hinty do struktury — nie muszą być użyte dosłownie):{chr(10)}{json.dumps(user_h2_hints, ensure_ascii=False, indent=2)}' if user_h2_hints else ''}
+
+═══ KONTEKST TEMATYCZNY (frazy do tekstu) ═══
+
+Poniższe frazy będą użyte W TREŚCI artykułu (nie w nagłówkach!).
+Podaję je tylko żebyś wiedział jaki zakres tematyczny artykuł musi pokryć.
+Zaplanuj H2 tak, by każda fraza miała naturalną sekcję, w której może się pojawić:
+
+{json.dumps(all_user_phrases, ensure_ascii=False)}
+
+═══ ZASADY ═══
+
+1. LICZBA H2 wynika z analizy — ile sekcji potrzeba, by wyczerpująco pokryć temat.
+   {'Tryb fast: max 3 sekcje + FAQ.' if mode == 'fast' else 'Typowo 5-10 sekcji — tyle ile wymaga temat. Nie za mało (płytko), nie za dużo (po łebkach).'}
+2. OSTATNI H2 MUSI być: "Najczęściej zadawane pytania"
+3. Pokryj najważniejsze wzorce z konkurencji + luki treściowe (przewaga nad konkurencją)
+4. NIE upychaj fraz w nagłówkach! H2 mają być naturalne, czytelne, po polsku
+5. Logiczna narracja — od ogółu do szczegółu, chronologicznie, lub problemowo
+6. NIE powtarzaj hasła głównego dosłownie w każdym H2
+
+═══ FORMAT ODPOWIEDZI ═══
+
+Odpowiedz TYLKO JSON array, bez markdown, bez komentarzy:
+["H2 pierwszy", "H2 drugi", ..., "Najczęściej zadawane pytania"]
+"""
+
+    response = client.messages.create(
+        model=ANTHROPIC_MODEL,
+        max_tokens=1000,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.5
+    )
+    
+    response_text = response.content[0].text.strip()
+    
+    # Parse JSON response
+    try:
+        clean = response_text.replace("```json", "").replace("```", "").strip()
+        h2_list = json.loads(clean)
+        if isinstance(h2_list, list) and len(h2_list) >= 2:
+            return h2_list
+    except (json.JSONDecodeError, ValueError):
+        pass
+    
+    # Fallback: extract lines that look like H2s
+    lines = [l.strip().strip('"').strip("'").strip(",").strip('"') 
+             for l in response_text.split("\n") if l.strip() and not l.strip().startswith("[") and not l.strip().startswith("]")]
+    if lines:
+        return lines
+    
+    # Ultimate fallback
+    fallback = suggested_h2s[:7] + ["Najczęściej zadawane pytania"] if suggested_h2s else [main_keyword, "Najczęściej zadawane pytania"]
+    return fallback
+
+
+# ============================================================
 # ANTHROPIC CLAUDE TEXT GENERATION
 # ============================================================
 def generate_batch_text(pre_batch, h2, batch_type, article_memory=None):
@@ -320,6 +425,38 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         ymyl_detail = f"Legal: {'TAK' if is_legal else 'NIE'} | Medical: {'TAK' if is_medical else 'NIE'}"
         yield emit("step", {"step": 2, "name": "YMYL Detection", "status": "done", "detail": ymyl_detail})
+
+        # ─── KROK 3: H2 Planning (auto from S1 + phrase optimization) ───
+        yield emit("step", {"step": 3, "name": "H2 Planning", "status": "running"})
+
+        if not h2_structure or len(h2_structure) == 0:
+            # Fully automatic: generate H2 from S1
+            yield emit("log", {"msg": "Generuję strukturę H2 z analizy S1 (liczba H2 = tyle ile wymaga temat)..."})
+            h2_structure = generate_h2_plan(
+                main_keyword=main_keyword,
+                mode=mode,
+                s1_data=s1,
+                basic_terms=basic_terms,
+                extended_terms=extended_terms
+            )
+        elif len(h2_structure) > 0:
+            # User provided hints — use them as hints, optimize with S1
+            user_hints = list(h2_structure)  # save original
+            yield emit("log", {"msg": f"Optymalizuję {len(user_hints)} wskazówek H2 na podstawie S1..."})
+            h2_structure = generate_h2_plan(
+                main_keyword=main_keyword,
+                mode=mode,
+                s1_data=s1,
+                basic_terms=basic_terms,
+                extended_terms=extended_terms,
+                user_h2_hints=user_hints
+            )
+
+        # Emit the final H2 plan for the UI
+        yield emit("h2_plan", {"h2_list": h2_structure, "count": len(h2_structure)})
+        yield emit("log", {"msg": f"Plan H2 ({len(h2_structure)} sekcji): {' | '.join(h2_structure)}"})
+        yield emit("step", {"step": 3, "name": "H2 Planning", "status": "done",
+                            "detail": f"{len(h2_structure)} nagłówków H2"})
 
         # ─── KROK 4: Create Project ───
         yield emit("step", {"step": 4, "name": "Create Project", "status": "running"})
@@ -711,14 +848,15 @@ def start_workflow():
     basic_terms = [t.strip() for t in data.get("basic_terms", []) if t.strip()]
     extended_terms = [t.strip() for t in data.get("extended_terms", []) if t.strip()]
 
-    if not h2_list:
-        return jsonify({"error": "Brak nagłówków H2"}), 400
+    # H2 is now OPTIONAL — if empty, will be auto-generated from S1
 
     job_id = str(uuid.uuid4())[:8]
     active_jobs[job_id] = {
         "main_keyword": main_keyword,
         "mode": mode,
         "h2_structure": h2_list,
+        "basic_terms": basic_terms,
+        "extended_terms": extended_terms,
         "status": "running",
         "created": datetime.now().isoformat()
     }
@@ -736,23 +874,13 @@ def stream_workflow(job_id):
 
     data = job
 
-    def generate():
-        yield from run_workflow_sse(
-            job_id=job_id,
-            main_keyword=data["main_keyword"],
-            mode=data["mode"],
-            h2_structure=data["h2_structure"],
-            basic_terms=request.args.getlist("basic") or [],
-            extended_terms=request.args.getlist("extended") or []
-        )
-
     # Pass basic/extended through query params from frontend
     basic_terms = request.args.get("basic_terms", "")
     extended_terms = request.args.get("extended_terms", "")
 
     def generate_with_terms():
-        bt = json.loads(basic_terms) if basic_terms else []
-        et = json.loads(extended_terms) if extended_terms else []
+        bt = json.loads(basic_terms) if basic_terms else data.get("basic_terms", [])
+        et = json.loads(extended_terms) if extended_terms else data.get("extended_terms", [])
         yield from run_workflow_sse(
             job_id=job_id,
             main_keyword=data["main_keyword"],
