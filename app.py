@@ -145,7 +145,7 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
 def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, user_h2_hints=None):
     """
     Generate optimal H2 structure from S1 analysis data.
-    Number of H2s is determined by analysis, not hardcoded.
+    Number of H2s is determined by analysis AND recommended article length.
     User phrases are context for topic coverage, NOT for stuffing into H2 titles.
     """
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -156,6 +156,15 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
     content_gaps = (s1_data.get("content_gaps") or {})
     causal_triplets = (s1_data.get("causal_triplets") or {})
     paa = (s1_data.get("paa") or s1_data.get("paa_questions") or [])
+    
+    # FIX: Determine max H2 count based on recommended_length
+    recommended_length = s1_data.get("recommended_length", 3000)
+    if mode == "fast":
+        max_h2 = 4  # fast = max 3 content + FAQ
+    else:
+        # ~150-200 words per H2 section on average (+ intro ~100, FAQ ~200)
+        effective_words = max(recommended_length - 300, 500)  # minus intro+FAQ
+        max_h2 = min(12, max(4, effective_words // 180 + 2))  # +2 for intro-like + FAQ
     
     # Parse user phrases (strip ranges) — for topic context only
     all_user_phrases = []
@@ -214,8 +223,8 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję do której pasuj
 
 ═══ ZASADY ═══
 
-1. LICZBA H2 wynika z analizy — ile sekcji potrzeba, by wyczerpująco pokryć temat.
-   {'Tryb fast: max 3 sekcje + FAQ.' if mode == 'fast' else 'Typowo 5-10 sekcji — tyle ile wymaga temat. Nie za mało (płytko), nie za dużo (po łebkach).'}
+1. LICZBA H2: MAKSYMALNIE {max_h2} sekcji (włącznie z FAQ). Artykuł ma mieć ok. {recommended_length} słów — nie twórz więcej sekcji niż się zmieści.
+   {'Tryb fast: max 3 sekcje + FAQ.' if mode == 'fast' else f'Przy {recommended_length} słów optymalnie {max(3, max_h2-3)}-{max_h2} sekcji. Za dużo H2 = każda sekcja będzie płytka.'}
 2. OSTATNI H2 MUSI być: "Najczęściej zadawane pytania"
 3. Pokryj najważniejsze wzorce z konkurencji + luki treściowe (przewaga nad konkurencją)
 4. {'Uwzględnij frazy H2 użytkownika w nagłówkach, o ile brzmią naturalnie. Resztę dopasuj z S1.' if user_h2_hints else 'Dobierz nagłówki na podstawie S1 i luk treściowych.'}
@@ -243,6 +252,13 @@ Odpowiedz TYLKO JSON array, bez markdown, bez komentarzy:
         clean = response_text.replace("```json", "").replace("```", "").strip()
         h2_list = json.loads(clean)
         if isinstance(h2_list, list) and len(h2_list) >= 2:
+            # FIX: Cap to max_h2 (keep FAQ as last)
+            if len(h2_list) > max_h2:
+                has_faq = any("pytania" in h.lower() for h in h2_list[-2:])
+                if has_faq:
+                    h2_list = h2_list[:max_h2-1] + [h2_list[-1]]
+                else:
+                    h2_list = h2_list[:max_h2]
             return h2_list
     except (json.JSONDecodeError, ValueError):
         pass
@@ -1031,11 +1047,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("batch_start", {"batch": batch_num, "total": total_batches})
             yield emit("log", {"msg": f"── BATCH {batch_num}/{total_batches} ──"})
 
-            # 6a: Get pre_batch_info
+            # 6a: Get pre_batch_info (with retry)
             yield emit("log", {"msg": f"GET /pre_batch_info"})
-            pre_result = brajen_call("get", f"/api/project/{project_id}/pre_batch_info")
-            if not pre_result["ok"]:
-                yield emit("log", {"msg": f"⚠️ pre_batch_info error: {pre_result.get('error', '')[:100]}"})
+            pre_result = None
+            for _pb_attempt in range(3):
+                pre_result = brajen_call("get", f"/api/project/{project_id}/pre_batch_info")
+                if pre_result["ok"]:
+                    break
+                yield emit("log", {"msg": f"⚠️ pre_batch_info attempt {_pb_attempt+1}/3 failed: {pre_result.get('error', '')[:80]}"})
+                time.sleep(3 + _pb_attempt * 3)
+            if not pre_result or not pre_result["ok"]:
+                yield emit("log", {"msg": f"❌ pre_batch_info failed po 3 próbach — skip batch {batch_num}"})
                 continue
 
             pre_batch = pre_result["data"]
@@ -1078,19 +1100,33 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             batch_length_info = pre_batch.get("batch_length") or {}
             enhanced_data = enhanced_data_raw  # Already fetched above
             
+            # FIX: Normalize coverage — extract percent values from nested objects
+            raw_coverage = pre_batch.get("coverage") or {}
+            def _norm_cov(v):
+                """Extract numeric percent from coverage value (could be dict or number)."""
+                if isinstance(v, (int, float)):
+                    return round(v, 1)
+                if isinstance(v, dict):
+                    return round(v.get("percent", v.get("pct", v.get("value", 0))), 1)
+                return 0
+            
+            normalized_coverage = {}
+            for ck, cv in raw_coverage.items():
+                normalized_coverage[ck] = _norm_cov(cv)
+
             yield emit("batch_instructions", {
-                "batch": batch_num,
-                "total": total_batches,
-                "batch_type": batch_type,
-                "h2": current_h2,
-                "h2_remaining": h2_remaining[:5],
-                "target_words": batch_length_info.get("suggested_min", batch_length_info.get("target", "?")),
-                "word_range": f"{batch_length_info.get('suggested_min', '?')}-{batch_length_info.get('suggested_max', '?')}",
-                "must_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in must_kw],
-                "extended_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in ext_kw],
-                "stop_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in stop_kw][:10],
-                "caution_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in caution_kw][:10],
-                "coverage": pre_batch.get("coverage") or {},
+                    "batch": batch_num,
+                    "total": total_batches,
+                    "batch_type": batch_type,
+                    "h2": current_h2,
+                    "h2_remaining": h2_remaining[:5],
+                    "target_words": batch_length_info.get("suggested_min", batch_length_info.get("target", "?")),
+                    "word_range": f"{batch_length_info.get('suggested_min', '?')}-{batch_length_info.get('suggested_max', '?')}",
+                    "must_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in must_kw],
+                    "extended_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in ext_kw],
+                    "stop_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in stop_kw][:10],
+                    "caution_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in caution_kw][:10],
+                    "coverage": normalized_coverage,
                 "density": pre_batch.get("density") or {},
                 # ─── Boolean flags ───
                 "has_gpt_instructions": bool(pre_batch.get("gpt_instructions_v39")),
@@ -1195,8 +1231,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 submit_result = brajen_call("post", f"/api/project/{project_id}/batch_simple", submit_data)
 
                 if not submit_result["ok"]:
-                    yield emit("log", {"msg": f"❌ Submit error: {submit_result.get('error', '')[:100]}"})
-                    break
+                    # Retry submit up to 2 times on failure
+                    _submit_ok = False
+                    for _sub_retry in range(2):
+                        yield emit("log", {"msg": f"⚠️ Submit retry {_sub_retry+1}/2 (error: {submit_result.get('error', '')[:80]})"})
+                        time.sleep(5 + _sub_retry * 5)
+                        submit_result = brajen_call("post", f"/api/project/{project_id}/batch_simple", submit_data)
+                        if submit_result["ok"]:
+                            _submit_ok = True
+                            break
+                    if not _submit_ok:
+                        yield emit("log", {"msg": f"❌ Submit failed po retries — skip batch {batch_num}"})
+                        break
 
                 result = submit_result["data"]
                 accepted = result.get("accepted", False)
@@ -1267,15 +1313,31 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     fixes_applied = 0
 
                     # 1. Napraw exceeded keywords (zamiana na synonimy)
+                    # FIX: Filtruj absurdalne synonimy
+                    _BAD_SYNONYMS = {
+                        'dzierżawić', 'przysposobić', 'zakład przeprowadzeniowy',
+                        'pozyskiwać', 'niegdyś', 'iżby', 'albowiem', 'atoli',
+                        'aczkolwiek', 'wszelako', 'mianowicie', 'jednakowoż',
+                    }
                     if exceeded:
                         for exc in exceeded:
                             kw = exc.get("keyword", "")
                             synonyms = (exc.get("use_instead") or exc.get("synonyms") or [])
-                            if synonyms and kw and kw in text:
-                                syn = synonyms[0] if isinstance(synonyms[0], str) else str(synonyms[0])
+                            # Filter to reasonable synonyms only
+                            good_syns = [
+                                s for s in synonyms 
+                                if isinstance(s, str) and s.lower() not in _BAD_SYNONYMS
+                                and len(s) < len(kw) * 3  # not absurdly long
+                                and not any(c in s for c in '{}[]();')  # no code
+                            ]
+                            if good_syns and kw and kw in text:
+                                syn = good_syns[0]
                                 text = text.replace(kw, syn, 1)
                                 fixes_applied += 1
                                 yield emit("log", {"msg": f"🔧 Zamiana: '{kw}' → '{syn}'"})
+                            elif kw and kw in text and synonyms:
+                                yield emit("log", {"msg": f"⚠️ Pominięto złą zamianę: '{kw}' → '{synonyms[0]}'"})
+                                fixes_applied += 1  # Count as handled to avoid infinite loop
 
                     # 2. Loguj issues[] z MoE (nawet jeśli nie exceeded)
                     if issues and not exceeded:
@@ -1584,6 +1646,14 @@ def stream_workflow(job_id):
     def generate_with_terms():
         bt = json.loads(basic_terms) if basic_terms else (data.get("basic_terms") or [])
         et = json.loads(extended_terms) if extended_terms else (data.get("extended_terms") or [])
+        
+        # FIX: Prevent workflow restart on SSE reconnect
+        if data.get("_workflow_started"):
+            yield f"event: log\ndata: {json.dumps({'msg': '⚠️ SSE reconnect — workflow już działa, zamykam duplikat'}, ensure_ascii=False)}\n\n"
+            yield f"event: workflow_error\ndata: {json.dumps({'step': 0, 'msg': 'SSE reconnected but workflow already running. Check logs for progress.'})}\n\n"
+            return
+        data["_workflow_started"] = True
+        
         yield from run_workflow_sse(
             job_id=job_id,
             main_keyword=data["main_keyword"],
@@ -1592,6 +1662,7 @@ def stream_workflow(job_id):
             basic_terms=bt,
             extended_terms=et
         )
+        data["_workflow_started"] = False  # Allow restart after completion
 
     return Response(
         stream_with_context(stream_with_keepalive(generate_with_terms, keepalive_interval=15)),
