@@ -826,7 +826,7 @@
 
             // Content gaps
             const cg = d.content_gaps || {};
-            const gaps = cg.paa_unanswered || cg.subtopic_missing || cg.depth_missing || [];
+            const gaps = [...(cg.paa_unanswered || []), ...(cg.subtopic_missing || []), ...(cg.depth_missing || []), ...(cg.gaps || [])];
             document.getElementById('s1ContentGaps').innerHTML = gaps.length ? `
                 <div class="info-section-title">🕳️ Luki treściowe</div>
                 ${gaps.slice(0,8).map(g => {
@@ -889,11 +889,16 @@
                     </div>
                     <div class="context-flags">
                         ${infoTag('gpt_instructions_v39', d.has_gpt_instructions, 'green')}
+                        ${infoTag('gpt_prompt', d.has_gpt_prompt, 'green')}
                         ${infoTag('article_memory', d.has_article_memory, 'green')}
                         ${infoTag('enhanced', d.has_enhanced, 'green')}
                         ${infoTag('style', d.has_style, 'green')}
                         ${infoTag('experience_markers', d.experience_markers, 'blue')}
                         ${infoTag('continuation', d.continuation_context, 'blue')}
+                        ${infoTag('causal_context', d.has_causal_context, 'purple')}
+                        ${infoTag('information_gain', d.has_information_gain, 'purple')}
+                        ${infoTag('smart_instructions', d.has_smart_instructions, 'purple')}
+                        ${infoTag('phrase_hierarchy', d.has_phrase_hierarchy, 'blue')}
                         ${d.has_legal ? infoTag('YMYL legal', true, 'red') : ''}
                         ${d.has_medical ? infoTag('YMYL medical', true, 'red') : ''}
                     </div>

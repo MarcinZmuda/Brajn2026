@@ -149,11 +149,11 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     
     # Extract S1 insights
-    competitor_h2 = s1_data.get("competitor_h2_patterns", [])
+    competitor_h2 = (s1_data.get("competitor_h2_patterns") or [])
     suggested_h2s = (s1_data.get("content_gaps") or {}).get("suggested_new_h2s", [])
-    content_gaps = s1_data.get("content_gaps", {})
-    causal_triplets = s1_data.get("causal_triplets", {})
-    paa = s1_data.get("paa_questions", []) or (s1_data.get("serp_data") or {}).get("paa_questions", [])
+    content_gaps = (s1_data.get("content_gaps") or {})
+    causal_triplets = (s1_data.get("causal_triplets") or {})
+    paa = (s1_data.get("paa") or s1_data.get("paa_questions") or [])
     
     # Parse user phrases (strip ranges) — for topic context only
     all_user_phrases = []
@@ -179,13 +179,13 @@ SUGEROWANE NOWE H2 (luki — tego NIKT z konkurencji nie pokrywa):
 {json.dumps(suggested_h2s, ensure_ascii=False, indent=2)}
 
 LUKI TREŚCIOWE:
-{json.dumps(content_gaps.get("gaps", [])[:10], ensure_ascii=False, indent=2) if content_gaps.get("gaps") else "Brak"}
+{json.dumps((content_gaps.get("paa_unanswered") or []) + (content_gaps.get("subtopic_missing") or []) + (content_gaps.get("depth_missing") or []) or (content_gaps.get("gaps") or []), ensure_ascii=False, indent=2)[:1000] if (content_gaps.get("paa_unanswered") or content_gaps.get("subtopic_missing") or content_gaps.get("depth_missing") or content_gaps.get("gaps")) else "Brak"}
 
 PYTANIA PAA (People Also Ask z Google):
 {json.dumps(paa[:8], ensure_ascii=False, indent=2) if paa else "Brak"}
 
 PRZYCZYNOWE ZALEŻNOŚCI (cause→effect z konkurencji):
-{json.dumps(causal_triplets.get("triplets", [])[:5], ensure_ascii=False, indent=2) if causal_triplets.get("triplets") else "Brak"}
+{json.dumps((causal_triplets.get("chains") or causal_triplets.get("singles") or causal_triplets.get("triplets") or [])[:5], ensure_ascii=False, indent=2) if (causal_triplets.get("chains") or causal_triplets.get("singles") or causal_triplets.get("triplets")) else "Brak"}
 
 {f"""═══ FRAZY H2 UŻYTKOWNIKA ═══
 
@@ -266,22 +266,29 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
     plus ALL contextual fields. We must do the same.
     """
     
-    # ─── SYSTEM PROMPT = gpt_instructions_v39 (same as Custom GPT) ───
+    # ─── SYSTEM PROMPT = gpt_instructions_v39 + gpt_prompt ───
+    # gpt_instructions_v39 = writing techniques (passage-first, burstiness, anti-wall-of-info)
+    # gpt_prompt = batch context (coverage, density, semantic plan, keyword lists)
     gpt_instructions = pre_batch.get("gpt_instructions_v39", "")
     gpt_prompt = pre_batch.get("gpt_prompt", "")
-    system_prompt = gpt_instructions if gpt_instructions else gpt_prompt
     
-    if not system_prompt:
+    if gpt_instructions and gpt_prompt:
+        system_prompt = gpt_instructions + "\n\n" + gpt_prompt
+    elif gpt_instructions:
+        system_prompt = gpt_instructions
+    elif gpt_prompt:
+        system_prompt = gpt_prompt
+    else:
         system_prompt = "Jesteś ekspertem SEO. Pisz naturalnie po polsku, unikaj sztucznego tonu AI."
 
     # ─── USER PROMPT = FULL batch context (all fields Custom GPT could see) ───
-    keywords_info = pre_batch.get("keywords", {})
-    keyword_limits = pre_batch.get("keyword_limits", {})
-    batch_length = pre_batch.get("batch_length", {})
+    keywords_info = (pre_batch.get("keywords") or {})
+    keyword_limits = (pre_batch.get("keyword_limits") or {})
+    batch_length = (pre_batch.get("batch_length") or {})
     enhanced = pre_batch.get("enhanced") or {}
     style = pre_batch.get("style_instructions") or {}
     semantic_plan = pre_batch.get("semantic_batch_plan") or {}
-    ngrams = pre_batch.get("ngrams_for_batch", [])
+    ngrams = (pre_batch.get("ngrams_for_batch") or [])
     entity_seo = pre_batch.get("entity_seo") or {}
     serp = pre_batch.get("serp_enrichment") or {}
     legal_ctx = pre_batch.get("legal_context") or {}
@@ -291,8 +298,8 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
     main_kw = pre_batch.get("main_keyword") or {}
     soft_caps = pre_batch.get("soft_cap_recommendations") or {}
     dynamic_sections = pre_batch.get("dynamic_sections") or {}
-    h2_plan = pre_batch.get("h2_plan", [])
-    h2_remaining = pre_batch.get("h2_remaining", [])
+    h2_plan = (pre_batch.get("h2_plan") or [])
+    h2_remaining = (pre_batch.get("h2_remaining") or [])
     batch_number = pre_batch.get("batch_number", 1)
     total_batches = pre_batch.get("total_planned_batches", 1)
     intro_guidance = pre_batch.get("intro_guidance", "")
@@ -301,10 +308,10 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
     ngram_guidance = pre_batch.get("ngram_guidance") or {}
 
     # Build STOP keywords clearly
-    stop_kws = keyword_limits.get("stop_keywords", [])
+    stop_kws = (keyword_limits.get("stop_keywords") or [])
     stop_list = [s.get("keyword", s) if isinstance(s, dict) else s for s in stop_kws]
     
-    caution_kws = keyword_limits.get("caution_keywords", [])
+    caution_kws = (keyword_limits.get("caution_keywords") or [])
     caution_list = [c.get("keyword", c) if isinstance(c, dict) else c for c in caution_kws]
 
     # Build comprehensive user prompt
@@ -373,8 +380,8 @@ Długość: {json.dumps(batch_length, ensure_ascii=False) if batch_length else '
 
     # SERP enrichment (PAA, LSI, related)
     if serp:
-        paa = serp.get("paa_for_batch", [])
-        lsi = serp.get("lsi_keywords", [])
+        paa = (serp.get("paa_for_batch") or [])
+        lsi = (serp.get("lsi_keywords") or [])
         if paa or lsi:
             sections.append(f"═══ SERP ENRICHMENT ═══\nPAA: {json.dumps(paa[:5], ensure_ascii=False)}\nLSI: {json.dumps(lsi[:8], ensure_ascii=False)}")
 
@@ -393,8 +400,27 @@ Długość: {json.dumps(batch_length, ensure_ascii=False) if batch_length else '
             enhanced_parts.append(f"Relations: {json.dumps(enhanced['relations_to_establish'], ensure_ascii=False)[:500]}")
         if enhanced.get("phrase_hierarchy"):
             enhanced_parts.append(f"Phrase hierarchy: {json.dumps(enhanced['phrase_hierarchy'], ensure_ascii=False)[:500]}")
+        # 🆕 v45.0: Causal context from S1
+        if enhanced.get("causal_context"):
+            enhanced_parts.append(f"Causal context: {enhanced['causal_context'][:600]}")
+        # 🆕 v45.0: Information gain / content gaps from S1
+        if enhanced.get("information_gain"):
+            enhanced_parts.append(f"Information gain: {enhanced['information_gain'][:600]}")
+        # 🆕 v45.0: Smart batch instructions (formatted for GPT)
+        if enhanced.get("smart_instructions_formatted"):
+            enhanced_parts.append(f"Smart instructions:\n{enhanced['smart_instructions_formatted'][:800]}")
         if enhanced_parts:
             sections.append(f"═══ ENHANCED CONTEXT ═══\n" + "\n".join(enhanced_parts))
+
+    # 🆕 v45.0: Continuation context (top-level from pre_batch)
+    continuation_v39 = pre_batch.get("continuation_v39") or {}
+    if continuation_v39:
+        sections.append(f"═══ CONTINUATION ═══\n{json.dumps(continuation_v39, ensure_ascii=False)[:600]}")
+
+    # 🆕 v45.0: Keyword tracking (top-level from pre_batch)
+    keyword_tracking = pre_batch.get("keyword_tracking") or {}
+    if keyword_tracking:
+        sections.append(f"═══ KEYWORD TRACKING ═══\n{json.dumps(keyword_tracking, ensure_ascii=False)[:600]}")
 
     # Soft cap recommendations
     if soft_caps:
@@ -473,9 +499,9 @@ def _generate_openai(system_prompt, user_prompt):
 def generate_faq_text(paa_data, pre_batch=None, engine="claude"):
     """Generate FAQ section using PAA data + full pre_batch context."""
 
-    paa_questions = paa_data.get("serp_paa", [])
-    unused = paa_data.get("unused_keywords", {})
-    avoid = paa_data.get("avoid_in_faq", [])
+    paa_questions = (paa_data.get("serp_paa") or [])
+    unused = (paa_data.get("unused_keywords") or {})
+    avoid = (paa_data.get("avoid_in_faq") or [])
     instructions = paa_data.get("instructions", "")
 
     # Get gpt_instructions from pre_batch (same as Custom GPT)
@@ -490,16 +516,16 @@ def generate_faq_text(paa_data, pre_batch=None, engine="claude"):
     enhanced = {}
     if pre_batch:
         enhanced = pre_batch.get("enhanced") or {}
-        enhanced_paa = enhanced.get("paa_from_serp", [])
+        enhanced_paa = (enhanced.get("paa_from_serp") or [])
 
     # Keywords context
     keywords_info = {}
     keyword_limits = {}
     if pre_batch:
-        keywords_info = pre_batch.get("keywords", {})
-        keyword_limits = pre_batch.get("keyword_limits", {})
+        keywords_info = (pre_batch.get("keywords") or {})
+        keyword_limits = (pre_batch.get("keyword_limits") or {})
 
-    stop_kws = keyword_limits.get("stop_keywords", [])
+    stop_kws = (keyword_limits.get("stop_keywords") or [])
     stop_list = [s.get("keyword", s) if isinstance(s, dict) else s for s in stop_kws]
     
     user_prompt = f"""═══ BATCH FAQ ═══
@@ -569,7 +595,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             return
 
         s1 = s1_result["data"]
-        h2_patterns = len(s1.get("competitor_h2_patterns", []))
+        h2_patterns = len((s1.get("competitor_h2_patterns") or []))
         causal_count = (s1.get("causal_triplets") or {}).get("count", 0)
         gaps_count = (s1.get("content_gaps") or {}).get("total_gaps", 0)
         suggested_h2s = (s1.get("content_gaps") or {}).get("suggested_new_h2s", [])
@@ -584,17 +610,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "content_gaps_count": gaps_count,
             "suggested_h2s": suggested_h2s,
             "search_intent": s1.get("search_intent", ""),
-            "competitor_h2_patterns": s1.get("competitor_h2_patterns", [])[:20],
-            "content_gaps": s1.get("content_gaps", {}),
+            "competitor_h2_patterns": (s1.get("competitor_h2_patterns") or [])[:20],
+            "content_gaps": (s1.get("content_gaps") or {}),
             "causal_triplets": (s1.get("causal_triplets") or {}).get("chains", (s1.get("causal_triplets") or {}).get("singles", []))[:10],
             "causal_instruction": (s1.get("causal_triplets") or {}).get("agent_instruction", ""),
-            "paa_questions": (s1.get("paa_questions") or (s1.get("serp_data") or {}).get("paa_questions", []))[:10],
+            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or [])[:10],
             "entity_seo": {
                 "top_entities": (s1.get("entity_seo") or {}).get("top_entities", (s1.get("entity_seo") or {}).get("entities", []))[:10],
                 "must_mention": (s1.get("entity_seo") or {}).get("must_mention_entities", [])[:5]
             },
-            "ngrams": s1.get("ngrams", [])[:15],
-            "median_length": (s1.get("serp_data") or {}).get("median_length", s1.get("median_length", 0))
+            "ngrams": (s1.get("ngrams") or [])[:15],
+            "median_length": s1.get("median_length", 0)
         })
 
         # ─── KROK 2: YMYL Detection ───
@@ -703,10 +729,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "h2_structure": h2_structure,
             "keywords": keywords,
             "s1_data": {
-                "causal_triplets": s1.get("causal_triplets", {}),
-                "content_gaps": s1.get("content_gaps", {}),
-                "entity_seo": s1.get("entity_seo", {}),
-                "paa": s1.get("paa", [])
+                "causal_triplets": (s1.get("causal_triplets") or {}),
+                "content_gaps": (s1.get("content_gaps") or {}),
+                "entity_seo": (s1.get("entity_seo") or {}),
+                "paa": (s1.get("paa") or [])
             },
             "target_length": 3500 if mode == "standard" else 2000
         }
@@ -732,7 +758,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         hier_result = brajen_call("get", f"/api/project/{project_id}/phrase_hierarchy")
         if hier_result["ok"]:
             hier = hier_result["data"]
-            strategy = hier.get("strategies", {})
+            strategy = (hier.get("strategies") or {})
             yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "done",
                                 "detail": json.dumps(strategy, ensure_ascii=False)[:200]})
         else:
@@ -758,7 +784,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             batch_type = pre_batch.get("batch_type", "CONTENT")
 
             # Get current H2 from API (most reliable) or fallback to our plan
-            h2_remaining = pre_batch.get("h2_remaining", [])
+            h2_remaining = (pre_batch.get("h2_remaining") or [])
             semantic_plan = pre_batch.get("semantic_batch_plan") or {}
             if h2_remaining:
                 current_h2 = h2_remaining[0]
@@ -776,7 +802,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             # Emit batch instructions for UI display
             caution_kw = (pre_batch.get("keyword_limits") or {}).get("caution_keywords", [])
-            batch_length_info = pre_batch.get("batch_length", {})
+            batch_length_info = pre_batch.get("batch_length") or {}
             enhanced_data = pre_batch.get("enhanced") or {}
             
             yield emit("batch_instructions", {
@@ -791,9 +817,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "extended_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in ext_kw],
                 "stop_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in stop_kw][:10],
                 "caution_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in caution_kw][:10],
-                "coverage": pre_batch.get("coverage", {}),
-                "density": pre_batch.get("density", {}),
+                "coverage": pre_batch.get("coverage") or {},
+                "density": pre_batch.get("density") or {},
                 "has_gpt_instructions": bool(pre_batch.get("gpt_instructions_v39")),
+                "has_gpt_prompt": bool(pre_batch.get("gpt_prompt")),
                 "has_article_memory": bool(pre_batch.get("article_memory")),
                 "has_enhanced": bool(enhanced_data),
                 "has_style": bool(pre_batch.get("style_instructions")),
@@ -809,13 +836,22 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "continuation_context": bool(enhanced_data.get("continuation_context")),
                 "paa_from_serp": (enhanced_data.get("paa_from_serp") or [])[:3],
                 "main_keyword_ratio": (pre_batch.get("main_keyword") or {}).get("ratio"),
-                "intro_guidance": pre_batch.get("intro_guidance", "") if batch_type == "INTRO" else ""
+                "intro_guidance": pre_batch.get("intro_guidance", "") if batch_type == "INTRO" else "",
+                # v45 flags
+                "has_causal_context": bool(enhanced_data.get("causal_context")),
+                "has_information_gain": bool(enhanced_data.get("information_gain")),
+                "has_smart_instructions": bool(enhanced_data.get("smart_instructions")),
+                "has_phrase_hierarchy": bool(enhanced_data.get("phrase_hierarchy")),
+                "has_continuation_v39": bool(pre_batch.get("continuation_v39"))
             })
 
-            # 6c: Generate text            has_instructions = bool(pre_batch.get("gpt_instructions_v39"))
+            # 6c: Generate text
+            has_instructions = bool(pre_batch.get("gpt_instructions_v39"))
             has_enhanced = bool(pre_batch.get("enhanced"))
             has_memory = bool(pre_batch.get("article_memory"))
-            yield emit("log", {"msg": f"Generuję tekst przez {ANTHROPIC_MODEL}... [instructions={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'}]"})
+            has_causal = bool(enhanced_data.get("causal_context"))
+            has_smart = bool(enhanced_data.get("smart_instructions"))
+            yield emit("log", {"msg": f"Generuję tekst przez {ANTHROPIC_MODEL}... [instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'} causal={'✅' if has_causal else '—'} smart={'✅' if has_smart else '—'}]"})
 
             if batch_type == "FAQ":
                 # FAQ batch: first analyze PAA
@@ -853,9 +889,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 result = submit_result["data"]
                 accepted = result.get("accepted", False)
                 action = result.get("action", "CONTINUE")
-                quality = result.get("quality", {})
+                quality = (result.get("quality") or {})
                 depth = result.get("depth_score")
-                exceeded = result.get("exceeded_keywords", [])
+                exceeded = (result.get("exceeded_keywords") or [])
 
                 yield emit("batch_result", {
                     "batch": batch_num,
@@ -882,7 +918,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 if exceeded:
                     for exc in exceeded:
                         kw = exc.get("keyword", "")
-                        synonyms = exc.get("synonyms", [])
+                        synonyms = (exc.get("use_instead") or exc.get("synonyms") or [])
                         if synonyms and kw and kw in text:
                             syn = synonyms[0] if isinstance(synonyms[0], str) else str(synonyms[0])
                             text = text.replace(kw, syn, 1)
@@ -956,8 +992,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             final = final_result["data"]
             final_score = final.get("quality_score", final.get("score", "?"))
             final_status = final.get("status", "?")
-            missing_kw = final.get("missing_keywords", [])
-            issues = final.get("issues", [])
+            missing_kw = (final.get("missing_keywords") or [])
+            issues = (final.get("issues") or [])
 
             yield emit("final_review", {
                 "score": final_score,
@@ -996,9 +1032,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if editorial_result["ok"]:
             ed = editorial_result["data"]
             score = ed.get("overall_score", "?")
-            diff = ed.get("diff_result", {})
-            rollback = ed.get("rollback", {})
-            word_guard = ed.get("word_count_guard", {})
+            diff = (ed.get("diff_result") or {})
+            rollback = (ed.get("rollback") or {})
+            word_guard = (ed.get("word_count_guard") or {})
 
             detail = f"Ocena: {score}/10 | Zmiany: {diff.get('applied', 0)}/{diff.get('total_changes_parsed', 0)}"
             if word_guard:
@@ -1012,7 +1048,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "word_count_after": word_guard.get("corrected"),
                 "rollback": rollback.get("triggered", False),
                 "rollback_reason": rollback.get("reason", ""),
-                "feedback": ed.get("editorial_feedback", {})
+                "feedback": (ed.get("editorial_feedback") or {})
             })
 
             if rollback.get("triggered"):
@@ -1030,8 +1066,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         full_result = brajen_call("get", f"/api/project/{project_id}/full_article")
         if full_result["ok"]:
             full = full_result["data"]
-            stats = full.get("stats", {})
-            coverage = full.get("coverage", {})
+            stats = (full.get("stats") or {})
+            coverage = (full.get("coverage") or {})
 
             yield emit("article", {
                 "text": full.get("full_article", ""),
@@ -1039,7 +1075,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "h2_count": stats.get("h2_count", 0),
                 "h3_count": stats.get("h3_count", 0),
                 "coverage": coverage,
-                "density": full.get("density", {})
+                "density": (full.get("density") or {})
             })
 
         # Export HTML
@@ -1104,9 +1140,9 @@ def start_workflow():
         return jsonify({"error": "Brak hasła głównego"}), 400
 
     mode = data.get("mode", "standard")
-    h2_list = [h.strip() for h in data.get("h2_structure", []) if h.strip()]
-    basic_terms = [t.strip() for t in data.get("basic_terms", []) if t.strip()]
-    extended_terms = [t.strip() for t in data.get("extended_terms", []) if t.strip()]
+    h2_list = [h.strip() for h in (data.get("h2_structure") or []) if h.strip()]
+    basic_terms = [t.strip() for t in (data.get("basic_terms") or []) if t.strip()]
+    extended_terms = [t.strip() for t in (data.get("extended_terms") or []) if t.strip()]
 
     # H2 is now OPTIONAL — if empty, will be auto-generated from S1
 
@@ -1139,8 +1175,8 @@ def stream_workflow(job_id):
     extended_terms = request.args.get("extended_terms", "")
 
     def generate_with_terms():
-        bt = json.loads(basic_terms) if basic_terms else data.get("basic_terms", [])
-        et = json.loads(extended_terms) if extended_terms else data.get("extended_terms", [])
+        bt = json.loads(basic_terms) if basic_terms else (data.get("basic_terms") or [])
+        et = json.loads(extended_terms) if extended_terms else (data.get("extended_terms") or [])
         yield from run_workflow_sse(
             job_id=job_id,
             main_keyword=data["main_keyword"],
