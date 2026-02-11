@@ -150,10 +150,10 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
     
     # Extract S1 insights
     competitor_h2 = s1_data.get("competitor_h2_patterns", [])
-    suggested_h2s = s1_data.get("content_gaps", {}).get("suggested_new_h2s", [])
+    suggested_h2s = (s1_data.get("content_gaps") or {}).get("suggested_new_h2s", [])
     content_gaps = s1_data.get("content_gaps", {})
     causal_triplets = s1_data.get("causal_triplets", {})
-    paa = s1_data.get("paa_questions", []) or s1_data.get("serp_data", {}).get("paa_questions", [])
+    paa = s1_data.get("paa_questions", []) or (s1_data.get("serp_data") or {}).get("paa_questions", [])
     
     # Parse user phrases (strip ranges) — for topic context only
     all_user_phrases = []
@@ -570,9 +570,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         s1 = s1_result["data"]
         h2_patterns = len(s1.get("competitor_h2_patterns", []))
-        causal_count = s1.get("causal_triplets", {}).get("count", 0)
-        gaps_count = s1.get("content_gaps", {}).get("total_gaps", 0)
-        suggested_h2s = s1.get("content_gaps", {}).get("suggested_new_h2s", [])
+        causal_count = (s1.get("causal_triplets") or {}).get("count", 0)
+        gaps_count = (s1.get("content_gaps") or {}).get("total_gaps", 0)
+        suggested_h2s = (s1.get("content_gaps") or {}).get("suggested_new_h2s", [])
 
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "done",
                             "detail": f"{h2_patterns} H2 patterns | {causal_count} causal triplets | {gaps_count} content gaps"})
@@ -586,15 +586,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "search_intent": s1.get("search_intent", ""),
             "competitor_h2_patterns": s1.get("competitor_h2_patterns", [])[:20],
             "content_gaps": s1.get("content_gaps", {}),
-            "causal_triplets": s1.get("causal_triplets", {}).get("chains", s1.get("causal_triplets", {}).get("singles", []))[:10],
-            "causal_instruction": s1.get("causal_triplets", {}).get("agent_instruction", ""),
-            "paa_questions": (s1.get("paa_questions") or s1.get("serp_data", {}).get("paa_questions", []))[:10],
+            "causal_triplets": (s1.get("causal_triplets") or {}).get("chains", (s1.get("causal_triplets") or {}).get("singles", []))[:10],
+            "causal_instruction": (s1.get("causal_triplets") or {}).get("agent_instruction", ""),
+            "paa_questions": (s1.get("paa_questions") or (s1.get("serp_data") or {}).get("paa_questions", []))[:10],
             "entity_seo": {
-                "top_entities": s1.get("entity_seo", {}).get("top_entities", s1.get("entity_seo", {}).get("entities", []))[:10],
-                "must_mention": s1.get("entity_seo", {}).get("must_mention_entities", [])[:5]
+                "top_entities": (s1.get("entity_seo") or {}).get("top_entities", (s1.get("entity_seo") or {}).get("entities", []))[:10],
+                "must_mention": (s1.get("entity_seo") or {}).get("must_mention_entities", [])[:5]
             },
             "ngrams": s1.get("ngrams", [])[:15],
-            "median_length": s1.get("serp_data", {}).get("median_length", s1.get("median_length", 0))
+            "median_length": (s1.get("serp_data") or {}).get("median_length", s1.get("median_length", 0))
         })
 
         # ─── KROK 2: YMYL Detection ───
@@ -603,8 +603,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         legal_result = brajen_call("post", "/api/legal/detect", {"main_keyword": main_keyword})
         medical_result = brajen_call("post", "/api/medical/detect", {"main_keyword": main_keyword})
 
-        is_legal = legal_result.get("data", {}).get("is_ymyl", False) if legal_result["ok"] else False
-        is_medical = medical_result.get("data", {}).get("is_ymyl", False) if medical_result["ok"] else False
+        is_legal = (legal_result.get("data") or {}).get("is_ymyl", False) if legal_result["ok"] else False
+        is_medical = (medical_result.get("data") or {}).get("is_ymyl", False) if medical_result["ok"] else False
 
         legal_context = None
         medical_context = None
@@ -767,15 +767,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             else:
                 current_h2 = h2_structure[min(batch_num-1, len(h2_structure)-1)]
 
-            must_kw = pre_batch.get("keywords", {}).get("basic_must_use", [])
-            ext_kw = pre_batch.get("keywords", {}).get("extended_this_batch", [])
-            stop_kw = pre_batch.get("keyword_limits", {}).get("stop_keywords", [])
+            must_kw = (pre_batch.get("keywords") or {}).get("basic_must_use", [])
+            ext_kw = (pre_batch.get("keywords") or {}).get("extended_this_batch", [])
+            stop_kw = (pre_batch.get("keyword_limits") or {}).get("stop_keywords", [])
 
             yield emit("log", {"msg": f"Typ: {batch_type} | H2: {current_h2}"})
             yield emit("log", {"msg": f"MUST: {len(must_kw)} | EXTENDED: {len(ext_kw)} | STOP: {len(stop_kw)}"})
 
             # Emit batch instructions for UI display
-            caution_kw = pre_batch.get("keyword_limits", {}).get("caution_keywords", [])
+            caution_kw = (pre_batch.get("keyword_limits") or {}).get("caution_keywords", [])
             batch_length_info = pre_batch.get("batch_length", {})
             enhanced_data = pre_batch.get("enhanced") or {}
             
@@ -797,8 +797,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "has_article_memory": bool(pre_batch.get("article_memory")),
                 "has_enhanced": bool(enhanced_data),
                 "has_style": bool(pre_batch.get("style_instructions")),
-                "has_legal": bool(pre_batch.get("legal_context", {}).get("active")),
-                "has_medical": bool(pre_batch.get("medical_context", {}).get("active")),
+                "has_legal": bool((pre_batch.get("legal_context") or {}).get("active")),
+                "has_medical": bool((pre_batch.get("medical_context") or {}).get("active")),
                 "semantic_plan": {
                     "h2": (pre_batch.get("semantic_batch_plan") or {}).get("h2"),
                     "profile": (pre_batch.get("semantic_batch_plan") or {}).get("profile"),
@@ -920,7 +920,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # ─── KROK 7: PAA Check ───
         yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "running"})
         paa_check = brajen_call("get", f"/api/project/{project_id}/paa")
-        if not paa_check["ok"] or not paa_check.get("data", {}).get("paa_section"):
+        if not paa_check["ok"] or not (paa_check.get("data") or {}).get("paa_section"):
             yield emit("log", {"msg": "Brak FAQ — analizuję PAA i generuję..."})
             paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
             if paa_analyze["ok"]:
