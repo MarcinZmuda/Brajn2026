@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BRAJEN SEO — Content Engine</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        /* ─── HEADER ─── */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 32px;
+            border-bottom: 1px solid #1a1a2a;
+            background: #0e0e18;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-left h1 { font-size: 20px; font-weight: 700; color: #fff; }
+        .header-left span { font-size: 12px; color: #6366f1; background: #1e1b4b; padding: 2px 8px; border-radius: 4px; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-right .user { color: #888; font-size: 13px; }
+        .header-right a { color: #6366f1; text-decoration: none; font-size: 13px; }
+
+        /* ─── LAYOUT ─── */
+        .container {
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            min-height: calc(100vh - 57px);
+        }
+        @media (max-width: 900px) {
+            .container { grid-template-columns: 1fr; }
+        }
+
+        /* ─── LEFT PANEL (FORM) ─── */
+        .panel-left {
+            padding: 24px;
+            border-right: 1px solid #1a1a2a;
+            overflow-y: auto;
+            max-height: calc(100vh - 57px);
+        }
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #6366f1;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            margin-top: 20px;
+        }
+        .section-title:first-child { margin-top: 0; }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: #999;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 10px 14px;
+            background: #141420;
+            border: 1px solid #2a2a3a;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus, select:focus { border-color: #6366f1; }
+        textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+        .mode-toggle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            background: #141420;
+            border: 1px solid #2a2a3a;
+            border-radius: 8px;
+            color: #999;
+            font-size: 13px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            border-color: #6366f1;
+            color: #fff;
+            background: #1e1b4b;
+        }
+        .mode-btn:hover:not(.active) { border-color: #444; }
+        .mode-label { font-weight: 600; font-size: 15px; display: block; margin-bottom: 2px; }
+        .mode-desc { font-size: 11px; color: #666; }
+
+        .help-text { font-size: 11px; color: #555; margin-top: 4px; line-height: 1.4; }
+
+        .btn-start {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 20px;
+        }
+        .btn-start:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-start:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ─── RIGHT PANEL (PROGRESS) ─── */
+        .panel-right {
+            padding: 24px 32px;
+            overflow-y: auto;
+            max-height: calc(100vh - 57px);
+        }
+
+        .welcome {
+            text-align: center;
+            padding: 80px 20px;
+            color: #555;
+        }
+        .welcome .icon { font-size: 48px; margin-bottom: 16px; }
+        .welcome h2 { color: #888; font-size: 18px; margin-bottom: 8px; }
+
+        /* Steps */
+        .steps { margin-bottom: 24px; }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #1a1a2a;
+        }
+        .step-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .step-icon.pending { background: #1a1a2a; color: #555; }
+        .step-icon.running { background: #1e1b4b; color: #818cf8; animation: pulse 1.5s infinite; }
+        .step-icon.done { background: #064e3b; color: #34d399; }
+        .step-icon.warning { background: #3b2e1a; color: #fbbf24; }
+        .step-icon.error { background: #3b1a1a; color: #f87171; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .step-info { flex: 1; }
+        .step-name { font-size: 14px; font-weight: 500; color: #ccc; }
+        .step-detail { font-size: 12px; color: #666; margin-top: 2px; }
+
+        /* Batch progress */
+        .batch-progress {
+            background: #141420;
+            border: 1px solid #2a2a3a;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .batch-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .batch-title { font-size: 14px; font-weight: 600; color: #fff; }
+        .batch-counter { font-size: 13px; color: #6366f1; }
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #1a1a2a;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        /* Batch results grid */
+        .batch-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 6px;
+            margin-top: 12px;
+        }
+        .batch-chip {
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .batch-chip.accepted { background: #064e3b; color: #34d399; }
+        .batch-chip.rejected { background: #3b1a1a; color: #f87171; }
+        .batch-chip.pending { background: #1a1a2a; color: #555; }
+
+        /* Log console */
+        .log-console {
+            background: #0e0e16;
+            border: 1px solid #1a1a2a;
+            border-radius: 10px;
+            padding: 12px 16px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .log-line { color: #666; }
+        .log-line .ts { color: #444; }
+        .log-line .msg { color: #999; }
+
+        /* Editorial */
+        .editorial-card {
+            background: #141420;
+            border: 1px solid #2a2a3a;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        .editorial-score {
+            font-size: 36px;
+            font-weight: 700;
+            color: #fff;
+            text-align: center;
+        }
+        .editorial-score span { font-size: 16px; color: #666; }
+        .editorial-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .stat-box {
+            text-align: center;
+            padding: 8px;
+            background: #1a1a2a;
+            border-radius: 8px;
+        }
+        .stat-value { font-size: 18px; font-weight: 600; color: #fff; }
+        .stat-label { font-size: 11px; color: #666; margin-top: 2px; }
+
+        /* Article preview */
+        .article-preview {
+            background: #141420;
+            border: 1px solid #2a2a3a;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 16px 0;
+            max-height: 500px;
+            overflow-y: auto;
+            line-height: 1.7;
+            font-size: 14px;
+        }
+        .article-preview h2 { color: #fff; font-size: 18px; margin: 20px 0 10px; }
+        .article-preview h2:first-child { margin-top: 0; }
+        .article-preview h3 { color: #ccc; font-size: 15px; margin: 16px 0 8px; }
+        .article-preview p { color: #aaa; margin-bottom: 12px; }
+
+        /* Export buttons */
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .btn-export {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #2a2a3a;
+            background: #141420;
+            color: #ccc;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-export:hover { border-color: #6366f1; color: #fff; }
+        .btn-export.primary {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-color: transparent;
+            color: #fff;
+        }
+
+        /* Done banner */
+        .done-banner {
+            background: linear-gradient(135deg, #064e3b, #065f46);
+            border: 1px solid #10b981;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin: 16px 0;
+        }
+        .done-banner h2 { color: #34d399; font-size: 20px; margin-bottom: 4px; }
+        .done-banner p { color: #6ee7b7; font-size: 14px; }
+
+        /* Toggle sections */
+        .toggle-btn {
+            background: none;
+            border: none;
+            color: #6366f1;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 4px 0;
+        }
+        .collapsed { display: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>🧠 BRAJEN SEO</h1>
+            <span>v45.2.2</span>
+        </div>
+        <div class="header-right">
+            <span class="user">{{ username }}</span>
+            <a href="/logout">Wyloguj</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- ═══ LEFT: FORM ═══ -->
+        <div class="panel-left">
+            <div class="section-title">Hasło główne</div>
+            <div class="form-group">
+                <input type="text" id="mainKeyword" placeholder="np. od czego zacząć przeprowadzkę">
+            </div>
+
+            <div class="section-title">Tryb artykułu</div>
+            <div class="mode-toggle">
+                <div class="mode-btn active" data-mode="standard" onclick="selectMode('standard')">
+                    <span class="mode-label">🐢 STANDARD</span>
+                    <span class="mode-desc">6–9 batchy, 1 H2/batch</span>
+                </div>
+                <div class="mode-btn" data-mode="fast" onclick="selectMode('fast')">
+                    <span class="mode-label">🚀 FAST</span>
+                    <span class="mode-desc">3 batche, 2–3 H2/batch</span>
+                </div>
+            </div>
+
+            <div class="section-title">Nagłówki H2</div>
+            <div class="form-group">
+                <textarea id="h2Structure" rows="8" placeholder="Jeden H2 na linię, np:&#10;Przeprowadzka – od czego zacząć&#10;Cztery tygodnie przed przeprowadzką&#10;Tydzień przed przeprowadzką&#10;Dzień przeprowadzki&#10;Samodzielna przeprowadzka czy firma&#10;Rozpakowywanie w nowym miejscu&#10;Najczęściej zadawane pytania"></textarea>
+                <div class="help-text">Jeden nagłówek na linię. Ostatni = FAQ. Jeśli puste, API zaproponuje na podstawie S1.</div>
+            </div>
+
+            <div class="section-title">
+                Frazy BASIC
+                <button class="toggle-btn" onclick="toggleSection('basicSection')">[pokaż/ukryj]</button>
+            </div>
+            <div id="basicSection">
+                <div class="form-group">
+                    <textarea id="basicTerms" rows="6" placeholder="fraza: min-maxx&#10;np:&#10;przeprowadzki: 11-25x&#10;pakować: 7-17x&#10;karton: 6-13x"></textarea>
+                    <div class="help-text">Format: fraza: min-maxx (np. pakować: 7-17x). Opcjonalne.</div>
+                </div>
+            </div>
+
+            <div class="section-title">
+                Frazy EXTENDED
+                <button class="toggle-btn" onclick="toggleSection('extendedSection')">[pokaż/ukryj]</button>
+            </div>
+            <div id="extendedSection">
+                <div class="form-group">
+                    <textarea id="extendedTerms" rows="6" placeholder="fraza: min-maxx&#10;np:&#10;przygotować się do przeprowadzki: 1-2x&#10;dzień przeprowadzki: 1x"></textarea>
+                    <div class="help-text">Format: fraza: min-maxx. Opcjonalne.</div>
+                </div>
+            </div>
+
+            <button class="btn-start" id="btnStart" onclick="startWorkflow()">
+                🚀 Uruchom workflow
+            </button>
+        </div>
+
+        <!-- ═══ RIGHT: PROGRESS ═══ -->
+        <div class="panel-right">
+            <div id="welcomeScreen" class="welcome">
+                <div class="icon">🧠</div>
+                <h2>BRAJEN SEO Engine</h2>
+                <p>Wpisz hasło główne i nagłówki H2, aby uruchomić pełny workflow.</p>
+                <p style="margin-top: 16px; font-size: 12px; color: #444;">
+                    S1 Analysis → YMYL → Create Project → Phrase Hierarchy →<br>
+                    Batch Loop (Claude) → PAA/FAQ → Editorial Review → Export
+                </p>
+            </div>
+
+            <div id="progressScreen" style="display: none;">
+                <!-- Steps -->
+                <div class="steps" id="stepsContainer">
+                    <div class="step" data-step="1">
+                        <div class="step-icon pending" id="stepIcon1">1</div>
+                        <div class="step-info">
+                            <div class="step-name">S1 Analysis</div>
+                            <div class="step-detail" id="stepDetail1">Oczekuje...</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="2">
+                        <div class="step-icon pending" id="stepIcon2">2</div>
+                        <div class="step-info">
+                            <div class="step-name">YMYL Detection</div>
+                            <div class="step-detail" id="stepDetail2">Oczekuje...</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="4">
+                        <div class="step-icon pending" id="stepIcon4">3</div>
+                        <div class="step-info">
+                            <div class="step-name">Create Project</div>
+                            <div class="step-detail" id="stepDetail4">Oczekuje...</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="5">
+                        <div class="step-icon pending" id="stepIcon5">4</div>
+                        <div class="step-info">
+                            <div class="step-name">Phrase Hierarchy</div>
+                            <div class="step-detail" id="stepDetail5">Oczekuje...</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="6">
+                        <div class="step-icon pending" id="stepIcon6">5</div>
+                        <div class="step-info">
+                            <div class="step-name">Batch Loop</div>
+                            <div class="step-detail" id="stepDetail6">Oczekuje...</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="7">
+                        <div class="step-icon pending" id="stepIcon7">6</div>
+                        <div class="step-info">
+                            <div class="step-name">PAA / FAQ</div>
+                            <div class="step-detail" id="stepDetail7">Oczekuje...</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="8">
+                        <div class="step-icon pending" id="stepIcon8">7</div>
+                        <div class="step-info">
+                            <div class="step-name">Final Review</div>
+                            <div class="step-detail" id="stepDetail8">Oczekuje...</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="9">
+                        <div class="step-icon pending" id="stepIcon9">8</div>
+                        <div class="step-info">
+                            <div class="step-name">Editorial Review</div>
+                            <div class="step-detail" id="stepDetail9">Oczekuje...</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="10">
+                        <div class="step-icon pending" id="stepIcon10">9</div>
+                        <div class="step-info">
+                            <div class="step-name">Export</div>
+                            <div class="step-detail" id="stepDetail10">Oczekuje...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Batch progress bar -->
+                <div class="batch-progress" id="batchProgress" style="display: none;">
+                    <div class="batch-header">
+                        <span class="batch-title">📝 Generowanie batchy</span>
+                        <span class="batch-counter" id="batchCounter">0/0</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="batchProgressFill" style="width: 0%;"></div>
+                    </div>
+                    <div class="batch-results" id="batchResults"></div>
+                </div>
+
+                <!-- Editorial card -->
+                <div class="editorial-card" id="editorialCard" style="display: none;">
+                    <div class="editorial-score" id="editorialScore">—<span>/10</span></div>
+                    <div class="editorial-stats">
+                        <div class="stat-box">
+                            <div class="stat-value" id="editChanges">—</div>
+                            <div class="stat-label">Zmiany</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="editWords">—</div>
+                            <div class="stat-label">Słowa</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-value" id="editRollback">—</div>
+                            <div class="stat-label">Rollback</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Done banner -->
+                <div class="done-banner" id="doneBanner" style="display: none;">
+                    <h2>✅ Artykuł gotowy!</h2>
+                    <p id="doneDetail"></p>
+                </div>
+
+                <!-- Export buttons -->
+                <div class="export-buttons" id="exportButtons" style="display: none;">
+                    <a class="btn-export primary" id="exportHtml">📄 Pobierz HTML</a>
+                    <a class="btn-export" id="exportDocx">📋 Pobierz DOCX</a>
+                </div>
+
+                <!-- Article preview -->
+                <div class="section-title" style="margin-top: 20px;">
+                    Podgląd artykułu
+                    <button class="toggle-btn" onclick="toggleSection('articlePreview')">[pokaż/ukryj]</button>
+                </div>
+                <div class="article-preview" id="articlePreview" style="display: none;"></div>
+
+                <!-- Log console -->
+                <div class="section-title" style="margin-top: 20px;">
+                    Logi
+                    <button class="toggle-btn" onclick="toggleSection('logConsole')">[pokaż/ukryj]</button>
+                </div>
+                <div class="log-console" id="logConsole"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentMode = 'standard';
+        let currentJobId = null;
+        let totalBatches = 0;
+        let eventSource = null;
+
+        function selectMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === mode);
+            });
+        }
+
+        function toggleSection(id) {
+            const el = document.getElementById(id);
+            if (el.style.display === 'none') {
+                el.style.display = '';
+            } else {
+                el.style.display = 'none';
+            }
+        }
+
+        function addLog(msg) {
+            const console = document.getElementById('logConsole');
+            const time = new Date().toLocaleTimeString('pl-PL');
+            console.innerHTML += `<div class="log-line"><span class="ts">[${time}]</span> <span class="msg">${msg}</span></div>`;
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function updateStep(step, status, detail) {
+            const icon = document.getElementById(`stepIcon${step}`);
+            const detailEl = document.getElementById(`stepDetail${step}`);
+            if (!icon) return;
+
+            icon.className = `step-icon ${status}`;
+            if (status === 'done') icon.textContent = '✓';
+            else if (status === 'running') icon.textContent = '⟳';
+            else if (status === 'warning') icon.textContent = '!';
+            else if (status === 'error') icon.textContent = '✗';
+
+            if (detail && detailEl) detailEl.textContent = detail;
+        }
+
+        function parseTerms(text) {
+            return text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        }
+
+        async function startWorkflow() {
+            const keyword = document.getElementById('mainKeyword').value.trim();
+            const h2Text = document.getElementById('h2Structure').value.trim();
+            const basicText = document.getElementById('basicTerms').value.trim();
+            const extendedText = document.getElementById('extendedTerms').value.trim();
+
+            if (!keyword) {
+                alert('Wpisz hasło główne!');
+                return;
+            }
+
+            const h2List = h2Text ? h2Text.split('\n').map(l => l.trim()).filter(l => l) : [];
+            if (h2List.length === 0) {
+                alert('Wpisz przynajmniej jeden nagłówek H2!');
+                return;
+            }
+
+            const basicTerms = parseTerms(basicText);
+            const extendedTerms = parseTerms(extendedText);
+
+            // Disable form
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('btnStart').textContent = '⏳ Workflow w toku...';
+
+            // Show progress
+            document.getElementById('welcomeScreen').style.display = 'none';
+            document.getElementById('progressScreen').style.display = '';
+
+            // Reset steps
+            for (let i of [1,2,4,5,6,7,8,9,10]) {
+                updateStep(i, 'pending', 'Oczekuje...');
+            }
+            document.getElementById('logConsole').innerHTML = '';
+            document.getElementById('batchProgress').style.display = 'none';
+            document.getElementById('batchResults').innerHTML = '';
+            document.getElementById('editorialCard').style.display = 'none';
+            document.getElementById('doneBanner').style.display = 'none';
+            document.getElementById('exportButtons').style.display = 'none';
+            document.getElementById('articlePreview').style.display = 'none';
+
+            addLog(`Startuję workflow: "${keyword}" [${currentMode}]`);
+
+            // Start job
+            try {
+                const resp = await fetch('/api/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        main_keyword: keyword,
+                        mode: currentMode,
+                        h2_structure: h2List,
+                        basic_terms: basicTerms,
+                        extended_terms: extendedTerms
+                    })
+                });
+
+                const data = await resp.json();
+                if (data.error) {
+                    addLog(`❌ Error: ${data.error}`);
+                    document.getElementById('btnStart').disabled = false;
+                    document.getElementById('btnStart').textContent = '🚀 Uruchom workflow';
+                    return;
+                }
+
+                currentJobId = data.job_id;
+                addLog(`Job ID: ${currentJobId}`);
+
+                // Connect SSE
+                const params = new URLSearchParams();
+                params.set('basic_terms', JSON.stringify(basicTerms));
+                params.set('extended_terms', JSON.stringify(extendedTerms));
+
+                if (eventSource) eventSource.close();
+                eventSource = new EventSource(`/api/stream/${currentJobId}?${params.toString()}`);
+
+                eventSource.addEventListener('step', (e) => {
+                    const d = JSON.parse(e.data);
+                    updateStep(d.step, d.status, d.detail || '');
+                });
+
+                eventSource.addEventListener('log', (e) => {
+                    const d = JSON.parse(e.data);
+                    addLog(d.msg);
+                });
+
+                eventSource.addEventListener('project', (e) => {
+                    const d = JSON.parse(e.data);
+                    totalBatches = d.total_batches;
+                    addLog(`Project ID: ${d.project_id}`);
+
+                    // Init batch chips
+                    const results = document.getElementById('batchResults');
+                    results.innerHTML = '';
+                    for (let i = 1; i <= totalBatches; i++) {
+                        results.innerHTML += `<div class="batch-chip pending" id="batchChip${i}">B${i}</div>`;
+                    }
+                });
+
+                eventSource.addEventListener('batch_start', (e) => {
+                    const d = JSON.parse(e.data);
+                    document.getElementById('batchProgress').style.display = '';
+                    document.getElementById('batchCounter').textContent = `${d.batch}/${d.total}`;
+                    const pct = ((d.batch - 1) / d.total * 100);
+                    document.getElementById('batchProgressFill').style.width = pct + '%';
+                });
+
+                eventSource.addEventListener('batch_result', (e) => {
+                    const d = JSON.parse(e.data);
+                    const chip = document.getElementById(`batchChip${d.batch}`);
+                    if (chip) {
+                        chip.className = `batch-chip ${d.accepted ? 'accepted' : 'rejected'}`;
+                        chip.textContent = `B${d.batch} ${d.quality_score || '?'}`;
+                        chip.title = `Grade: ${d.quality_grade || '?'} | Depth: ${d.depth_score || '?'}`;
+                    }
+                    const pct = (d.batch / totalBatches * 100);
+                    document.getElementById('batchProgressFill').style.width = pct + '%';
+                    document.getElementById('batchCounter').textContent = `${d.batch}/${totalBatches}`;
+                });
+
+                eventSource.addEventListener('editorial', (e) => {
+                    const d = JSON.parse(e.data);
+                    document.getElementById('editorialCard').style.display = '';
+                    document.getElementById('editorialScore').innerHTML = `${d.score}<span>/10</span>`;
+                    document.getElementById('editChanges').textContent = `${d.changes_applied}/${d.changes_applied + d.changes_failed}`;
+                    document.getElementById('editWords').textContent = `${d.word_count_before || '?'}→${d.word_count_after || '?'}`;
+                    document.getElementById('editRollback').textContent = d.rollback ? '⚠️ TAK' : '✅ NIE';
+                });
+
+                eventSource.addEventListener('article', (e) => {
+                    const d = JSON.parse(e.data);
+                    const preview = document.getElementById('articlePreview');
+                    // Convert h2/h3 markers to HTML
+                    let html = (d.text || '')
+                        .replace(/^h2:\s*(.+)$/gm, '<h2>$1</h2>')
+                        .replace(/^h3:\s*(.+)$/gm, '<h3>$1</h3>')
+                        .replace(/\n\n/g, '</p><p>')
+                        .replace(/^\s*<\/p>/, '')
+                    ;
+                    if (!html.startsWith('<')) html = '<p>' + html;
+                    if (!html.endsWith('>')) html += '</p>';
+                    preview.innerHTML = html;
+                    preview.style.display = '';
+                });
+
+                eventSource.addEventListener('done', (e) => {
+                    const d = JSON.parse(e.data);
+                    document.getElementById('doneBanner').style.display = '';
+                    document.getElementById('doneDetail').textContent =
+                        `Project: ${d.project_id} | ${d.word_count} słów`;
+
+                    // Export buttons
+                    if (d.exports) {
+                        document.getElementById('exportButtons').style.display = '';
+                        if (d.exports.html) {
+                            document.getElementById('exportHtml').href = `/api/export/${currentJobId}/html`;
+                        }
+                        if (d.exports.docx) {
+                            document.getElementById('exportDocx').href = `/api/export/${currentJobId}/docx`;
+                        }
+                    }
+
+                    // Re-enable form
+                    document.getElementById('btnStart').disabled = false;
+                    document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
+
+                    eventSource.close();
+                });
+
+                eventSource.addEventListener('workflow_error', (e) => {
+                    const d = JSON.parse(e.data);
+                    addLog(`❌ ERROR: ${d.msg}`);
+                    if (d.step) updateStep(d.step, 'error', d.msg);
+
+                    document.getElementById('btnStart').disabled = false;
+                    document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
+                    eventSource.close();
+                });
+
+                eventSource.onerror = () => {
+                    // Connection lost
+                    addLog('⚠️ Połączenie SSE utracone');
+                    document.getElementById('btnStart').disabled = false;
+                    document.getElementById('btnStart').textContent = '🚀 Uruchom ponownie';
+                };
+
+            } catch (err) {
+                addLog(`❌ Fatal: ${err.message}`);
+                document.getElementById('btnStart').disabled = false;
+                document.getElementById('btnStart').textContent = '🚀 Uruchom workflow';
+            }
+        }
+    </script>
+</body>
+</html>
