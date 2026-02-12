@@ -273,17 +273,20 @@
 let mode='standard',jid=null,tb=0,es=null;
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
+// XSS sanitization for SSE data
+function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
 function selMode(m){mode=m;document.querySelectorAll('.mbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===m))}
 function tog(id){const e=document.getElementById(id);e.style.display=e.style.display==='none'?'':'none'}
-function log(m){const c=document.getElementById('logC');c.innerHTML+=`<div class="log-line"><span class="ts">${new Date().toLocaleTimeString('pl-PL')}</span> ${m}</div>`;c.scrollTop=c.scrollHeight}
+function log(m){const c=document.getElementById('logC');c.innerHTML+=`<div class="log-line"><span class="ts">${new Date().toLocaleTimeString('pl-PL')}</span> ${esc(m)}</div>`;c.scrollTop=c.scrollHeight}
 function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);if(!i)return;i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d}
 function tPnl(id){const p=document.getElementById(id),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');b.classList.toggle('open');h.classList.toggle('open')}
 function tBd(id){document.getElementById(id).classList.toggle('open')}
 
-function kc(l,c){if(!l||!l.length)return'<span style="color:var(--mg)">—</span>';return l.map(k=>`<span class="chip ${c}">${typeof k==='object'?(k.keyword||JSON.stringify(k)):k}</span>`).join('')}
-function fl(l,a,c){return`<span class="tag ${a?c:'d'}">${a?'✅':'—'} ${l}</span>`}
-function ss(v){if(v==null)return'';if(typeof v==='string')return v;return typeof v==='object'?JSON.stringify(v):String(v)}
-function el(i){if(typeof i==='string')return i;return i.text||i.entity||i.name||i.phrase||i.ngram||i.question||i.pattern||i.h2||i.title||i.topic||i.gap||i.keyword||(typeof i==='object'?Object.values(i).find(v=>typeof v==='string'&&v.length>1&&v.length<100)||JSON.stringify(i):String(i))}
+function kc(l,c){if(!l||!l.length)return'<span style="color:var(--mg)">—</span>';return l.map(k=>`<span class="chip ${c}">${esc(typeof k==='object'?(k.keyword||JSON.stringify(k)):k)}</span>`).join('')}
+function fl(l,a,c){return`<span class="tag ${a?c:'d'}">${a?'✅':'—'} ${esc(l)}</span>`}
+function ss(v){if(v==null)return'';if(typeof v==='string')return esc(v);return typeof v==='object'?esc(JSON.stringify(v)):esc(String(v))}
+function el(i){if(typeof i==='string')return esc(i);return esc(i.text||i.entity||i.name||i.phrase||i.ngram||i.question||i.pattern||i.h2||i.title||i.topic||i.gap||i.keyword||(typeof i==='object'?Object.values(i).find(v=>typeof v==='string'&&v.length>1&&v.length<100)||JSON.stringify(i):String(i)))}
 function fc(f){const p=f.split('/');if(p.length!==2)return M;const[n,d]=p.map(Number);if(!d)return M;const r=(n/d)*100;return r>=70?G:r>=40?W:R}
 
 // ═══ S1 PANEL (10 Sections) ═══
@@ -303,16 +306,16 @@ function rS1(d){
     b1+=`<div class="s1-stat"><div class="v">${d.analyzed_urls||'?'}</div><div class="l">Stron</div></div>`;
     b1+=`<div class="s1-stat"><div class="v">${d.h2_patterns_count||0}</div><div class="l">Wzorców H2</div></div>`;
     b1+=`</div>`;
-    if(d.search_intent)b1+=`<div style="margin:8px 0"><span class="tag o" style="font-size:11px">🎯 ${d.search_intent}</span></div>`;
+    if(d.search_intent)b1+=`<div style="margin:8px 0"><span class="tag o" style="font-size:11px">🎯 ${esc(d.search_intent)}</span></div>`;
     const wc=d.word_counts||[];
     if(wc.length){const mx=Math.max(...wc.slice(0,10));b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Rozkład długości top ${wc.length}</div><div class="s1-bar-row">${wc.slice(0,10).map(w=>{const ht=mx>0?Math.round((w/mx)*44)+4:10;return`<div class="s1-bar-col"><div class="bar" style="height:${ht}px"></div><div class="lbl">${w}</div></div>`}).join('')}</div></div>`}
     const h2p=d.competitor_h2_patterns||[];
     if(h2p.length)b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Dominujące wzorce H2</div>${h2p.slice(0,12).map((x,i)=>`<div style="color:var(--lg);font-size:11px;padding:2px 0"><span style="color:var(--orange);font-weight:700;width:18px;display:inline-block">${i+1}.</span>${el(x)}</div>`).join('')}</div>`;
     const ss2=d.serp_sources||[];
-    if(ss2.length)b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Źródła SERP</div>${ss2.slice(0,8).map(s=>`<div style="font-size:10px;color:var(--mg);padding:2px 0">${typeof s==='string'?s:(s.url||s.title||s.domain||JSON.stringify(s)).substring(0,80)}</div>`).join('')}</div>`;
+    if(ss2.length)b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Źródła SERP</div>${ss2.slice(0,8).map(s=>`<div style="font-size:10px;color:var(--mg);padding:2px 0">${esc(typeof s==='string'?s:(s.url||s.title||s.domain||JSON.stringify(s)).substring(0,80))}</div>`).join('')}</div>`;
     const fs=d.featured_snippet,aio=d.ai_overview,rs=d.related_searches||[];
-    if(fs)b1+=`<div style="margin:6px 0"><span class="tag g" style="white-space:normal;line-height:1.4">📋 Featured Snippet: ${(typeof fs==='string'?fs:(fs.text||JSON.stringify(fs))).substring(0,150)}</span></div>`;
-    if(aio)b1+=`<div style="margin:6px 0"><span class="tag o" style="white-space:normal;line-height:1.4">🤖 AI Overview: ${(typeof aio==='string'?aio:(aio.text||JSON.stringify(aio))).substring(0,150)}</span></div>`;
+    if(fs)b1+=`<div style="margin:6px 0"><span class="tag g" style="white-space:normal;line-height:1.4">📋 Featured Snippet: ${esc((typeof fs==='string'?fs:(fs.text||JSON.stringify(fs))).substring(0,150))}</span></div>`;
+    if(aio)b1+=`<div style="margin:6px 0"><span class="tag o" style="white-space:normal;line-height:1.4">🤖 AI Overview: ${esc((typeof aio==='string'?aio:(aio.text||JSON.stringify(aio))).substring(0,150))}</span></div>`;
     if(rs.length)b1+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Related Searches</div>${rs.map(r=>`<span class="tag d">${ss(r)}</span>`).join('')}</div>`;
     h+=s1Sec(1,'Analiza SERP i struktury konkurencji',`${d.analyzed_urls||'?'} stron`,b1);
 
@@ -320,9 +323,9 @@ function rS1(d){
     let b2='';
     const cc=d.causal_chains||[],csi=d.causal_singles||[];
     const totalC=(d.causal_count_chains||0)+(d.causal_count_singles||0);
-    if(cc.length){b2+=`<div style="font-size:9px;color:var(--mg);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Łańcuchy (A → B → C)</div>`;cc.slice(0,8).forEach(t=>{b2+=`<div class="s1-cause"><span class="from">${t.cause||t.from||'?'}</span><span class="arrow">→</span><span class="to">${t.effect||t.to||'?'}</span></div>`})}
-    if(csi.length){b2+=`<div style="font-size:9px;color:var(--mg);margin:8px 0 6px;text-transform:uppercase;letter-spacing:.5px">Relacje kauzalne</div>`;csi.slice(0,8).forEach(t=>{b2+=`<div class="s1-cause"><span class="from">${t.cause||t.from||'?'}</span><span class="arrow">→</span><span class="to">${t.effect||t.to||'?'}</span></div>`})}
-    if(d.causal_instruction)b2+=`<div style="margin-top:8px"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja</div><div class="s1-instr">${d.causal_instruction}</div></div>`;
+    if(cc.length){b2+=`<div style="font-size:9px;color:var(--mg);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Łańcuchy (A → B → C)</div>`;cc.slice(0,8).forEach(t=>{b2+=`<div class="s1-cause"><span class="from">${esc(t.cause||t.from||'?')}</span><span class="arrow">→</span><span class="to">${esc(t.effect||t.to||'?')}</span></div>`})}
+    if(csi.length){b2+=`<div style="font-size:9px;color:var(--mg);margin:8px 0 6px;text-transform:uppercase;letter-spacing:.5px">Relacje kauzalne</div>`;csi.slice(0,8).forEach(t=>{b2+=`<div class="s1-cause"><span class="from">${esc(t.cause||t.from||'?')}</span><span class="arrow">→</span><span class="to">${esc(t.effect||t.to||'?')}</span></div>`})}
+    if(d.causal_instruction)b2+=`<div style="margin-top:8px"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja</div><div class="s1-instr">${esc(d.causal_instruction)}</div></div>`;
     if(!totalC)b2+=`<div style="color:var(--mg);font-style:italic">Brak danych kauzalnych z konkurencji</div>`;
     h+=s1Sec(2,'Causal Triplets — mapa przyczynowo-skutkowa',`${totalC} relacji`,b2);
 
@@ -334,7 +337,7 @@ function rS1(d){
     if(sM.length){b3+=`<div style="margin:6px 0"><div style="font-size:9px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px"><span style="color:var(--orange)">🟠</span> Subtopic Missing (${sM.length})</div>${sM.map(g=>`<span class="tag o">${el(g)}</span>`).join('')}</div>`}
     if(dM.length){b3+=`<div style="margin:6px 0"><div style="font-size:9px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px"><span style="color:var(--yl)">🟡</span> Depth Missing (${dM.length})</div>${dM.map(g=>`<span class="tag w">${el(g)}</span>`).join('')}</div>`}
     if(sh2.length){b3+=`<div style="margin:8px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">✨ Sugerowane nowe H2</div>${sh2.map(x=>`<span class="tag g">${ss(x)}</span>`).join('')}</div>`}
-    if(d.gaps_instruction)b3+=`<div style="margin-top:8px"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja priorytetów</div><div class="s1-instr">${d.gaps_instruction}</div></div>`;
+    if(d.gaps_instruction)b3+=`<div style="margin-top:8px"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja priorytetów</div><div class="s1-instr">${esc(d.gaps_instruction)}</div></div>`;
     if(!totalGaps&&!sh2.length)b3+=`<div style="color:var(--mg);font-style:italic">Brak wykrytych luk (możliwe przy CSS-heavy stronach)</div>`;
     h+=s1Sec(3,'Gap Analysis — przewagi konkurencyjne',`${totalGaps} luk`,b3);
 
@@ -343,7 +346,7 @@ function rS1(d){
     const ent=d.entity_seo||{},tE=ent.top_entities||[],mE=ent.must_mention||[],eR=ent.relations||[],tC=ent.topical_coverage||[];
     if(mE.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--rd);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">MUST MENTION</div>${mE.map(e=>`<span class="s1-ent must">${el(e)}</span>`).join('')}</div>`;
     if(tE.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Top encje (${ent.entity_count||tE.length})</div>${tE.slice(0,15).map(e=>{const name=el(e),typ=typeof e==='object'?(e.type||''):'',imp=typeof e==='object'?(e.importance||''):'';return`<span class="s1-ent top">${name}${typ?` <span style="font-size:8px;opacity:.5">${typ}</span>`:''}${imp?` <span style="font-size:8px;opacity:.5">${typeof imp==='number'?imp.toFixed(2):imp}</span>`:''}</span>`}).join('')}</div>`;
-    if(eR.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Relacje między encjami</div>${eR.map(r=>{if(typeof r==='string')return`<span class="s1-ent rel">${r}</span>`;return`<span class="s1-ent rel">${r.from||r.subject||'?'} → ${r.to||r.object||'?'}${r.relation?` (${r.relation})`:''}</span>`}).join('')}</div>`;
+    if(eR.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Relacje między encjami</div>${eR.map(r=>{if(typeof r==='string')return`<span class="s1-ent rel">${esc(r)}</span>`;return`<span class="s1-ent rel">${esc(r.from||r.subject||'?')} → ${esc(r.to||r.object||'?')}${r.relation?` (${esc(r.relation)})`:''}</span>`}).join('')}</div>`;
     if(tC.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Topical Coverage</div>${tC.slice(0,10).map(t=>{const topic=typeof t==='string'?t:(t.subtopic||t.topic||el(t)),pri=typeof t==='object'?(t.priority||''):'';return`<span class="tag ${pri==='MUST'?'r':pri==='HIGH'?'o':'d'}">${topic}${pri?` · ${pri}`:''}</span>`}).join('')}</div>`;
     if(!tE.length&&!mE.length)b4+=`<div style="color:var(--mg);font-style:italic">Brak danych encji (CSS contamination?)</div>`;
     h+=s1Sec(4,'Encje — mapa bytów tematu',`${ent.entity_count||tE.length} encji`,b4);
@@ -400,9 +403,9 @@ function rS1(d){
     // ─── 🔟 Agent Instructions ───
     let b10='';
     const ai=d.agent_instructions||{},sh=d.semantic_hints||{};
-    if(ai.gaps)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📋 Priorytety luk</div><div class="s1-instr">${ai.gaps}</div></div>`;
-    if(ai.causal)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔗 Instrukcje kauzalne</div><div class="s1-instr">${ai.causal}</div></div>`;
-    if(ai.semantic&&Object.keys(ai.semantic).length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🎯 Checkpoints semantyczne</div><div class="s1-instr">${Object.entries(ai.semantic).map(([k,v])=>`${k}: ${v}`).join('\n')}</div></div>`;
+    if(ai.gaps)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📋 Priorytety luk</div><div class="s1-instr">${esc(ai.gaps)}</div></div>`;
+    if(ai.causal)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔗 Instrukcje kauzalne</div><div class="s1-instr">${esc(ai.causal)}</div></div>`;
+    if(ai.semantic&&Object.keys(ai.semantic).length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🎯 Checkpoints semantyczne</div><div class="s1-instr">${esc(Object.entries(ai.semantic).map(([k,v])=>`${k}: ${v}`).join('\n'))}</div></div>`;
     if(sh.critical_entities&&sh.critical_entities.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--rd);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🔴 Critical entities</div>${sh.critical_entities.map(e=>`<span class="s1-ent must">${e.text||el(e)}${e.importance?` · ${e.importance.toFixed(2)}`:''}</span>`).join('')}</div>`;
     if(sh.must_topics&&sh.must_topics.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📌 Must topics</div>${sh.must_topics.map(t=>`<span class="tag o">${t.topic||el(t)}</span>`).join('')}</div>`;
     if(!ai.gaps&&!ai.causal&&!(sh.critical_entities&&sh.critical_entities.length))b10+=`<div style="color:var(--mg);font-style:italic">Agent instructions wygenerowane wewnętrznie — używane automatycznie w batch loop</div>`;
@@ -439,19 +442,19 @@ function rBI(d){
         if(d.coverage.extended!==undefined)x+=`<span class="tag ${cn(d.coverage.extended)>50?'g':'w'}">Ext: ${cv(d.coverage.extended)}%</span>`;
         if(d.coverage.overall!==undefined)x+=`<span class="tag ${cn(d.coverage.overall)>70?'g':'w'}">All: ${cv(d.coverage.overall)}%</span>`;
         x+=`</div>`}
-    if(d.article_memory_summary){const am=d.article_memory_summary;x+=`<div class="sub"><div class="sub-t">Article Memory</div>${am.word_count?`<span class="tag d">${am.word_count} słów</span>`:''}${am.h2_completed&&am.h2_completed.length?am.h2_completed.map(h=>`<span class="tag g">${h}</span>`).join(''):''}${am.preview?`<div class="pre">${am.preview}</div>`:''}</div>`}
-    if(d.style_summary){const s=d.style_summary;x+=`<div class="sub"><div class="sub-t">Style</div>${s.tone?`<span class="tag o">${s.tone}</span>`:''}${s.overused_words&&s.overused_words.length?s.overused_words.map(w=>`<span class="tag r">${w}</span>`).join(''):''}</div>`}
-    if(d.continuation_preview){const cp=d.continuation_preview;x+=`<div class="sub"><div class="sub-t">Kontynuacja</div>${cp.last_topic?`<span class="tag d">${cp.last_topic}</span>`:''}${cp.transition_hint?`<span class="tag o">${cp.transition_hint}</span>`:''}</div>`}
-    if(d.legal_context_preview)x+=`<div class="sub"><div class="sub-t">⚖️ Legal</div><span class="tag r">Active</span>${d.legal_context_preview.instruction_preview?`<div class="pre">${d.legal_context_preview.instruction_preview}</div>`:''}</div>`;
-    if(d.medical_context_preview)x+=`<div class="sub"><div class="sub-t">🏥 Medical</div><span class="tag r">Active</span>${d.medical_context_preview.instruction_preview?`<div class="pre">${d.medical_context_preview.instruction_preview}</div>`:''}</div>`;
-    if(d.phrase_hierarchy_data)x+=`<div class="sub"><div class="sub-t">Hierarchy</div>${d.phrase_hierarchy_data.strategy?`<span class="tag p">${d.phrase_hierarchy_data.strategy}</span>`:''}${(d.phrase_hierarchy_data.roots_covered||[]).map(r=>`<span class="tag c">${ss(r)}</span>`).join('')}</div>`;
-    if(d.intro_guidance)x+=`<div class="sub"><div class="sub-t">Intro</div><div class="pre">${d.intro_guidance.substring(0,250)}</div></div>`;
-    if(d.causal_context_preview)x+=`<div class="sub"><div class="sub-t">Causal</div><div class="pre">${d.causal_context_preview}</div></div>`;
-    if(d.information_gain_preview)x+=`<div class="sub"><div class="sub-t">Info Gain</div><div class="pre">${d.information_gain_preview}</div></div>`;
-    if(d.smart_instructions_preview)x+=`<div class="sub"><div class="sub-t">Smart Instr</div><div class="pre">${d.smart_instructions_preview}</div></div>`;
-    if(d.gpt_instructions_preview)x+=`<div class="sub"><div class="sub-t">GPT Instr v39</div><div class="pre">${d.gpt_instructions_preview}</div></div>`;
-    if(d.h2_remaining&&d.h2_remaining.length>1)x+=`<div class="sub"><div class="sub-t">H2 remaining</div>${d.h2_remaining.slice(1).map(h=>`<span class="tag d">${h}</span>`).join('')}</div>`;
-    card.innerHTML=`<div class="bd-h" onclick="tBd('${cid}')"><span><strong style="color:var(--orange)">B${d.batch}</strong>/${d.total} · <span class="tag p" style="margin:0">${d.batch_type}</span> · <span style="color:var(--lg)">${d.h2}</span></span><span style="color:var(--mg)">▸</span></div><div class="bd-b" id="${cid}">${x}</div>`;
+    if(d.article_memory_summary){const am=d.article_memory_summary;x+=`<div class="sub"><div class="sub-t">Article Memory</div>${am.word_count?`<span class="tag d">${am.word_count} słów</span>`:''}${am.h2_completed&&am.h2_completed.length?am.h2_completed.map(h=>`<span class="tag g">${esc(h)}</span>`).join(''):''}${am.preview?`<div class="pre">${esc(am.preview)}</div>`:''}</div>`}
+    if(d.style_summary){const s=d.style_summary;x+=`<div class="sub"><div class="sub-t">Style</div>${s.tone?`<span class="tag o">${esc(s.tone)}</span>`:''}${s.overused_words&&s.overused_words.length?s.overused_words.map(w=>`<span class="tag r">${esc(w)}</span>`).join(''):''}</div>`}
+    if(d.continuation_preview){const cp=d.continuation_preview;x+=`<div class="sub"><div class="sub-t">Kontynuacja</div>${cp.last_topic?`<span class="tag d">${esc(cp.last_topic)}</span>`:''}${cp.transition_hint?`<span class="tag o">${esc(cp.transition_hint)}</span>`:''}</div>`}
+    if(d.legal_context_preview)x+=`<div class="sub"><div class="sub-t">⚖️ Legal</div><span class="tag r">Active</span>${d.legal_context_preview.instruction_preview?`<div class="pre">${esc(d.legal_context_preview.instruction_preview)}</div>`:''}</div>`;
+    if(d.medical_context_preview)x+=`<div class="sub"><div class="sub-t">🏥 Medical</div><span class="tag r">Active</span>${d.medical_context_preview.instruction_preview?`<div class="pre">${esc(d.medical_context_preview.instruction_preview)}</div>`:''}</div>`;
+    if(d.phrase_hierarchy_data)x+=`<div class="sub"><div class="sub-t">Hierarchy</div>${d.phrase_hierarchy_data.strategy?`<span class="tag p">${esc(d.phrase_hierarchy_data.strategy)}</span>`:''}${(d.phrase_hierarchy_data.roots_covered||[]).map(r=>`<span class="tag c">${ss(r)}</span>`).join('')}</div>`;
+    if(d.intro_guidance)x+=`<div class="sub"><div class="sub-t">Intro</div><div class="pre">${esc(d.intro_guidance.substring(0,250))}</div></div>`;
+    if(d.causal_context_preview)x+=`<div class="sub"><div class="sub-t">Causal</div><div class="pre">${esc(d.causal_context_preview)}</div></div>`;
+    if(d.information_gain_preview)x+=`<div class="sub"><div class="sub-t">Info Gain</div><div class="pre">${esc(d.information_gain_preview)}</div></div>`;
+    if(d.smart_instructions_preview)x+=`<div class="sub"><div class="sub-t">Smart Instr</div><div class="pre">${esc(d.smart_instructions_preview)}</div></div>`;
+    if(d.gpt_instructions_preview)x+=`<div class="sub"><div class="sub-t">GPT Instr v39</div><div class="pre">${esc(d.gpt_instructions_preview)}</div></div>`;
+    if(d.h2_remaining&&d.h2_remaining.length>1)x+=`<div class="sub"><div class="sub-t">H2 remaining</div>${d.h2_remaining.slice(1).map(h=>`<span class="tag d">${esc(h)}</span>`).join('')}</div>`;
+    card.innerHTML=`<div class="bd-h" onclick="tBd('${cid}')"><span><strong style="color:var(--orange)">B${d.batch}</strong>/${d.total} · <span class="tag p" style="margin:0">${esc(d.batch_type)}</span> · <span style="color:var(--lg)">${esc(d.h2)}</span></span><span style="color:var(--mg)">▸</span></div><div class="bd-b" id="${cid}">${x}</div>`;
     body.appendChild(card);
 }
 
@@ -512,13 +515,13 @@ async function startWorkflow(){
         es.addEventListener('step',e=>{const d=JSON.parse(e.data);uStep(d.step,d.status,d.detail||'')});
         es.addEventListener('log',e=>{log(JSON.parse(e.data).msg)});
         es.addEventListener('project',e=>{const d=JSON.parse(e.data);tb=d.total_batches;log(`Project: ${d.project_id}`);const r=document.getElementById('bRes');r.innerHTML='';for(let i=1;i<=tb;i++)r.innerHTML+=`<div class="bchip pend" id="bc${i}">B${i}</div>`});
-        es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:13px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${h}</div>`).join('')});
+        es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:13px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(h)}</div>`).join('')});
         es.addEventListener('s1_data',e=>{rS1(JSON.parse(e.data));const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}});
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
         es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
         es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`});
         es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);document.getElementById('edC').style.display='';document.getElementById('edSc').innerHTML=`${d.score}<span>/10</span>`;document.getElementById('edCh').textContent=`${d.changes_applied}/${d.changes_applied+d.changes_failed}`;document.getElementById('edW').textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;document.getElementById('edR').textContent=d.rollback?'⚠️ TAK':'✓ NIE'});
-        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=d.issues_count||0;let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', ')}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; ')}</div>`;document.getElementById('frD').innerHTML=dt});
+        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=d.issues_count||0;let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
         es.addEventListener('article',e=>{const d=JSON.parse(e.data);const pv=document.getElementById('artP');let html=(d.text||'').replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';pv.innerHTML=html;pv.style.display=''});
         es.addEventListener('done',e=>{const d=JSON.parse(e.data);document.getElementById('doneB').style.display='';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html)document.getElementById('exH').href=`/api/export/${jid}/html`;if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
