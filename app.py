@@ -14,9 +14,10 @@ import time
 import uuid
 import hashlib
 import logging
+import secrets
 import threading
 import queue
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import (
@@ -151,8 +152,6 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-6")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
-APP_PASSWORD = os.environ.get("APP_PASSWORD", "brajen2024")
-APP_USERNAME = os.environ.get("APP_USERNAME", "brajen")
 
 REQUEST_TIMEOUT = 120
 EDITORIAL_TIMEOUT = 300  # Editorial review needs more time
@@ -162,8 +161,26 @@ RETRY_DELAYS = [5, 15, 30]
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Store active jobs in memory (for SSE)
+# Auth — require env vars, no hardcoded fallbacks
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+APP_USERNAME = os.environ.get("APP_USERNAME", "")
+if not APP_PASSWORD or not APP_USERNAME:
+    logger.critical("⚠️ APP_PASSWORD and APP_USERNAME must be set as environment variables!")
+
+# Store active jobs in memory (for SSE) with TTL cleanup
 active_jobs = {}
+_JOBS_TTL_HOURS = 6
+
+
+def _cleanup_old_jobs():
+    """Remove jobs older than TTL to prevent memory leaks."""
+    cutoff = datetime.utcnow() - timedelta(hours=_JOBS_TTL_HOURS)
+    stale = [jid for jid, job in active_jobs.items()
+             if job.get("created_at", datetime.utcnow()) < cutoff]
+    for jid in stale:
+        del active_jobs[jid]
+    if stale:
+        logger.info(f"[CLEANUP] Removed {len(stale)} stale jobs")
 
 
 # ============================================================
@@ -184,7 +201,10 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "")
         password = request.form.get("password", "")
-        if username == APP_USERNAME and password == APP_PASSWORD:
+        # Timing-safe comparison to prevent timing attacks
+        user_ok = secrets.compare_digest(username.encode(), APP_USERNAME.encode()) if APP_USERNAME else False
+        pass_ok = secrets.compare_digest(password.encode(), APP_PASSWORD.encode()) if APP_PASSWORD else False
+        if user_ok and pass_ok:
             session["logged_in"] = True
             session["user"] = username
             return redirect(url_for("index"))
@@ -1027,6 +1047,10 @@ def start_workflow():
     # H2 is now OPTIONAL — if empty, will be auto-generated from S1
 
     job_id = str(uuid.uuid4())[:8]
+    
+    # Cleanup old jobs to prevent memory leaks
+    _cleanup_old_jobs()
+    
     active_jobs[job_id] = {
         "main_keyword": main_keyword,
         "mode": mode,
@@ -1034,7 +1058,8 @@ def start_workflow():
         "basic_terms": basic_terms,
         "extended_terms": extended_terms,
         "status": "running",
-        "created": datetime.now().isoformat()
+        "created": datetime.now().isoformat(),
+        "created_at": datetime.utcnow()
     }
 
     return jsonify({"job_id": job_id})
