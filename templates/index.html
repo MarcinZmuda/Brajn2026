@@ -221,11 +221,62 @@
 
         .logbox{background:var(--black);border:1px solid var(--b1);border-radius:var(--r);padding:12px 14px;max-height:220px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.7}
         .log-line{color:var(--lg)}.log-line .ts{color:var(--mg)}
+
+        /* ═══ ARTICLE EDITOR ═══ */
+        .editor-wrap{margin:14px 0;display:none}
+        .editor-wrap.visible{display:block}
+        .edit-bar{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+        .btn-val{
+            padding:8px 16px;border-radius:var(--rs);border:1px solid var(--b1);
+            background:var(--s2);color:var(--lg);font-size:11px;font-weight:600;
+            cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap
+        }
+        .btn-val:hover{border-color:var(--orange);color:var(--orange)}
+        .btn-val.loading{opacity:.5;cursor:wait}
+        .chat-box{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);overflow:hidden}
+        .chat-hist{max-height:280px;overflow-y:auto;padding:14px 18px}
+        .chat-msg{margin:8px 0;padding:10px 14px;border-radius:var(--r);font-size:12px;line-height:1.6;max-width:85%}
+        .chat-msg.user{background:var(--og);color:var(--orange);margin-left:auto;text-align:right;border:1px solid rgba(251,169,44,.15)}
+        .chat-msg.ai{background:var(--s2);color:rgba(255,255,255,.8);border:1px solid var(--b1)}
+        .chat-msg .meta{font-size:9px;color:var(--mg);margin-top:4px}
+        .chat-input{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--b1);background:var(--s2)}
+        .chat-input input{
+            flex:1;padding:10px 14px;background:var(--black);border:1px solid var(--b1);
+            border-radius:var(--rs);color:var(--white);font-size:13px;font-family:inherit;outline:none
+        }
+        .chat-input input:focus{border-color:rgba(251,169,44,.4)}
+        .chat-input input::placeholder{color:var(--mg)}
+        .chat-send{
+            padding:10px 20px;background:var(--orange);color:var(--black);border:none;
+            border-radius:var(--rs);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
+            transition:all .15s;white-space:nowrap
+        }
+        .chat-send:hover{filter:brightness(1.1)}
+        .chat-send:disabled{opacity:.4;cursor:wait}
+        .inline-tb{
+            position:fixed;display:none;z-index:200;
+            background:var(--black);border:1px solid var(--orange);border-radius:var(--r);
+            padding:8px 10px;box-shadow:0 8px 32px rgba(0,0,0,.6);
+            min-width:300px;max-width:420px
+        }
+        .inline-tb.vis{display:flex;gap:6px;align-items:center}
+        .inline-tb input{
+            flex:1;padding:8px 10px;background:var(--s2);border:1px solid var(--b1);
+            border-radius:6px;color:var(--white);font-size:12px;font-family:inherit;outline:none
+        }
+        .inline-tb input::placeholder{color:var(--mg)}
+        .inline-tb button{
+            padding:8px 14px;background:var(--orange);color:var(--black);border:none;
+            border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit
+        }
+        .inline-tb .bx{background:none;color:var(--mg);padding:6px;font-size:14px}
+        .val-result{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:14px;margin:10px 0;font-size:11px;display:none}
+        .val-result.vis{display:block}
     </style>
 </head>
 <body>
 <div class="hd">
-    <div class="hd-l"><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge">V45.2</span></div>
+    <div class="hd-l"><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge">V45.3</span></div>
     <div class="hd-r"><span>{{ username }}</span><a href="/logout">Wyloguj</a></div>
 </div>
 <div class="layout">
@@ -244,6 +295,8 @@
         <div id="bsc" style="display:none"><textarea id="basicTerms" rows="3" placeholder="fraza: min-maxx"></textarea></div>
         <div class="lbl">Frazy EXTENDED <button class="tbtn" onclick="tog('ext')">pokaż</button></div>
         <div id="ext" style="display:none"><textarea id="extendedTerms" rows="3" placeholder="fraza: min-maxx"></textarea></div>
+        <div class="lbl">Instrukcje dla modelu <button class="tbtn" onclick="tog('ciBox')">pokaż</button></div>
+        <div id="ciBox" style="display:none"><textarea id="customInstr" rows="4" placeholder="np. Pisz potocznym tonem&#10;Dodaj przykłady z życia&#10;Używaj list numerowanych&#10;Grupa docelowa: studenci"></textarea><div class="hint">Dodatkowe wytyczne przekazywane do Claude przy każdym batchu i edycji.</div></div>
         <button class="btn-go" id="btnStart" onclick="startWorkflow()">Uruchom workflow →</button>
         <button class="btn-stop" id="btnStop" onclick="stopWF()">Zatrzymaj</button>
     </div>
@@ -262,6 +315,29 @@
             <div class="exp" id="expB" style="display:none"><a class="btn-e pri" id="exH">HTML</a><a class="btn-e" id="exD">DOCX</a></div>
             <div style="margin-top:20px"><span class="lbl">Podgląd <button class="tbtn" onclick="tog('artP')">pokaż</button></span></div>
             <div class="art" id="artP" style="display:none"></div>
+
+            <!-- ARTICLE EDITOR -->
+            <div class="editor-wrap" id="editorWrap">
+                <div class="edit-bar">
+                    <span class="lbl" style="margin:0;flex:1;display:flex;align-items:center">✏️ Edytor artykułu</span>
+                    <button class="btn-val" id="btnValidate" onclick="validateArt()">🔍 Zwaliduj</button>
+                </div>
+                <div class="val-result" id="valResult"></div>
+                <div class="chat-box">
+                    <div class="chat-hist" id="chatHist">
+                        <div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>
+                    </div>
+                    <div class="chat-input">
+                        <input type="text" id="chatIn" placeholder="np. Zmień ton na bardziej potoczny…" onkeydown="if(event.key==='Enter')sendEdit()">
+                        <button class="chat-send" id="chatBtn" onclick="sendEdit()">Wyślij →</button>
+                    </div>
+                </div>
+            </div>
+            <div class="inline-tb" id="inlineTb">
+                <input type="text" id="inlineIn" placeholder="Co zmienić w zaznaczeniu?" onkeydown="if(event.key==='Enter')sendInline()">
+                <button onclick="sendInline()">OK</button>
+                <button class="bx" onclick="hideInl()">✕</button>
+            </div>
             <div style="margin-top:16px"><span class="lbl">Logi <button class="tbtn" onclick="tog('logC')">pokaż</button></span></div>
             <div class="logbox" id="logC"></div>
         </div>
@@ -270,7 +346,7 @@
 <script>
 (function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Final Review','Editorial','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
-let mode='standard',jid=null,tb=0,es=null;
+let mode='standard',jid=null,tb=0,es=null,rawArticle='',selTxt='';
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
 // XSS sanitization for SSE data
@@ -493,6 +569,7 @@ async function startWorkflow(){
     const h2=(document.getElementById('h2Structure').value.trim()||'').split('\n').map(l=>l.trim()).filter(l=>l);
     const bt=pt(document.getElementById('basicTerms').value.trim());
     const et=pt(document.getElementById('extendedTerms').value.trim());
+    const ci=document.getElementById('customInstr').value.trim();
 
     document.getElementById('btnStart').disabled=true;document.getElementById('btnStart').textContent='Workflow w toku…';
     document.getElementById('btnStop').style.display='';
@@ -501,10 +578,14 @@ async function startWorkflow(){
     for(let i=1;i<=10;i++)uStep(i,'pending','—');
     ['logC','bRes','biB','s1B','cpB'].forEach(id=>document.getElementById(id).innerHTML='');
     ['bpC','edC','frC','h2C','s1P','biP','cpP','doneB','expB','artP'].forEach(id=>document.getElementById(id).style.display='none');
+    document.getElementById('editorWrap').classList.remove('visible');
+    document.getElementById('chatHist').innerHTML='<div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>';
+    document.getElementById('valResult').classList.remove('vis');
+    rawArticle='';selTxt='';
     log(`Start: "${kw}" [${mode}]`);
 
     try{
-        const resp=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({main_keyword:kw,mode:mode,h2_structure:h2,basic_terms:bt,extended_terms:et})});
+        const resp=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({main_keyword:kw,mode:mode,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci})});
         const data=await resp.json();
         if(!resp.ok||data.error){log(`❌ ${data.error||'Server error '+resp.status}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';if(resp.status===429)log('⏳ Poczekaj na zakończenie bieżącego workflow');return}
         jid=data.job_id;log(`Job: ${jid}`);
@@ -519,11 +600,11 @@ async function startWorkflow(){
         es.addEventListener('s1_data',e=>{rS1(JSON.parse(e.data));const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}});
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
         es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
-        es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`});
+        es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;if(d.text_preview)rx+=`<div class="pre" style="max-height:150px">${esc(d.text_preview)}${d.word_count>100?'…':''}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}});
         es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);document.getElementById('edC').style.display='';document.getElementById('edSc').innerHTML=`${d.score}<span>/10</span>`;document.getElementById('edCh').textContent=`${d.changes_applied}/${d.changes_applied+d.changes_failed}`;document.getElementById('edW').textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;document.getElementById('edR').textContent=d.rollback?'⚠️ TAK':'✓ NIE'});
         es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=d.issues_count||0;let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
-        es.addEventListener('article',e=>{const d=JSON.parse(e.data);const pv=document.getElementById('artP');let html=(d.text||'').replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';pv.innerHTML=html;pv.style.display=''});
+        es.addEventListener('article',e=>{const d=JSON.parse(e.data);rawArticle=d.text||'';renderArt(rawArticle);document.getElementById('editorWrap').classList.add('visible')});
         es.addEventListener('done',e=>{const d=JSON.parse(e.data);document.getElementById('doneB').style.display='';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html)document.getElementById('exH').href=`/api/export/${jid}/html`;if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
 
@@ -531,6 +612,100 @@ async function startWorkflow(){
         es.onerror=()=>{rr++;if(rr>2||es.readyState===EventSource.CLOSED){log(`❌ SSE lost (${rr}x) — workflow continues server-side`);es.close();es=null;document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}else{log(`⚠️ Reconnect ${rr}/2`)}};
         es.onopen=()=>{if(rr>0){log('✅ Reconnected');rr=0}};
     }catch(err){log(`❌ ${err.message}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}
+}
+
+// ═══ ARTICLE EDITOR ═══
+function renderArt(text){
+    const pv=document.getElementById('artP');
+    let html=text.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
+    if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
+    pv.innerHTML=html;pv.style.display='';
+}
+
+// Inline selection
+document.addEventListener('mouseup',function(ev){
+    const ap=document.getElementById('artP');
+    if(!ap||!ap.contains(ev.target))return;
+    const s=window.getSelection(),t=(s.toString()||'').trim();
+    if(t.length<3){hideInl();return}
+    selTxt=t;
+    const tb=document.getElementById('inlineTb'),r=s.getRangeAt(0).getBoundingClientRect();
+    tb.style.top=(r.bottom+window.scrollY+8)+'px';
+    tb.style.left=Math.max(10,Math.min(r.left,window.innerWidth-440))+'px';
+    tb.classList.add('vis');
+    document.getElementById('inlineIn').value='';
+    document.getElementById('inlineIn').focus();
+});
+function hideInl(){document.getElementById('inlineTb').classList.remove('vis');selTxt=''}
+document.addEventListener('mousedown',function(ev){
+    const tb=document.getElementById('inlineTb');
+    if(tb.classList.contains('vis')&&!tb.contains(ev.target)&&!document.getElementById('artP').contains(ev.target))hideInl();
+});
+
+async function sendInline(){
+    const ins=document.getElementById('inlineIn').value.trim();
+    if(!ins||!selTxt||!rawArticle)return;
+    hideInl();
+    addMsg('user',`✂️ "${selTxt.substring(0,60)}${selTxt.length>60?'…':''}" → ${ins}`);
+    await doEdit(ins,selTxt);
+}
+async function sendEdit(){
+    const ins=document.getElementById('chatIn').value.trim();
+    if(!ins||!rawArticle)return;
+    document.getElementById('chatIn').value='';
+    addMsg('user',ins);
+    await doEdit(ins,'');
+}
+function addMsg(role,text){
+    const h=document.getElementById('chatHist'),t=new Date().toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
+    h.innerHTML+=`<div class="chat-msg ${role}">${esc(text)}<div class="meta">${t}</div></div>`;
+    h.scrollTop=h.scrollHeight;
+}
+async function doEdit(instruction,selected){
+    const btn=document.getElementById('chatBtn');
+    btn.disabled=true;btn.textContent='Edytuję…';
+    try{
+        const resp=await fetch('/api/edit',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({instruction,article_text:rawArticle,selected_text:selected,job_id:jid})});
+        const data=await resp.json();
+        if(!resp.ok||data.error){addMsg('ai',`❌ ${data.error||'Błąd'}`);return}
+        if(selected&&data.edit_type==='inline'){
+            const idx=rawArticle.indexOf(selected);
+            if(idx>=0)rawArticle=rawArticle.substring(0,idx)+data.edited_text+rawArticle.substring(idx+selected.length);
+            else rawArticle=data.edited_text;
+        }else{rawArticle=data.edited_text}
+        renderArt(rawArticle);
+        const wc=rawArticle.split(/\s+/).filter(w=>w).length;
+        addMsg('ai',`✅ Gotowe! (${wc} słów, ${data.tokens_used||'?'} tokenów)`);
+        log(`✏️ Edycja: ${instruction.substring(0,50)}… [${data.edit_type}]`);
+    }catch(err){addMsg('ai',`❌ ${err.message}`)}
+    finally{btn.disabled=false;btn.textContent='Wyślij →'}
+}
+async function validateArt(){
+    if(!rawArticle||!jid)return;
+    const btn=document.getElementById('btnValidate'),vr=document.getElementById('valResult');
+    btn.classList.add('loading');btn.textContent='Walidacja…';vr.classList.remove('vis');
+    try{
+        const resp=await fetch('/api/validate',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({article_text:rawArticle,job_id:jid})});
+        const data=await resp.json();
+        if(!resp.ok||data.error){vr.innerHTML=`<span style="color:var(--rd)">❌ ${esc(data.error||'Niedostępne')}</span>`;vr.classList.add('vis');return}
+        const v=data.validation||{},score=v.score||v.quality_score||v.overall_score||'?',
+            status=v.status||v.quality_grade||'?',miss=v.missing_keywords||v.unused_keywords||[],
+            iss=v.issues||[],wc=rawArticle.split(/\s+/).filter(w=>w).length;
+        let h=`<div style="display:flex;gap:16px;align-items:center;margin-bottom:8px">`;
+        h+=`<span style="font-size:24px;font-weight:800;color:var(--orange)">${score}</span>`;
+        h+=`<span style="font-weight:700;color:${status==='PASS'?'var(--gn)':status==='WARN'?'var(--yl)':'var(--rd)'}">${status}</span>`;
+        h+=`<span style="color:var(--mg)">${wc} słów</span></div>`;
+        if(miss.length){h+=`<div style="margin:6px 0"><span style="color:var(--rd);font-weight:600">Brakujące (${miss.length}):</span> `;
+            h+=miss.slice(0,15).map(k=>`<span class="chip must">${esc(typeof k==='string'?k:k.keyword||JSON.stringify(k))}</span>`).join('')+'</div>'}
+        if(iss.length){h+=`<div style="margin:6px 0"><span style="color:var(--yl);font-weight:600">Issues (${iss.length}):</span> `;
+            h+=iss.slice(0,8).map(i=>`<span class="tag w">${esc(typeof i==='string'?i:i.message||JSON.stringify(i))}</span>`).join('')+'</div>'}
+        if(!miss.length&&!iss.length)h+=`<span style="color:var(--gn);font-weight:600">✓ Wszystko OK</span>`;
+        vr.innerHTML=h;vr.classList.add('vis');
+        log(`🔍 Walidacja: ${score} | ${status} | ${miss.length} brakujących`);
+    }catch(err){vr.innerHTML=`<span style="color:var(--rd)">❌ ${err.message}</span>`;vr.classList.add('vis')}
+    finally{btn.classList.remove('loading');btn.textContent='🔍 Zwaliduj'}
 }
 </script>
 </body>
