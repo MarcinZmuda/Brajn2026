@@ -1,11 +1,14 @@
 """
 ═══════════════════════════════════════════════════════════
-BRAJEN PROMPT BUILDER v1.0
+BRAJEN PROMPT BUILDER v1.1
 ═══════════════════════════════════════════════════════════
 Converts raw pre_batch data into optimized, readable prompts.
 
-Replaces json.dumps() spam with structured natural language
-that Claude can actually follow.
+v1.1 changes:
+  - _fmt_keywords(): calculates remaining from actual + target_total
+    (backend sends these but NOT remaining directly)
+  - Shows hard_max_this_batch so Claude knows per-batch limits
+  - Clearer MUST/EXTENDED/STOP formatting
 
 Architecture:
   SYSTEM PROMPT = Expert persona + Writing techniques
@@ -97,7 +100,6 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
             if result:
                 sections.append(result)
         except Exception:
-            # Skip broken section, don't crash entire prompt
             pass
 
     return "\n\n".join(sections)
@@ -157,33 +159,88 @@ def _fmt_smart_instructions(pre_batch):
     return ""
 
 
+def _parse_target_max(target_total_str):
+    """
+    Parse target_max from backend's target_total field.
+    Backend sends target_total as "min-max" string (e.g., "2-6").
+    Returns max value as int, or 0 if unparseable.
+    """
+    if not target_total_str:
+        return 0
+    if isinstance(target_total_str, (int, float)):
+        return int(target_total_str)
+    try:
+        parts = str(target_total_str).replace("x", "").split("-")
+        if len(parts) >= 2:
+            return int(parts[-1].strip())
+        return int(parts[0].strip())
+    except (ValueError, IndexError):
+        return 0
+
+
 def _fmt_keywords(pre_batch):
+    """
+    Format keywords section with CALCULATED remaining_max.
+    
+    v1.1: Backend sends actual (current uses) and target_total ("min-max")
+    but NOT remaining. We calculate: remaining = target_max - actual.
+    Also shows hard_max_this_batch so Claude knows per-batch limits.
+    """
     keywords_info = pre_batch.get("keywords") or {}
     keyword_limits = pre_batch.get("keyword_limits") or {}
     soft_caps = pre_batch.get("soft_cap_recommendations") or {}
 
-    # ── MUST USE ──
+    # ── MUST USE (with calculated remaining) ──
     must_raw = keywords_info.get("basic_must_use", [])
     must_lines = []
     for kw in must_raw:
         if isinstance(kw, dict):
             name = kw.get("keyword", "")
-            tmin = kw.get("target_min", 1)
-            tmax = kw.get("target_max", "")
-            remaining = kw.get("remaining", "")
-            extra = f" — użyj min {tmin}×" if tmin else ""
+            
+            # Calculate remaining from actual + target_total
+            actual = kw.get("actual", kw.get("actual_uses", kw.get("current_count", 0)))
+            target_total = kw.get("target_total", "")
+            target_max = _parse_target_max(target_total) or kw.get("target_max", 0)
+            hard_max = kw.get("hard_max_this_batch", "")
+            use_range = kw.get("use_this_batch", "")
+            
+            # Explicit remaining from backend (if sent), otherwise calculate
+            remaining = kw.get("remaining", kw.get("remaining_max", ""))
+            if not remaining and target_max and isinstance(actual, (int, float)):
+                remaining = max(0, target_max - int(actual))
+            
+            # Build descriptive line
+            parts_line = [f'"{name}"']
             if remaining:
-                extra = f" — jeszcze {remaining}× do użycia"
-            must_lines.append(f'  • "{name}"{extra}')
+                parts_line.append(f"zostało {remaining}× ogółem")
+            if hard_max:
+                parts_line.append(f"max {hard_max}× w tym batchu")
+            elif use_range:
+                parts_line.append(f"cel: {use_range}× w tym batchu")
+            
+            must_lines.append(f'  • {" — ".join(parts_line)}')
         else:
             must_lines.append(f'  • "{kw}"')
 
-    # ── EXTENDED ──
+    # ── EXTENDED (with remaining) ──
     ext_raw = keywords_info.get("extended_this_batch", [])
     ext_lines = []
     for kw in ext_raw:
-        name = kw.get("keyword", kw) if isinstance(kw, dict) else kw
-        ext_lines.append(f'  • "{name}"')
+        if isinstance(kw, dict):
+            name = kw.get("keyword", "")
+            actual = kw.get("actual", kw.get("actual_uses", 0))
+            target_total = kw.get("target_total", "")
+            target_max = _parse_target_max(target_total) or kw.get("target_max", 0)
+            remaining = kw.get("remaining", kw.get("remaining_max", ""))
+            if not remaining and target_max and isinstance(actual, (int, float)):
+                remaining = max(0, target_max - int(actual))
+            
+            line = f'  • "{name}"'
+            if remaining:
+                line += f" — zostało {remaining}×"
+            ext_lines.append(line)
+        else:
+            ext_lines.append(f'  • "{kw}"')
 
     # ── STOP ──
     stop_raw = keyword_limits.get("stop_keywords") or []
@@ -191,9 +248,9 @@ def _fmt_keywords(pre_batch):
     for s in stop_raw:
         if isinstance(s, dict):
             name = s.get("keyword", "")
-            current = s.get("current_count", s.get("current", "?"))
-            max_c = s.get("max_count", s.get("max", "?"))
-            stop_lines.append(f'  • "{name}" (już {current}×, limit {max_c})')
+            current = s.get("current_count", s.get("current", s.get("actual", "?")))
+            max_c = s.get("max_count", s.get("max", s.get("target_max", "?")))
+            stop_lines.append(f'  • "{name}" (już {current}×, limit {max_c}) — STOP!')
         else:
             stop_lines.append(f'  • "{s}"')
 
@@ -201,10 +258,19 @@ def _fmt_keywords(pre_batch):
     caution_raw = keyword_limits.get("caution_keywords") or []
     caution_lines = []
     for c in caution_raw:
-        name = c.get("keyword", c) if isinstance(c, dict) else c
-        caution_lines.append(f'  • "{name}" — max 1×')
+        if isinstance(c, dict):
+            name = c.get("keyword", "")
+            current = c.get("current_count", c.get("current", c.get("actual", "")))
+            max_c = c.get("max_count", c.get("max", c.get("target_max", "")))
+            line = f'  • "{name}"'
+            if current and max_c:
+                line += f" ({current}/{max_c})"
+            line += " — max 1× w tym batchu"
+            caution_lines.append(line)
+        else:
+            caution_lines.append(f'  • "{c}" — max 1×')
 
-    # ── SOFT CAPS (merge context) ──
+    # ── SOFT CAPS ──
     soft_notes = []
     if soft_caps:
         for kw_name, info in soft_caps.items():
@@ -246,7 +312,6 @@ def _fmt_semantic_plan(pre_batch, h2):
 
     parts = ["═══ CO PISAĆ W TEJ SEKCJI ═══"]
 
-    # H2 coverage angles
     h2_coverage = plan.get("h2_coverage") or {}
     for h2_name, info in h2_coverage.items():
         if isinstance(info, dict):
@@ -258,13 +323,11 @@ def _fmt_semantic_plan(pre_batch, h2):
                 phrases = ", ".join(f'"{p}"' for p in must[:5])
                 parts.append(f'Obowiązkowe frazy w tej sekcji: {phrases}')
 
-    # Density target
     density_targets = plan.get("density_targets") or {}
     overall = density_targets.get("overall")
     if overall:
         parts.append(f'Docelowa gęstość fraz: {overall}%')
 
-    # Content direction
     direction = plan.get("content_direction") or plan.get("writing_direction", "")
     if direction:
         parts.append(f'Kierunek treści: {direction}')
@@ -284,7 +347,6 @@ def _fmt_entities(pre_batch):
 
     parts = ["═══ ENCJE (budują autorytet tematyczny) ═══"]
 
-    # Entities to INTRODUCE
     introduce = entities_for_batch.get("introduce") or []
     if introduce:
         parts.append("WPROWADŹ w tym batchu (pierwsza wzmianka):")
@@ -302,7 +364,6 @@ def _fmt_entities(pre_batch):
             else:
                 parts.append(f'  • "{ent}"')
 
-    # Entities to DEFINE
     if entities_to_define:
         parts.append("\nZDEFINIUJ (wyjaśnij czytelnikowi):")
         for ent in entities_to_define[:5]:
@@ -316,13 +377,11 @@ def _fmt_entities(pre_batch):
             else:
                 parts.append(f'  • "{ent}"')
 
-    # Entities to MAINTAIN (already introduced)
     maintain = entities_for_batch.get("maintain") or []
     if maintain:
         names = ", ".join(f'"{m}"' if isinstance(m, str) else f'"{m.get("entity", "")}"' for m in maintain[:5])
         parts.append(f"\nUTRZYMUJ (już wprowadzone wcześniej): {names}")
 
-    # Entity relations
     if relations:
         parts.append("\nPOWIĄŻ ze sobą:")
         for rel in relations[:4]:
@@ -334,7 +393,6 @@ def _fmt_entities(pre_batch):
             elif isinstance(rel, str):
                 parts.append(f'  • {rel}')
 
-    # Must mention from entity_seo
     must_mention = entity_seo.get("must_mention") or []
     if must_mention and not introduce:
         parts.append("WSPOMNIJ w tekście:")
@@ -367,7 +425,6 @@ def _fmt_ngrams(pre_batch):
         elif isinstance(ng, str):
             parts.append(f'  • "{ng}"')
 
-    # Ngram guidance — overused, synonyms
     if ngram_guidance:
         overused = ngram_guidance.get("overused") or []
         if overused:
@@ -415,7 +472,6 @@ def _fmt_continuation(pre_batch):
     enhanced = pre_batch.get("enhanced") or {}
     cont_ctx = enhanced.get("continuation_context") or {}
 
-    # Merge both sources
     last_h2 = cont_ctx.get("last_h2") or continuation.get("last_h2", "")
     last_ending = cont_ctx.get("last_paragraph_ending") or continuation.get("last_paragraph_ending", "")
     last_topic = cont_ctx.get("last_topic") or continuation.get("last_topic", "")
@@ -449,7 +505,6 @@ def _fmt_article_memory(article_memory):
     parts = ["═══ PAMIĘĆ ARTYKUŁU (nie powtarzaj!) ═══"]
 
     if isinstance(article_memory, dict):
-        # Topics covered
         topics = article_memory.get("topics_covered") or article_memory.get("covered_topics") or []
         if topics:
             parts.append("Tematy już omówione w artykule:")
@@ -459,14 +514,12 @@ def _fmt_article_memory(article_memory):
                 elif isinstance(t, dict):
                     parts.append(f'  ✓ {t.get("topic", t.get("h2", ""))}')
 
-        # Key facts used
         facts = article_memory.get("key_facts_used") or article_memory.get("facts", [])
         if facts:
             parts.append("\nFakty już użyte (nie powtarzaj):")
             for f in facts[:8]:
                 parts.append(f'  • {f}' if isinstance(f, str) else f'  • {json.dumps(f, ensure_ascii=False)[:100]}')
 
-        # Phrases used
         phrases_used = article_memory.get("phrases_used") or {}
         if phrases_used:
             high_use = [(k, v) for k, v in phrases_used.items()
@@ -492,7 +545,6 @@ def _fmt_coverage_density(pre_batch):
 
     parts = ["═══ STATUS POKRYCIA FRAZ ═══"]
 
-    # Main keyword info
     if main_kw:
         kw_name = main_kw.get("keyword", "") if isinstance(main_kw, dict) else str(main_kw)
         synonyms = main_kw.get("synonyms", []) if isinstance(main_kw, dict) else []
@@ -501,13 +553,11 @@ def _fmt_coverage_density(pre_batch):
         if synonyms:
             parts.append(f'Synonimy (używaj zamiennie): {", ".join(synonyms[:5])}')
 
-    # Coverage stats
     current_cov = coverage.get("current", coverage.get("current_coverage"))
     target_cov = coverage.get("target", coverage.get("target_coverage"))
     if current_cov is not None and target_cov is not None:
         parts.append(f'\nPokrycie fraz: {current_cov}% z docelowych {target_cov}%')
 
-    # Missing phrases — CRITICAL info
     missing = coverage.get("missing_phrases") or coverage.get("uncovered") or []
     if missing:
         parts.append("⚠️ BRAKUJĄCE FRAZY — wpleć w tym batchu:")
@@ -515,7 +565,6 @@ def _fmt_coverage_density(pre_batch):
             name = m.get("keyword", m) if isinstance(m, dict) else m
             parts.append(f'  → "{name}"')
 
-    # Density
     if density:
         current_d = density.get("current")
         target_range = density.get("target_range") or []
@@ -529,7 +578,6 @@ def _fmt_coverage_density(pre_batch):
             over_names = ", ".join(f'"{o}"' if isinstance(o, str) else f'"{o.get("keyword", "")}"' for o in overused_d[:5])
             parts.append(f'Nadużywane: {over_names} — użyj synonimów')
 
-    # Keyword tracking summary
     if keyword_tracking:
         total_kw = keyword_tracking.get("total_keywords", 0)
         covered_kw = keyword_tracking.get("covered", 0)
@@ -717,33 +765,28 @@ def build_faq_user_prompt(paa_data, pre_batch=None):
     avoid = paa_data.get("avoid_in_faq") or []
     instructions = paa_data.get("instructions", "")
 
-    # Enhanced PAA
     enhanced_paa = []
     if pre_batch:
         enhanced = pre_batch.get("enhanced") or {}
         enhanced_paa = enhanced.get("paa_from_serp") or []
 
-    # Stop keywords
     keyword_limits = {}
     if pre_batch:
         keyword_limits = pre_batch.get("keyword_limits") or {}
     stop_raw = keyword_limits.get("stop_keywords") or []
     stop_names = [s.get("keyword", s) if isinstance(s, dict) else s for s in stop_raw]
 
-    # Style
     style = {}
     if pre_batch:
         style = pre_batch.get("style_instructions") or {}
 
-    # ── Build prompt ──
     sections = []
 
     sections.append("""═══ SEKCJA FAQ ═══
 Napisz sekcję FAQ. Zaczynaj DOKŁADNIE od:
 h2: Najczęściej zadawane pytania""")
 
-    # PAA questions
-    all_paa = list(dict.fromkeys(paa_questions + enhanced_paa))  # deduplicate
+    all_paa = list(dict.fromkeys(paa_questions + enhanced_paa))
     if all_paa:
         sections.append("Pytania z Google (People Also Ask) — to NAPRAWDĘ pytają użytkownicy:")
         for i, q in enumerate(all_paa[:8], 1):
@@ -752,7 +795,6 @@ h2: Najczęściej zadawane pytania""")
                 sections.append(f'  {i}. {q_text}')
         sections.append("Wybierz 4-6 najlepszych. Możesz przeformułować, ale zachowaj sens.")
 
-    # Unused keywords
     if unused:
         if isinstance(unused, dict):
             unused_list = []
@@ -768,22 +810,18 @@ h2: Najczęściej zadawane pytania""")
             names = ", ".join(f'"{u}"' for u in unused[:8])
             sections.append(f'\nFrazy jeszcze nieużyte — wpleć w odpowiedzi: {names}')
 
-    # Avoid topics
     if avoid:
         topics = ", ".join(f'"{a}"' if isinstance(a, str) else f'"{a.get("topic", "")}"' for a in avoid[:8])
         sections.append(f'\nNIE powtarzaj tematów już pokrytych w artykule: {topics}')
 
-    # Stop keywords
     if stop_names:
         sections.append(f'\n🛑 STOP — NIE UŻYWAJ: {", ".join(f"{s}" for s in stop_names[:5])}')
 
-    # Style
     if style:
         forbidden = style.get("forbidden_phrases") or []
         if forbidden:
             sections.append(f'ZAKAZANE zwroty: {", ".join(forbidden[:5])}')
 
-    # Article memory
     if pre_batch and pre_batch.get("article_memory"):
         mem = pre_batch["article_memory"]
         if isinstance(mem, dict):
@@ -792,11 +830,9 @@ h2: Najczęściej zadawane pytania""")
                 topic_names = [t if isinstance(t, str) else t.get("topic", "") for t in topics[:6]]
                 sections.append(f'\nTematy z artykułu (nie powtarzaj): {", ".join(topic_names)}')
 
-    # Instructions from API
     if instructions:
         sections.append(f'\n{instructions}')
 
-    # Format
     sections.append("""
 ═══ FORMAT ═══
 h2: Najczęściej zadawane pytania
@@ -826,10 +862,7 @@ def build_h2_plan_system_prompt():
 
 
 def build_h2_plan_user_prompt(main_keyword, mode, s1_data, all_user_phrases, user_h2_hints=None):
-    """
-    Build readable H2 plan prompt from S1 analysis data.
-    Replaces json.dumps() with structured text.
-    """
+    """Build readable H2 plan prompt from S1 analysis data."""
     s1_data = s1_data or {}
     competitor_h2 = s1_data.get("competitor_h2_patterns") or []
     suggested_h2s = (s1_data.get("content_gaps") or {}).get("suggested_new_h2s", [])
@@ -839,12 +872,10 @@ def build_h2_plan_user_prompt(main_keyword, mode, s1_data, all_user_phrases, use
 
     sections = []
 
-    # ── Header ──
     mode_desc = "standard = pełny artykuł" if mode == "standard" else "fast = krótki artykuł, max 3 sekcje"
     sections.append(f"""HASŁO GŁÓWNE: {main_keyword}
 TRYB: {mode} ({mode_desc})""")
 
-    # ── Competitor H2 patterns ──
     if competitor_h2:
         lines = ["═══ WZORCE H2 KONKURENCJI (najczęstsze tematy sekcji) ═══"]
         for i, h in enumerate(competitor_h2[:20], 1):
@@ -856,7 +887,6 @@ TRYB: {mode} ({mode_desc})""")
                 lines.append(f"  {i}. {h}")
         sections.append("\n".join(lines))
 
-    # ── Suggested new H2s (content gaps) ──
     if suggested_h2s:
         lines = ["═══ SUGEROWANE NOWE H2 (luki — tego NIKT z konkurencji nie pokrywa) ═══"]
         for h in suggested_h2s[:10]:
@@ -864,7 +894,6 @@ TRYB: {mode} ({mode_desc})""")
             lines.append(f"  • {h_text}")
         sections.append("\n".join(lines))
 
-    # ── Content gaps (multiple sources) ──
     all_gaps = []
     for key in ("paa_unanswered", "subtopic_missing", "depth_missing", "gaps"):
         items = content_gaps.get(key) or []
@@ -878,7 +907,6 @@ TRYB: {mode} ({mode_desc})""")
             lines.append(f"  • {g}")
         sections.append("\n".join(lines))
 
-    # ── PAA questions ──
     if paa:
         lines = ["═══ PYTANIA PAA (People Also Ask z Google) ═══"]
         for q in paa[:8]:
@@ -887,7 +915,6 @@ TRYB: {mode} ({mode_desc})""")
                 lines.append(f"  ❓ {q_text}")
         sections.append("\n".join(lines))
 
-    # ── Causal triplets ──
     triplet_list = (causal_triplets.get("chains") or causal_triplets.get("singles")
                     or causal_triplets.get("triplets") or [])[:5]
     if triplet_list:
@@ -901,7 +928,6 @@ TRYB: {mode} ({mode_desc})""")
                 lines.append(f"  • {t}")
         sections.append("\n".join(lines))
 
-    # ── User H2 hints ──
     if user_h2_hints:
         h2_hints_list = "\n".join(f'  • "{h}"' for h in user_h2_hints[:10])
         sections.append(f"""═══ FRAZY H2 UŻYTKOWNIKA ═══
@@ -915,7 +941,6 @@ Jeśli fraza brzmi sztucznie jako nagłówek — przeformułuj lub pomiń (trafi
 FRAZY H2:
 {h2_hints_list}""")
 
-    # ── User phrases context ──
     if all_user_phrases:
         phrases_text = ", ".join(f'"{p}"' for p in all_user_phrases[:15])
         sections.append(f"""═══ KONTEKST TEMATYCZNY (frazy BASIC/EXTENDED) ═══
@@ -926,7 +951,6 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
 
 {phrases_text}""")
 
-    # ── Rules ──
     fast_note = "Tryb fast: max 3 sekcje + FAQ." if mode == "fast" else "Typowo 5-10 sekcji — tyle ile wymaga temat."
     h2_hint_rule = ("Uwzględnij frazy H2 użytkownika w nagłówkach, o ile brzmią naturalnie."
                     if user_h2_hints else "Dobierz nagłówki na podstawie S1 i luk treściowych.")

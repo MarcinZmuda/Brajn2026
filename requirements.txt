@@ -1,4 +1,5 @@
-flask==3.1.0
-gunicorn==23.0.0
-requests==2.32.3
-anthropic==0.43.0
+flask>=3.0.0
+requests>=2.31.0
+anthropic>=0.40.0
+# Optional: OpenAI for dual-engine support
+# openai>=1.0.0

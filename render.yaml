@@ -1,26 +1,23 @@
-# render.yaml — BRAJEN SEO Web App
-# Deploy: Connect GitHub repo → Render auto-deploys
-# ⚠️ IMPORTANT: Update start command in Render Dashboard to match below!
-# Dashboard currently overrides this with --workers 2 --threads 4 → causes OOM!
-
 services:
   - type: web
-    name: brajen-seo
+    name: brajen-seo-frontend
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1 --threads 2 --max-requests 50 --max-requests-jitter 5
+    startCommand: python app.py
     envVars:
-      - key: BRAJEN_API_URL
-        value: https://master-seo-api.onrender.com
+      - key: PORT
+        value: 5000
       - key: ANTHROPIC_API_KEY
-        sync: false  # Set manually in Render dashboard
+        sync: false
       - key: ANTHROPIC_MODEL
         value: claude-opus-4-6
+      - key: BRAJEN_API_URL
+        value: https://master-seo-api.onrender.com
       - key: APP_USERNAME
-        value: brajen
+        sync: false
       - key: APP_PASSWORD
-        sync: false  # Set manually in Render dashboard
+        sync: false
       - key: SECRET_KEY
         generateValue: true
-      - key: PYTHON_VERSION
-        value: 3.12.0
+      - key: MIDDLEWARE_MODEL
+        value: claude-haiku-4-5-20251001
