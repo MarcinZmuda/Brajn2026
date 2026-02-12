@@ -25,6 +25,10 @@ from flask import (
 )
 import requests as http_requests
 import anthropic
+from prompt_builder import (
+    build_system_prompt, build_user_prompt,
+    build_faq_system_prompt, build_faq_user_prompt
+)
 
 # Optional: OpenAI
 try:
@@ -355,203 +359,13 @@ Odpowiedz TYLKO JSON array, bez markdown, bez komentarzy:
 # TEXT GENERATION (Claude + OpenAI)
 # ============================================================
 def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="claude"):
-    """Generate batch text using FULL pre_batch data — mirrors what Custom GPT received.
+    """Generate batch text using optimized prompts built from pre_batch data.
     
-    Custom GPT got the entire pre_batch_info response and used gpt_instructions_v39
-    plus ALL contextual fields. We must do the same.
+    v45.3: Replaces raw json.dumps() with structured natural language prompts
+    that Claude can follow effectively. Uses prompt_builder module.
     """
-    
-    # ─── SYSTEM PROMPT = gpt_instructions_v39 + gpt_prompt ───
-    # gpt_instructions_v39 = writing techniques (passage-first, burstiness, anti-wall-of-info)
-    # gpt_prompt = batch context (coverage, density, semantic plan, keyword lists)
-    gpt_instructions = pre_batch.get("gpt_instructions_v39", "")
-    gpt_prompt = pre_batch.get("gpt_prompt", "")
-    
-    if gpt_instructions and gpt_prompt:
-        system_prompt = gpt_instructions + "\n\n" + gpt_prompt
-    elif gpt_instructions:
-        system_prompt = gpt_instructions
-    elif gpt_prompt:
-        system_prompt = gpt_prompt
-    else:
-        system_prompt = "Jesteś ekspertem SEO. Pisz naturalnie po polsku, unikaj sztucznego tonu AI."
-
-    # ─── USER PROMPT = FULL batch context (all fields Custom GPT could see) ───
-    keywords_info = (pre_batch.get("keywords") or {})
-    keyword_limits = (pre_batch.get("keyword_limits") or {})
-    batch_length = (pre_batch.get("batch_length") or {})
-    enhanced = pre_batch.get("enhanced") or {}
-    style = pre_batch.get("style_instructions") or {}
-    semantic_plan = pre_batch.get("semantic_batch_plan") or {}
-    ngrams = (pre_batch.get("ngrams_for_batch") or [])
-    entity_seo = pre_batch.get("entity_seo") or {}
-    serp = pre_batch.get("serp_enrichment") or {}
-    legal_ctx = pre_batch.get("legal_context") or {}
-    medical_ctx = pre_batch.get("medical_context") or {}
-    coverage = pre_batch.get("coverage") or {}
-    density = pre_batch.get("density") or {}
-    main_kw = pre_batch.get("main_keyword") or {}
-    soft_caps = pre_batch.get("soft_cap_recommendations") or {}
-    dynamic_sections = pre_batch.get("dynamic_sections") or {}
-    h2_plan = (pre_batch.get("h2_plan") or [])
-    h2_remaining = (pre_batch.get("h2_remaining") or [])
-    batch_number = pre_batch.get("batch_number", 1)
-    total_batches = pre_batch.get("total_planned_batches", 1)
-    intro_guidance = pre_batch.get("intro_guidance", "")
-    entities_for_batch = pre_batch.get("entities_for_batch") or {}
-    section_length_guidance = pre_batch.get("section_length_guidance") or {}
-    ngram_guidance = pre_batch.get("ngram_guidance") or {}
-
-    # Build STOP keywords clearly
-    stop_kws = (keyword_limits.get("stop_keywords") or [])
-    stop_list = [s.get("keyword", s) if isinstance(s, dict) else s for s in stop_kws]
-    
-    caution_kws = (keyword_limits.get("caution_keywords") or [])
-    caution_list = [c.get("keyword", c) if isinstance(c, dict) else c for c in caution_kws]
-
-    # Build comprehensive user prompt
-    sections = []
-    
-    # Core batch info
-    sections.append(f"""═══ BATCH {batch_number}/{total_batches} ═══
-Typ: {batch_type}
-H2: {h2}
-Zaczynaj DOKŁADNIE od: h2: {h2}
-Długość: {json.dumps(batch_length, ensure_ascii=False) if batch_length else '350-500 słów'}""")
-
-    # Intro guidance (for first batch)
-    if intro_guidance and batch_type == "INTRO":
-        sections.append(f"INTRO GUIDANCE:\n{json.dumps(intro_guidance, ensure_ascii=False) if isinstance(intro_guidance, dict) else intro_guidance}")
-
-    # Keywords — MUST use
-    must_use = [kw.get('keyword', kw) if isinstance(kw, dict) else kw for kw in keywords_info.get('basic_must_use', [])]
-    ext_use = [kw.get('keyword', kw) if isinstance(kw, dict) else kw for kw in keywords_info.get('extended_this_batch', [])]
-    
-    sections.append(f"""═══ FRAZY ═══
-🔴 MUST (użyj w tekście — obowiązkowe):
-{json.dumps(must_use, ensure_ascii=False)}
-
-🟡 EXTENDED (użyj naturalnie jeśli pasują):
-{json.dumps(ext_use, ensure_ascii=False)}
-
-🛑 STOP — NIE UŻYWAJ (przekroczone limity!):
-{json.dumps(stop_list, ensure_ascii=False)}
-
-⚠️ OSTROŻNIE — max 1× jeśli użyjesz:
-{json.dumps(caution_list, ensure_ascii=False)}""")
-
-    # Semantic batch plan
-    if semantic_plan:
-        sections.append(f"═══ SEMANTIC BATCH PLAN ═══\n{json.dumps(semantic_plan, ensure_ascii=False)}")
-
-    # Article memory (anti-Frankenstein)
-    if article_memory:
-        mem_str = json.dumps(article_memory, ensure_ascii=False)
-        sections.append(f"═══ ARTICLE MEMORY (nie powtarzaj!) ═══\n{mem_str[:2000]}")
-
-    # Style instructions
-    if style:
-        sections.append(f"═══ STYL ═══\n{json.dumps(style, ensure_ascii=False)}")
-
-    # Dynamic sections (anti-Frankenstein token budgeting)
-    if dynamic_sections:
-        sections.append(f"═══ DYNAMIC SECTIONS ═══\n{json.dumps(dynamic_sections, ensure_ascii=False)[:1500]}")
-
-    # Entity SEO
-    if entity_seo and entity_seo.get("enabled"):
-        sections.append(f"═══ ENTITY SEO ═══\n{json.dumps(entity_seo, ensure_ascii=False)[:1000]}")
-    
-    # Entities for this batch
-    if entities_for_batch:
-        sections.append(f"═══ ENTITIES FOR BATCH ═══\n{json.dumps(entities_for_batch, ensure_ascii=False)[:800]}")
-
-    # N-grams
-    if ngrams:
-        sections.append(f"═══ N-GRAMY ═══\n{json.dumps(ngrams[:10], ensure_ascii=False)}")
-
-    # N-gram guidance (overused, synonyms, LSI)
-    if ngram_guidance:
-        sections.append(f"═══ NGRAM GUIDANCE ═══\n{json.dumps(ngram_guidance, ensure_ascii=False)[:800]}")
-
-    # SERP enrichment (PAA, LSI, related)
-    if serp:
-        paa = (serp.get("paa_for_batch") or [])
-        lsi = (serp.get("lsi_keywords") or [])
-        if paa or lsi:
-            sections.append(f"═══ SERP ENRICHMENT ═══\nPAA: {json.dumps(paa[:5], ensure_ascii=False)}\nLSI: {json.dumps(lsi[:8], ensure_ascii=False)}")
-
-    # Enhanced data (experience markers, continuation, etc.)
-    if enhanced:
-        enhanced_parts = []
-        if enhanced.get("continuation_context"):
-            enhanced_parts.append(f"Continuation: {json.dumps(enhanced['continuation_context'], ensure_ascii=False)[:500]}")
-        if enhanced.get("experience_markers"):
-            enhanced_parts.append(f"Experience markers: {json.dumps(enhanced['experience_markers'], ensure_ascii=False)[:300]}")
-        if enhanced.get("paa_from_serp"):
-            enhanced_parts.append(f"PAA from SERP: {json.dumps(enhanced['paa_from_serp'][:5], ensure_ascii=False)}")
-        if enhanced.get("entities_to_define"):
-            enhanced_parts.append(f"Entities to define: {json.dumps(enhanced['entities_to_define'], ensure_ascii=False)[:500]}")
-        if enhanced.get("relations_to_establish"):
-            enhanced_parts.append(f"Relations: {json.dumps(enhanced['relations_to_establish'], ensure_ascii=False)[:500]}")
-        if enhanced.get("phrase_hierarchy"):
-            enhanced_parts.append(f"Phrase hierarchy: {json.dumps(enhanced['phrase_hierarchy'], ensure_ascii=False)[:500]}")
-        # 🆕 v45.0: Causal context from S1
-        if enhanced.get("causal_context"):
-            enhanced_parts.append(f"Causal context: {enhanced['causal_context'][:600]}")
-        # 🆕 v45.0: Information gain / content gaps from S1
-        if enhanced.get("information_gain"):
-            enhanced_parts.append(f"Information gain: {enhanced['information_gain'][:600]}")
-        # 🆕 v45.0: Smart batch instructions (formatted for GPT)
-        if enhanced.get("smart_instructions_formatted"):
-            enhanced_parts.append(f"Smart instructions:\n{enhanced['smart_instructions_formatted'][:800]}")
-        if enhanced_parts:
-            sections.append(f"═══ ENHANCED CONTEXT ═══\n" + "\n".join(enhanced_parts))
-
-    # 🆕 v45.0: Continuation context (top-level from pre_batch)
-    continuation_v39 = pre_batch.get("continuation_v39") or {}
-    if continuation_v39:
-        sections.append(f"═══ CONTINUATION ═══\n{json.dumps(continuation_v39, ensure_ascii=False)[:600]}")
-
-    # 🆕 v45.0: Keyword tracking (top-level from pre_batch)
-    keyword_tracking = pre_batch.get("keyword_tracking") or {}
-    if keyword_tracking:
-        sections.append(f"═══ KEYWORD TRACKING ═══\n{json.dumps(keyword_tracking, ensure_ascii=False)[:600]}")
-
-    # Soft cap recommendations
-    if soft_caps:
-        sections.append(f"═══ SOFT CAPS ═══\n{json.dumps(soft_caps, ensure_ascii=False)[:500]}")
-
-    # Section length guidance
-    if section_length_guidance:
-        sections.append(f"═══ SECTION LENGTH ═══\n{json.dumps(section_length_guidance, ensure_ascii=False)}")
-
-    # Coverage and density context
-    if coverage:
-        sections.append(f"═══ COVERAGE ═══\n{json.dumps(coverage, ensure_ascii=False)}")
-    if density:
-        sections.append(f"═══ DENSITY ═══\n{json.dumps(density, ensure_ascii=False)}")
-
-    # Main keyword info
-    if main_kw:
-        sections.append(f"═══ MAIN KEYWORD ═══\n{json.dumps(main_kw, ensure_ascii=False)}")
-
-    # Legal/Medical YMYL context
-    if legal_ctx and legal_ctx.get("active"):
-        sections.append(f"═══ KONTEKST PRAWNY (YMYL) ═══\n{json.dumps(legal_ctx, ensure_ascii=False)[:1000]}")
-    if medical_ctx and medical_ctx.get("active"):
-        sections.append(f"═══ KONTEKST MEDYCZNY (YMYL) ═══\n{json.dumps(medical_ctx, ensure_ascii=False)[:1000]}")
-
-    # H2 plan and remaining
-    if h2_remaining:
-        sections.append(f"═══ H2 REMAINING ═══\n{json.dumps(h2_remaining, ensure_ascii=False)}")
-
-    # Format instruction
-    sections.append("""═══ FORMAT ═══
-Pisz TYLKO treść batcha. Zaczynaj od h2: [tytuł].
-Format: h2: Tytuł\\n\\nAkapit 1\\n\\nAkapit 2\\n\\nh3: Podsekcja (opcjonalnie)
-NIE dodawaj komentarzy, wyjaśnień ani podsumowań poza treścią batcha.""")
-
-    user_prompt = "\n\n".join(sections)
+    system_prompt = build_system_prompt(pre_batch, batch_type)
+    user_prompt = build_user_prompt(pre_batch, h2, batch_type, article_memory)
 
     if engine == "openai" and OPENAI_API_KEY:
         return _generate_openai(system_prompt, user_prompt)
@@ -592,75 +406,17 @@ def _generate_openai(system_prompt, user_prompt):
 
 
 def generate_faq_text(paa_data, pre_batch=None, engine="claude"):
-    """Generate FAQ section using PAA data + full pre_batch context."""
-
-    paa_questions = (paa_data.get("serp_paa") or [])
-    unused = (paa_data.get("unused_keywords") or {})
-    avoid = (paa_data.get("avoid_in_faq") or [])
-    instructions = paa_data.get("instructions", "")
-
-    # Get gpt_instructions from pre_batch (same as Custom GPT)
-    system_prompt = ""
-    if pre_batch:
-        system_prompt = pre_batch.get("gpt_instructions_v39", "") or pre_batch.get("gpt_prompt", "")
-    if not system_prompt:
-        system_prompt = "Jesteś ekspertem SEO piszącym sekcję FAQ po polsku. Pisz naturalnie, bez sztucznego tonu."
-
-    # Enhanced PAA from pre_batch
-    enhanced_paa = []
-    enhanced = {}
-    if pre_batch:
-        enhanced = pre_batch.get("enhanced") or {}
-        enhanced_paa = (enhanced.get("paa_from_serp") or [])
-
-    # Keywords context
-    keywords_info = {}
-    keyword_limits = {}
-    if pre_batch:
-        keywords_info = (pre_batch.get("keywords") or {})
-        keyword_limits = (pre_batch.get("keyword_limits") or {})
-
-    stop_kws = (keyword_limits.get("stop_keywords") or [])
-    stop_list = [s.get("keyword", s) if isinstance(s, dict) else s for s in stop_kws]
+    """Generate FAQ section using optimized prompts.
     
-    user_prompt = f"""═══ BATCH FAQ ═══
-Napisz sekcję FAQ dla artykułu SEO po polsku.
-Zaczynaj DOKŁADNIE od: h2: Najczęściej zadawane pytania
-
-Pytania PAA z Google SERP:
-{json.dumps(paa_questions, ensure_ascii=False)}
-
-{f'Dodatkowe PAA z enhanced: {json.dumps(enhanced_paa, ensure_ascii=False)}' if enhanced_paa else ''}
-
-Nieużyte frazy (wpleć naturalnie w odpowiedzi):
-{json.dumps(unused, ensure_ascii=False)}
-
-NIE powtarzaj tematów już pokrytych w artykule:
-{json.dumps(avoid, ensure_ascii=False)}
-
-🛑 STOP — NIE UŻYWAJ tych fraz:
-{json.dumps(stop_list, ensure_ascii=False)}
-
-{f'Instrukcje API: {instructions}' if instructions else ''}
-{f'Article memory: {json.dumps(pre_batch.get("article_memory"), ensure_ascii=False)[:1000]}' if pre_batch and pre_batch.get("article_memory") else ''}
-{f'Style: {json.dumps(pre_batch.get("style_instructions"), ensure_ascii=False)}' if pre_batch and pre_batch.get("style_instructions") else ''}
-
-═══ FORMAT ═══
-h2: Najczęściej zadawane pytania
-
-h3: [Pytanie 1]
-[Odpowiedź 60-120 słów]
-
-h3: [Pytanie 2]
-[Odpowiedź 60-120 słów]
-
-Wybierz 4-6 najlepszych pytań. Pisz TYLKO treść batcha, bez komentarzy."""
+    v45.3: Uses prompt_builder for structured instructions instead of json.dumps().
+    """
+    system_prompt = build_faq_system_prompt(pre_batch)
+    user_prompt = build_faq_user_prompt(paa_data, pre_batch)
 
     if engine == "openai" and OPENAI_API_KEY:
         return _generate_openai(system_prompt, user_prompt)
     else:
         return _generate_claude(system_prompt, user_prompt)
-    return response.content[0].text.strip()
 
 
 # ============================================================
