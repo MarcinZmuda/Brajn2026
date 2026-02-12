@@ -49,7 +49,17 @@ _CSS_JS_PATTERNS = re.compile(
     r'data-[a-z]+=|aria-[a-z]+=|role=|tabindex|'
     r'cookie|localStorage|sessionStorage|'
     r'async\s+function|await\s+|promise|fetch\(|'
-    r'import\s+\{|export\s+(default|const)|require\('
+    r'import\s+\{|export\s+(default|const)|require\(|'
+    # BEM notation (block__element, block--modifier)
+    r'\w+__\w+|\w+--\w+|'
+    # CSS selectors & combinators
+    r'focus-visible|,#|\.css|'
+    # WordPress / CMS artifacts
+    r'\bvar\s+wp\b|wp-block|wp-embed|'
+    r'block\s*embed|content\s*block|text\s*block|input\s*type|'
+    # HTML/UI navigation elements
+    r'^(header|footer|sidebar|nav|mega)\s*-?\s*menu$|'
+    r'^sub-?\s*menu$|^mega\s+menu$'
     r')',
     re.IGNORECASE
 )
@@ -63,6 +73,21 @@ _GARBAGE_ENTITY_TYPES = {
     "bold", "normal", "italic", "transparent", "solid",
     "pointer", "disabled", "checked", "focus", "root",
     "ast", "var", "global", "color", "sich", "un", "uw",
+    # HTML/UI elements
+    "menu", "submenu", "sidebar", "footer", "header", "widget",
+    "navbar", "dropdown", "modal", "tooltip", "carousel",
+    "accordion", "breadcrumb", "pagination", "thumbnail",
+}
+
+# Known garbage n-gram exact matches
+_GARBAGE_NGRAM_EXACT = {
+    "var wp", "block embed", "content block", "text block", "input type",
+    "wp block", "wp embed", "post type", "nav menu", "menu item",
+    "header menu", "sub menu", "mega menu", "footer menu",
+    "widget area", "sidebar widget", "page template",
+    "min width", "ms flex", "align items", "flex pack", "box pack",
+    "webkit box", "webkit text", "moz box", "moz flex",
+    "flex direction", "flex wrap", "justify content",
 }
 
 
@@ -79,8 +104,12 @@ def _is_obvious_garbage(text: str) -> bool:
     if len(text) > 0 and special / len(text) > 0.12:
         return True
     
-    # Known garbage words
+    # Known garbage words (single words)
     if text.lower().strip() in _GARBAGE_ENTITY_TYPES:
+        return True
+    
+    # Known garbage n-gram exact matches
+    if text.lower().strip() in _GARBAGE_NGRAM_EXACT:
         return True
     
     # CSS/JS pattern match
@@ -95,7 +124,9 @@ def _is_obvious_garbage(text: str) -> bool:
                      "visible", "absolute", "relative", "fixed", "static", "default",
                      "image", "color", "width", "height", "size", "style", "type",
                      "global", "var", "ast", "min", "max", "overflow", "scroll",
-                     "decoration", "widget", "footer", "sidebar", "header", "nav"}
+                     "decoration", "widget", "footer", "sidebar", "header", "nav",
+                     "menu", "embed", "block", "input", "text", "content", "post",
+                     "sub", "mega", "wp", "template", "page", "item"}
         if all(w in css_words for w in words):
             return True
     
