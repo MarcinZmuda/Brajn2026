@@ -763,6 +763,10 @@ def build_faq_user_prompt(paa_data, pre_batch=None):
     paa_questions = paa_data.get("serp_paa") or []
     unused = paa_data.get("unused_keywords") or {}
     avoid = paa_data.get("avoid_in_faq") or []
+    if isinstance(avoid, dict):
+        avoid = list(avoid.values()) if avoid else []
+    elif not isinstance(avoid, list):
+        avoid = []
     instructions = paa_data.get("instructions", "")
 
     enhanced_paa = []

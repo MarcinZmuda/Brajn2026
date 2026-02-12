@@ -852,7 +852,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     "quality_score": quality.get("score"),
                     "quality_grade": quality.get("grade"),
                     "depth_score": depth,
-                    "exceeded": [e.get("keyword", "") for e in exceeded] if exceeded else []
+                    "exceeded": [e.get("keyword", "") for e in exceeded] if exceeded else [],
+                    "word_count": len(text.split()) if text else 0,
+                    "text_preview": text[:600] if text else ""
                 })
 
                 if accepted:
@@ -927,37 +929,48 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # ─── KROK 7: PAA Check ───
         yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "running"})
-        paa_check = brajen_call("get", f"/api/project/{project_id}/paa")
-        if not paa_check["ok"] or not (paa_check.get("data") or {}).get("paa_section"):
-            yield emit("log", {"msg": "Brak FAQ — analizuję PAA i generuję..."})
-            paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
-            if paa_analyze["ok"]:
-                # Fetch pre_batch for FAQ context (stop keywords, style, memory)
-                faq_pre = brajen_call("get", f"/api/project/{project_id}/pre_batch_info")
-                faq_pre_batch = faq_pre["data"] if faq_pre.get("ok") else None
-                faq_text = generate_faq_text(paa_analyze["data"], faq_pre_batch)
-                brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
-                # Extract and save
-                questions = []
-                lines = faq_text.split("\n")
-                cq, ca = None, []
-                for line in lines:
-                    s = line.strip()
-                    if s.startswith("h3:") or s.startswith("### "):
+        try:
+            paa_check = brajen_call("get", f"/api/project/{project_id}/paa")
+            if not paa_check["ok"] or not (paa_check.get("data") or {}).get("paa_section"):
+                yield emit("log", {"msg": "Brak FAQ — analizuję PAA i generuję..."})
+                paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
+                if paa_analyze["ok"] and paa_analyze.get("data"):
+                    # Fetch pre_batch for FAQ context (stop keywords, style, memory)
+                    faq_pre = brajen_call("get", f"/api/project/{project_id}/pre_batch_info")
+                    faq_pre_batch = faq_pre["data"] if faq_pre.get("ok") else None
+                    faq_text = generate_faq_text(paa_analyze["data"], faq_pre_batch)
+                    if faq_text and faq_text.strip():
+                        brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
+                        # Extract and save
+                        questions = []
+                        lines = faq_text.split("\n")
+                        cq, ca = None, []
+                        for line in lines:
+                            s = line.strip()
+                            if s.startswith("h3:") or s.startswith("### "):
+                                if cq and ca:
+                                    questions.append({"question": cq, "answer": " ".join(ca)})
+                                cq = s.replace("h3:", "").replace("###", "").strip()
+                                ca = []
+                            elif cq and s:
+                                ca.append(s)
                         if cq and ca:
                             questions.append({"question": cq, "answer": " ".join(ca)})
-                        cq = s.replace("h3:", "").replace("###", "").strip()
-                        ca = []
-                    elif cq and s:
-                        ca.append(s)
-                if cq and ca:
-                    questions.append({"question": cq, "answer": " ".join(ca)})
-                if questions:
-                    brajen_call("post", f"/api/project/{project_id}/paa/save", {"questions": questions})
-            yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done"})
-        else:
-            yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done",
-                                "detail": "FAQ już zapisane"})
+                        if questions:
+                            brajen_call("post", f"/api/project/{project_id}/paa/save", {"questions": questions})
+                    else:
+                        yield emit("log", {"msg": "⚠️ Brak danych PAA — pomijam FAQ"})
+                else:
+                    yield emit("log", {"msg": "⚠️ PAA analyze pusty — pomijam FAQ"})
+                yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done"})
+            else:
+                yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done",
+                                    "detail": "FAQ już zapisane"})
+        except Exception as faq_err:
+            logger.warning(f"FAQ generation error (non-fatal): {faq_err}")
+            yield emit("log", {"msg": f"⚠️ FAQ error: {str(faq_err)[:80]} — pomijam, kontynuuję"})
+            yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "warning",
+                                "detail": "Błąd FAQ — pominięto"})
 
         # ─── KROK 8: Final Review ───
         yield emit("step", {"step": 8, "name": "Final Review", "status": "running"})
@@ -1096,6 +1109,93 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
 
 # ============================================================
+# ARTICLE EDITOR — Chat + Inline editing with Claude
+# ============================================================
+@app.route("/api/edit", methods=["POST"])
+@login_required
+def edit_article():
+    """Edit article via Claude based on user instruction."""
+    data = request.json
+    instruction = (data.get("instruction") or "").strip()
+    article_text = (data.get("article_text") or "").strip()
+    selected_text = (data.get("selected_text") or "").strip()
+    job_id = data.get("job_id", "")
+
+    if not instruction or not article_text:
+        return jsonify({"error": "Brak instrukcji lub tekstu artykułu"}), 400
+
+    if selected_text:
+        system_prompt = (
+            "Jesteś redaktorem artykułu SEO. Użytkownik zaznaczył fragment tekstu i chce go zmienić. "
+            "Zwróć TYLKO poprawiony fragment — nie cały artykuł. "
+            "Zachowaj formatowanie (h2:, h3: itd). Nie dodawaj komentarzy."
+        )
+        user_prompt = (
+            f"CAŁY ARTYKUŁ (kontekst):\n{article_text[:6000]}\n\n"
+            f"═══ ZAZNACZONY FRAGMENT ═══\n{selected_text}\n\n"
+            f"═══ INSTRUKCJA ═══\n{instruction}\n\n"
+            f"Zwróć TYLKO poprawiony fragment (zamiennik za zaznaczony tekst):"
+        )
+    else:
+        system_prompt = (
+            "Jesteś redaktorem artykułu SEO. Użytkownik prosi o zmianę w artykule. "
+            "Zwróć CAŁY poprawiony artykuł z naniesionymi zmianami. "
+            "Zachowaj formatowanie (h2:, h3: itd). Nie dodawaj komentarzy ani wyjaśnień — TYLKO tekst artykułu."
+        )
+        user_prompt = (
+            f"ARTYKUŁ:\n{article_text}\n\n"
+            f"═══ INSTRUKCJA ═══\n{instruction}\n\n"
+            f"Zwróć poprawiony artykuł:"
+        )
+
+    try:
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
+        response = client.messages.create(
+            model=model, max_tokens=8000,
+            messages=[{"role": "user", "content": user_prompt}],
+            system=system_prompt
+        )
+        result_text = response.content[0].text.strip()
+        return jsonify({
+            "ok": True, "edited_text": result_text,
+            "edit_type": "inline" if selected_text else "full",
+            "model": model,
+            "tokens_used": response.usage.input_tokens + response.usage.output_tokens
+        })
+    except Exception as e:
+        logger.exception(f"Edit error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/validate", methods=["POST"])
+@login_required
+def validate_article():
+    """Validate edited article via backend API."""
+    data = request.json
+    article_text = (data.get("article_text") or "").strip()
+    job_id = data.get("job_id", "")
+    if not article_text:
+        return jsonify({"error": "Brak tekstu artykułu"}), 400
+    job = active_jobs.get(job_id, {})
+    project_id = job.get("project_id")
+    if not project_id:
+        return jsonify({"error": "Brak project_id — uruchom najpierw workflow"}), 400
+    try:
+        result = brajen_call("post", f"/api/project/{project_id}/validate_full_article",
+                             {"full_text": article_text})
+        if result["ok"]:
+            return jsonify({"ok": True, "validation": result["data"]})
+        fr = brajen_call("get", f"/api/project/{project_id}/final_review")
+        if fr["ok"]:
+            return jsonify({"ok": True, "validation": fr["data"]})
+        return jsonify({"error": "Walidacja niedostępna"}), 500
+    except Exception as e:
+        logger.exception(f"Validate error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
 # ROUTES
 # ============================================================
 @app.route("/")
@@ -1118,6 +1218,7 @@ def start_workflow():
     h2_list = [h.strip() for h in (data.get("h2_structure") or []) if h.strip()]
     basic_terms = [t.strip() for t in (data.get("basic_terms") or []) if t.strip()]
     extended_terms = [t.strip() for t in (data.get("extended_terms") or []) if t.strip()]
+    custom_instructions = (data.get("custom_instructions") or "").strip()
 
     # H2 is now OPTIONAL — if empty, will be auto-generated from S1
 
@@ -1132,6 +1233,7 @@ def start_workflow():
         "h2_structure": h2_list,
         "basic_terms": basic_terms,
         "extended_terms": extended_terms,
+        "custom_instructions": custom_instructions,
         "status": "running",
         "created": datetime.now().isoformat(),
         "created_at": datetime.utcnow()
@@ -1230,7 +1332,7 @@ def download_export(job_id, fmt):
 @app.route("/api/health")
 def health():
     """Health check."""
-    return jsonify({"status": "ok", "version": "45.2.2"})
+    return jsonify({"status": "ok", "version": "45.3.2"})
 
 
 # ============================================================
