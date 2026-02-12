@@ -40,6 +40,15 @@ except ImportError:
 
 import re as _re
 
+# AI Middleware — inteligentne czyszczenie danych i smart retry
+from ai_middleware import (
+    process_s1_for_pipeline,
+    smart_retry_batch,
+    should_use_smart_retry,
+    synthesize_article_memory,
+    ai_synthesize_memory
+)
+
 # ================================================================
 # 🗑️ CSS/JS GARBAGE FILTER — czyści śmieci z S1 danych
 # ================================================================
@@ -384,7 +393,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("workflow_error", {"step": 1, "msg": f"S1 Analysis failed: {s1_result.get('error', 'unknown')}"})
             return
 
-        s1 = s1_result["data"]
+        s1_raw = s1_result["data"]
+        
+        # ═══ AI MIDDLEWARE: Clean S1 data ═══
+        s1 = process_s1_for_pipeline(s1_raw, main_keyword)
+        cleanup_stats = s1.get("_cleanup_stats", {})
+        if cleanup_stats.get("entities_removed", 0) > 0 or cleanup_stats.get("ngrams_removed", 0) > 0:
+            yield emit("log", {"msg": f"🧹 AI Middleware: usunięto {cleanup_stats.get('entities_removed', 0)} śmieciowych encji, {cleanup_stats.get('ngrams_removed', 0)} n-gramów (garbage ratio: {cleanup_stats.get('garbage_ratio', 0):.0%})"})
+            if cleanup_stats.get("ai_enriched"):
+                yield emit("log", {"msg": "🤖 AI Middleware: wygenerowano uzupełniające insights z Haiku"})
+        
         h2_patterns = len((s1.get("competitor_h2_patterns") or []))
         causal_count = (s1.get("causal_triplets") or {}).get("count", 0)
         gaps_count = (s1.get("content_gaps") or {}).get("total_gaps", 0)
@@ -393,19 +411,22 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "done",
                             "detail": f"{h2_patterns} H2 patterns | {causal_count} causal triplets | {gaps_count} content gaps"})
         
-        # Send full S1 data for UI display (filtered for CSS garbage)
+        # S1 data for UI — already cleaned by middleware, apply final filter for display
         raw_entities = (s1.get("entity_seo") or {}).get("top_entities", (s1.get("entity_seo") or {}).get("entities", []))[:20]
         raw_must_mention = (s1.get("entity_seo") or {}).get("must_mention_entities", [])[:10]
         raw_ngrams = (s1.get("ngrams") or [])[:30]
         raw_h2_patterns = (s1.get("competitor_h2_patterns") or [])[:30]
 
+        # Lightweight display filter (middleware already did heavy lifting)
         clean_entities = _filter_entities(raw_entities)[:10]
         clean_must_mention = _filter_entities(raw_must_mention)[:5]
         clean_ngrams = _filter_ngrams(raw_ngrams)[:15]
         clean_h2_patterns = _filter_h2_patterns(raw_h2_patterns)[:20]
 
-        if len(clean_entities) < len(raw_entities[:10]):
-            yield emit("log", {"msg": f"⚠️ Odfiltrowano {len(raw_entities[:10]) - len(clean_entities)} śmieciowych encji CSS"})
+        # Add AI-extracted entities if available
+        ai_entities = (s1.get("entity_seo") or {}).get("ai_extracted_entities", [])
+        if ai_entities and len(clean_entities) < 5:
+            yield emit("log", {"msg": f"🤖 Uzupełniam encje z AI: {', '.join(str(e) for e in ai_entities[:5])}"})
 
         yield emit("s1_data", {
             "h2_patterns_count": len(clean_h2_patterns),
@@ -420,10 +441,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "paa_questions": (s1.get("paa") or s1.get("paa_questions") or [])[:10],
             "entity_seo": {
                 "top_entities": clean_entities,
-                "must_mention": clean_must_mention
+                "must_mention": clean_must_mention,
+                "ai_extracted": ai_entities[:5] if ai_entities else []
             },
             "ngrams": clean_ngrams,
-            "median_length": s1.get("median_length", 0)
+            "median_length": s1.get("median_length", 0),
+            "competitive_summary": s1.get("_competitive_summary", "")
         })
 
         # ─── KROK 2: YMYL Detection ───
@@ -588,6 +611,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 6, "name": "Batch Loop", "status": "running",
                             "detail": f"0/{total_batches} batchy"})
 
+        # ═══ AI MIDDLEWARE: Track accepted batches for memory ═══
+        accepted_batches_log = []
+
         for batch_num in range(1, total_batches + 1):
             yield emit("batch_start", {"batch": batch_num, "total": total_batches})
             yield emit("log", {"msg": f"── BATCH {batch_num}/{total_batches} ──"})
@@ -678,16 +704,28 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 paa_data = paa_result["data"] if paa_result["ok"] else {}
                 text = generate_faq_text(paa_data, pre_batch)
             else:
+                # ═══ AI MIDDLEWARE: Article memory fallback ═══
+                article_memory = pre_batch.get("article_memory")
+                if not article_memory and accepted_batches_log:
+                    # Backend didn't provide memory — synthesize locally
+                    if len(accepted_batches_log) >= 3:
+                        article_memory = ai_synthesize_memory(accepted_batches_log, main_keyword)
+                        yield emit("log", {"msg": f"🧠 AI Middleware: synteza pamięci artykułu ({len(accepted_batches_log)} batchy)"})
+                    else:
+                        article_memory = synthesize_article_memory(accepted_batches_log)
+                        if article_memory.get("topics_covered"):
+                            yield emit("log", {"msg": f"🧠 Lokalna pamięć: {len(article_memory.get('topics_covered', []))} tematów"})
+                
                 text = generate_batch_text(
                     pre_batch, current_h2, batch_type,
-                    pre_batch.get("article_memory")
+                    article_memory
                 )
 
             word_count = len(text.split())
             yield emit("log", {"msg": f"Wygenerowano {word_count} słów"})
 
             # 6d-6g: Submit with retry logic
-            # Max 4 attempts: original + 2 synonym fixes + 1 forced
+            # Max 4 attempts: original + 2 AI smart retries + 1 forced
             max_attempts = 4
             batch_accepted = False
 
@@ -725,26 +763,46 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 if accepted:
                     batch_accepted = True
                     yield emit("log", {"msg": f"✅ Batch {batch_num} accepted! Score: {quality.get('score')}/100"})
+                    # Track for memory
+                    accepted_batches_log.append({
+                        "text": text, "h2": current_h2, "batch_num": batch_num
+                    })
                     break
 
-                # Not accepted — fix and retry (unless this was forced)
+                # Not accepted — decide retry strategy
                 if forced:
-                    yield emit("log", {"msg": f"⚠️ Batch {batch_num} odrzucony nawet w forced mode — kontynuuję"})
+                    yield emit("log", {"msg": f"⚠️ Batch {batch_num} w forced mode — kontynuuję"})
+                    accepted_batches_log.append({
+                        "text": text, "h2": current_h2, "batch_num": batch_num
+                    })
                     break
 
-                # Fix exceeded keywords by replacing with synonyms
-                fixes_applied = 0
-                if exceeded:
-                    for exc in exceeded:
-                        kw = exc.get("keyword", "")
-                        synonyms = (exc.get("use_instead") or exc.get("synonyms") or [])
-                        if synonyms and kw and kw in text:
-                            syn = synonyms[0] if isinstance(synonyms[0], str) else str(synonyms[0])
-                            text = text.replace(kw, syn, 1)
-                            fixes_applied += 1
-                            yield emit("log", {"msg": f"🔧 Zamiana: '{kw}' → '{syn}'"})
-
-                yield emit("log", {"msg": f"🔄 Retry — naprawiono {fixes_applied} fraz, próba {attempt + 2}/{max_attempts}"})
+                # ═══ AI MIDDLEWARE: Smart retry ═══
+                if exceeded and should_use_smart_retry(result, attempt + 1):
+                    yield emit("log", {"msg": f"🤖 AI Smart Retry — Haiku przepisuje tekst (zamiana {len(exceeded)} fraz)..."})
+                    text = smart_retry_batch(
+                        original_text=text,
+                        exceeded_keywords=exceeded,
+                        pre_batch=pre_batch,
+                        h2=current_h2,
+                        batch_type=batch_type,
+                        attempt_num=attempt + 1
+                    )
+                    new_word_count = len(text.split())
+                    yield emit("log", {"msg": f"🔄 Smart retry: {new_word_count} słów, próba {attempt + 2}/{max_attempts}"})
+                else:
+                    # Fallback: mechanical fix for non-exceeded issues
+                    fixes_applied = 0
+                    if exceeded:
+                        for exc in exceeded:
+                            kw = exc.get("keyword", "")
+                            synonyms = (exc.get("use_instead") or exc.get("synonyms") or [])
+                            if synonyms and kw and kw in text:
+                                syn = synonyms[0] if isinstance(synonyms[0], str) else str(synonyms[0])
+                                text = text.replace(kw, syn, 1)
+                                fixes_applied += 1
+                                yield emit("log", {"msg": f"🔧 Zamiana: '{kw}' → '{syn}'"})
+                    yield emit("log", {"msg": f"🔄 Retry — naprawiono {fixes_applied} fraz, próba {attempt + 2}/{max_attempts}"})
 
             # Save FAQ if applicable
             if batch_type == "FAQ" and batch_accepted:
