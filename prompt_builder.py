@@ -26,6 +26,7 @@ def build_system_prompt(pre_batch, batch_type):
     Uses gpt_instructions_v39 (writing techniques from API) as the core,
     with a proper persona wrapper.
     """
+    pre_batch = pre_batch or {}
     gpt_instructions = pre_batch.get("gpt_instructions_v39", "")
     gpt_prompt = pre_batch.get("gpt_prompt", "")
 
@@ -65,29 +66,41 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
     """
     Main user prompt builder.
     Converts ALL pre_batch fields into readable, actionable instructions.
+    Each section is wrapped in try/except so one bad field won't crash generation.
     """
+    pre_batch = pre_batch or {}
     sections = []
 
-    sections.append(_fmt_batch_header(pre_batch, h2, batch_type))
-    sections.append(_fmt_intro_guidance(pre_batch, batch_type))
-    sections.append(_fmt_smart_instructions(pre_batch))
-    sections.append(_fmt_keywords(pre_batch))
-    sections.append(_fmt_semantic_plan(pre_batch, h2))
-    sections.append(_fmt_entities(pre_batch))
-    sections.append(_fmt_ngrams(pre_batch))
-    sections.append(_fmt_serp_enrichment(pre_batch))
-    sections.append(_fmt_continuation(pre_batch))
-    sections.append(_fmt_article_memory(article_memory))
-    sections.append(_fmt_coverage_density(pre_batch))
-    sections.append(_fmt_style(pre_batch))
-    sections.append(_fmt_legal_medical(pre_batch))
-    sections.append(_fmt_experience_markers(pre_batch))
-    sections.append(_fmt_causal_context(pre_batch))
-    sections.append(_fmt_h2_remaining(pre_batch))
-    sections.append(_fmt_output_format(h2, batch_type))
+    formatters = [
+        lambda: _fmt_batch_header(pre_batch, h2, batch_type),
+        lambda: _fmt_intro_guidance(pre_batch, batch_type),
+        lambda: _fmt_smart_instructions(pre_batch),
+        lambda: _fmt_keywords(pre_batch),
+        lambda: _fmt_semantic_plan(pre_batch, h2),
+        lambda: _fmt_entities(pre_batch),
+        lambda: _fmt_ngrams(pre_batch),
+        lambda: _fmt_serp_enrichment(pre_batch),
+        lambda: _fmt_continuation(pre_batch),
+        lambda: _fmt_article_memory(article_memory),
+        lambda: _fmt_coverage_density(pre_batch),
+        lambda: _fmt_style(pre_batch),
+        lambda: _fmt_legal_medical(pre_batch),
+        lambda: _fmt_experience_markers(pre_batch),
+        lambda: _fmt_causal_context(pre_batch),
+        lambda: _fmt_h2_remaining(pre_batch),
+        lambda: _fmt_output_format(h2, batch_type),
+    ]
 
-    # Filter empty sections
-    return "\n\n".join(s for s in sections if s)
+    for fmt in formatters:
+        try:
+            result = fmt()
+            if result:
+                sections.append(result)
+        except Exception:
+            # Skip broken section, don't crash entire prompt
+            pass
+
+    return "\n\n".join(sections)
 
 
 # ════════════════════════════════════════════════════════════
@@ -795,5 +808,142 @@ h3: [Pytanie — 5-10 słów, zaczynaj od Jak/Czy/Co/Dlaczego/Ile]
 → Zdanie 4: praktyczna wskazówka lub wyjątek
 
 Napisz 4-6 pytań. Pisz TYLKO treść, bez komentarzy.""")
+
+    return "\n\n".join(sections)
+
+
+# ════════════════════════════════════════════════════════════
+# H2 PLAN PROMPT BUILDER
+# ════════════════════════════════════════════════════════════
+
+def build_h2_plan_system_prompt():
+    """System prompt for H2 plan generation."""
+    return (
+        "Jesteś ekspertem SEO z 10-letnim doświadczeniem w planowaniu architektury treści. "
+        "Tworzysz logiczne, wyczerpujące struktury nagłówków H2, które pokrywają temat kompleksowo "
+        "i dają przewagę nad konkurencją dzięki pokryciu luk treściowych."
+    )
+
+
+def build_h2_plan_user_prompt(main_keyword, mode, s1_data, all_user_phrases, user_h2_hints=None):
+    """
+    Build readable H2 plan prompt from S1 analysis data.
+    Replaces json.dumps() with structured text.
+    """
+    s1_data = s1_data or {}
+    competitor_h2 = s1_data.get("competitor_h2_patterns") or []
+    suggested_h2s = (s1_data.get("content_gaps") or {}).get("suggested_new_h2s", [])
+    content_gaps = s1_data.get("content_gaps") or {}
+    causal_triplets = s1_data.get("causal_triplets") or {}
+    paa = s1_data.get("paa") or s1_data.get("paa_questions") or []
+
+    sections = []
+
+    # ── Header ──
+    mode_desc = "standard = pełny artykuł" if mode == "standard" else "fast = krótki artykuł, max 3 sekcje"
+    sections.append(f"""HASŁO GŁÓWNE: {main_keyword}
+TRYB: {mode} ({mode_desc})""")
+
+    # ── Competitor H2 patterns ──
+    if competitor_h2:
+        lines = ["═══ WZORCE H2 KONKURENCJI (najczęstsze tematy sekcji) ═══"]
+        for i, h in enumerate(competitor_h2[:20], 1):
+            if isinstance(h, dict):
+                pattern = h.get("pattern", h.get("h2", str(h)))
+                count = h.get("count", "")
+                lines.append(f"  {i}. {pattern}" + (f" ({count}×)" if count else ""))
+            elif isinstance(h, str):
+                lines.append(f"  {i}. {h}")
+        sections.append("\n".join(lines))
+
+    # ── Suggested new H2s (content gaps) ──
+    if suggested_h2s:
+        lines = ["═══ SUGEROWANE NOWE H2 (luki — tego NIKT z konkurencji nie pokrywa) ═══"]
+        for h in suggested_h2s[:10]:
+            h_text = h if isinstance(h, str) else h.get("h2", h.get("title", str(h)))
+            lines.append(f"  • {h_text}")
+        sections.append("\n".join(lines))
+
+    # ── Content gaps (multiple sources) ──
+    all_gaps = []
+    for key in ("paa_unanswered", "subtopic_missing", "depth_missing", "gaps"):
+        items = content_gaps.get(key) or []
+        for item in items[:5]:
+            gap_text = item if isinstance(item, str) else item.get("gap", item.get("topic", str(item)))
+            if gap_text and gap_text not in all_gaps:
+                all_gaps.append(gap_text)
+    if all_gaps:
+        lines = ["═══ LUKI TREŚCIOWE (tematy do pokrycia) ═══"]
+        for g in all_gaps[:10]:
+            lines.append(f"  • {g}")
+        sections.append("\n".join(lines))
+
+    # ── PAA questions ──
+    if paa:
+        lines = ["═══ PYTANIA PAA (People Also Ask z Google) ═══"]
+        for q in paa[:8]:
+            q_text = q.get("question", q) if isinstance(q, dict) else q
+            if q_text:
+                lines.append(f"  ❓ {q_text}")
+        sections.append("\n".join(lines))
+
+    # ── Causal triplets ──
+    triplet_list = (causal_triplets.get("chains") or causal_triplets.get("singles")
+                    or causal_triplets.get("triplets") or [])[:5]
+    if triplet_list:
+        lines = ["═══ PRZYCZYNOWE ZALEŻNOŚCI (cause→effect z konkurencji) ═══"]
+        for t in triplet_list:
+            if isinstance(t, dict):
+                cause = t.get("cause", t.get("subject", ""))
+                effect = t.get("effect", t.get("object", ""))
+                lines.append(f"  • {cause} → {effect}")
+            elif isinstance(t, str):
+                lines.append(f"  • {t}")
+        sections.append("\n".join(lines))
+
+    # ── User H2 hints ──
+    if user_h2_hints:
+        h2_hints_list = "\n".join(f'  • "{h}"' for h in user_h2_hints[:10])
+        sections.append(f"""═══ FRAZY H2 UŻYTKOWNIKA ═══
+
+Użytkownik podał te frazy z myślą o nagłówkach H2.
+Wykorzystaj je w nagłówkach tam, gdzie brzmią naturalnie po polsku.
+Nie musisz użyć każdej — ale nie ignoruj ich. Dopasuj z wyczuciem.
+
+Jeśli fraza brzmi sztucznie jako nagłówek — przeformułuj lub pomiń (trafi do treści).
+
+FRAZY H2:
+{h2_hints_list}""")
+
+    # ── User phrases context ──
+    if all_user_phrases:
+        phrases_text = ", ".join(f'"{p}"' for p in all_user_phrases[:15])
+        sections.append(f"""═══ KONTEKST TEMATYCZNY (frazy BASIC/EXTENDED) ═══
+
+Poniższe frazy będą użyte W TREŚCI artykułu (nie w nagłówkach).
+Podaję je żebyś wiedział jaki zakres tematyczny artykuł musi pokryć
+i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
+
+{phrases_text}""")
+
+    # ── Rules ──
+    fast_note = "Tryb fast: max 3 sekcje + FAQ." if mode == "fast" else "Typowo 5-10 sekcji — tyle ile wymaga temat."
+    h2_hint_rule = ("Uwzględnij frazy H2 użytkownika w nagłówkach, o ile brzmią naturalnie."
+                    if user_h2_hints else "Dobierz nagłówki na podstawie S1 i luk treściowych.")
+
+    sections.append(f"""═══ ZASADY ═══
+
+1. LICZBA H2 wynika z analizy — ile sekcji potrzeba, by wyczerpująco pokryć temat. {fast_note}
+2. OSTATNI H2 MUSI być: "Najczęściej zadawane pytania"
+3. Pokryj najważniejsze wzorce z konkurencji + luki treściowe (przewaga nad konkurencją)
+4. {h2_hint_rule}
+5. Logiczna narracja — od ogółu do szczegółu, chronologicznie, lub problemowo
+6. NIE powtarzaj hasła głównego dosłownie w każdym H2
+7. H2 muszą brzmieć naturalnie po polsku — żadnego keyword stuffingu
+
+═══ FORMAT ODPOWIEDZI ═══
+
+Odpowiedz TYLKO JSON array, bez markdown, bez komentarzy:
+["H2 pierwszy", "H2 drugi", ..., "Najczęściej zadawane pytania"]""")
 
     return "\n\n".join(sections)
