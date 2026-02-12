@@ -27,7 +27,8 @@ import requests as http_requests
 import anthropic
 from prompt_builder import (
     build_system_prompt, build_user_prompt,
-    build_faq_system_prompt, build_faq_user_prompt
+    build_faq_system_prompt, build_faq_user_prompt,
+    build_h2_plan_system_prompt, build_h2_plan_user_prompt
 )
 
 # Optional: OpenAI
@@ -242,17 +243,12 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
 def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, user_h2_hints=None):
     """
     Generate optimal H2 structure from S1 analysis data.
-    Number of H2s is determined by analysis, not hardcoded.
-    User phrases are context for topic coverage, NOT for stuffing into H2 titles.
+    v45.3: Uses prompt_builder for readable prompts instead of json.dumps().
     """
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     
-    # Extract S1 insights
-    competitor_h2 = (s1_data.get("competitor_h2_patterns") or [])
+    # Extract S1 insights for fallback
     suggested_h2s = (s1_data.get("content_gaps") or {}).get("suggested_new_h2s", [])
-    content_gaps = (s1_data.get("content_gaps") or {})
-    causal_triplets = (s1_data.get("causal_triplets") or {})
-    paa = (s1_data.get("paa") or s1_data.get("paa_questions") or [])
     
     # Parse user phrases (strip ranges) — for topic context only
     all_user_phrases = []
@@ -261,75 +257,17 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
         if kw:
             all_user_phrases.append(kw)
     
-    # Count competitor H2s to understand typical depth
-    avg_competitor_h2 = len(competitor_h2) if competitor_h2 else 0
-    
-    prompt = f"""Jesteś ekspertem SEO. Zaprojektuj optymalną strukturę nagłówków H2 dla artykułu po polsku.
-
-HASŁO GŁÓWNE: {main_keyword}
-TRYB: {mode} ({'standard = pełny artykuł' if mode == 'standard' else 'fast = krótki artykuł, max 3 sekcje'})
-
-═══ DANE Z ANALIZY KONKURENCJI (S1) ═══
-
-WZORCE H2 KONKURENCJI (najczęstsze tematy sekcji u konkurentów):
-{json.dumps(competitor_h2[:20], ensure_ascii=False, indent=2)}
-
-SUGEROWANE NOWE H2 (luki — tego NIKT z konkurencji nie pokrywa):
-{json.dumps(suggested_h2s, ensure_ascii=False, indent=2)}
-
-LUKI TREŚCIOWE:
-{json.dumps((content_gaps.get("paa_unanswered") or []) + (content_gaps.get("subtopic_missing") or []) + (content_gaps.get("depth_missing") or []) or (content_gaps.get("gaps") or []), ensure_ascii=False, indent=2)[:1000] if (content_gaps.get("paa_unanswered") or content_gaps.get("subtopic_missing") or content_gaps.get("depth_missing") or content_gaps.get("gaps")) else "Brak"}
-
-PYTANIA PAA (People Also Ask z Google):
-{json.dumps(paa[:8], ensure_ascii=False, indent=2) if paa else "Brak"}
-
-PRZYCZYNOWE ZALEŻNOŚCI (cause→effect z konkurencji):
-{json.dumps((causal_triplets.get("chains") or causal_triplets.get("singles") or causal_triplets.get("triplets") or [])[:5], ensure_ascii=False, indent=2) if (causal_triplets.get("chains") or causal_triplets.get("singles") or causal_triplets.get("triplets")) else "Brak"}
-
-{f"""═══ FRAZY H2 UŻYTKOWNIKA ═══
-
-Użytkownik podał te frazy z myślą o nagłówkach H2.
-Wykorzystaj je w nagłówkach tam, gdzie brzmią naturalnie po polsku.
-Nie musisz użyć każdej — ale nie ignoruj ich. Dopasuj z wyczuciem.
-
-Przykład: fraza "przeprowadzka – od czego zacząć" → H2: "Przeprowadzka – od czego zacząć"
-Przykład: fraza "dzień przeprowadzki" → H2: "Dzień przeprowadzki – o czym pamiętać"
-Przykład: fraza "kartony do przeprowadzki" → H2: "Kartony do przeprowadzki i materiały pakowe"
-
-Jeśli fraza brzmi sztucznie jako nagłówek — lepiej ją przeformułuj lub pomiń w H2 (i tak trafi do treści).
-
-FRAZY H2:
-{json.dumps(user_h2_hints, ensure_ascii=False)}
-""" if user_h2_hints else ""}
-═══ KONTEKST TEMATYCZNY (frazy BASIC/EXTENDED) ═══
-
-Poniższe frazy będą użyte W TREŚCI artykułu (nie w nagłówkach).
-Podaję je tylko żebyś wiedział jaki zakres tematyczny artykuł musi pokryć,
-i zaplanował H2 tak, by każda fraza miała naturalną sekcję do której pasuje:
-
-{json.dumps(all_user_phrases, ensure_ascii=False)}
-
-═══ ZASADY ═══
-
-1. LICZBA H2 wynika z analizy — ile sekcji potrzeba, by wyczerpująco pokryć temat.
-   {'Tryb fast: max 3 sekcje + FAQ.' if mode == 'fast' else 'Typowo 5-10 sekcji — tyle ile wymaga temat. Nie za mało (płytko), nie za dużo (po łebkach).'}
-2. OSTATNI H2 MUSI być: "Najczęściej zadawane pytania"
-3. Pokryj najważniejsze wzorce z konkurencji + luki treściowe (przewaga nad konkurencją)
-4. {'Uwzględnij frazy H2 użytkownika w nagłówkach, o ile brzmią naturalnie. Resztę dopasuj z S1.' if user_h2_hints else 'Dobierz nagłówki na podstawie S1 i luk treściowych.'}
-5. Logiczna narracja — od ogółu do szczegółu, chronologicznie, lub problemowo
-6. NIE powtarzaj hasła głównego dosłownie w każdym H2
-7. H2 muszą brzmieć naturalnie po polsku — żadnego keyword stuffingu
-
-═══ FORMAT ODPOWIEDZI ═══
-
-Odpowiedz TYLKO JSON array, bez markdown, bez komentarzy:
-["H2 pierwszy", "H2 drugi", ..., "Najczęściej zadawane pytania"]
-"""
+    # Build prompts via prompt_builder
+    system_prompt = build_h2_plan_system_prompt()
+    user_prompt = build_h2_plan_user_prompt(
+        main_keyword, mode, s1_data, all_user_phrases, user_h2_hints
+    )
 
     response = client.messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=1000,
-        messages=[{"role": "user", "content": prompt}],
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
         temperature=0.5
     )
     
@@ -345,14 +283,15 @@ Odpowiedz TYLKO JSON array, bez markdown, bez komentarzy:
         pass
     
     # Fallback: extract lines that look like H2s
-    lines = [l.strip().strip('"').strip("'").strip(",").strip('"') 
+    h2_lines = [l.strip().strip('"').strip("'").strip(",").strip('"') 
              for l in response_text.split("\n") if l.strip() and not l.strip().startswith("[") and not l.strip().startswith("]")]
-    if lines:
-        return lines
+    if h2_lines:
+        return h2_lines
     
     # Ultimate fallback
     fallback = suggested_h2s[:7] + ["Najczęściej zadawane pytania"] if suggested_h2s else [main_keyword, "Najczęściej zadawane pytania"]
     return fallback
+
 
 
 # ============================================================
@@ -840,7 +779,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": "Brak FAQ — analizuję PAA i generuję..."})
             paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
             if paa_analyze["ok"]:
-                faq_text = generate_faq_text(paa_analyze["data"])
+                # Fetch pre_batch for FAQ context (stop keywords, style, memory)
+                faq_pre = brajen_call("get", f"/api/project/{project_id}/pre_batch_info")
+                faq_pre_batch = faq_pre["data"] if faq_pre.get("ok") else None
+                faq_text = generate_faq_text(paa_analyze["data"], faq_pre_batch)
                 brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
                 # Extract and save
                 questions = []
