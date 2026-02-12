@@ -55,6 +55,7 @@ from ai_middleware import (
 # ================================================================
 _CSS_GARBAGE_PATTERNS = _re.compile(
     r'(?:'
+    # CSS properties & values
     r'webkit|moz-|ms-flex|align-items|display\s*:|flex-pack|'
     r'font-family|background-color|border-bottom|text-shadow|'
     r'position\s*:|padding\s*:|margin\s*:|transform\s*:|'
@@ -63,6 +64,20 @@ _CSS_GARBAGE_PATTERNS = _re.compile(
     r'hover\{|active\{|:after|:before|calc\(|'
     r'woocommerce|gutters|inline-flex|box-pack|'
     r'data-[a-z]|aria-|role=|tabindex|'
+    # BEM class notation (block__element, block--modifier)
+    r'\w+__\w+|'
+    r'\w+--\w+|'
+    # CSS selectors & combinators
+    r'focus-visible|#close|,#|\.css|'
+    # WordPress / CMS artifacts
+    r'\bvar\s+wp\b|wp-block|wp-embed|'
+    r'block\s*embed|content\s*block|text\s*block|'
+    r'input\s*type|'
+    # HTML/UI element names
+    r'^(header|footer|sidebar|nav|mega)\s*-?\s*menu$|'
+    r'^sub-?\s*menu$|'
+    r'^mega\s+menu$|'
+    # Generic CSS patterns
     r'^\w+\.\w+$|'
     r'[{};]'
     r')',
@@ -80,6 +95,11 @@ _CSS_NGRAM_EXACT = {
     "min height", "max height", "list style", "vertical align",
     "before before", "data widgets", "widgets footer", "footer widget",
     "focus focus", "root root", "not not",
+    # WordPress / CMS
+    "var wp", "block embed", "content block", "text block", "input type",
+    "wp block", "wp embed", "post type", "nav menu", "menu item",
+    "header menu", "sub menu", "mega menu", "footer menu",
+    "widget area", "sidebar widget", "page template",
 }
 
 _CSS_ENTITY_WORDS = {
@@ -89,6 +109,10 @@ _CSS_ENTITY_WORDS = {
     "bold", "normal", "italic", "transparent", "solid", "dotted",
     "pointer", "default", "disabled", "checked", "focus",
     "where", "not", "root", "before", "after",
+    # HTML/UI elements
+    "menu", "submenu", "sidebar", "footer", "header", "widget",
+    "navbar", "dropdown", "modal", "tooltip", "carousel",
+    "accordion", "breadcrumb", "pagination", "thumbnail",
 }
 
 def _is_css_garbage(text):
@@ -415,6 +439,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         s1_raw = s1_result["data"]
         
+        # Debug: log S1 response structure for diagnostics
+        la = s1_raw.get("length_analysis", {})
+        sa = s1_raw.get("serp_analysis", {})
+        logger.info(f"[S1_DEBUG] top keys: {sorted(s1_raw.keys())}")
+        logger.info(f"[S1_DEBUG] length_analysis: rec={la.get('recommended')}, med={la.get('median')}, avg={la.get('average')}, urls={la.get('analyzed_urls')}")
+        logger.info(f"[S1_DEBUG] serp_analysis keys: {sorted(sa.keys()) if sa else 'EMPTY'}")
+        logger.info(f"[S1_DEBUG] recommended_length(top): {s1_raw.get('recommended_length')}, median_length(top): {s1_raw.get('median_length')}")
+        
         # ═══ AI MIDDLEWARE: Clean S1 data ═══
         s1 = process_s1_for_pipeline(s1_raw, main_keyword)
         cleanup_stats = s1.get("_cleanup_stats", {})
@@ -423,7 +455,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if cleanup_stats.get("ai_enriched"):
                 yield emit("log", {"msg": "🤖 AI Middleware: wygenerowano uzupełniające insights z Haiku"})
         
-        h2_patterns = len((s1.get("competitor_h2_patterns") or []))
+        h2_patterns = len((s1.get("competitor_h2_patterns") or (s1.get("serp_analysis") or {}).get("competitor_h2_patterns") or []))
         causal_count = (s1.get("causal_triplets") or {}).get("count", 0)
         gaps_count = (s1.get("content_gaps") or {}).get("total_gaps", 0)
         suggested_h2s = (s1.get("content_gaps") or {}).get("suggested_new_h2s", [])
@@ -434,8 +466,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # S1 data for UI — already cleaned by middleware, apply final filter for display
         raw_entities = (s1.get("entity_seo") or {}).get("top_entities", (s1.get("entity_seo") or {}).get("entities", []))[:20]
         raw_must_mention = (s1.get("entity_seo") or {}).get("must_mention_entities", [])[:10]
-        raw_ngrams = (s1.get("ngrams") or [])[:30]
-        raw_h2_patterns = (s1.get("competitor_h2_patterns") or [])[:30]
+        raw_ngrams = (s1.get("ngrams") or s1.get("hybrid_ngrams") or [])[:30]
+        serp_analysis = s1.get("serp_analysis") or {}
+        raw_h2_patterns = (s1.get("competitor_h2_patterns") or serp_analysis.get("competitor_h2_patterns") or [])[:30]
 
         # Lightweight display filter (middleware already did heavy lifting)
         clean_entities = _filter_entities(raw_entities)[:10]
@@ -449,23 +482,65 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🤖 Uzupełniam encje z AI: {', '.join(str(e) for e in ai_entities[:5])}"})
 
         yield emit("s1_data", {
+            # Stats for top bar — backend nests these in length_analysis{}
+            "recommended_length": s1.get("recommended_length") or (s1.get("length_analysis") or {}).get("recommended"),
+            "median_length": s1.get("median_length") or (s1.get("length_analysis") or {}).get("median", 0),
+            "average_length": (s1.get("length_analysis") or {}).get("average") or s1.get("average_length") or s1.get("avg_length"),
+            "analyzed_urls": (s1.get("length_analysis") or {}).get("analyzed_urls") or s1.get("analyzed_urls") or s1.get("urls_analyzed") or s1.get("competitor_count"),
+            "word_counts": (s1.get("length_analysis") or {}).get("word_counts") or s1.get("word_counts") or [],
+            "length_analysis": s1.get("length_analysis") or {},
+            # SERP competitor data
+            "serp_competitors": (s1.get("serp_analysis") or {}).get("competitors", s1.get("competitors", []))[:10],
+            # Competitor structure
             "h2_patterns_count": len(clean_h2_patterns),
-            "causal_triplets_count": causal_count,
-            "content_gaps_count": gaps_count,
-            "suggested_h2s": suggested_h2s,
-            "search_intent": s1.get("search_intent", ""),
             "competitor_h2_patterns": clean_h2_patterns,
-            "content_gaps": (s1.get("content_gaps") or {}),
-            "causal_triplets": (s1.get("causal_triplets") or {}).get("chains", (s1.get("causal_triplets") or {}).get("singles", []))[:10],
+            "search_intent": s1.get("search_intent") or serp_analysis.get("search_intent", ""),
+            "serp_sources": s1.get("serp_sources") or serp_analysis.get("competitor_urls") or s1.get("competitor_urls") or [],
+            "featured_snippet": s1.get("featured_snippet") or serp_analysis.get("featured_snippet"),
+            "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview"),
+            "related_searches": s1.get("related_searches") or serp_analysis.get("related_searches") or [],
+            # PAA — check multiple locations
+            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or [])[:10],
+            # Causal triplets
+            "causal_triplets_count": causal_count,
+            "causal_count_chains": (s1.get("causal_triplets") or {}).get("chain_count", 0),
+            "causal_count_singles": (s1.get("causal_triplets") or {}).get("count", 0),
+            "causal_chains": (s1.get("causal_triplets") or {}).get("chains", [])[:10],
+            "causal_singles": (s1.get("causal_triplets") or {}).get("singles", [])[:10],
             "causal_instruction": (s1.get("causal_triplets") or {}).get("agent_instruction", ""),
-            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or [])[:10],
+            # Gap analysis
+            "content_gaps_count": gaps_count,
+            "content_gaps": (s1.get("content_gaps") or {}),
+            "suggested_h2s": suggested_h2s,
+            "paa_unanswered": (s1.get("content_gaps") or {}).get("paa_unanswered", []),
+            "subtopic_missing": (s1.get("content_gaps") or {}).get("subtopic_missing", []),
+            "depth_missing": (s1.get("content_gaps") or {}).get("depth_missing", []),
+            "gaps_instruction": (s1.get("content_gaps") or {}).get("instruction", ""),
+            # Entity SEO
             "entity_seo": {
                 "top_entities": clean_entities,
                 "must_mention": clean_must_mention,
-                "ai_extracted": ai_entities[:5] if ai_entities else []
+                "ai_extracted": ai_entities[:5] if ai_entities else [],
+                "entity_count": (s1.get("entity_seo") or {}).get("entity_count", len(clean_entities)),
+                "relations": (s1.get("entity_seo") or {}).get("relations", [])[:10],
+                "topical_coverage": (s1.get("entity_seo") or {}).get("topical_coverage", [])[:10]
             },
+            # N-grams
             "ngrams": clean_ngrams,
-            "median_length": s1.get("median_length", 0),
+            "semantic_keyphrases": s1.get("semantic_keyphrases") or [],
+            # Phrase hierarchy
+            "phrase_hierarchy_preview": s1.get("phrase_hierarchy_preview") or {},
+            # Depth signals
+            "depth_signals": s1.get("depth_signals") or {},
+            "depth_missing_items": s1.get("depth_missing_items") or (s1.get("content_gaps") or {}).get("depth_missing", []),
+            # YMYL hints
+            "ymyl_hints": s1.get("ymyl_hints") or s1.get("ymyl_signals") or {},
+            # PAA (already included above with serp_analysis fallback)
+            "paa_unanswered_count": len((s1.get("content_gaps") or {}).get("paa_unanswered", [])),
+            # Agent instructions
+            "agent_instructions": s1.get("agent_instructions") or {},
+            "semantic_hints": s1.get("semantic_enhancement_hints") or s1.get("semantic_hints") or {},
+            # Meta
             "competitive_summary": s1.get("_competitive_summary", "")
         })
 
