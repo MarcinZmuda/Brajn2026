@@ -1,5 +1,5 @@
 """
-BRAJEN SEO Web App v45.2.3
+BRAJEN SEO Web App v45.2.2
 ==========================
 Standalone web app that orchestrates BRAJEN SEO API + Anthropic Claude for text generation.
 Replaces unreliable GPT Custom Actions with deterministic code-driven workflow.
@@ -16,8 +16,7 @@ import hashlib
 import logging
 import threading
 import queue
-import gc
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import wraps
 
 from flask import (
@@ -33,6 +32,99 @@ try:
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
+
+import re as _re
+
+# ================================================================
+# 🗑️ CSS/JS GARBAGE FILTER — czyści śmieci z S1 danych
+# ================================================================
+_CSS_GARBAGE_PATTERNS = _re.compile(
+    r'(?:'
+    r'webkit|moz-|ms-flex|align-items|display\s*:|flex-pack|'
+    r'font-family|background-color|border-bottom|text-shadow|'
+    r'position\s*:|padding\s*:|margin\s*:|transform\s*:|'
+    r'transition|scrollbar|\.uk-|\.et_pb_|\.rp-|'
+    r'min-width|max-width|overflow|z-index|opacity|'
+    r'hover\{|active\{|:after|:before|calc\(|'
+    r'woocommerce|gutters|inline-flex|box-pack|'
+    r'data-[a-z]|aria-|role=|tabindex|'
+    r'^\w+\.\w+$|'
+    r'[{};]'
+    r')',
+    _re.IGNORECASE
+)
+
+_CSS_NGRAM_EXACT = {
+    "min width", "width min", "ms flex", "align items", "flex pack",
+    "box pack", "table table", "decoration decoration", "inline flex",
+    "webkit box", "webkit text", "moz box", "moz flex",
+    "box align", "flex align", "flex direction", "flex wrap",
+    "justify content", "text decoration", "font weight", "font size",
+    "line height", "border radius", "box shadow", "text align",
+    "text transform", "letter spacing", "word spacing", "white space",
+    "min height", "max height", "list style", "vertical align",
+    "before before", "data widgets", "widgets footer", "footer widget",
+    "focus focus", "root root", "not not",
+}
+
+_CSS_ENTITY_WORDS = {
+    "inline", "button", "active", "hover", "flex", "grid", "block",
+    "none", "inherit", "auto", "hidden", "visible", "relative",
+    "absolute", "fixed", "static", "center", "wrap", "nowrap",
+    "bold", "normal", "italic", "transparent", "solid", "dotted",
+    "pointer", "default", "disabled", "checked", "focus",
+    "where", "not", "root", "before", "after",
+}
+
+def _is_css_garbage(text):
+    if not text or not isinstance(text, str):
+        return True
+    text = text.strip()
+    if len(text) < 2:
+        return True
+    special = sum(1 for c in text if c in '{}:;()[]<>=#.@')
+    if len(text) > 0 and special / len(text) > 0.15:
+        return True
+    if text.lower() in _CSS_NGRAM_EXACT:
+        return True
+    if text.lower() in _CSS_ENTITY_WORDS:
+        return True
+    return bool(_CSS_GARBAGE_PATTERNS.search(text))
+
+def _filter_entities(entities):
+    if not entities:
+        return []
+    clean = []
+    for ent in entities:
+        if isinstance(ent, dict):
+            text = ent.get("text", "") or ent.get("entity", "") or ent.get("name", "")
+            if not _is_css_garbage(text):
+                clean.append(ent)
+        elif isinstance(ent, str):
+            if not _is_css_garbage(ent):
+                clean.append(ent)
+    return clean
+
+def _filter_ngrams(ngrams):
+    if not ngrams:
+        return []
+    clean = []
+    for ng in ngrams:
+        text = ng.get("ngram", ng) if isinstance(ng, dict) else str(ng)
+        if not _is_css_garbage(text):
+            clean.append(ng)
+    return clean
+
+def _filter_h2_patterns(patterns):
+    if not patterns:
+        return []
+    clean = []
+    for p in patterns:
+        text = p if isinstance(p, str) else (p.get("pattern", "") if isinstance(p, dict) else str(p))
+        if not _is_css_garbage(text) and len(text) > 3:
+            clean.append(p)
+    return clean
+
 
 # ============================================================
 # CONFIG
@@ -56,40 +148,8 @@ RETRY_DELAYS = [5, 15, 30]
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Store active jobs in memory (for SSE) — with cleanup
+# Store active jobs in memory (for SSE)
 active_jobs = {}
-_active_workflow_count = 0
-_jobs_lock = threading.Lock()
-MAX_CONCURRENT_WORKFLOWS = 1  # Prevent OOM from parallel workflows
-
-# Singleton Anthropic client — reuse connection pool instead of creating new client per call
-_claude_client = None
-def get_claude_client():
-    global _claude_client
-    if _claude_client is None:
-        _claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    return _claude_client
-
-
-def _cleanup_old_jobs():
-    """Remove completed/stale jobs older than 10 minutes to prevent memory leak."""
-    cutoff = (datetime.now() - timedelta(minutes=10)).isoformat()
-    stale = [jid for jid, j in active_jobs.items()
-             if j.get("status") in ("done", "error") or j.get("created", "") < cutoff]
-    for jid in stale:
-        # Clean up /tmp export files
-        j = active_jobs[jid]
-        for k in ("export_html", "export_docx"):
-            path = j.get(k)
-            if path and os.path.exists(path):
-                try:
-                    os.remove(path)
-                except Exception:
-                    pass
-        del active_jobs[jid]
-    if stale:
-        gc.collect()
-        logger.info(f"🧹 Cleaned {len(stale)} stale jobs, {len(active_jobs)} remaining")
 
 
 # ============================================================
@@ -178,24 +238,17 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
 def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, user_h2_hints=None):
     """
     Generate optimal H2 structure from S1 analysis data.
-    Number of H2s is determined by analysis AND recommended article length.
+    Number of H2s is determined by analysis, not hardcoded.
     User phrases are context for topic coverage, NOT for stuffing into H2 titles.
     """
-    client = get_claude_client()
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    
+    # Extract S1 insights
     competitor_h2 = (s1_data.get("competitor_h2_patterns") or [])
     suggested_h2s = (s1_data.get("content_gaps") or {}).get("suggested_new_h2s", [])
     content_gaps = (s1_data.get("content_gaps") or {})
     causal_triplets = (s1_data.get("causal_triplets") or {})
     paa = (s1_data.get("paa") or s1_data.get("paa_questions") or [])
-    
-    # FIX: Determine max H2 count based on recommended_length
-    recommended_length = s1_data.get("recommended_length", 3000)
-    if mode == "fast":
-        max_h2 = 4  # fast = max 3 content + FAQ
-    else:
-        # ~150-200 words per H2 section on average (+ intro ~100, FAQ ~200)
-        effective_words = max(recommended_length - 300, 500)  # minus intro+FAQ
-        max_h2 = min(12, max(4, effective_words // 180 + 2))  # +2 for intro-like + FAQ
     
     # Parse user phrases (strip ranges) — for topic context only
     all_user_phrases = []
@@ -254,8 +307,8 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję do której pasuj
 
 ═══ ZASADY ═══
 
-1. LICZBA H2: MAKSYMALNIE {max_h2} sekcji (włącznie z FAQ). Artykuł ma mieć ok. {recommended_length} słów — nie twórz więcej sekcji niż się zmieści.
-   {'Tryb fast: max 3 sekcje + FAQ.' if mode == 'fast' else f'Przy {recommended_length} słów optymalnie {max(3, max_h2-3)}-{max_h2} sekcji. Za dużo H2 = każda sekcja będzie płytka.'}
+1. LICZBA H2 wynika z analizy — ile sekcji potrzeba, by wyczerpująco pokryć temat.
+   {'Tryb fast: max 3 sekcje + FAQ.' if mode == 'fast' else 'Typowo 5-10 sekcji — tyle ile wymaga temat. Nie za mało (płytko), nie za dużo (po łebkach).'}
 2. OSTATNI H2 MUSI być: "Najczęściej zadawane pytania"
 3. Pokryj najważniejsze wzorce z konkurencji + luki treściowe (przewaga nad konkurencją)
 4. {'Uwzględnij frazy H2 użytkownika w nagłówkach, o ile brzmią naturalnie. Resztę dopasuj z S1.' if user_h2_hints else 'Dobierz nagłówki na podstawie S1 i luk treściowych.'}
@@ -283,13 +336,6 @@ Odpowiedz TYLKO JSON array, bez markdown, bez komentarzy:
         clean = response_text.replace("```json", "").replace("```", "").strip()
         h2_list = json.loads(clean)
         if isinstance(h2_list, list) and len(h2_list) >= 2:
-            # FIX: Cap to max_h2 (keep FAQ as last)
-            if len(h2_list) > max_h2:
-                has_faq = any("pytania" in h.lower() for h in h2_list[-2:])
-                if has_faq:
-                    h2_list = h2_list[:max_h2-1] + [h2_list[-1]]
-                else:
-                    h2_list = h2_list[:max_h2]
             return h2_list
     except (json.JSONDecodeError, ValueError):
         pass
@@ -499,15 +545,6 @@ Długość: {json.dumps(batch_length, ensure_ascii=False) if batch_length else '
     if h2_remaining:
         sections.append(f"═══ H2 REMAINING ═══\n{json.dumps(h2_remaining, ensure_ascii=False)}")
 
-    # Rewrite context (when text was rejected and needs regeneration)
-    rewrite_ctx = pre_batch.get("rewrite_context")
-    if rewrite_ctx:
-        sections.append(f"""═══ ⚠️ REWRITE — POPRAW TE PROBLEMY ═══
-Poprzednia wersja została ODRZUCONA. Napisz tekst OD NOWA, unikając tych błędów:
-{rewrite_ctx.get('issues_to_fix', 'Brak szczegółów')}
-Powód: {rewrite_ctx.get('rewrite_reason', '?')}
-Próba: {rewrite_ctx.get('attempt', '?')}""")
-
     # Format instruction
     sections.append("""═══ FORMAT ═══
 Pisz TYLKO treść batcha. Zaczynaj od h2: [tytuł].
@@ -524,7 +561,7 @@ NIE dodawaj komentarzy, wyjaśnień ani podsumowań poza treścią batcha.""")
 
 def _generate_claude(system_prompt, user_prompt):
     """Generate text using Anthropic Claude."""
-    client = get_claude_client()
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     response = client.messages.create(
         model=ANTHROPIC_MODEL,
         max_tokens=4000,
@@ -623,200 +660,7 @@ Wybierz 4-6 najlepszych pytań. Pisz TYLKO treść batcha, bez komentarzy."""
         return _generate_openai(system_prompt, user_prompt)
     else:
         return _generate_claude(system_prompt, user_prompt)
-
-
-# ============================================================
-# FAQ HELPER
-# ============================================================
-def _extract_faq_questions(text):
-    """Extract FAQ questions and answers from batch text."""
-    questions = []
-    lines = text.split("\n")
-    current_q, current_a = None, []
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("h3:") or stripped.startswith("### "):
-            if current_q and current_a:
-                questions.append({"question": current_q, "answer": " ".join(current_a)})
-            current_q = stripped.replace("h3:", "").replace("###", "").strip()
-            current_a = []
-        elif current_q and stripped:
-            current_a.append(stripped)
-    if current_q and current_a:
-        questions.append({"question": current_q, "answer": " ".join(current_a)})
-    return questions
-
-
-# ─── HELPER: Summarize article memory for UI ───
-def _summarize_article_memory(memory):
-    if not memory:
-        return None
-    if isinstance(memory, str):
-        return {"preview": memory[:200], "length": len(memory)}
-    if isinstance(memory, dict):
-        topics = memory.get("covered_topics") or memory.get("topics") or []
-        h2_done = memory.get("h2_completed") or memory.get("completed_h2") or []
-        key_phrases = memory.get("key_phrases_used") or []
-        return {
-            "topics_covered": topics[:8] if isinstance(topics, list) else [],
-            "h2_completed": h2_done[:8] if isinstance(h2_done, list) else [],
-            "key_phrases_used": key_phrases[:10] if isinstance(key_phrases, list) else [],
-            "word_count": memory.get("word_count", 0),
-        }
-    return None
-
-# ─── HELPER: Summarize style instructions for UI ───
-def _summarize_style(style):
-    if not style:
-        return None
-    if isinstance(style, dict):
-        return {
-            "tone": style.get("tone", style.get("suggested_tone", "")),
-            "avg_sentence_length": style.get("avg_sentence_length", ""),
-            "cv_target": style.get("cv_target", style.get("burstiness_cv", "")),
-            "overused_words": (style.get("overused_words") or [])[:5],
-            "forbidden": (style.get("forbidden_phrases") or [])[:5],
-        }
-    return None
-
-# ─── HELPER: Summarize YMYL context for UI ───
-def _summarize_ymyl_context(ctx):
-    if not ctx or not isinstance(ctx, dict) or not ctx.get("active"):
-        return None
-    return {
-        "active": True,
-        "citations_count": len(ctx.get("top_judgments") or ctx.get("top_publications") or []),
-        "must_cite": ctx.get("must_cite", False),
-        "citation_hint": ctx.get("citation_hint", ""),
-        "instruction_preview": (ctx.get("legal_instruction") or ctx.get("medical_instruction") or "")[:200],
-    }
-
-# ─── HELPER: Summarize continuation context for UI ───
-def _summarize_continuation(cont):
-    if not cont or not isinstance(cont, dict):
-        return None
-    return {
-        "last_topic": cont.get("last_topic", cont.get("previous_h2", "")),
-        "transition_hint": cont.get("transition_hint", cont.get("suggested_transition", "")),
-        "avoid_repetition": (cont.get("avoid_repetition") or cont.get("already_covered") or [])[:5],
-    }
-
-# ─── HELPER: Build S1 compliance report ───
-def _build_s1_compliance(s1, article_text, editorial_data):
-    """Compare S1 analysis elements against final article to check fulfillment."""
-    if not s1 or not article_text:
-        return {}
-    text_lower = article_text.lower()
-
-    # 1. Entity compliance
-    entity_seo = s1.get("entity_seo") or {}
-    all_entities = entity_seo.get("top_entities") or entity_seo.get("entities") or []
-    must_entities = entity_seo.get("must_mention_entities") or []
-    entity_results = []
-    for ent in all_entities[:15]:
-        name = ent.get("entity") or ent.get("name") or (ent if isinstance(ent, str) else str(ent))
-        name_str = str(name).strip()
-        found = name_str.lower() in text_lower
-        is_must = any(
-            (str(m.get("entity", m.get("name", m)) if isinstance(m, dict) else m).lower().strip() == name_str.lower())
-            for m in must_entities
-        )
-        entity_results.append({"entity": name_str, "found": found, "must": is_must})
-
-    # 2. Causal triplets compliance
-    causal = s1.get("causal_triplets") or {}
-    all_triplets = (causal.get("chains") or []) + (causal.get("singles") or [])
-    triplet_results = []
-    for t in all_triplets[:12]:
-        cause = str(t.get("cause") or t.get("from") or "").strip()
-        effect = str(t.get("effect") or t.get("to") or "").strip()
-        cause_found = cause.lower() in text_lower if cause else False
-        effect_found = effect.lower() in text_lower if effect else False
-        triplet_results.append({
-            "cause": cause, "effect": effect,
-            "cause_found": cause_found, "effect_found": effect_found,
-            "fulfilled": cause_found and effect_found
-        })
-
-    # 3. Content gaps H2 compliance
-    content_gaps = s1.get("content_gaps") or {}
-    suggested_h2s = content_gaps.get("suggested_new_h2s") or []
-    gap_results = []
-    for h2 in suggested_h2s[:10]:
-        words = [w for w in h2.lower().split() if len(w) > 3]
-        match_count = sum(1 for w in words if w in text_lower)
-        cov = (match_count / max(len(words), 1)) * 100
-        gap_results.append({"h2": h2, "coverage_pct": round(cov), "covered": cov > 50})
-
-    # 4. PAA unanswered compliance
-    paa_unanswered = content_gaps.get("paa_unanswered") or []
-    paa_gap_results = []
-    for paa in paa_unanswered[:8]:
-        q = paa.get("question") or paa.get("topic") or (paa if isinstance(paa, str) else str(paa))
-        q_str = str(q).strip()
-        words = [w for w in q_str.lower().split() if len(w) > 3]
-        match_count = sum(1 for w in words if w in text_lower)
-        cov = (match_count / max(len(words), 1)) * 100
-        paa_gap_results.append({"question": q_str, "coverage_pct": round(cov), "answered": cov > 40})
-
-    # 5. N-gram usage
-    ngrams = s1.get("ngrams") or s1.get("hybrid_ngrams") or []
-    ngram_results = []
-    for ng in ngrams[:15]:
-        phrase = ng.get("ngram") or ng.get("phrase") or (ng[0] if isinstance(ng, (list, tuple)) else str(ng))
-        phrase_str = str(phrase).strip()
-        found = phrase_str.lower() in text_lower
-        weight = ng.get("weight") or ng.get("score") or 0
-        ngram_results.append({"ngram": phrase_str, "found": found, "weight": round(float(weight), 2) if weight else 0})
-
-    # 6. PAA questions addressed
-    paa_questions = s1.get("paa") or s1.get("paa_questions") or []
-    paa_results = []
-    for paa in paa_questions[:10]:
-        q = paa.get("question") or (paa if isinstance(paa, str) else str(paa))
-        q_str = str(q).strip()
-        words = [w for w in q_str.lower().split() if len(w) > 3]
-        match_count = sum(1 for w in words if w in text_lower)
-        cov = (match_count / max(len(words), 1)) * 100
-        paa_results.append({"question": q_str, "addressed": cov > 40, "coverage_pct": round(cov)})
-
-    # 7. Semantic keyphrases
-    sem_results = []
-    for kp in (s1.get("semantic_keyphrases") or [])[:10]:
-        phrase = kp.get("phrase") or kp.get("keyphrase") or (kp if isinstance(kp, str) else str(kp))
-        phrase_str = str(phrase).strip()
-        sem_results.append({"phrase": phrase_str, "found": phrase_str.lower() in text_lower})
-
-    # Summary
-    ef = lambda lst, key: (sum(1 for x in lst if x.get(key)), len(lst))
-    ent_f, ent_t = ef(entity_results, "found")
-    must_f = sum(1 for e in entity_results if e["must"] and e["found"])
-    must_t = sum(1 for e in entity_results if e["must"])
-    tri_f, tri_t = ef(triplet_results, "fulfilled")
-    gap_f, gap_t = ef(gap_results, "covered")
-    ng_f, ng_t = ef(ngram_results, "found")
-    paa_f, paa_t = ef(paa_results, "addressed")
-    sem_f, sem_t = ef(sem_results, "found")
-
-    ed_score = editorial_data.get("overall_score", "?") if editorial_data else "?"
-    ed_fb = editorial_data.get("editorial_feedback") or {} if editorial_data else {}
-
-    return {
-        "summary": {
-            "entities": f"{ent_f}/{ent_t}", "entities_must": f"{must_f}/{must_t}",
-            "causal_triplets": f"{tri_f}/{tri_t}", "content_gaps": f"{gap_f}/{gap_t}",
-            "ngrams": f"{ng_f}/{ng_t}", "paa": f"{paa_f}/{paa_t}",
-            "semantic_keyphrases": f"{sem_f}/{sem_t}", "editorial_score": ed_score,
-        },
-        "entities": entity_results, "causal_triplets": triplet_results,
-        "content_gaps_h2": gap_results, "content_gaps_paa": paa_gap_results,
-        "ngrams": ngram_results, "paa_questions": paa_results,
-        "semantic_keyphrases": sem_results,
-        "editorial_feedback": {
-            "recenzja_ogolna": ed_fb.get("recenzja_ogolna", ""),
-            "luki_tresciowe": ed_fb.get("luki_tresciowe", {}),
-        }
-    }
+    return response.content[0].text.strip()
 
 
 # ============================================================
@@ -836,10 +680,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
     job = active_jobs.get(job_id, {})
 
     try:
-        # ─── KROK 0: Wybór trybu ───
-        yield emit("step", {"step": 0, "name": "Wybór trybu", "status": "done",
-                            "detail": f"Tryb: {mode.upper()} | Keyword: {main_keyword}"})
-
         # ─── KROK 1: S1 Analysis ───
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "running"})
         yield emit("log", {"msg": f"POST /api/s1_analysis → {main_keyword}"})
@@ -858,102 +698,37 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "done",
                             "detail": f"{h2_patterns} H2 patterns | {causal_count} causal triplets | {gaps_count} content gaps"})
         
-        # Send FULL S1 data for UI display — all 10 analysis sections
-        entity_seo_full = s1.get("entity_seo") or {}
-        causal_full = s1.get("causal_triplets") or {}
-        content_gaps_full = s1.get("content_gaps") or {}
-        length_analysis = s1.get("length_analysis") or {}
-        serp_analysis = s1.get("serp_analysis") or {}
-        sem_hints = s1.get("semantic_enhancement_hints") or {}
+        # Send full S1 data for UI display (filtered for CSS garbage)
+        raw_entities = (s1.get("entity_seo") or {}).get("top_entities", (s1.get("entity_seo") or {}).get("entities", []))[:20]
+        raw_must_mention = (s1.get("entity_seo") or {}).get("must_mention_entities", [])[:10]
+        raw_ngrams = (s1.get("ngrams") or [])[:30]
+        raw_h2_patterns = (s1.get("competitor_h2_patterns") or [])[:30]
+
+        clean_entities = _filter_entities(raw_entities)[:10]
+        clean_must_mention = _filter_entities(raw_must_mention)[:5]
+        clean_ngrams = _filter_ngrams(raw_ngrams)[:15]
+        clean_h2_patterns = _filter_h2_patterns(raw_h2_patterns)[:20]
+
+        if len(clean_entities) < len(raw_entities[:10]):
+            yield emit("log", {"msg": f"⚠️ Odfiltrowano {len(raw_entities[:10]) - len(clean_entities)} śmieciowych encji CSS"})
 
         yield emit("s1_data", {
-            # ─── 1️⃣ SERP & Competitor Structure ───
-            "search_intent": s1.get("search_intent", ""),
-            "recommended_length": s1.get("recommended_length", 0),
-            "median_length": length_analysis.get("median", s1.get("median_length", 0)),
-            "average_length": length_analysis.get("average", 0),
-            "analyzed_urls": length_analysis.get("analyzed_urls", 0),
-            "word_counts": length_analysis.get("word_counts", []),
-            "h2_patterns_count": h2_patterns,
-            "competitor_h2_patterns": (s1.get("competitor_h2_patterns") or [])[:25],
-            "serp_sources": (serp_analysis.get("sources") or serp_analysis.get("competitors") or s1.get("serp_sources") or [])[:10],
-            "featured_snippet": s1.get("featured_snippet") or serp_analysis.get("featured_snippet") or None,
-            "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview") or None,
-            "related_searches": (s1.get("related_searches") or serp_analysis.get("related_searches") or [])[:10],
-
-            # ─── 2️⃣ Causal Triplets ───
+            "h2_patterns_count": len(clean_h2_patterns),
             "causal_triplets_count": causal_count,
-            "causal_chains": causal_full.get("chains", [])[:15],
-            "causal_singles": causal_full.get("singles", [])[:15],
-            "causal_instruction": causal_full.get("agent_instruction", ""),
-            "causal_count_chains": len(causal_full.get("chains", [])),
-            "causal_count_singles": len(causal_full.get("singles", [])),
-
-            # ─── 3️⃣ Gap Analysis ───
             "content_gaps_count": gaps_count,
-            "content_gaps": content_gaps_full,
             "suggested_h2s": suggested_h2s,
-            "paa_unanswered": content_gaps_full.get("paa_unanswered", []),
-            "subtopic_missing": content_gaps_full.get("subtopic_missing", []),
-            "depth_missing": content_gaps_full.get("depth_missing", []),
-            "gaps_instruction": content_gaps_full.get("agent_instruction", ""),
-            "information_gain": content_gaps_full.get("information_gain", []),
-
-            # ─── 4️⃣ Entity SEO ───
+            "search_intent": s1.get("search_intent", ""),
+            "competitor_h2_patterns": clean_h2_patterns,
+            "content_gaps": (s1.get("content_gaps") or {}),
+            "causal_triplets": (s1.get("causal_triplets") or {}).get("chains", (s1.get("causal_triplets") or {}).get("singles", []))[:10],
+            "causal_instruction": (s1.get("causal_triplets") or {}).get("agent_instruction", ""),
+            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or [])[:10],
             "entity_seo": {
-                "top_entities": (entity_seo_full.get("top_entities") or entity_seo_full.get("entities") or [])[:20],
-                "must_mention": (entity_seo_full.get("must_mention_entities") or [])[:10],
-                "relations": (entity_seo_full.get("relations") or entity_seo_full.get("entity_relationships") or [])[:15],
-                "entity_count": len(entity_seo_full.get("top_entities") or entity_seo_full.get("entities") or []),
-                "categories": entity_seo_full.get("categories", []),
-                "topical_coverage": (entity_seo_full.get("topical_coverage") or s1.get("topical_coverage") or [])[:15],
+                "top_entities": clean_entities,
+                "must_mention": clean_must_mention
             },
-
-            # ─── 5️⃣ N-grams & Collocations ───
-            "ngrams": (s1.get("ngrams") or s1.get("hybrid_ngrams") or [])[:20],
-            "semantic_keyphrases": (s1.get("semantic_keyphrases") or [])[:15],
-
-            # ─── 6️⃣ Phrase Hierarchy (will be enriched after KROK 5) ───
-            "phrase_hierarchy_preview": s1.get("phrase_hierarchy") or {},
-
-            # ─── 7️⃣ Depth Analysis (extracted from S1 competitor data) ───
-            "depth_signals": {
-                "numbers_used": bool(s1.get("depth_numbers") or any("liczb" in str(d).lower() for d in content_gaps_full.get("depth_missing", []))),
-                "dates_used": bool(s1.get("depth_dates")),
-                "institutions_cited": bool(s1.get("depth_institutions")),
-                "research_cited": bool(s1.get("depth_research")),
-                "laws_referenced": bool(s1.get("depth_laws")),
-                "exceptions_noted": bool(s1.get("depth_exceptions")),
-                "comparisons_made": bool(s1.get("depth_comparisons")),
-                "step_by_step": bool(s1.get("depth_step_by_step")),
-            },
-            "depth_missing_items": content_gaps_full.get("depth_missing", []),
-
-            # ─── 8️⃣ YMYL Signals (preliminary from S1) ───
-            "ymyl_hints": {
-                "legal_signals": bool(s1.get("ymyl_legal") or s1.get("legal_signals")),
-                "medical_signals": bool(s1.get("ymyl_medical") or s1.get("medical_signals")),
-                "needs_citations": bool(s1.get("needs_citations")),
-                "needs_disclaimer": bool(s1.get("needs_disclaimer")),
-            },
-
-            # ─── 9️⃣ PAA / FAQ Potential ───
-            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or [])[:15],
-            "paa_unanswered_count": len(content_gaps_full.get("paa_unanswered", [])),
-
-            # ─── 🔟 Agent Instructions ───
-            "agent_instructions": {
-                "gaps": content_gaps_full.get("agent_instruction", ""),
-                "causal": causal_full.get("agent_instruction", ""),
-                "semantic": (sem_hints.get("checkpoints") or {}),
-            },
-
-            # ─── Semantic Enhancement Hints ───
-            "semantic_hints": {
-                "critical_entities": sem_hints.get("critical_entities", []),
-                "high_entities": sem_hints.get("high_entities", []),
-                "must_topics": sem_hints.get("must_topics", []),
-            },
+            "ngrams": clean_ngrams,
+            "median_length": s1.get("median_length", 0)
         })
 
         # ─── KROK 2: YMYL Detection ───
@@ -1056,28 +831,34 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         yield emit("log", {"msg": f"Keywords: {len(keywords)} ({sum(1 for k in keywords if k['type']=='BASIC')} BASIC, {sum(1 for k in keywords if k['type']=='EXTENDED')} EXTENDED)"})
 
-        # FIX: Przekazuj PEŁNE dane S1 (nie filtrowane) — API potrzebuje ich
-        # do batch_planner.py, enhanced_pre_batch.py, concept_map, E-E-A-T itd.
-        # FIX: Użyj recommended_length z S1 (mediana konkurencji × 1.1)
-        # zamiast hardcoded wartości
-        recommended_length = s1.get("recommended_length", 3500 if mode == "standard" else 2000)
-        yield emit("log", {"msg": f"Recommended length z S1: {recommended_length} słów"})
+        # Filter entity_seo before sending to project (remove CSS garbage)
+        filtered_entity_seo = (s1.get("entity_seo") or {}).copy()
+        if "top_entities" in filtered_entity_seo:
+            filtered_entity_seo["top_entities"] = _filter_entities(filtered_entity_seo["top_entities"])
+        if "entities" in filtered_entity_seo:
+            filtered_entity_seo["entities"] = _filter_entities(filtered_entity_seo["entities"])
+        if "must_mention_entities" in filtered_entity_seo:
+            filtered_entity_seo["must_mention_entities"] = _filter_entities(filtered_entity_seo["must_mention_entities"])
 
         project_payload = {
             "main_keyword": main_keyword,
             "mode": mode,
             "h2_structure": h2_structure,
             "keywords": keywords,
-            "s1_data": s1,
-            "target_length": recommended_length,
-            "source": "brajen-webapp",
-            "compact": False,  # Webapp nie ma limitu tokenów jak GPT — chcemy pełne dane
-            # YMYL data from KROK 2
+            "s1_data": {
+                "causal_triplets": (s1.get("causal_triplets") or {}),
+                "content_gaps": (s1.get("content_gaps") or {}),
+                "entity_seo": filtered_entity_seo,
+                "paa": (s1.get("paa") or []),
+                "ngrams": _filter_ngrams((s1.get("ngrams") or [])[:30]),
+                "competitor_h2_patterns": _filter_h2_patterns((s1.get("competitor_h2_patterns") or [])[:30])
+            },
+            "target_length": 3500 if mode == "standard" else 2000,
             "is_legal": is_legal,
             "is_medical": is_medical,
             "is_ymyl": is_legal or is_medical,
-            "legal_instruction": (legal_context or {}).get("instruction", "") if legal_context else "",
-            "medical_instruction": (medical_context or {}).get("instruction", "") if medical_context else "",
+            "legal_context": legal_context,
+            "medical_context": medical_context
         }
 
         create_result = brajen_call("post", "/api/project/create", project_payload)
@@ -1095,22 +876,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # Store project_id in job
         job["project_id"] = project_id
-        
-        # 🧹 Free S1 data — keep ONLY what _build_s1_compliance needs
-        # BUG FIX: s1=None broke S1 compliance panel (always empty)
-        s1_for_compliance = {
-            "entity_seo": s1.get("entity_seo") or {},
-            "causal_triplets": s1.get("causal_triplets") or {},
-            "content_gaps": s1.get("content_gaps") or {},
-            "ngrams": (s1.get("ngrams") or s1.get("hybrid_ngrams") or [])[:20],
-            "paa": (s1.get("paa") or s1.get("paa_questions") or [])[:15],
-            "semantic_keyphrases": (s1.get("semantic_keyphrases") or [])[:15],
-        }
-        del s1_result, entity_seo_full, causal_full, content_gaps_full, length_analysis, serp_analysis, sem_hints
-        project_payload = None
-        s1 = None
-        gc.collect()
-        logger.info(f"🧹 S1 data freed (compliance snapshot kept) after project {project_id} creation")
 
         # ─── KROK 5: Phrase Hierarchy ───
         yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "running"})
@@ -1129,46 +894,23 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             "detail": f"0/{total_batches} batchy"})
 
         for batch_num in range(1, total_batches + 1):
-            # Użyj API batch_number (po pre_batch_info) zamiast loop counter
-            # bo API auto-inkrementuje na podstawie zapisanych batchy
             yield emit("batch_start", {"batch": batch_num, "total": total_batches})
             yield emit("log", {"msg": f"── BATCH {batch_num}/{total_batches} ──"})
 
-            # 6a: Get pre_batch_info (with retry)
+            # 6a: Get pre_batch_info
             yield emit("log", {"msg": f"GET /pre_batch_info"})
-            pre_result = None
-            for _pb_attempt in range(3):
-                pre_result = brajen_call("get", f"/api/project/{project_id}/pre_batch_info")
-                if pre_result["ok"]:
-                    break
-                yield emit("log", {"msg": f"⚠️ pre_batch_info attempt {_pb_attempt+1}/3 failed: {pre_result.get('error', '')[:80]}"})
-                time.sleep(3 + _pb_attempt * 3)
-            if not pre_result or not pre_result["ok"]:
-                yield emit("log", {"msg": f"❌ pre_batch_info failed po 3 próbach — skip batch {batch_num}"})
+            pre_result = brajen_call("get", f"/api/project/{project_id}/pre_batch_info")
+            if not pre_result["ok"]:
+                yield emit("log", {"msg": f"⚠️ pre_batch_info error: {pre_result.get('error', '')[:100]}"})
                 continue
 
             pre_batch = pre_result["data"]
-            # CRITICAL FIX: API zwraca batch_type "FINAL" dla ostatniego batcha,
-            # ale enhanced_pre_batch.py remapuje go na "FAQ" wewnętrznie.
-            # Custom GPT czytał enhanced.batch_type ("FAQ") + Knowledge Base.
-            # Musimy użyć enhanced.batch_type (który jest poprawny) lub remapować "FINAL"→"FAQ".
-            enhanced_data_raw = pre_batch.get("enhanced") or {}
-            batch_type = enhanced_data_raw.get("batch_type") or pre_batch.get("batch_type", "CONTENT")
-            # Fallback: jeśli enhanced nie ma batch_type, a top-level = "FINAL" → to FAQ
-            if batch_type == "FINAL":
-                batch_type = "FAQ"
+            batch_type = pre_batch.get("batch_type", "CONTENT")
 
-            # Użyj batch_number z API (auto-incremented) dla dokładności
-            api_batch_num = pre_batch.get("batch_number", batch_num)
-
-            # Get current H2 — enhanced.current_h2 is most reliable (remapped for FAQ)
+            # Get current H2 from API (most reliable) or fallback to our plan
             h2_remaining = (pre_batch.get("h2_remaining") or [])
             semantic_plan = pre_batch.get("semantic_batch_plan") or {}
-            enhanced_h2 = enhanced_data_raw.get("current_h2")
-            
-            if enhanced_h2:
-                current_h2 = enhanced_h2
-            elif h2_remaining:
+            if h2_remaining:
                 current_h2 = h2_remaining[0]
             elif semantic_plan.get("h2"):
                 current_h2 = semantic_plan["h2"]
@@ -1185,37 +927,22 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # Emit batch instructions for UI display
             caution_kw = (pre_batch.get("keyword_limits") or {}).get("caution_keywords", [])
             batch_length_info = pre_batch.get("batch_length") or {}
-            enhanced_data = enhanced_data_raw  # Already fetched above
+            enhanced_data = pre_batch.get("enhanced") or {}
             
-            # FIX: Normalize coverage — extract percent values from nested objects
-            raw_coverage = pre_batch.get("coverage") or {}
-            def _norm_cov(v):
-                """Extract numeric percent from coverage value (could be dict or number)."""
-                if isinstance(v, (int, float)):
-                    return round(v, 1)
-                if isinstance(v, dict):
-                    return round(v.get("percent", v.get("pct", v.get("value", 0))), 1)
-                return 0
-            
-            normalized_coverage = {}
-            for ck, cv in raw_coverage.items():
-                normalized_coverage[ck] = _norm_cov(cv)
-
             yield emit("batch_instructions", {
-                    "batch": batch_num,
-                    "total": total_batches,
-                    "batch_type": batch_type,
-                    "h2": current_h2,
-                    "h2_remaining": h2_remaining[:5],
-                    "target_words": batch_length_info.get("suggested_min", batch_length_info.get("target", "?")),
-                    "word_range": f"{batch_length_info.get('suggested_min', '?')}-{batch_length_info.get('suggested_max', '?')}",
-                    "must_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in must_kw],
-                    "extended_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in ext_kw],
-                    "stop_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in stop_kw][:10],
-                    "caution_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in caution_kw][:10],
-                    "coverage": normalized_coverage,
+                "batch": batch_num,
+                "total": total_batches,
+                "batch_type": batch_type,
+                "h2": current_h2,
+                "h2_remaining": h2_remaining[:5],
+                "target_words": batch_length_info.get("suggested_min", batch_length_info.get("target", "?")),
+                "word_range": f"{batch_length_info.get('suggested_min', '?')}-{batch_length_info.get('suggested_max', '?')}",
+                "must_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in must_kw],
+                "extended_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in ext_kw],
+                "stop_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in stop_kw][:10],
+                "caution_keywords": [kw.get("keyword", kw) if isinstance(kw, dict) else kw for kw in caution_kw][:10],
+                "coverage": pre_batch.get("coverage") or {},
                 "density": pre_batch.get("density") or {},
-                # ─── Boolean flags ───
                 "has_gpt_instructions": bool(pre_batch.get("gpt_instructions_v39")),
                 "has_gpt_prompt": bool(pre_batch.get("gpt_prompt")),
                 "has_article_memory": bool(pre_batch.get("article_memory")),
@@ -1223,56 +950,23 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "has_style": bool(pre_batch.get("style_instructions")),
                 "has_legal": bool((pre_batch.get("legal_context") or {}).get("active")),
                 "has_medical": bool((pre_batch.get("medical_context") or {}).get("active")),
-                "experience_markers": bool(enhanced_data.get("experience_markers")),
-                "continuation_context": bool(enhanced_data.get("continuation_context")),
-                "has_causal_context": bool(enhanced_data.get("causal_context")),
-                "has_information_gain": bool(enhanced_data.get("information_gain")),
-                "has_smart_instructions": bool(enhanced_data.get("smart_instructions")),
-                "has_phrase_hierarchy": bool(enhanced_data.get("phrase_hierarchy")),
-                "has_continuation_v39": bool(pre_batch.get("continuation_v39")),
-                # ─── Semantic plan ───
                 "semantic_plan": {
                     "h2": (pre_batch.get("semantic_batch_plan") or {}).get("h2"),
                     "profile": (pre_batch.get("semantic_batch_plan") or {}).get("profile"),
                     "score": (pre_batch.get("semantic_batch_plan") or {}).get("score")
                 },
-                # ─── Entities & Relations ───
-                "entities_to_define": (enhanced_data.get("entities_to_define") or [])[:8],
-                "relations_to_establish": (enhanced_data.get("relations_to_establish") or [])[:8],
-                # ─── PAA for batch ───
-                "paa_from_serp": (enhanced_data.get("paa_from_serp") or [])[:5],
-                # ─── Keyword ratio ───
+                "entities_to_define": (enhanced_data.get("entities_to_define") or [])[:5],
+                "experience_markers": bool(enhanced_data.get("experience_markers")),
+                "continuation_context": bool(enhanced_data.get("continuation_context")),
+                "paa_from_serp": (enhanced_data.get("paa_from_serp") or [])[:3],
                 "main_keyword_ratio": (pre_batch.get("main_keyword") or {}).get("ratio"),
-                # ─── Intro guidance ───
                 "intro_guidance": pre_batch.get("intro_guidance", "") if batch_type == "INTRO" else "",
-                # ─── Batch length detail ───
-                "batch_length_detail": {
-                    "suggested_min": batch_length_info.get("suggested_min"),
-                    "suggested_max": batch_length_info.get("suggested_max"),
-                    "complexity_score": batch_length_info.get("complexity_score"),
-                    "length_profile": batch_length_info.get("length_profile"),
-                    "snippet_required": batch_length_info.get("snippet_required", False),
-                },
-                # ─── Article Memory summary ───
-                "article_memory_summary": _summarize_article_memory(pre_batch.get("article_memory")),
-                # ─── Style instructions ───
-                "style_summary": _summarize_style(pre_batch.get("style_instructions")),
-                # ─── Enhanced sub-fields ───
-                "causal_context_preview": (enhanced_data.get("causal_context") or "")[:300],
-                "information_gain_preview": (enhanced_data.get("information_gain") or "")[:300],
-                "smart_instructions_preview": (enhanced_data.get("smart_instructions_formatted") or enhanced_data.get("smart_instructions") or "")[:300],
-                # ─── Phrase hierarchy ───
-                "phrase_hierarchy_data": {
-                    "roots_covered": (enhanced_data.get("phrase_hierarchy") or {}).get("roots_covered", []),
-                    "strategy": (enhanced_data.get("phrase_hierarchy") or {}).get("strategy", ""),
-                } if enhanced_data.get("phrase_hierarchy") else None,
-                # ─── Legal/Medical context preview ───
-                "legal_context_preview": _summarize_ymyl_context(pre_batch.get("legal_context")),
-                "medical_context_preview": _summarize_ymyl_context(pre_batch.get("medical_context")),
-                # ─── Continuation context ───
-                "continuation_preview": _summarize_continuation(pre_batch.get("continuation_v39")),
-                # ─── gpt_instructions_v39 preview ───
-                "gpt_instructions_preview": (pre_batch.get("gpt_instructions_v39") or "")[:400],
+                # v45 flags
+                "has_causal_context": bool(enhanced_data.get("causal_context")),
+                "has_information_gain": bool(enhanced_data.get("information_gain")),
+                "has_smart_instructions": bool(enhanced_data.get("smart_instructions")),
+                "has_phrase_hierarchy": bool(enhanced_data.get("phrase_hierarchy")),
+                "has_continuation_v39": bool(pre_batch.get("continuation_v39"))
             })
 
             # 6c: Generate text
@@ -1297,39 +991,24 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             word_count = len(text.split())
             yield emit("log", {"msg": f"Wygenerowano {word_count} słów"})
 
-            # 6d-6g: Submit with retry logic per documentation:
-            # FIX_AND_RETRY — napraw issues[] / exceeded keywords, wyślij ponownie
-            # REWRITE — poważne problemy, wygeneruj tekst od nowa
-            # Po 2× FIX_AND_RETRY → forced=true akceptuje mimo przekroczeń
+            # 6d-6g: Submit with retry logic
+            # Max 4 attempts: original + 2 synonym fixes + 1 forced
+            max_attempts = 4
             batch_accepted = False
-            fix_retry_count = 0
-            rewrite_count = 0
-            MAX_FIX_RETRIES = 2
-            MAX_REWRITES = 1
 
-            while not batch_accepted:
-                forced = (fix_retry_count >= MAX_FIX_RETRIES)
+            for attempt in range(max_attempts):
+                forced = (attempt == max_attempts - 1)  # Last attempt is always forced
                 submit_data = {"text": text}
                 if forced:
                     submit_data["forced"] = True
-                    yield emit("log", {"msg": "⚡ Forced mode ON — wymuszam zapis (po 2× FIX_AND_RETRY)"})
+                    yield emit("log", {"msg": "⚡ Forced mode ON — wymuszam zapis"})
 
-                yield emit("log", {"msg": f"POST /batch_simple (fix={fix_retry_count}, rewrite={rewrite_count}, forced={forced})"})
+                yield emit("log", {"msg": f"POST /batch_simple (próba {attempt + 1}/{max_attempts})"})
                 submit_result = brajen_call("post", f"/api/project/{project_id}/batch_simple", submit_data)
 
                 if not submit_result["ok"]:
-                    # Retry submit up to 2 times on failure
-                    _submit_ok = False
-                    for _sub_retry in range(2):
-                        yield emit("log", {"msg": f"⚠️ Submit retry {_sub_retry+1}/2 (error: {submit_result.get('error', '')[:80]})"})
-                        time.sleep(5 + _sub_retry * 5)
-                        submit_result = brajen_call("post", f"/api/project/{project_id}/batch_simple", submit_data)
-                        if submit_result["ok"]:
-                            _submit_ok = True
-                            break
-                    if not _submit_ok:
-                        yield emit("log", {"msg": f"❌ Submit failed po retries — skip batch {batch_num}"})
-                        break
+                    yield emit("log", {"msg": f"❌ Submit error: {submit_result.get('error', '')[:100]}"})
+                    break
 
                 result = submit_result["data"]
                 accepted = result.get("accepted", False)
@@ -1337,7 +1016,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 quality = (result.get("quality") or {})
                 depth = result.get("depth_score")
                 exceeded = (result.get("exceeded_keywords") or [])
-                issues = (result.get("issues") or [])
 
                 yield emit("batch_result", {
                     "batch": batch_num,
@@ -1346,8 +1024,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     "quality_score": quality.get("score"),
                     "quality_grade": quality.get("grade"),
                     "depth_score": depth,
-                    "exceeded": [e.get("keyword", "") for e in exceeded] if exceeded else [],
-                    "issues": [i.get("description", str(i)) if isinstance(i, dict) else str(i) for i in issues[:5]]
+                    "exceeded": [e.get("keyword", "") for e in exceeded] if exceeded else []
                 })
 
                 if accepted:
@@ -1355,130 +1032,81 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     yield emit("log", {"msg": f"✅ Batch {batch_num} accepted! Score: {quality.get('score')}/100"})
                     break
 
-                # Forced mode — akceptujemy wynik
+                # Not accepted — fix and retry (unless this was forced)
                 if forced:
-                    batch_accepted = True
-                    yield emit("log", {"msg": f"⚠️ Batch {batch_num} wymuszony (forced) — kontynuuję"})
+                    yield emit("log", {"msg": f"⚠️ Batch {batch_num} odrzucony nawet w forced mode — kontynuuję"})
                     break
 
-                # === Obsługa akcji z MoE ===
-                if action == "REWRITE" and rewrite_count < MAX_REWRITES:
-                    # REWRITE: pełna regeneracja tekstu z uwzględnieniem issues
-                    rewrite_count += 1
-                    issues_desc = "; ".join(
-                        i.get("description", str(i)) if isinstance(i, dict) else str(i)
-                        for i in issues[:5]
-                    )
-                    yield emit("log", {"msg": f"🔄 REWRITE #{rewrite_count} — regeneruję tekst (issues: {issues_desc[:200]})"})
+                # Fix exceeded keywords by replacing with synonyms
+                fixes_applied = 0
+                if exceeded:
+                    for exc in exceeded:
+                        kw = exc.get("keyword", "")
+                        synonyms = (exc.get("use_instead") or exc.get("synonyms") or [])
+                        if synonyms and kw and kw in text:
+                            syn = synonyms[0] if isinstance(synonyms[0], str) else str(synonyms[0])
+                            text = text.replace(kw, syn, 1)
+                            fixes_applied += 1
+                            yield emit("log", {"msg": f"🔧 Zamiana: '{kw}' → '{syn}'"})
 
-                    # Regeneracja: dodaj issues jako kontekst do generatora
-                    rewrite_context = pre_batch.copy() if isinstance(pre_batch, dict) else {}
-                    rewrite_issues = {
-                        "rewrite_reason": action,
-                        "issues_to_fix": issues_desc,
-                        "attempt": rewrite_count
-                    }
-                    rewrite_context["rewrite_context"] = rewrite_issues
-
-                    if batch_type == "FAQ":
-                        paa_result_rw = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
-                        paa_data_rw = paa_result_rw["data"] if paa_result_rw["ok"] else {}
-                        text = generate_faq_text(paa_data_rw, rewrite_context)
-                    else:
-                        text = generate_batch_text(
-                            rewrite_context, current_h2, batch_type,
-                            rewrite_context.get("article_memory")
-                        )
-                    word_count = len(text.split())
-                    yield emit("log", {"msg": f"Rewrite: wygenerowano {word_count} słów"})
-                    continue
-
-                elif action in ("FIX_AND_RETRY", "REWRITE"):
-                    # FIX_AND_RETRY: napraw exceeded keywords za pomocą synonimów
-                    # (REWRITE po wyczerpaniu limitu rewrites też trafia tutaj)
-                    fix_retry_count += 1
-                    fixes_applied = 0
-
-                    # 1. Napraw exceeded keywords (zamiana na synonimy)
-                    # FIX: Filtruj absurdalne synonimy
-                    _BAD_SYNONYMS = {
-                        'dzierżawić', 'przysposobić', 'zakład przeprowadzeniowy',
-                        'pozyskiwać', 'niegdyś', 'iżby', 'albowiem', 'atoli',
-                        'aczkolwiek', 'wszelako', 'mianowicie', 'jednakowoż',
-                    }
-                    if exceeded:
-                        for exc in exceeded:
-                            kw = exc.get("keyword", "")
-                            synonyms = (exc.get("use_instead") or exc.get("synonyms") or [])
-                            # Filter to reasonable synonyms only
-                            good_syns = [
-                                s for s in synonyms 
-                                if isinstance(s, str) and s.lower() not in _BAD_SYNONYMS
-                                and len(s) < len(kw) * 3  # not absurdly long
-                                and not any(c in s for c in '{}[]();')  # no code
-                            ]
-                            if good_syns and kw and kw in text:
-                                syn = good_syns[0]
-                                text = text.replace(kw, syn, 1)
-                                fixes_applied += 1
-                                yield emit("log", {"msg": f"🔧 Zamiana: '{kw}' → '{syn}'"})
-                            elif kw and kw in text and synonyms:
-                                yield emit("log", {"msg": f"⚠️ Pominięto złą zamianę: '{kw}' → '{synonyms[0]}'"})
-                                fixes_applied += 1  # Count as handled to avoid infinite loop
-
-                    # 2. Loguj issues[] z MoE (nawet jeśli nie exceeded)
-                    if issues and not exceeded:
-                        for iss in issues[:3]:
-                            desc = iss.get("description", str(iss)) if isinstance(iss, dict) else str(iss)
-                            yield emit("log", {"msg": f"📋 Issue: {desc[:150]}"})
-
-                    yield emit("log", {"msg": f"🔄 FIX_AND_RETRY #{fix_retry_count} — naprawiono {fixes_applied} fraz"})
-                    continue
-
-                else:
-                    # Nieznana akcja — break
-                    yield emit("log", {"msg": f"⚠️ Nieznana akcja: {action} — kontynuuję"})
-                    break
+                yield emit("log", {"msg": f"🔄 Retry — naprawiono {fixes_applied} fraz, próba {attempt + 2}/{max_attempts}"})
 
             # Save FAQ if applicable
             if batch_type == "FAQ" and batch_accepted:
                 yield emit("log", {"msg": "Zapisuję FAQ/PAA (Schema.org)..."})
-                questions = _extract_faq_questions(text)
+                questions = []
+                lines = text.split("\n")
+                current_q, current_a = None, []
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.startswith("h3:") or stripped.startswith("### "):
+                        if current_q and current_a:
+                            questions.append({"question": current_q, "answer": " ".join(current_a)})
+                        current_q = stripped.replace("h3:", "").replace("###", "").strip()
+                        current_a = []
+                    elif current_q and stripped:
+                        current_a.append(stripped)
+                if current_q and current_a:
+                    questions.append({"question": current_q, "answer": " ".join(current_a)})
                 if questions:
                     brajen_call("post", f"/api/project/{project_id}/paa/save", {"questions": questions})
-                    job["faq_saved"] = True
 
             yield emit("step", {"step": 6, "name": "Batch Loop", "status": "running",
                                 "detail": f"{batch_num}/{total_batches} batchy"})
-            # 🧹 Free batch memory after each iteration
-            gc.collect()
 
         yield emit("step", {"step": 6, "name": "Batch Loop", "status": "done",
                             "detail": f"{total_batches}/{total_batches} batchy"})
 
         # ─── KROK 7: PAA Check ───
-        # FIX: Sprawdź czy FAQ nie zostało już zapisane w KROK 6 (batch loop)
         yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "running"})
-
-        if job.get("faq_saved"):
-            yield emit("log", {"msg": "FAQ zapisane w batch loop — pomijam duplikację"})
-            yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done",
-                                "detail": "FAQ zapisane w KROK 6"})
+        paa_check = brajen_call("get", f"/api/project/{project_id}/paa")
+        if not paa_check["ok"] or not (paa_check.get("data") or {}).get("paa_section"):
+            yield emit("log", {"msg": "Brak FAQ — analizuję PAA i generuję..."})
+            paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
+            if paa_analyze["ok"]:
+                faq_text = generate_faq_text(paa_analyze["data"])
+                brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
+                # Extract and save
+                questions = []
+                lines = faq_text.split("\n")
+                cq, ca = None, []
+                for line in lines:
+                    s = line.strip()
+                    if s.startswith("h3:") or s.startswith("### "):
+                        if cq and ca:
+                            questions.append({"question": cq, "answer": " ".join(ca)})
+                        cq = s.replace("h3:", "").replace("###", "").strip()
+                        ca = []
+                    elif cq and s:
+                        ca.append(s)
+                if cq and ca:
+                    questions.append({"question": cq, "answer": " ".join(ca)})
+                if questions:
+                    brajen_call("post", f"/api/project/{project_id}/paa/save", {"questions": questions})
+            yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done"})
         else:
-            paa_check = brajen_call("get", f"/api/project/{project_id}/paa")
-            if not paa_check["ok"] or not (paa_check.get("data") or {}).get("paa_section"):
-                yield emit("log", {"msg": "Brak FAQ — analizuję PAA i generuję..."})
-                paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
-                if paa_analyze["ok"]:
-                    faq_text = generate_faq_text(paa_analyze["data"])
-                    brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
-                    questions = _extract_faq_questions(faq_text)
-                    if questions:
-                        brajen_call("post", f"/api/project/{project_id}/paa/save", {"questions": questions})
-                yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done"})
-            else:
-                yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done",
-                                    "detail": "FAQ już zapisane"})
+            yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done",
+                                "detail": "FAQ już zapisane"})
 
         # ─── KROK 8: Final Review ───
         yield emit("step", {"step": 8, "name": "Final Review", "status": "running"})
@@ -1555,43 +1183,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("step", {"step": 9, "name": "Editorial Review", "status": "warning",
                                 "detail": "Nie udało się — artykuł bez recenzji"})
 
-        # ─── S1 COMPLIANCE CHECK (after editorial, before export) ───
-        yield emit("log", {"msg": "📊 Sprawdzam spełnienie elementów S1 w artykule..."})
-        try:
-            full_art_check = brajen_call("get", f"/api/project/{project_id}/full_article")
-            article_text_for_compliance = ""
-            if full_art_check["ok"]:
-                article_text_for_compliance = full_art_check["data"].get("full_article", "")
-
-            ed_data_for_compliance = editorial_result["data"] if editorial_result.get("ok") else {}
-            compliance = _build_s1_compliance(s1_for_compliance, article_text_for_compliance, ed_data_for_compliance)
-            if compliance:
-                yield emit("s1_compliance", compliance)
-                summ = compliance.get("summary", {})
-                yield emit("log", {"msg": f"S1 Compliance: Encje {summ.get('entities','?')} | Must {summ.get('entities_must','?')} | Triplets {summ.get('causal_triplets','?')} | Gaps {summ.get('content_gaps','?')} | N-gramy {summ.get('ngrams','?')} | PAA {summ.get('paa','?')} | Semantic {summ.get('semantic_keyphrases','?')}"})
-        except Exception as e:
-            yield emit("log", {"msg": f"⚠️ S1 compliance check error: {str(e)[:200]}"})
-
         # ─── KROK 10: Export ───
         yield emit("step", {"step": 10, "name": "Export", "status": "running"})
-
-        # FIX: Sprawdź gotowość przed eksportem (dokumentacja: GET /export_status)
-        export_status = brajen_call("get", f"/api/project/{project_id}/export_status")
-        if export_status["ok"]:
-            es_data = export_status["data"]
-            # API zwraca: has_content, word_count, editorial_review.done — NIE "ready"
-            has_content = es_data.get("has_content", False)
-            editorial_done = (es_data.get("editorial_review") or {}).get("done", False)
-            word_count_export = es_data.get("word_count", 0)
-
-            yield emit("log", {"msg": f"Export status: content={has_content}, editorial={editorial_done}, words={word_count_export}"})
-
-            if not has_content:
-                yield emit("log", {"msg": "⚠️ Export: brak treści — czekam 5s i ponawiam..."})
-                time.sleep(5)
-                export_status = brajen_call("get", f"/api/project/{project_id}/export_status")
-        else:
-            yield emit("log", {"msg": "Export status endpoint niedostępny — kontynuuję eksport"})
 
         # Get full article
         full_result = brajen_call("get", f"/api/project/{project_id}/full_article")
@@ -1613,6 +1206,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         export_result = brajen_call("get", f"/api/project/{project_id}/export/html")
         if export_result["ok"]:
             if export_result.get("binary"):
+                # Save binary export
                 export_path = f"/tmp/brajen_export_{project_id}.html"
                 with open(export_path, "wb") as f:
                     f.write(export_result["content"])
@@ -1623,7 +1217,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 with open(export_path, "w", encoding="utf-8") as f:
                     f.write(content)
                 job["export_html"] = export_path
-        del export_result  # Free binary content from memory
 
         # Export DOCX
         export_docx = brajen_call("get", f"/api/project/{project_id}/export/docx")
@@ -1632,13 +1225,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             with open(export_path, "wb") as f:
                 f.write(export_docx["content"])
             job["export_docx"] = export_path
-        del export_docx  # Free binary content from memory
 
         yield emit("step", {"step": 10, "name": "Export", "status": "done",
                             "detail": "HTML + DOCX gotowe"})
 
         # ─── DONE ───
-        job["status"] = "done"
         yield emit("done", {
             "project_id": project_id,
             "word_count": stats.get("word_count", 0) if full_result["ok"] else 0,
@@ -1647,16 +1238,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "docx": bool(job.get("export_docx"))
             }
         })
-        # Free large data from memory — keep only export paths
-        for k in ("basic_terms", "extended_terms", "h2_structure"):
-            job.pop(k, None)
-        gc.collect()
 
     except Exception as e:
         logger.exception(f"Workflow error: {e}")
-        job["status"] = "error"
         yield emit("workflow_error", {"step": 0, "msg": f"Unexpected error: {str(e)}"})
-        gc.collect()
+
 
 # ============================================================
 # ROUTES
@@ -1671,17 +1257,6 @@ def index():
 @login_required
 def start_workflow():
     """Start workflow and return job_id."""
-    global _active_workflow_count
-    
-    # Cleanup old jobs to free memory
-    _cleanup_old_jobs()
-    
-    # Concurrency limit — prevent OOM from parallel workflows
-    with _jobs_lock:
-        running = sum(1 for j in active_jobs.values() if j.get("status") == "running")
-        if running >= MAX_CONCURRENT_WORKFLOWS:
-            return jsonify({"error": f"⚠️ Już działa {running} workflow — poczekaj na zakończenie"}), 429
-    
     data = request.json
 
     main_keyword = data.get("main_keyword", "").strip()
@@ -1753,32 +1328,14 @@ def stream_workflow(job_id):
     def generate_with_terms():
         bt = json.loads(basic_terms) if basic_terms else (data.get("basic_terms") or [])
         et = json.loads(extended_terms) if extended_terms else (data.get("extended_terms") or [])
-        
-        # FIX: Prevent workflow restart on SSE reconnect
-        if data.get("_workflow_started"):
-            yield f"event: log\ndata: {json.dumps({'msg': '⚠️ SSE reconnect — workflow już działa, zamykam duplikat'}, ensure_ascii=False)}\n\n"
-            yield f"event: workflow_error\ndata: {json.dumps({'step': 0, 'msg': 'SSE reconnected but workflow already running. Check logs for progress.'})}\n\n"
-            return
-        data["_workflow_started"] = True
-        
-        try:
-            yield from run_workflow_sse(
-                job_id=job_id,
-                main_keyword=data["main_keyword"],
-                mode=data["mode"],
-                h2_structure=data["h2_structure"],
-                basic_terms=bt,
-                extended_terms=et
-            )
-        finally:
-            # Memory cleanup after workflow ends (success or error)
-            data["_workflow_started"] = False
-            data["status"] = "done"
-            # Remove large data from job dict to free memory
-            for key in ["basic_terms", "extended_terms", "h2_structure"]:
-                data.pop(key, None)
-            gc.collect()
-            logger.info(f"🧹 Workflow {job_id} finished — memory released")
+        yield from run_workflow_sse(
+            job_id=job_id,
+            main_keyword=data["main_keyword"],
+            mode=data["mode"],
+            h2_structure=data["h2_structure"],
+            basic_terms=bt,
+            extended_terms=et
+        )
 
     return Response(
         stream_with_context(stream_with_keepalive(generate_with_terms, keepalive_interval=15)),
@@ -1816,17 +1373,8 @@ def download_export(job_id, fmt):
 
 @app.route("/api/health")
 def health():
-    """Health check with memory info."""
-    import resource
-    mem_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024  # KB→MB on Linux
-    running = sum(1 for j in active_jobs.values() if j.get("status") == "running")
-    return jsonify({
-        "status": "ok",
-        "version": "45.2.3",
-        "memory_mb": round(mem_mb, 1),
-        "active_jobs": len(active_jobs),
-        "running_workflows": running
-    })
+    """Health check."""
+    return jsonify({"status": "ok", "version": "45.2.2"})
 
 
 # ============================================================
