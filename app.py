@@ -1071,7 +1071,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "s1_data": s1,
             "target_length": recommended_length,
             "source": "brajen-webapp",
-            "compact": False  # Webapp nie ma limitu tokenów jak GPT — chcemy pełne dane
+            "compact": False,  # Webapp nie ma limitu tokenów jak GPT — chcemy pełne dane
+            # YMYL data from KROK 2
+            "is_legal": is_legal,
+            "is_medical": is_medical,
+            "is_ymyl": is_legal or is_medical,
+            "legal_instruction": (legal_context or {}).get("instruction", "") if legal_context else "",
+            "medical_instruction": (medical_context or {}).get("instruction", "") if medical_context else "",
         }
 
         create_result = brajen_call("post", "/api/project/create", project_payload)
@@ -1090,12 +1096,21 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # Store project_id in job
         job["project_id"] = project_id
         
-        # 🧹 Free S1 data — no longer needed after project creation
+        # 🧹 Free S1 data — keep ONLY what _build_s1_compliance needs
+        # BUG FIX: s1=None broke S1 compliance panel (always empty)
+        s1_for_compliance = {
+            "entity_seo": s1.get("entity_seo") or {},
+            "causal_triplets": s1.get("causal_triplets") or {},
+            "content_gaps": s1.get("content_gaps") or {},
+            "ngrams": (s1.get("ngrams") or s1.get("hybrid_ngrams") or [])[:20],
+            "paa": (s1.get("paa") or s1.get("paa_questions") or [])[:15],
+            "semantic_keyphrases": (s1.get("semantic_keyphrases") or [])[:15],
+        }
         del s1_result, entity_seo_full, causal_full, content_gaps_full, length_analysis, serp_analysis, sem_hints
-        project_payload = None  # Release reference to s1 data
+        project_payload = None
         s1 = None
         gc.collect()
-        logger.info(f"🧹 S1 data freed after project {project_id} creation")
+        logger.info(f"🧹 S1 data freed (compliance snapshot kept) after project {project_id} creation")
 
         # ─── KROK 5: Phrase Hierarchy ───
         yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "running"})
@@ -1549,7 +1564,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 article_text_for_compliance = full_art_check["data"].get("full_article", "")
 
             ed_data_for_compliance = editorial_result["data"] if editorial_result.get("ok") else {}
-            compliance = _build_s1_compliance(s1, article_text_for_compliance, ed_data_for_compliance)
+            compliance = _build_s1_compliance(s1_for_compliance, article_text_for_compliance, ed_data_for_compliance)
             if compliance:
                 yield emit("s1_compliance", compliance)
                 summ = compliance.get("summary", {})
