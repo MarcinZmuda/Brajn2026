@@ -80,6 +80,7 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
         lambda: _fmt_smart_instructions(pre_batch),
         lambda: _fmt_keywords(pre_batch),
         lambda: _fmt_semantic_plan(pre_batch, h2),
+        lambda: _fmt_entity_salience(pre_batch),
         lambda: _fmt_entities(pre_batch),
         lambda: _fmt_ngrams(pre_batch),
         lambda: _fmt_serp_enrichment(pre_batch),
@@ -90,6 +91,7 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
         lambda: _fmt_legal_medical(pre_batch),
         lambda: _fmt_experience_markers(pre_batch),
         lambda: _fmt_causal_context(pre_batch),
+        lambda: _fmt_phrase_hierarchy(pre_batch),
         lambda: _fmt_h2_remaining(pre_batch),
         lambda: _fmt_output_format(h2, batch_type),
     ]
@@ -333,6 +335,23 @@ def _fmt_semantic_plan(pre_batch, h2):
         parts.append(f'Kierunek treści: {direction}')
 
     return "\n".join(parts) if len(parts) > 1 else ""
+
+
+def _fmt_entity_salience(pre_batch):
+    """Entity salience instructions — grammatical positioning, hierarchy.
+    
+    Based on:
+    - Patent US10235423B2 (entity metrics)
+    - Patent US9251473B2 (salient items in documents)
+    - Dunietz & Gillick (2014) entity salience research
+    - Google Cloud NLP API salience scoring
+    
+    Data source: pre_batch["_entity_salience_instructions"] injected by app.py
+    """
+    instructions = pre_batch.get("_entity_salience_instructions", "")
+    if instructions:
+        return instructions
+    return ""
 
 
 def _fmt_entities(pre_batch):
@@ -716,6 +735,81 @@ def _fmt_causal_context(pre_batch):
         parts.append(f'{info_gain[:500]}')
 
     return "\n".join(parts) if parts else ""
+
+
+def _fmt_phrase_hierarchy(pre_batch):
+    """Format phrase hierarchy: roots, extensions, strategy.
+    
+    Data sources (checked in order):
+    1. pre_batch["enhanced"]["phrase_hierarchy"] — from enhanced_pre_batch.py
+    2. pre_batch["_phrase_hierarchy"] — injected by app.py from /phrase_hierarchy endpoint
+    """
+    hier = (pre_batch.get("enhanced") or {}).get("phrase_hierarchy") or pre_batch.get("_phrase_hierarchy") or {}
+    if not hier:
+        return ""
+
+    parts = ["═══ HIERARCHIA FRAZ ═══"]
+
+    strategies = hier.get("strategies") or {}
+
+    # 1. Extensions sufficient — don't repeat root standalone
+    ext_suff = strategies.get("extensions_sufficient") or {}
+    ext_roots = ext_suff.get("roots") or []
+    if ext_roots:
+        parts.append("RDZENIE POKRYTE ROZSZERZENIAMI (NIE powtarzaj samodzielnie!):")
+        for root_info in ext_roots[:8]:
+            if isinstance(root_info, dict):
+                root = root_info.get("root", root_info.get("keyword", ""))
+                extensions = root_info.get("extensions", [])
+                ext_list = ", ".join(f'"{e}"' if isinstance(e, str) else f'"{e.get("keyword", "")}"' for e in extensions[:5])
+                parts.append(f'  • "{root}" → używaj rozszerzeń: {ext_list}')
+            elif isinstance(root_info, str):
+                parts.append(f'  • "{root_info}" → używaj rozszerzeń zamiast rdzenia')
+
+    # 2. Mixed — some standalone + extensions
+    mixed = strategies.get("mixed") or {}
+    mixed_roots = mixed.get("roots") or []
+    if mixed_roots:
+        parts.append("RDZENIE MIESZANE (kilka samodzielnych użyć + rozszerzenia):")
+        for root_info in mixed_roots[:8]:
+            if isinstance(root_info, dict):
+                root = root_info.get("root", root_info.get("keyword", ""))
+                standalone = root_info.get("standalone_uses", "1-2")
+                extensions = root_info.get("extensions", [])
+                ext_list = ", ".join(f'"{e}"' if isinstance(e, str) else f'"{e.get("keyword", "")}"' for e in extensions[:5])
+                parts.append(f'  • "{root}" → {standalone}× samodzielnie + rozszerzenia: {ext_list}')
+            elif isinstance(root_info, str):
+                parts.append(f'  • "{root_info}" → kilka samodzielnie + rozszerzenia')
+
+    # 3. Need standalone — extensions insufficient
+    standalone = strategies.get("need_standalone") or {}
+    standalone_roots = standalone.get("roots") or []
+    if standalone_roots:
+        parts.append("RDZENIE WYMAGAJĄCE SAMODZIELNYCH UŻYĆ:")
+        for root_info in standalone_roots[:8]:
+            if isinstance(root_info, dict):
+                root = root_info.get("root", root_info.get("keyword", ""))
+                target = root_info.get("remaining", root_info.get("target", "?"))
+                parts.append(f'  • "{root}" → użyj samodzielnie jeszcze ~{target}×')
+            elif isinstance(root_info, str):
+                parts.append(f'  • "{root_info}" → użyj samodzielnie')
+
+    # 4. Entity phrases (if available)
+    entity_phrases = hier.get("entity_phrases") or []
+    if entity_phrases:
+        ep_list = ", ".join(f'"{e}"' if isinstance(e, str) else f'"{e.get("keyword", "")}"' for e in entity_phrases[:6])
+        parts.append(f"FRAZY ENCYJNE (wpleć naturalnie): {ep_list}")
+
+    # 5. Triplet phrases (if available)
+    triplet_phrases = hier.get("triplet_phrases") or []
+    if triplet_phrases:
+        tp_list = ", ".join(f'"{t}"' if isinstance(t, str) else f'"{t.get("keyword", "")}"' for t in triplet_phrases[:6])
+        parts.append(f"FRAZY TRIPLETOWE (relacje do wplecenia): {tp_list}")
+
+    if len(parts) <= 1:
+        return ""
+
+    return "\n".join(parts)
 
 
 def _fmt_h2_remaining(pre_batch):

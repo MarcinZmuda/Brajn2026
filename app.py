@@ -49,6 +49,16 @@ from ai_middleware import (
     synthesize_article_memory,
     ai_synthesize_memory
 )
+from keyword_dedup import deduplicate_keywords
+from entity_salience import (
+    check_entity_salience,
+    generate_article_schema,
+    schema_to_html,
+    generate_topical_map,
+    build_entity_salience_instructions,
+    is_salience_available,
+    analyze_entities_google_nlp,
+)
 
 # ================================================================
 # 🗑️ CSS/JS GARBAGE FILTER — czyści śmieci z S1 danych
@@ -178,7 +188,7 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 
 REQUEST_TIMEOUT = 120
-EDITORIAL_TIMEOUT = 300  # Editorial review needs more time
+HEAVY_REQUEST_TIMEOUT = 360  # For editorial_review, final_review, full_article (6 min)
 MAX_RETRIES = 3
 RETRY_DELAYS = [5, 15, 30]
 
@@ -576,6 +586,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "competitive_summary": s1.get("_competitive_summary", "")
         })
 
+        # ═══ ENTITY SALIENCE: Build instructions from S1 entities ═══
+        s1_must_mention = clean_must_mention + (ai_entities[:3] if ai_entities else [])
+        entity_salience_instructions = build_entity_salience_instructions(
+            main_keyword=main_keyword,
+            entities_from_s1=s1_must_mention
+        )
+        if is_salience_available():
+            yield emit("log", {"msg": "🔬 Entity Salience: Google NLP API aktywne — walidacja po zakończeniu artykułu"})
+        else:
+            yield emit("log", {"msg": "ℹ️ Entity Salience: instrukcje pozycjonowania encji aktywne (brak API key dla walidacji)"})
+
         # ─── KROK 2: YMYL Detection ───
         yield emit("step", {"step": 2, "name": "YMYL Detection", "status": "running"})
 
@@ -674,6 +695,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         pass
             keywords.append({"keyword": kw, "type": "EXTENDED", "target_min": tmin, "target_max": tmax})
 
+        # ═══ Keyword deduplication (word-boundary safe) ═══
+        pre_dedup_count = len(keywords)
+        keywords = deduplicate_keywords(keywords, main_keyword)
+        if len(keywords) < pre_dedup_count:
+            yield emit("log", {"msg": f"🧹 Dedup: {pre_dedup_count} → {len(keywords)} keywords (usunięto {pre_dedup_count - len(keywords)} duplikatów)"})
+
         yield emit("log", {"msg": f"Keywords: {len(keywords)} ({sum(1 for k in keywords if k['type']=='BASIC')} BASIC, {sum(1 for k in keywords if k['type']=='EXTENDED')} EXTENDED)"})
 
         # Filter entity_seo before sending to project (remove CSS garbage)
@@ -725,8 +752,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # ─── KROK 5: Phrase Hierarchy ───
         yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "running"})
         hier_result = brajen_call("get", f"/api/project/{project_id}/phrase_hierarchy")
+        phrase_hierarchy_data = {}
         if hier_result["ok"]:
             hier = hier_result["data"]
+            phrase_hierarchy_data = hier  # Store for injection into pre_batch
             strategy = (hier.get("strategies") or {})
             yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "done",
                                 "detail": json.dumps(strategy, ensure_ascii=False)[:200]})
@@ -754,6 +783,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             pre_batch = pre_result["data"]
             batch_type = pre_batch.get("batch_type", "CONTENT")
+
+            # ═══ Inject phrase hierarchy data for prompt_builder ═══
+            if phrase_hierarchy_data:
+                pre_batch["_phrase_hierarchy"] = phrase_hierarchy_data
+
+            # ═══ Inject entity salience instructions for prompt_builder ═══
+            if entity_salience_instructions:
+                pre_batch["_entity_salience_instructions"] = entity_salience_instructions
 
             # Get current H2 from API (most reliable) or fallback to our plan
             h2_remaining = (pre_batch.get("h2_remaining") or [])
@@ -814,6 +851,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "has_information_gain": bool(enhanced_data.get("information_gain")),
                 "has_smart_instructions": bool(enhanced_data.get("smart_instructions")),
                 "has_phrase_hierarchy": bool(enhanced_data.get("phrase_hierarchy")),
+                "has_entity_salience": bool(entity_salience_instructions),
                 "has_continuation_v39": bool(pre_batch.get("continuation_v39"))
             })
 
@@ -972,7 +1010,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
                 if paa_analyze["ok"] and paa_analyze.get("data"):
                     # Fetch pre_batch for FAQ context (stop keywords, style, memory)
-                    faq_pre = brajen_call("get", f"/api/project/{project_id}/pre_batch_info")
+                    faq_pre = brajen_call("get", f"/api/project/{project_id}/pre_batch_info", timeout=HEAVY_REQUEST_TIMEOUT)
                     faq_pre_batch = faq_pre["data"] if faq_pre.get("ok") else None
                     faq_text = generate_faq_text(paa_analyze["data"], faq_pre_batch)
                     if faq_text and faq_text.strip():
@@ -1011,7 +1049,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # ─── KROK 8: Final Review ───
         yield emit("step", {"step": 8, "name": "Final Review", "status": "running"})
         yield emit("log", {"msg": "GET /final_review..."})
-        final_result = brajen_call("get", f"/api/project/{project_id}/final_review")
+        final_result = brajen_call("get", f"/api/project/{project_id}/final_review", timeout=HEAVY_REQUEST_TIMEOUT)
         if final_result["ok"]:
             final = final_result["data"]
             final_score = final.get("quality_score", final.get("score", "?"))
@@ -1025,7 +1063,21 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "missing_keywords_count": len(missing_kw) if isinstance(missing_kw, list) else 0,
                 "missing_keywords": missing_kw[:10] if isinstance(missing_kw, list) else [],
                 "issues_count": len(issues) if isinstance(issues, list) else 0,
-                "issues": issues[:5] if isinstance(issues, list) else []
+                "issues": issues[:5] if isinstance(issues, list) else [],
+                # P5: Quality breakdown
+                "quality_breakdown": {
+                    "keywords": final.get("keyword_score", final.get("keywords_score")),
+                    "humanness": final.get("humanness_score", final.get("ai_score")),
+                    "grammar": final.get("grammar_score"),
+                    "structure": final.get("structure_score"),
+                    "semantic": final.get("semantic_score"),
+                    "depth": final.get("depth_score"),
+                    "coherence": final.get("coherence_score"),
+                },
+                "density": final.get("density") or final.get("keyword_density"),
+                "word_count": final.get("word_count") or final.get("total_words"),
+                "basic_coverage": final.get("basic_coverage"),
+                "extended_coverage": final.get("extended_coverage"),
             })
 
             yield emit("step", {"step": 8, "name": "Final Review", "status": "done",
@@ -1052,7 +1104,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 9, "name": "Editorial Review", "status": "running"})
         yield emit("log", {"msg": "POST /editorial_review — to może chwilę potrwać..."})
 
-        editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review")
+        editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review", timeout=HEAVY_REQUEST_TIMEOUT)
         if editorial_result["ok"]:
             ed = editorial_result["data"]
             score = ed.get("overall_score", "?")
@@ -1087,7 +1139,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 10, "name": "Export", "status": "running"})
 
         # Get full article
-        full_result = brajen_call("get", f"/api/project/{project_id}/full_article")
+        full_result = brajen_call("get", f"/api/project/{project_id}/full_article", timeout=HEAVY_REQUEST_TIMEOUT)
         if full_result["ok"]:
             full = full_result["data"]
             stats = (full.get("stats") or {})
@@ -1101,6 +1153,98 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "coverage": coverage,
                 "density": (full.get("density") or {})
             })
+
+            # ═══ ENTITY SALIENCE: Google NLP API validation ═══
+            full_text = full.get("full_article", "")
+            salience_result = {}
+            nlp_entities = []
+            
+            if full_text and is_salience_available():
+                yield emit("log", {"msg": "🔬 Entity Salience: analiza artykułu przez Google NLP API..."})
+                try:
+                    salience_result = check_entity_salience(full_text, main_keyword)
+                    nlp_entities = salience_result.get("entities", [])
+                    
+                    main_sal = salience_result.get("main_salience", 0)
+                    is_dominant = salience_result.get("is_main_dominant", False)
+                    sal_score = salience_result.get("score", 0)
+                    top_ent = salience_result.get("top_entity") or {}
+                    
+                    top_name = top_ent.get("name", "?")
+                    top_sal = top_ent.get("salience", 0)
+                    dom_str = "DOMINUJE" if is_dominant else f"Dominuje: {top_name} ({top_sal:.2f})"
+                    yield emit("log", {"msg": f"Salience: {main_keyword} = {main_sal:.2f} | {dom_str} | Score: {sal_score}/100"})
+                    
+                    yield emit("entity_salience", {
+                        "enabled": True,
+                        "score": sal_score,
+                        "main_keyword": main_keyword,
+                        "main_salience": round(main_sal, 4),
+                        "is_dominant": is_dominant,
+                        "top_entity": {
+                            "name": top_ent.get("name", ""),
+                            "salience": round(top_ent.get("salience", 0), 4),
+                            "type": top_ent.get("type", ""),
+                        } if top_ent else None,
+                        "entities": [
+                            {"name": e["name"], "salience": round(e["salience"], 4), 
+                             "type": e["type"], "has_wikipedia": bool(e.get("wikipedia_url")),
+                             "has_kg": bool(e.get("mid"))}
+                            for e in nlp_entities[:12]
+                        ],
+                        "issues": salience_result.get("issues", []),
+                        "recommendations": salience_result.get("recommendations", []),
+                    })
+                except Exception as sal_err:
+                    logger.warning(f"Entity salience check failed: {sal_err}")
+                    yield emit("log", {"msg": f"⚠️ Salience check error: {str(sal_err)[:80]}"})
+            elif full_text:
+                yield emit("entity_salience", {
+                    "enabled": False,
+                    "score": None,
+                    "message": "Ustaw GOOGLE_NLP_API_KEY aby włączyć walidację salience",
+                })
+
+            # ═══ SCHEMA.ORG JSON-LD: Generate from real NLP entities ═══
+            try:
+                article_schema = generate_article_schema(
+                    main_keyword=main_keyword,
+                    entities=nlp_entities,
+                    date_published=datetime.now().strftime("%Y-%m-%d"),
+                    date_modified=datetime.now().strftime("%Y-%m-%d"),
+                    h2_list=h2_structure,
+                )
+                schema_html = schema_to_html(article_schema)
+                
+                yield emit("schema_org", {
+                    "json_ld": article_schema,
+                    "html": schema_html,
+                    "entity_count": len(nlp_entities),
+                    "has_main_entity": bool(article_schema.get("@graph", [{}])[0].get("about")),
+                    "mentions_count": len(article_schema.get("@graph", [{}])[0].get("mentions", [])),
+                })
+                yield emit("log", {"msg": f"📋 Schema.org: Article + {len(article_schema.get('@graph', [{}])[0].get('mentions', []))} mentions generated"})
+            except Exception as schema_err:
+                logger.warning(f"Schema generation error: {schema_err}")
+
+            # ═══ TOPICAL MAP: Entity-based content architecture ═══
+            try:
+                topical_map = generate_topical_map(
+                    main_keyword=main_keyword,
+                    s1_data=s1,
+                    nlp_entities=nlp_entities,
+                )
+                clusters = topical_map.get("clusters", [])
+                if clusters:
+                    yield emit("topical_map", {
+                        "pillar": topical_map["pillar"],
+                        "clusters": clusters[:12],
+                        "internal_links": topical_map.get("internal_links", [])[:20],
+                        "total_clusters": len(clusters),
+                    })
+                    yield emit("log", {"msg": f"🗺️ Topical Map: {len(clusters)} klastrów treści wokół \"{main_keyword}\""})
+            except Exception as tm_err:
+                logger.warning(f"Topical map error: {tm_err}")
 
         # Export HTML
         export_result = brajen_call("get", f"/api/project/{project_id}/export/html")
