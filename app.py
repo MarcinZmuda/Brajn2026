@@ -998,15 +998,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 pre_batch["_entity_salience_instructions"] = entity_salience_instructions
 
             # ═══ v47.0: Inject backend entity placement data for prompt_builder ═══
-            backend_placement = s1.get("entity_placement", {}).get("placement_instruction", "")
+            backend_placement = (s1.get("entity_placement") or
+                (s1.get("entity_seo") or {}).get("entity_placement") or {}).get("placement_instruction", "")
             if backend_placement:
                 pre_batch["_backend_placement_instruction"] = backend_placement
-                pre_batch["_cooccurrence_pairs"] = (s1.get("entity_seo", {})
-                    .get("entity_cooccurrence", []))[:5]
-                pre_batch["_first_paragraph_entities"] = (s1.get("entity_placement", {})
-                    .get("first_paragraph_entities", []))
-                pre_batch["_h2_entities"] = (s1.get("entity_placement", {})
-                    .get("h2_entities", []))
+                pre_batch["_cooccurrence_pairs"] = ((s1.get("entity_seo") or {})
+                    .get("entity_cooccurrence") or s1.get("entity_cooccurrence") or [])[:5]
+                pre_batch["_first_paragraph_entities"] = ((s1.get("entity_placement") or
+                    (s1.get("entity_seo") or {}).get("entity_placement") or {})
+                    .get("first_paragraph_entities") or [])
+                pre_batch["_h2_entities"] = ((s1.get("entity_placement") or
+                    (s1.get("entity_seo") or {}).get("entity_placement") or {})
+                    .get("h2_entities") or [])
 
             # Get current H2 from API (most reliable) or fallback to our plan
             h2_remaining = (pre_batch.get("h2_remaining") or [])
