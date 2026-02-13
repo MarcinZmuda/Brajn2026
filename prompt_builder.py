@@ -197,20 +197,28 @@ def _fmt_intro_guidance(pre_batch, batch_type):
     if batch_type not in ("INTRO", "intro"):
         return ""
     guidance = pre_batch.get("intro_guidance", "")
-    if not guidance:
-        return ""
 
-    if isinstance(guidance, dict):
-        hook = guidance.get("hook", "")
-        angle = guidance.get("angle", "")
-        parts = []
-        if hook:
-            parts.append(f"Hak otwierający: {hook}")
-        if angle:
-            parts.append(f"Kąt artykułu: {angle}")
-        return "═══ WPROWADZENIE ═══\n" + "\n".join(parts) if parts else ""
+    parts = ["═══ WPROWADZENIE (WSTĘP ARTYKUŁU) ═══",
+             "To jest PIERWSZY batch — piszesz WSTĘP artykułu.",
+             "MUSISZ:",
+             "  1. Zacząć od angażującego haka (hook) — pytanie, statystyka, scenariusz",
+             "  2. Przedstawić GŁÓWNĄ TEZĘ artykułu w 1-2 zdaniach",
+             "  3. Zapowiedzieć co czytelnik znajdzie dalej (bez listy H2!)",
+             "  4. NIE zaczynać od definicji ani od 'W dzisiejszych czasach...'",
+             "  5. Utrzymać zwięzłość — wstęp to max 150-200 słów"]
 
-    return f"═══ WPROWADZENIE ═══\n{guidance}"
+    if guidance:
+        if isinstance(guidance, dict):
+            hook = guidance.get("hook", "")
+            angle = guidance.get("angle", "")
+            if hook:
+                parts.append(f"\nHak otwierający: {hook}")
+            if angle:
+                parts.append(f"Kąt artykułu: {angle}")
+        else:
+            parts.append(f"\n{guidance}")
+
+    return "\n".join(parts)
 
 
 def _fmt_smart_instructions(pre_batch):

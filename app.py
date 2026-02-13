@@ -188,7 +188,7 @@ BRAJEN_API = os.environ.get("BRAJEN_API_URL", "https://master-seo-api.onrender.c
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-6")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1")
 
 REQUEST_TIMEOUT = 120
 HEAVY_REQUEST_TIMEOUT = 360  # For editorial_review, final_review, full_article (6 min)
@@ -459,13 +459,15 @@ def generate_faq_text(paa_data, pre_batch=None, engine="claude"):
 # ============================================================
 # WORKFLOW ORCHESTRATOR (SSE)
 # ============================================================
-def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms):
+def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None):
     """
     Full BRAJEN workflow as a generator yielding SSE events.
     Follows PROMPT_v45_2.md EXACTLY:
     KROK 1: S1 → 2: YMYL → 3: (H2 already provided) → 4: Create → 5: Hierarchy →
     6: Batch Loop → 7: PAA → 8: Final Review → 9: Editorial → 10: Export
     """
+    # Per-session model override for OpenAI
+    effective_openai_model = openai_model or OPENAI_MODEL
     def emit(event_type, data):
         """Yield SSE event."""
         return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
@@ -473,6 +475,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
     job = active_jobs.get(job_id, {})
     step_times = {}  # {step_num: {"start": time, "end": time}}
     workflow_start = time.time()
+    
+    engine_label = "OpenAI " + OPENAI_MODEL if engine == "openai" else "Claude " + ANTHROPIC_MODEL
+    yield emit("log", {"msg": f"🚀 Workflow: {main_keyword} [{mode}] [🤖 {engine_label}]"})
+    
+    if engine == "openai" and not OPENAI_API_KEY:
+        yield emit("log", {"msg": "⚠️ OPENAI_API_KEY nie ustawiony — fallback na Claude"})
+        engine = "claude"
 
     def step_start(num):
         step_times[num] = {"start": time.time()}
@@ -882,6 +891,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             pre_batch = pre_result["data"]
             batch_type = pre_batch.get("batch_type", "CONTENT")
+            
+            # ═══ BATCH 1 = INTRO: First batch must always be introduction ═══
+            if batch_num == 1 and batch_type not in ("INTRO", "intro"):
+                batch_type = "INTRO"
+                yield emit("log", {"msg": "📝 Batch 1 → wymuszony typ INTRO (wstęp artykułu)"})
 
             # ═══ Inject phrase hierarchy data for prompt_builder ═══
             if phrase_hierarchy_data:
@@ -960,13 +974,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             has_memory = bool(pre_batch.get("article_memory"))
             has_causal = bool(enhanced_data.get("causal_context"))
             has_smart = bool(enhanced_data.get("smart_instructions"))
-            yield emit("log", {"msg": f"Generuję tekst przez {ANTHROPIC_MODEL}... [instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'} causal={'✅' if has_causal else '—'} smart={'✅' if has_smart else '—'}]"})
+            yield emit("log", {"msg": f"Generuję tekst przez {'🟢 ' + OPENAI_MODEL if engine == 'openai' else '🟣 ' + ANTHROPIC_MODEL}... [instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'} causal={'✅' if has_causal else '—'} smart={'✅' if has_smart else '—'}]"})
 
             if batch_type == "FAQ":
                 # FAQ batch: first analyze PAA
                 paa_result = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
                 paa_data = paa_result["data"] if paa_result["ok"] else {}
-                text = generate_faq_text(paa_data, pre_batch)
+                text = generate_faq_text(paa_data, pre_batch, engine=engine)
             else:
                 # ═══ AI MIDDLEWARE: Article memory fallback ═══
                 article_memory = pre_batch.get("article_memory")
@@ -982,7 +996,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 
                 text = generate_batch_text(
                     pre_batch, current_h2, batch_type,
-                    article_memory
+                    article_memory, engine=engine
                 )
 
             word_count = len(text.split())
@@ -1126,7 +1140,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     # Fetch pre_batch for FAQ context (stop keywords, style, memory)
                     faq_pre = brajen_call("get", f"/api/project/{project_id}/pre_batch_info", timeout=HEAVY_REQUEST_TIMEOUT)
                     faq_pre_batch = faq_pre["data"] if faq_pre.get("ok") else None
-                    faq_text = generate_faq_text(paa_analyze["data"], faq_pre_batch)
+                    faq_text = generate_faq_text(paa_analyze["data"], faq_pre_batch, engine=engine)
                     if faq_text and faq_text.strip():
                         brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
                         # Extract and save
@@ -1605,6 +1619,25 @@ def index():
     return render_template("index.html", username=session.get("user", ""))
 
 
+@app.route("/api/engines")
+@login_required
+def get_engines():
+    """Return available AI engines and their models."""
+    return jsonify({
+        "engines": {
+            "claude": {
+                "available": bool(ANTHROPIC_API_KEY),
+                "model": ANTHROPIC_MODEL,
+            },
+            "openai": {
+                "available": bool(OPENAI_API_KEY) and OPENAI_AVAILABLE,
+                "model": OPENAI_MODEL,
+            },
+        },
+        "default": "claude",
+    })
+
+
 @app.route("/api/start", methods=["POST"])
 @login_required
 def start_workflow():
@@ -1620,6 +1653,8 @@ def start_workflow():
     basic_terms = [t.strip() for t in (data.get("basic_terms") or []) if t.strip()]
     extended_terms = [t.strip() for t in (data.get("extended_terms") or []) if t.strip()]
     custom_instructions = (data.get("custom_instructions") or "").strip()
+    engine = data.get("engine", "claude")  # "claude" or "openai"
+    openai_model_override = data.get("openai_model")  # per-session model override
 
     # H2 is now OPTIONAL — if empty, will be auto-generated from S1
 
@@ -1631,6 +1666,8 @@ def start_workflow():
     active_jobs[job_id] = {
         "main_keyword": main_keyword,
         "mode": mode,
+        "engine": engine,
+        "openai_model": openai_model_override,
         "h2_structure": h2_list,
         "basic_terms": basic_terms,
         "extended_terms": extended_terms,
@@ -1693,7 +1730,9 @@ def stream_workflow(job_id):
             mode=data["mode"],
             h2_structure=data["h2_structure"],
             basic_terms=bt,
-            extended_terms=et
+            extended_terms=et,
+            engine=data.get("engine", "claude"),
+            openai_model=data.get("openai_model")
         )
 
     return Response(

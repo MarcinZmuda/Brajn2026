@@ -56,6 +56,15 @@
         }
         .mbtn.on{border-color:var(--orange);color:var(--orange);background:var(--og)}
         .mbtn:hover:not(.on){border-color:var(--b3);background:var(--s3)}
+        .ebtn{
+            flex:1;padding:12px 8px;background:var(--s2);border:1px solid var(--b1);
+            border-radius:var(--rs);color:var(--mg);cursor:pointer;text-align:center;
+            transition:all .2s;font-family:inherit
+        }
+        .ebtn.on{border-color:#6366f1;color:#6366f1;background:rgba(99,102,241,.08)}
+        .ebtn:hover:not(.on){border-color:var(--b3);background:var(--s3)}
+        .ebtn.unavailable{opacity:.4;pointer-events:none}
+        .ebtn.unavailable small::after{content:' (brak klucza)';color:var(--mg)}
         .mbtn strong{display:block;font-size:13px;font-weight:600;margin-bottom:2px}
         .mbtn small{font-size:10px;color:var(--mg)}
         .btn-go{
@@ -288,6 +297,20 @@
             <div class="mbtn on" data-mode="standard" onclick="selMode('standard')"><strong>Standard</strong><small>6–9 batchy</small></div>
             <div class="mbtn" data-mode="fast" onclick="selMode('fast')"><strong>Fast</strong><small>3 batche</small></div>
         </div>
+        <div class="lbl">Model AI</div>
+        <div class="modes" id="engineModes">
+            <div class="ebtn" data-engine="claude" onclick="selEngine('claude')"><strong>Claude</strong><small id="claudeModel">Opus 4.6</small></div>
+            <div class="ebtn on" data-engine="openai" onclick="selEngine('openai')"><strong>GPT</strong><small id="gptModel">GPT-4.1</small></div>
+        </div>
+        <div id="modelPicker" style="display:none;margin-top:4px">
+            <select id="openaiModelSel" style="width:100%;padding:6px 8px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);color:var(--fg);font-size:12px;font-family:inherit" onchange="selOpenaiModel(this.value)">
+                <option value="gpt-4.1" selected>GPT-4.1 — najlepszy instruction following + pisanie</option>
+                <option value="gpt-5.1">GPT-5.1 — top creative writing (EQ-Bench #1)</option>
+                <option value="gpt-5.2">GPT-5.2 — flagship, najnowszy (reasoning)</option>
+                <option value="gpt-4.1-mini">GPT-4.1 Mini — szybszy, tańszy</option>
+            </select>
+            <div class="hint" style="margin-top:2px">Zmienia model na jedną sesję. Env var OPENAI_MODEL = domyślny.</div>
+        </div>
         <div class="lbl">Nagłówki H2 <span style="opacity:.4;font-weight:400">opcjonalne</span></div>
         <textarea id="h2Structure" rows="4" placeholder="Puste = auto z S1&#10;Lub wpisz wskazówki"></textarea>
         <div class="hint">Puste → system sam wygeneruje z analizy konkurencji.</div>
@@ -352,13 +375,22 @@
 <script>
 (function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Final Review','Editorial','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
-let mode='standard',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null;
+let mode='standard',engine='openai',openaiModel='gpt-4.1',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null;
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
 // XSS sanitization for SSE data
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
 function selMode(m){mode=m;document.querySelectorAll('.mbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===m))}
+function selEngine(e){engine=e;document.querySelectorAll('.ebtn').forEach(b=>b.classList.toggle('on',b.dataset.engine===e));document.getElementById('modelPicker').style.display=e==='openai'?'':'none'}
+function selOpenaiModel(m){openaiModel=m;document.getElementById('gptModel').textContent=m.toUpperCase()}
+// Check available engines on load
+(async function(){try{const r=await fetch('/api/engines');if(r.ok){const d=await r.json();const eng=d.engines||{};
+if(eng.claude&&eng.claude.model)document.getElementById('claudeModel').textContent=eng.claude.model.replace('claude-','').replace(/-\d{8}/,'');
+if(eng.openai&&eng.openai.model)document.getElementById('gptModel').textContent=eng.openai.model;
+if(eng.openai&&!eng.openai.available){document.querySelector('.ebtn[data-engine=openai]').classList.add('unavailable');if(engine==='openai'){selEngine('claude')}}
+if(eng.claude&&!eng.claude.available){document.querySelector('.ebtn[data-engine=claude]').classList.add('unavailable');if(engine==='claude'){selEngine('openai')}}
+}}catch(e){}})()
 function tog(id){const e=document.getElementById(id);e.style.display=e.style.display==='none'?'':'none'}
 function log(m){const c=document.getElementById('logC');c.innerHTML+=`<div class="log-line"><span class="ts">${new Date().toLocaleTimeString('pl-PL')}</span> ${esc(m)}</div>`;c.scrollTop=c.scrollHeight}
 function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);if(!i)return;i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d}
@@ -588,10 +620,10 @@ async function startWorkflow(){
     document.getElementById('chatHist').innerHTML='<div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>';
     document.getElementById('valResult').classList.remove('vis');
     rawArticle='';selTxt='';s1Data=null;batchLog=[];finalData=null;salienceData=null;styleData=null;memoryData=null;articleData=null;editorialData=null;stepTimingData=null;paaData=null;ymylCtxData=null;ymylAnalysisData=null;ymylValData=null;
-    log(`Start: "${kw}" [${mode}]`);
+    log(`Start: "${kw}" [${mode}] [${engine}]`);
 
     try{
-        const resp=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({main_keyword:kw,mode:mode,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci})});
+        const resp=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({main_keyword:kw,mode:mode,engine:engine,openai_model:engine==='openai'?openaiModel:null,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci})});
         const data=await resp.json();
         if(!resp.ok||data.error){log(`❌ ${data.error||'Server error '+resp.status}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';if(resp.status===429)log('⏳ Poczekaj na zakończenie bieżącego workflow');return}
         jid=data.job_id;log(`Job: ${jid}`);
@@ -685,11 +717,12 @@ function renderCompDash(){
     const wordCount=art.word_count||fr.word_count||0;
     const wcClr=recLen!=='?'?clrV(wordCount/recLen*100,85,60):M;
 
-    p1+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px">`;
+    p1+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px">`;
     p1+=ciStat(`${overallScore}<span style="font-size:12px">/100</span>`,'Quality Score',clrV(overallScore,75,50));
     p1+=ciStat(grade,'Grade',clrV(overallScore,75,50));
     p1+=ciStat(`${wordCount}<span style="font-size:10px;color:${M}">/${recLen}</span>`,'Words',wcClr);
     p1+=ciStat(mode||'standard','Mode',null);
+    p1+=ciStat(engine==='openai'?'GPT':'Claude','Engine',engine==='openai'?'#10a37f':'#6366f1');
     p1+=`</div>`;
 
     // 1B: All metrics radar

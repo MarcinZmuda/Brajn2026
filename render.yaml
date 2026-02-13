@@ -21,3 +21,7 @@ services:
         generateValue: true
       - key: MIDDLEWARE_MODEL
         value: claude-haiku-4-5-20251001
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4.1
