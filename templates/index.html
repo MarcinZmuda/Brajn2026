@@ -458,15 +458,23 @@ function rS1(d){
     // ─── 4️⃣ Entity SEO ───
     let b4='';
     const ent=d.entity_seo||{},tE=ent.top_entities||[],mE=ent.must_mention||[],eR=ent.relations||[],tC=ent.topical_coverage||[],cE=ent.concept_entities||[];
+    // v47.0: Entity Pipeline new data
+    const entSal=ent.entity_salience||[],entCooc=ent.entity_cooccurrence||[],entPlace=ent.entity_placement||{},placeInstr=ent.placement_instruction||'';
     // v45.4.1: Show concept entities (from topical_entity_extractor) FIRST — most valuable
     if(cE.length){b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🧠 CONCEPT ENTITIES (${cE.length})</div>${cE.slice(0,15).map(e=>{const name=el(e),imp=typeof e==='object'?(e.importance||''):'';return`<span class="s1-ent top" style="border-color:var(--gn)">${name}${imp?` <span style="font-size:8px;opacity:.5">${typeof imp==='number'?imp.toFixed(2):imp}</span>`:''}</span>`}).join('')}</div>`}
     if(ent.topical_summary)b4+=`<div class="s1-instr" style="margin:6px 0;border-left:2px solid var(--gn)">${esc(ent.topical_summary)}</div>`;
     if(mE.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--rd);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">MUST MENTION</div>${mE.map(e=>`<span class="s1-ent must">${el(e)}</span>`).join('')}</div>`;
     if(tE.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Named entities (${ent.entity_count||tE.length})</div>${tE.slice(0,15).map(e=>{const name=el(e),typ=typeof e==='object'?(e.type||''):'',imp=typeof e==='object'?(e.importance||''):'';return`<span class="s1-ent top">${name}${typ?` <span style="font-size:8px;opacity:.5">${typ}</span>`:''}${imp?` <span style="font-size:8px;opacity:.5">${typeof imp==='number'?imp.toFixed(2):imp}</span>`:''}</span>`}).join('')}</div>`;
+    // v47.0: Entity Salience (backend — from competitor analysis)
+    if(entSal.length){b4+=`<div style="margin:8px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🎯 ENTITY SALIENCE (${entSal.length})</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:end">${entSal.slice(0,10).map(e=>{const sal=e.salience||0;const ht=Math.max(14,Math.round(sal*60));const sig=e.signals||{};return`<div style="display:flex;flex-direction:column;align-items:center;width:58px" title="${esc(e.entity)}: salience ${sal.toFixed(3)}, pos:${sig.position||'?'}, hdg:${sig.in_headings||0}, subj:${sig.subject_ratio||'?'}"><div style="width:100%;height:${ht}px;background:${sal>=0.6?'var(--gn)':sal>=0.3?'var(--orange)':'var(--mg)'};border-radius:3px 3px 0 0;opacity:.7"></div><div style="font-size:7px;margin-top:2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%">${esc(e.entity)}</div><div style="font-size:7px;opacity:.5">${sal.toFixed(2)}</div></div>`}).join('')}</div></div>`}
+    // v47.0: Co-occurrence Pairs
+    if(entCooc.length){b4+=`<div style="margin:8px 0"><div style="font-size:9px;color:#60a5fa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔗 CO-OCCURRENCE PAIRS (${entCooc.length})</div>${entCooc.slice(0,8).map(p=>{const str=p.strength||0;return`<div style="padding:2px 0;font-size:10px"><span style="color:var(--pr)">${esc(p.entity_a)}</span> <span style="opacity:.4">+</span> <span style="color:var(--pr)">${esc(p.entity_b)}</span> <span style="font-size:8px;opacity:.5">str:${str.toFixed(2)} · ${p.sentence_co_occurrences||0}zd · ${p.sources_count||0}src</span></div>`}).join('')}</div>`}
+    // v47.0: Entity Placement (primary entity, H2, first paragraph)
+    if(entPlace.status==='OK'){const pe=entPlace.primary_entity||{};const h2e=entPlace.h2_entities||[];const fpe=entPlace.first_paragraph_entities||[];b4+=`<div style="margin:8px 0;padding:6px 8px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.2);border-radius:6px"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📐 PLACEMENT INSTRUCTIONS</div>`;if(pe.entity)b4+=`<div style="font-size:10px;margin:2px 0">🎯 Primary: <b style="color:var(--gn)">${esc(pe.entity)}</b> <span style="opacity:.5">(salience: ${(pe.salience||0).toFixed(2)})</span></div>`;if(fpe.length)b4+=`<div style="font-size:10px;margin:2px 0">📌 1st paragraph: ${fpe.map(e=>`<span style="color:var(--lg);font-weight:600">${esc(e)}</span>`).join(', ')}</div>`;if(h2e.length)b4+=`<div style="font-size:10px;margin:2px 0">📋 H2 entities: ${h2e.map(e=>`<span class="tag d" style="font-size:9px">${esc(e)}</span>`).join('')}</div>`;b4+=`</div>`}
     if(eR.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Relacje między encjami</div>${eR.map(r=>{if(typeof r==='string')return`<span class="s1-ent rel">${esc(r)}</span>`;return`<span class="s1-ent rel">${esc(r.from||r.subject||'?')} → ${esc(r.to||r.object||'?')}${r.relation?` (${esc(r.relation)})`:''}</span>`}).join('')}</div>`;
     if(tC.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Topical Coverage</div>${tC.slice(0,10).map(t=>{const topic=typeof t==='string'?t:(t.subtopic||t.topic||el(t)),pri=typeof t==='object'?(t.priority||''):'';return`<span class="tag ${pri==='MUST'?'r':pri==='HIGH'?'o':'d'}">${topic}${pri?` · ${pri}`:''}</span>`}).join('')}</div>`;
     if(!tE.length&&!mE.length&&!cE.length)b4+=`<div style="color:var(--mg);font-style:italic">Brak danych encji — sprawdź czy trafilatura działa na produkcji</div>`;
-    h+=s1Sec(4,'Encje — mapa bytów tematu',`${cE.length?cE.length+' concept + ':''}${ent.entity_count||tE.length} named`,b4);
+    h+=s1Sec(4,'Encje — mapa bytów tematu',`${cE.length?cE.length+' concept + ':''}${ent.entity_count||tE.length} named${entSal.length?' · '+entSal.length+' salience':''}`,b4);
 
     // ─── 5️⃣ N-grams & Collocations ───
     let b5='';
@@ -525,7 +533,17 @@ function rS1(d){
     if(ai.semantic&&Object.keys(ai.semantic).length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🎯 Checkpoints semantyczne</div><div class="s1-instr">${esc(Object.entries(ai.semantic).map(([k,v])=>`${k}: ${v}`).join('\n'))}</div></div>`;
     if(sh.critical_entities&&sh.critical_entities.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--rd);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🔴 Critical entities</div>${sh.critical_entities.map(e=>`<span class="s1-ent must">${e.text||el(e)}${e.importance?` · ${e.importance.toFixed(2)}`:''}</span>`).join('')}</div>`;
     if(sh.must_topics&&sh.must_topics.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📌 Must topics</div>${sh.must_topics.map(t=>`<span class="tag o">${t.topic||el(t)}</span>`).join('')}</div>`;
-    if(!ai.gaps&&!ai.causal&&!(sh.critical_entities&&sh.critical_entities.length))b10+=`<div style="color:var(--mg);font-style:italic">Agent instructions wygenerowane wewnętrznie — używane automatycznie w batch loop</div>`;
+    // v47.0: New semantic hints from Entity Pipeline
+    if(sh.must_cover_concepts&&sh.must_cover_concepts.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🧠 Must cover concepts</div>${sh.must_cover_concepts.slice(0,10).map(c=>`<span class="s1-ent top" style="border-color:var(--gn)">${typeof c==='string'?esc(c):esc(c.text||el(c))}</span>`).join('')}</div>`;
+    if(sh.concept_instruction)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🎯 Concept instruction</div><div class="s1-instr" style="border-left:2px solid var(--gn)">${esc(sh.concept_instruction)}</div></div>`;
+    if(sh.primary_entity&&sh.primary_entity.entity)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🎯 Primary entity</div><span class="s1-ent must" style="border-color:#a78bfa">${esc(sh.primary_entity.entity)} <span style="font-size:8px;opacity:.5">salience: ${(sh.primary_entity.salience||0).toFixed(2)}</span></span></div>`;
+    if(sh.first_paragraph_entities&&sh.first_paragraph_entities.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📌 First paragraph entities</div>${sh.first_paragraph_entities.map(e=>`<span class="tag p">${esc(typeof e==='string'?e:(e.entity||e.text||el(e)))}</span>`).join('')}</div>`;
+    if(sh.h2_entities&&sh.h2_entities.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📋 H2 entities</div>${sh.h2_entities.map(e=>`<span class="tag d">${esc(typeof e==='string'?e:(e.entity||e.text||el(e)))}</span>`).join('')}</div>`;
+    if(sh.cooccurrence_pairs&&sh.cooccurrence_pairs.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#60a5fa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🔗 Co-occurrence pairs (top ${sh.cooccurrence_pairs.length})</div>${sh.cooccurrence_pairs.map(p=>`<div style="font-size:10px;padding:1px 0"><span style="color:var(--pr)">${esc(p.entity_a||'')}</span> <span style="opacity:.4">+</span> <span style="color:var(--pr)">${esc(p.entity_b||'')}</span></div>`).join('')}</div>`;
+    if(sh.checkpoints&&Object.keys(sh.checkpoints).length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">✅ Checkpoints v47.0</div><div class="s1-instr">${esc(Object.entries(sh.checkpoints).map(([k,v])=>`${k}: ${v}`).join('\n'))}</div></div>`;
+    if(sh.placement_instruction)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📐 Placement instruction</div><div class="s1-instr" style="border-left:2px solid #a78bfa;white-space:pre-wrap;font-size:10px">${esc(sh.placement_instruction)}</div></div>`;
+    if(sh.version)b10+=`<div style="margin-top:4px;font-size:8px;opacity:.3">semantic_enhancement_hints ${esc(sh.version)}</div>`;
+    if(!ai.gaps&&!ai.causal&&!(sh.critical_entities&&sh.critical_entities.length)&&!sh.primary_entity)b10+=`<div style="color:var(--mg);font-style:italic">Agent instructions wygenerowane wewnętrznie — używane automatycznie w batch loop</div>`;
     h+=s1Sec(10,'Instrukcje dla modelu',``,b10);
 
     document.getElementById('s1B').innerHTML=h;
@@ -542,7 +560,7 @@ function rBI(d){
     if(d.semantic_plan&&d.semantic_plan.profile)x+=`<span class="tag o">${d.semantic_plan.profile}</span>`;
     if(d.batch_length_detail&&d.batch_length_detail.complexity_score)x+=`<span class="tag c">cmplx: ${d.batch_length_detail.complexity_score}</span>`;
     if(d.main_keyword_ratio)x+=`<span class="tag d">MK: ${d.main_keyword_ratio}</span>`;x+=`</div>`;
-    x+=`<div class="flags">${fl('instructions',d.has_gpt_instructions,'g')}${fl('prompt',d.has_gpt_prompt,'g')}${fl('memory',d.has_article_memory,'g')}${fl('enhanced',d.has_enhanced,'g')}${fl('style',d.has_style,'g')}${fl('exp_markers',d.experience_markers,'o')}${fl('continuation',d.continuation_context,'o')}${fl('cont_v39',d.has_continuation_v39,'o')}${fl('causal',d.has_causal_context,'p')}${fl('info_gain',d.has_information_gain,'p')}${fl('smart',d.has_smart_instructions,'p')}${fl('hierarchy',d.has_phrase_hierarchy,'o')}${d.has_legal?fl('YMYL legal',1,'r'):''}${d.has_medical?fl('YMYL med',1,'r'):''}</div>`;
+    x+=`<div class="flags">${fl('instructions',d.has_gpt_instructions,'g')}${fl('prompt',d.has_gpt_prompt,'g')}${fl('memory',d.has_article_memory,'g')}${fl('enhanced',d.has_enhanced,'g')}${fl('style',d.has_style,'g')}${fl('exp_markers',d.experience_markers,'o')}${fl('continuation',d.continuation_context,'o')}${fl('cont_v39',d.has_continuation_v39,'o')}${fl('causal',d.has_causal_context,'p')}${fl('info_gain',d.has_information_gain,'p')}${fl('smart',d.has_smart_instructions,'p')}${fl('hierarchy',d.has_phrase_hierarchy,'o')}${fl('salience',d.has_entity_salience,'p')}${fl('placement',d.has_backend_placement,'p')}${d.has_legal?fl('YMYL legal',1,'r'):''}${d.has_medical?fl('YMYL med',1,'r'):''}</div>`;
     x+=`<div class="sub"><div class="sub-t">MUST (${d.must_keywords.length})</div>${kc(d.must_keywords,'must')}</div>`;
     x+=`<div class="sub"><div class="sub-t">EXTENDED (${d.extended_keywords.length})</div>${kc(d.extended_keywords,'ext')}</div>`;
     if(d.stop_keywords&&d.stop_keywords.length)x+=`<div class="sub"><div class="sub-t">STOP</div>${kc(d.stop_keywords,'stop')}</div>`;
@@ -839,6 +857,38 @@ function renderCompDash(){
         });
         p3+=`</div>`;
         p3+=`<div style="margin-top:6px;font-size:9px;display:flex;gap:8px;color:${M}"><span>🟣 Główna</span><span>🟢 KG</span><span>🟡 Wikipedia</span></div>`;
+    }
+
+    // 3B2: Backend Entity Salience (from competitor analysis — v47.0)
+    const bkSal=s1Data?(s1Data.entity_seo||{}).entity_salience||[]:[];
+    if(bkSal.length){
+        p3+=`<div style="font-weight:700;margin:12px 0 6px;color:#a78bfa">Backend Entity Salience (competitor analysis)</div>`;
+        p3+=`<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:end">`;
+        bkSal.slice(0,12).forEach(e=>{
+            const sal=e.salience||0;const ht=Math.max(12,Math.round(sal*160));
+            const clr=sal>=0.7?G:sal>=0.4?W:M;
+            p3+=`<div style="display:flex;flex-direction:column;align-items:center;width:50px" title="${esc(e.entity)}: ${sal.toFixed(3)}"><div style="width:100%;height:${ht}px;background:${clr};border-radius:3px 3px 0 0;opacity:.65"></div><div style="font-size:7px;margin-top:2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;font-weight:${sal>=0.5?'700':'400'}">${esc(e.entity)}</div><div style="font-size:7px;opacity:.4">${sal.toFixed(2)}</div></div>`;
+        });
+        p3+=`</div>`;
+    }
+
+    // 3B3: Co-occurrence Pairs (v47.0)
+    const bkCooc=s1Data?(s1Data.entity_seo||{}).entity_cooccurrence||[]:[];
+    if(bkCooc.length){
+        p3+=`<div style="font-weight:700;margin:12px 0 6px;color:#60a5fa">Co-occurrence Pairs (${bkCooc.length})</div>`;
+        bkCooc.slice(0,6).forEach(p2=>{
+            const str=p2.strength||0;const barW=Math.max(20,Math.round(str*100));
+            p3+=`<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:10px"><span style="min-width:100px;text-align:right;color:${P}">${esc(p2.entity_a)}</span><div style="width:${barW}px;height:6px;background:#60a5fa;border-radius:3px;opacity:.5"></div><span style="color:${P}">${esc(p2.entity_b)}</span><span style="font-size:8px;opacity:.4">${str.toFixed(2)}</span></div>`;
+        });
+    }
+
+    // 3B4: Entity Placement Summary (v47.0)
+    const bkPlace=s1Data?(s1Data.entity_seo||{}).entity_placement||{}:{};
+    if(bkPlace.status==='OK'){
+        const pe2=bkPlace.primary_entity||{};const h2e2=bkPlace.h2_entities||[];
+        p3+=`<div style="font-weight:700;margin:12px 0 6px;color:#a78bfa">Entity Placement Plan</div>`;
+        if(pe2.entity)p3+=`<div style="font-size:10px">🎯 Primary: <b style="color:${G}">${esc(pe2.entity)}</b> (${(pe2.salience||0).toFixed(2)})</div>`;
+        if(h2e2.length)p3+=`<div style="font-size:10px;margin-top:2px">📋 H2: ${h2e2.map(e=>`<span style="padding:1px 5px;border-radius:8px;font-size:9px;border:1px solid ${M};color:${M};margin:1px">${esc(e)}</span>`).join('')}</div>`;
     }
 
     // 3C: Relation Depth
