@@ -113,6 +113,16 @@ _CSS_NGRAM_EXACT = {
     "wp block", "wp embed", "post type", "nav menu", "menu item",
     "header menu", "sub menu", "mega menu", "footer menu",
     "widget area", "sidebar widget", "page template",
+    # v45.4.1: Extended — catches observed CSS garbage from dashboard
+    "list list", "heading heading", "container expand", "expand container",
+    "container item", "container container", "table responsive",
+    "heading heading heading", "list list list", "list list list list",
+    "container expand container", "form form", "button button",
+    "image utf", "image image", "form input", "input input",
+    "expand expand", "item item", "block block", "section section",
+    "row row", "column column", "grid grid", "card card",
+    "wrapper wrapper", "inner inner", "outer outer",
+    "responsive table", "responsive responsive",
 }
 
 _CSS_ENTITY_WORDS = {
@@ -140,6 +150,26 @@ def _is_css_garbage(text):
     if text.lower() in _CSS_NGRAM_EXACT:
         return True
     if text.lower() in _CSS_ENTITY_WORDS:
+        return True
+    # v45.4.1: Detect repeated-word patterns ("list list list", "heading heading")
+    words = text.lower().split()
+    if len(words) >= 2 and len(set(words)) == 1:
+        return True  # All words identical ("list list", "heading heading heading")
+    if len(words) >= 3 and len(set(words)) <= 2:
+        return True  # 3+ words but only 1-2 unique ("container expand container")
+    # v45.4.1: Detect CSS class-like multi-word tokens
+    # Only flag if ALL words are short ASCII-only AND match common CSS vocabulary
+    _CSS_VOCAB = {
+        'list', 'heading', 'container', 'expand', 'item', 'image', 'form',
+        'table', 'responsive', 'button', 'section', 'row', 'column', 'grid',
+        'card', 'wrapper', 'inner', 'outer', 'block', 'embed', 'content',
+        'input', 'label', 'icon', 'link', 'nav', 'tab', 'panel', 'modal',
+        'badge', 'alert', 'toast', 'spinner', 'loader', 'overlay', 'toggle',
+        'dropdown', 'collapse', 'accordion', 'breadcrumb', 'pagination',
+        'thumbnail', 'carousel', 'slider', 'progress', 'tooltip', 'popover',
+        'utf', 'meta', 'viewport', 'charset', 'script', 'noscript',
+    }
+    if len(words) >= 2 and all(w in _CSS_VOCAB for w in words):
         return True
     return bool(_CSS_GARBAGE_PATTERNS.search(text))
 
@@ -550,6 +580,48 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if ai_entities and len(clean_entities) < 5:
             yield emit("log", {"msg": f"🤖 Uzupełniam encje z AI: {', '.join(str(e) for e in ai_entities[:5])}"})
 
+        # v45.4.1: Read concept_entities from new topical_entity_extractor backend
+        raw_concept_entities = (
+            (s1.get("entity_seo") or {}).get("concept_entities", []) or
+            s1.get("concept_entities", [])
+        )
+        concept_entities = _filter_entities(raw_concept_entities)[:15]
+        topical_summary = (s1.get("entity_seo") or {}).get("topical_summary", "") or s1.get("topical_summary", "")
+
+        # v45.4.1: Filter semantic_keyphrases (Gemini may return YouTube/JS garbage)
+        raw_semantic_kp = s1.get("semantic_keyphrases") or []
+        clean_semantic_kp = [kp for kp in raw_semantic_kp if not _is_css_garbage(
+            kp.get("phrase", kp) if isinstance(kp, dict) else str(kp)
+        )]
+
+        # v45.4.1: Filter causal triplets — remove CSS-contaminated extractions
+        def _filter_causal(triplets):
+            """Remove causal triplets where cause/effect looks like CSS."""
+            if not triplets:
+                return []
+            clean = []
+            for t in triplets:
+                cause = t.get("cause", t.get("from", ""))
+                effect = t.get("effect", t.get("to", ""))
+                # Skip if cause or effect is too short, too long, or CSS garbage
+                if len(cause) < 5 or len(effect) < 5:
+                    continue
+                if len(cause) > 120 or len(effect) > 120:
+                    continue  # Truncated sentence fragments
+                if _is_css_garbage(cause) or _is_css_garbage(effect):
+                    continue
+                clean.append(t)
+            return clean
+
+        raw_causal_chains = (s1.get("causal_triplets") or {}).get("chains", [])[:10]
+        raw_causal_singles = (s1.get("causal_triplets") or {}).get("singles", [])[:10]
+        clean_causal_chains = _filter_causal(raw_causal_chains)
+        clean_causal_singles = _filter_causal(raw_causal_singles)
+
+        if concept_entities:
+            yield emit("log", {"msg": f"🧠 Concept entities: {len(concept_entities)} (z topical_entity_extractor)"})
+        if len(clean_ngrams) < len(raw_ngrams) * 0.5:
+            yield emit("log", {"msg": f"⚠️ N-gramy: {len(raw_ngrams) - len(clean_ngrams)}/{len(raw_ngrams)} odfiltrowane jako CSS garbage"})
         yield emit("s1_data", {
             # Stats for top bar — backend nests these in length_analysis{}
             "recommended_length": s1.get("recommended_length") or (s1.get("length_analysis") or {}).get("recommended"),
@@ -571,11 +643,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # PAA — check multiple locations
             "paa_questions": (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or [])[:10],
             # Causal triplets
-            "causal_triplets_count": causal_count,
-            "causal_count_chains": (s1.get("causal_triplets") or {}).get("chain_count", 0),
-            "causal_count_singles": (s1.get("causal_triplets") or {}).get("count", 0),
-            "causal_chains": (s1.get("causal_triplets") or {}).get("chains", [])[:10],
-            "causal_singles": (s1.get("causal_triplets") or {}).get("singles", [])[:10],
+            "causal_triplets_count": len(clean_causal_chains) + len(clean_causal_singles),
+            "causal_count_chains": len(clean_causal_chains),
+            "causal_count_singles": len(clean_causal_singles),
+            "causal_chains": clean_causal_chains,
+            "causal_singles": clean_causal_singles,
             "causal_instruction": (s1.get("causal_triplets") or {}).get("agent_instruction", ""),
             # Gap analysis
             "content_gaps_count": gaps_count,
@@ -592,11 +664,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "ai_extracted": ai_entities[:5] if ai_entities else [],
                 "entity_count": (s1.get("entity_seo") or {}).get("entity_count", len(clean_entities)),
                 "relations": (s1.get("entity_seo") or {}).get("relations", [])[:10],
-                "topical_coverage": (s1.get("entity_seo") or {}).get("topical_coverage", [])[:10]
+                "topical_coverage": (s1.get("entity_seo") or {}).get("topical_coverage", [])[:10],
+                # v45.4.1: Concept entities from topical_entity_extractor
+                "concept_entities": concept_entities,
+                "topical_summary": topical_summary,
             },
             # N-grams
             "ngrams": clean_ngrams,
-            "semantic_keyphrases": s1.get("semantic_keyphrases") or [],
+            "semantic_keyphrases": clean_semantic_kp,
             # Phrase hierarchy
             "phrase_hierarchy_preview": s1.get("phrase_hierarchy_preview") or {},
             # Depth signals
