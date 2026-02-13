@@ -668,6 +668,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 # v45.4.1: Concept entities from topical_entity_extractor
                 "concept_entities": concept_entities,
                 "topical_summary": topical_summary,
+                # v47.0: Entity Pipeline — salience, co-occurrence, placement
+                "entity_salience": (s1.get("entity_seo") or {}).get("entity_salience", []),
+                "entity_cooccurrence": (s1.get("entity_seo") or {}).get("entity_cooccurrence", []),
+                "entity_placement": s1.get("entity_placement") or
+                    (s1.get("entity_seo") or {}).get("entity_placement", {}),
+                "placement_instruction": (s1.get("semantic_enhancement_hints") or {})
+                    .get("placement_instruction", ""),
             },
             # N-grams
             "ngrams": clean_ngrams,
@@ -698,6 +705,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": "🔬 Entity Salience: Google NLP API aktywne — walidacja po zakończeniu artykułu"})
         else:
             yield emit("log", {"msg": "ℹ️ Entity Salience: instrukcje pozycjonowania encji aktywne (brak API key dla walidacji)"})
+
+        # v47.0: Log backend entity placement data
+        _ep = s1.get("entity_placement") or (s1.get("entity_seo") or {}).get("entity_placement", {})
+        if _ep and _ep.get("status") == "OK":
+            _primary = (_ep.get("primary_entity") or {}).get("entity", "?")
+            _h2_count = len(_ep.get("h2_entities", []))
+            _cooc = len((s1.get("entity_seo") or {}).get("entity_cooccurrence", []))
+            yield emit("log", {"msg": f"🎯 Entity Placement v47: primary='{_primary}', H2 entities={_h2_count}, co-occurrence pairs={_cooc}"})
+        else:
+            yield emit("log", {"msg": "ℹ️ Entity Placement v47: brak danych z backendu (fallback do local salience)"})
 
         # ─── KROK 2: YMYL Detection ───
         step_start(2)
@@ -980,6 +997,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if entity_salience_instructions:
                 pre_batch["_entity_salience_instructions"] = entity_salience_instructions
 
+            # ═══ v47.0: Inject backend entity placement data for prompt_builder ═══
+            backend_placement = s1.get("entity_placement", {}).get("placement_instruction", "")
+            if backend_placement:
+                pre_batch["_backend_placement_instruction"] = backend_placement
+                pre_batch["_cooccurrence_pairs"] = (s1.get("entity_seo", {})
+                    .get("entity_cooccurrence", []))[:5]
+                pre_batch["_first_paragraph_entities"] = (s1.get("entity_placement", {})
+                    .get("first_paragraph_entities", []))
+                pre_batch["_h2_entities"] = (s1.get("entity_placement", {})
+                    .get("h2_entities", []))
+
             # Get current H2 from API (most reliable) or fallback to our plan
             h2_remaining = (pre_batch.get("h2_remaining") or [])
             semantic_plan = pre_batch.get("semantic_batch_plan") or {}
@@ -1040,6 +1068,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "has_smart_instructions": bool(enhanced_data.get("smart_instructions")),
                 "has_phrase_hierarchy": bool(enhanced_data.get("phrase_hierarchy")),
                 "has_entity_salience": bool(entity_salience_instructions),
+                "has_backend_placement": bool(pre_batch.get("_backend_placement_instruction")),
                 "has_continuation_v39": bool(pre_batch.get("continuation_v39"))
             })
 
