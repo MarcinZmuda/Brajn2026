@@ -555,6 +555,10 @@ def build_entity_salience_instructions(main_keyword, entities_from_s1=None):
     - Google NLP API salience scoring
     - Patent US10235423B2 entity metrics
     - Patent US9251473B2 salient items identification
+    
+    v45.4.1: entities_from_s1 parameter kept for backward compatibility
+    but no longer injected into prompt. Secondary entities are now handled
+    exclusively by gpt_instructions_v39 "🧠 ENCJE:" section from master API.
     """
     instructions = []
 
@@ -584,23 +588,11 @@ ZASADA 4 — HIERARCHIA ENCJI:
   • 3-5 encji wtórnych (salience 0.05–0.15 każda)
   • Unikaj „wyrównanej" salience — jedna encja musi dominować.""")
 
-    # Add secondary entities if available
-    if entities_from_s1:
-        must_mention = []
-        for ent in entities_from_s1[:8]:
-            if isinstance(ent, dict):
-                name = ent.get("text", ent.get("entity", ent.get("name", "")))
-                if name:
-                    must_mention.append(name)
-            elif isinstance(ent, str):
-                must_mention.append(ent)
-
-        if must_mention:
-            ent_list = ", ".join(f'"{e}"' for e in must_mention[:6])
-            instructions.append(
-                f"\nENCJE WTÓRNE (współwystępujące u konkurencji): {ent_list}\n"
-                "Wpleć je naturalnie — ale ZAWSZE jako elementy podrzędne wobec encji głównej."
-            )
+    # v45.4.1: Secondary entities REMOVED from salience instructions.
+    # gpt_instructions_v39 already contains curated "🧠 ENCJE:" section
+    # with 3 best entities per batch (importance >= 0.7, with HOW hints).
+    # Injecting additional entities_from_s1 here caused duplication and
+    # introduced CSS/JS garbage that passed through filters.
 
     return "\n".join(instructions)
 

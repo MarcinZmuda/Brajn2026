@@ -144,9 +144,13 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
         lambda: _fmt_h2_remaining(pre_batch),
 
         # ── TIER 3: CONTENT CONTEXT (enrichment data) ──
-        lambda: _fmt_entity_salience(pre_batch),     # entity positioning rules
-        lambda: _fmt_entities(pre_batch),
-        lambda: _fmt_ngrams(pre_batch),
+        lambda: _fmt_entity_salience(pre_batch),     # entity positioning rules (salience only)
+        # _fmt_entities REMOVED v45.4.1 — gpt_instructions_v39 already contains
+        # curated "🧠 ENCJE:" section (max 3/batch, importance≥0.7, with HOW hints).
+        # Our version duplicated it with dirtier, unfiltered data from S1.
+        # _fmt_ngrams REMOVED v45.4.1 — raw statistical n-grams from competitor
+        # pages often contain CSS/JS artifacts ("button button", "block embed").
+        # Custom GPT never sees these and produces better text without them.
         lambda: _fmt_serp_enrichment(pre_batch),
         lambda: _fmt_causal_context(pre_batch),
         lambda: _fmt_experience_markers(pre_batch),

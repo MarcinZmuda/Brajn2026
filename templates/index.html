@@ -61,7 +61,7 @@
             border-radius:var(--rs);color:var(--mg);cursor:pointer;text-align:center;
             transition:all .2s;font-family:inherit
         }
-        .ebtn.on{border-color:#6366f1;color:#6366f1;background:rgba(99,102,241,.08)}
+        .ebtn.on{border-color:var(--orange);color:var(--orange);background:var(--og)}
         .ebtn:hover:not(.on){border-color:var(--b3);background:var(--s3)}
         .ebtn.unavailable{opacity:.4;pointer-events:none}
         .ebtn.unavailable small::after{content:' (brak klucza)';color:var(--mg)}
@@ -155,8 +155,8 @@
         .tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:10px;margin:2px;font-weight:500;gap:4px}
         .tag.g{background:var(--gnd);color:var(--gn)}.tag.r{background:var(--rdd);color:var(--rd)}
         .tag.w{background:var(--yld);color:var(--yl)}.tag.o{background:var(--og);color:var(--orange)}
-        .tag.d{background:var(--w5);color:var(--lg)}.tag.p{background:rgba(139,92,246,.1);color:#a78bfa}
-        .tag.c{background:rgba(6,182,212,.1);color:#22d3ee}.tag.pk{background:rgba(236,72,153,.1);color:#f472b6}
+        .tag.d{background:var(--w5);color:var(--lg)}.tag.p{background:var(--og);color:var(--orange)}
+        .tag.c{background:var(--w8);color:var(--white)}.tag.pk{background:rgba(251,169,44,.06);color:var(--lg)}
         .chip{display:inline-block;padding:3px 8px;margin:2px;background:var(--s3);border:1px solid var(--b1);border-radius:4px;font-size:10px;color:rgba(255,255,255,.7);font-family:'JetBrains Mono',monospace}
         .chip.must{border-color:var(--rd);color:var(--rd);background:var(--rdd)}
         .chip.ext{border-color:var(--orange);color:var(--orange);background:var(--og)}
@@ -207,7 +207,7 @@
         .s1-ent{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;margin:2px;border-radius:99px;font-size:10px;font-weight:500}
         .s1-ent.must{background:var(--rdd);color:var(--rd);border:1px solid rgba(248,113,113,.15)}
         .s1-ent.top{background:var(--og);color:var(--orange)}
-        .s1-ent.rel{background:rgba(139,92,246,.1);color:#a78bfa}
+        .s1-ent.rel{background:rgba(251,169,44,.1);color:#fba92c}
         .s1-ymyl{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;margin:3px;border-radius:var(--rs);font-size:11px;font-weight:500;background:var(--s2);border:1px solid var(--b1)}
         .s1-ymyl.active{border-color:var(--rd);background:var(--rdd);color:var(--rd)}
         .s1-instr{background:var(--black);border:1px solid var(--b1);border-radius:var(--rs);padding:12px;font-size:10px;color:var(--lg);white-space:pre-wrap;word-break:break-word;margin:6px 0;font-family:'JetBrains Mono',monospace;line-height:1.5;max-height:180px;overflow-y:auto}
@@ -336,7 +336,7 @@
             <div class="pnl" id="cpP" style="display:none"><div class="pnl-h" onclick="tPnl('cpP')"><span>✅ S1 Compliance</span><span class="arr">▼</span></div><div class="pnl-b" id="cpB"></div></div>
             <div class="crd" id="esC" style="display:none"><div class="crd-t"><b>🔬 Entity</b> Salience (Google NLP)</div><div class="sg sg3"><div class="sc"><div class="sv" id="esSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="esSal">—</div><div class="sl">Main Salience</div></div><div class="sc"><div class="sv" id="esDom">—</div><div class="sl">Dominacja</div></div></div><div id="esSP" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd)"><div style="font-size:11px;font-weight:600;margin-bottom:4px">📐 Subject Position</div><div class="sg sg4" style="font-size:10px"><div class="sc"><div class="sv" id="spSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="spSR">—</div><div class="sl">Podmiot %</div></div><div class="sc"><div class="sv" id="spH2">—</div><div class="sl">H2</div></div><div class="sc"><div class="sv" id="sp1st">—</div><div class="sl">1. zdanie</div></div></div></div><div id="esEnts" style="margin-top:10px;font-size:11px;display:none"></div><div id="esIss" style="margin-top:8px;font-size:11px;color:var(--mg)"></div></div>
             <div class="crd" id="afC" style="display:none"><div class="crd-t"><b>🎭 Anti-Frankenstein</b> Style Analysis</div><div class="sg sg4"><div class="sc"><div class="sv" id="afSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="afCV">—</div><div class="sl">CV Zdań</div></div><div class="sc"><div class="sv" id="afP">—</div><div class="sl">Passive</div></div><div class="sc"><div class="sv" id="afSL">—</div><div class="sl">Śr. zdanie</div></div></div><div id="afIss" style="margin-top:8px;font-size:11px;color:var(--mg)"></div></div>
-            <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Intelligence</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Legal Score</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medical Score</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Referencje</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Disclaimer</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:10px;color:var(--mg)"></div></div>
+            <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Analiza wiarygodności</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Prawo</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medycyna</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Źródła</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Zastrzeżenie</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:12px;color:var(--mg)"></div></div>
             <div class="pnl" id="schP" style="display:none"><div class="pnl-h" onclick="tPnl('schP')"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:10px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
             <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" onclick="tPnl('tmP')"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
             <div class="pnl" id="ciP" style="display:none"><div class="pnl-h" onclick="tPnl('ciP')"><span>📊 Competitive Intelligence Dashboard</span><span class="arr">▼</span></div><div class="pnl-b open" id="ciB"></div></div>
@@ -669,9 +669,9 @@ function renderYmylCard(){
     const hasL=lr.score!=null&&lr.score>0;const hasM=mr.score!=null&&mr.score>0;
     if(!hasL&&!hasM)return;
     document.getElementById('ymC').style.display='';
-    document.getElementById('ymLS').textContent=hasL?`${lr.score}/100`:'N/A';
+    document.getElementById('ymLS').textContent=hasL?`${lr.score}/100`:'—';
     if(hasL)document.getElementById('ymLS').style.color=lr.score>=70?G:lr.score>=40?W:R;
-    document.getElementById('ymMS').textContent=hasM?`${mr.score}/100`:'N/A';
+    document.getElementById('ymMS').textContent=hasM?`${mr.score}/100`:'—';
     if(hasM)document.getElementById('ymMS').style.color=mr.score>=70?G:mr.score>=40?W:R;
     const totalRefs=(lr.acts_found||[]).length+(lr.judgments_found||[]).length+(mr.pmids_found||[]).length+(mr.studies_referenced||[]).length;
     document.getElementById('ymR').textContent=totalRefs;
@@ -679,8 +679,8 @@ function renderYmylCard(){
     document.getElementById('ymD').textContent=hasDisclaimer?'✅':'❌';
     document.getElementById('ymD').style.color=hasDisclaimer?G:R;
     let detail='';
-    if(hasL){detail+=`<div>⚖️ Akty: ${(lr.acts_found||[]).length} | Orzeczenia: ${(lr.judgments_found||[]).length} | Art.: ${(lr.articles_cited||[]).length}</div>`}
-    if(hasM){detail+=`<div>🏥 PMID: ${(mr.pmids_found||[]).length} | Badania: ${(mr.studies_referenced||[]).length} | Instytucje: ${(mr.institutions_found||[]).length}</div>`}
+    if(hasL){detail+=`<div>⚖️ Akty prawne: ${(lr.acts_found||[]).length} · Orzeczenia: ${(lr.judgments_found||[]).length} · Przepisy: ${(lr.articles_cited||[]).length}</div>`}
+    if(hasM){detail+=`<div>🏥 Publikacje PMID: ${(mr.pmids_found||[]).length} · Badania: ${(mr.studies_referenced||[]).length} · Instytucje: ${(mr.institutions_found||[]).length}</div>`}
     document.getElementById('ymDetail').innerHTML=detail;
 }
 
@@ -696,7 +696,7 @@ function ciStat(val,label,clr){return `<div style="text-align:center"><div style
 function renderCompDash(){
     if(!s1Data&&!finalData&&!batchLog.length)return;
     document.getElementById('ciP').style.display='';
-    const G='#34d399',W='#fba92c',R='#f87171',P='var(--pr)',M='var(--mg)';
+    const G='#34d399',W='#fba92c',R='#f87171',P='#fba92c',M='#9e9e9e';
     const clrV=(v,g,w)=>v>=g?G:v>=w?W:R;
     let h='<style>.ci-sec{border:1px solid var(--bd);border-radius:8px;margin-bottom:8px;overflow:hidden}.ci-sec-h{padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;background:var(--bg2)}.ci-sec-h:hover{opacity:.8}.ci-sec-n{flex:1}.ci-sec-n b{color:var(--pr);margin-right:4px}.ci-badge{font-size:10px;padding:1px 8px;border-radius:10px;background:var(--bd);font-weight:600}.ci-sec-b{display:none;padding:10px 12px;font-size:11px}.ci-sec-b.open{display:block}.ci-kw-row{display:grid;grid-template-columns:1fr 55px 35px 35px 55px;gap:2px 6px;padding:2px 0;border-bottom:1px solid var(--bd);font-size:10px;align-items:center}</style>';
 
@@ -722,7 +722,7 @@ function renderCompDash(){
     p1+=ciStat(grade,'Grade',clrV(overallScore,75,50));
     p1+=ciStat(`${wordCount}<span style="font-size:10px;color:${M}">/${recLen}</span>`,'Words',wcClr);
     p1+=ciStat(mode||'standard','Mode',null);
-    p1+=ciStat(engine==='openai'?'GPT':'Claude','Engine',engine==='openai'?'#10a37f':'#6366f1');
+    p1+=ciStat(engine==='openai'?'GPT':'Claude','Engine','#fba92c');
     p1+=`</div>`;
 
     // 1B: All metrics radar
@@ -893,137 +893,183 @@ function renderCompDash(){
     const ymLegal=ymCtx.is_legal;const ymMedical=ymCtx.is_medical;
 
     if(ymLegal||ymMedical){
-        // Status summary
-        p5y+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:12px">`;
         const anL=ymAn.legal||{};const anM=ymAn.medical||{};
-        p5y+=ciStat(ymLegal?`${anL.score||0}/100`:'N/A','Legal Score',ymLegal?clrV(anL.score||0,70,40):M);
-        p5y+=ciStat(ymMedical?`${anM.score||0}/100`:'N/A','Medical Score',ymMedical?clrV(anM.score||0,70,40):M);
+
+        // ── PODSUMOWANIE ──
         const totalRefs=(anL.acts_found||[]).length+(anL.judgments_found||[]).length+(anM.pmids_found||[]).length+(anM.studies_referenced||[]).length;
-        p5y+=ciStat(totalRefs,'Referencji',totalRefs>5?G:totalRefs>0?W:R);
         const anyDiscl=(anL.disclaimer_present)||(anM.disclaimer_present);
-        p5y+=ciStat(anyDiscl?'✅':'❌','Disclaimer',anyDiscl?G:R);
+        p5y+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center;margin-bottom:16px">`;
+        p5y+=ciStat(ymLegal?`${anL.score||0}/100`:'—','Ocena prawna',ymLegal?clrV(anL.score||0,70,40):M);
+        p5y+=ciStat(ymMedical?`${anM.score||0}/100`:'—','Ocena medyczna',ymMedical?clrV(anM.score||0,70,40):M);
+        p5y+=ciStat(totalRefs,'Źródeł w tekście',totalRefs>5?G:totalRefs>0?W:R);
+        p5y+=ciStat(anyDiscl?'✅':'❌','Zastrzeżenie',anyDiscl?G:R);
         p5y+=`</div>`;
 
-        // ── LEGAL SECTION ──
+        // ═══════════════════════════════
+        // ── SEKCJA PRAWNA ──
+        // ═══════════════════════════════
         if(ymLegal){
             const lCtx=ymCtx.legal||{};
-            p5y+=`<div style="padding:10px;background:var(--bg2);border-radius:8px;margin-bottom:10px"><div style="font-weight:700;margin-bottom:8px">⚖️ Kontekst prawny</div>`;
+            p5y+=`<div style="padding:14px;background:var(--bg2);border-radius:10px;margin-bottom:12px;border-left:3px solid #fba92c">`;
+            p5y+=`<div style="font-size:15px;font-weight:700;margin-bottom:12px">⚖️ Kontekst prawny</div>`;
 
-            // Judgments from backend (provided to Claude)
+            // --- Orzeczenia podane do AI ---
             const ctxJ=lCtx.judgments||[];
             if(ctxJ.length){
-                p5y+=`<div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Orzeczenia (z backendu → w prompt):</div>`;
+                p5y+=`<div style="font-size:12px;font-weight:600;color:${M};margin-bottom:6px">📋 Orzeczenia podane do AI (${ctxJ.length})</div>`;
+                p5y+=`<div style="display:grid;gap:6px;margin-bottom:12px">`;
                 ctxJ.slice(0,6).forEach(j=>{
-                    p5y+=`<div style="padding:3px 0;font-size:10px;border-bottom:1px solid var(--bd)"><span style="color:${P};font-weight:700">${esc(j.signature||'?')}</span> — <span style="color:${M}">${esc(j.court||'')} (${esc(j.date||'')})</span>${j.summary?`<div style="color:${M};font-size:9px;margin-top:1px">${esc(j.summary)}</div>`:''}</div>`;
-                });
-            }
-
-            // Legal acts from backend
-            const ctxA=lCtx.legal_acts||[];
-            if(ctxA.length){
-                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Akty prawne (z backendu):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
-                ctxA.slice(0,8).forEach(a=>{const name=typeof a==='string'?a:(a.name||'');p5y+=`<span style="padding:2px 6px;border-radius:8px;font-size:9px;border:1px solid ${W};color:${W}">${esc(name)}</span>`});
-                p5y+=`</div></div>`;
-            }
-
-            // What actually made it into the article
-            if(anL.acts_found&&anL.acts_found.length){
-                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${G};margin-bottom:4px">✅ Akty znalezione w tekście (${anL.acts_found.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
-                anL.acts_found.slice(0,10).forEach(a=>{p5y+=`<span style="padding:2px 6px;border-radius:8px;font-size:9px;background:rgba(34,197,94,.1);color:${G}">${esc(a)}</span>`});
-                p5y+=`</div></div>`;
-            }
-            if(anL.judgments_found&&anL.judgments_found.length){
-                p5y+=`<div style="margin-top:6px"><div style="font-weight:600;font-size:10px;color:${G};margin-bottom:4px">✅ Sygnatury w tekście (${anL.judgments_found.length}):</div>`;
-                anL.judgments_found.slice(0,8).forEach(j=>{p5y+=`<div style="padding:2px 0;font-size:10px;color:${P};font-weight:600">${esc(j)}</div>`});
-                p5y+=`</div>`;
-            }
-            if(anL.articles_cited&&anL.articles_cited.length){
-                p5y+=`<div style="margin-top:6px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Cytowane artykuły/paragrafy (${anL.articles_cited.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
-                anL.articles_cited.slice(0,15).forEach(a=>{p5y+=`<span style="padding:1px 5px;border-radius:6px;font-size:9px;background:var(--bd)">${esc(a)}</span>`});
-                p5y+=`</div></div>`;
-            }
-            // Cross-reference
-            if(anL.judgments_from_context_used!=null||anL.acts_from_context_used!=null){
-                p5y+=`<div style="margin-top:6px;font-size:10px;color:${M}">Wykorzystanie kontekstu: ${anL.acts_from_context_used||0} aktów, ${anL.judgments_from_context_used||0} orzeczeń z backendu</div>`;
-            }
-            p5y+=`<div style="margin-top:6px"><span style="color:${anL.disclaimer_present?G:R};font-weight:700">${anL.disclaimer_present?'✅':'❌'} Disclaimer prawny</span></div>`;
-            p5y+=`</div>`;
-        }
-
-        // ── MEDICAL SECTION ──
-        if(ymMedical){
-            const mCtx=ymCtx.medical||{};
-            p5y+=`<div style="padding:10px;background:var(--bg2);border-radius:8px;margin-bottom:10px"><div style="font-weight:700;margin-bottom:8px">🏥 Kontekst medyczny</div>`;
-
-            // Publications from backend
-            const ctxP=mCtx.publications||[];
-            if(ctxP.length){
-                p5y+=`<div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Publikacje (z backendu → w prompt):</div>`;
-                ctxP.slice(0,6).forEach(p=>{
-                    p5y+=`<div style="padding:3px 0;font-size:10px;border-bottom:1px solid var(--bd)">`;
-                    p5y+=`<span style="color:${P};font-weight:600">${esc(p.authors||'')} (${esc(p.year||'')})</span>`;
-                    p5y+=`<div style="color:var(--fg)">"${esc(p.title||'')}"</div>`;
-                    const tags=[];
-                    if(p.pmid)tags.push(`<span style="padding:1px 4px;border-radius:4px;font-size:8px;background:rgba(99,102,241,.15);color:#6366f1">PMID:${p.pmid}</span>`);
-                    if(p.journal)tags.push(`<span style="font-size:9px;color:${M}">${esc(p.journal)}</span>`);
-                    if(p.evidence_level)tags.push(`<span style="padding:1px 4px;border-radius:4px;font-size:8px;background:rgba(34,197,94,.15);color:${G}">${esc(p.evidence_level)}</span>`);
-                    if(p.study_type)tags.push(`<span style="padding:1px 4px;border-radius:4px;font-size:8px;background:rgba(245,158,11,.15);color:${W}">${esc(p.study_type)}</span>`);
-                    if(tags.length)p5y+=`<div style="margin-top:2px;display:flex;gap:4px;flex-wrap:wrap">${tags.join('')}</div>`;
+                    p5y+=`<div style="padding:8px 10px;background:var(--s2);border-radius:8px;border-left:2px solid ${P}">`;
+                    p5y+=`<div style="font-size:13px;font-weight:700;color:${P}">${esc(j.signature||'brak sygnatury')}</div>`;
+                    p5y+=`<div style="font-size:12px;color:${M};margin-top:2px">${esc(j.court||'')}${j.date?' · '+esc(j.date):''}</div>`;
+                    if(j.summary)p5y+=`<div style="font-size:11px;color:${M};margin-top:3px;opacity:.8">${esc(j.summary)}</div>`;
                     p5y+=`</div>`;
                 });
-            }
-
-            // Evidence level breakdown from context
-            const evLvls=mCtx.evidence_levels||{};
-            if(Object.keys(evLvls).length){
-                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Evidence Level Breakdown (kontekst):</div><div style="display:flex;gap:6px;flex-wrap:wrap">`;
-                Object.entries(evLvls).forEach(([lvl,count])=>{
-                    const clr=lvl.startsWith('I')?G:lvl.startsWith('II')?W:M;
-                    p5y+=`<span style="padding:2px 8px;border-radius:10px;font-size:10px;border:1px solid ${clr};color:${clr};font-weight:700">${lvl}: ${count}</span>`;
-                });
-                p5y+=`</div></div>`;
-            }
-
-            // What actually made it into the article
-            if(anM.pmids_found&&anM.pmids_found.length){
-                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${G};margin-bottom:4px">✅ PMID w tekście (${anM.pmids_found.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
-                anM.pmids_found.slice(0,10).forEach(id=>{p5y+=`<span style="padding:2px 6px;border-radius:8px;font-size:9px;background:rgba(99,102,241,.1);color:#6366f1;font-weight:600">PMID:${esc(id)}</span>`});
-                p5y+=`</div></div>`;
-            }
-            if(anM.studies_referenced&&anM.studies_referenced.length){
-                p5y+=`<div style="margin-top:6px"><div style="font-weight:600;font-size:10px;color:${G};margin-bottom:4px">✅ Badania w tekście (${anM.studies_referenced.length}):</div>`;
-                anM.studies_referenced.slice(0,6).forEach(s=>{p5y+=`<div style="padding:2px 0;font-size:10px;color:var(--fg)">${esc(s)}</div>`});
                 p5y+=`</div>`;
             }
-            if(anM.institutions_found&&anM.institutions_found.length){
-                p5y+=`<div style="margin-top:6px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Instytucje w tekście:</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
-                anM.institutions_found.forEach(i=>{p5y+=`<span style="padding:1px 5px;border-radius:6px;font-size:9px;background:var(--bd)">${esc(i)}</span>`});
+
+            // --- Akty prawne podane do AI ---
+            const ctxA=lCtx.legal_acts||[];
+            if(ctxA.length){
+                p5y+=`<div style="font-size:12px;font-weight:600;color:${M};margin-bottom:6px">📜 Akty prawne podane do AI (${ctxA.length})</div>`;
+                p5y+=`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px">`;
+                ctxA.slice(0,8).forEach(a=>{const name=typeof a==='string'?a:(a.name||'');p5y+=`<span style="padding:4px 10px;border-radius:8px;font-size:12px;border:1px solid ${W};color:${W}">${esc(name)}</span>`});
+                p5y+=`</div>`;
+            }
+
+            // --- Co faktycznie trafiło do tekstu ---
+            p5y+=`<div style="font-size:13px;font-weight:700;margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--bd)">🔍 Co znaleziono w artykule</div>`;
+
+            if(anL.acts_found&&anL.acts_found.length){
+                p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${G};margin-bottom:5px">✅ Akty prawne w tekście (${anL.acts_found.length})</div>`;
+                p5y+=`<div style="display:flex;flex-wrap:wrap;gap:5px">`;
+                anL.acts_found.slice(0,10).forEach(a=>{p5y+=`<span style="padding:4px 10px;border-radius:8px;font-size:12px;background:rgba(34,197,94,.1);color:${G};font-weight:500">${esc(a)}</span>`});
+                p5y+=`</div></div>`;
+            }else{
+                p5y+=`<div style="font-size:12px;color:${R};margin-bottom:8px">❌ Brak aktów prawnych w tekście</div>`;
+            }
+
+            if(anL.judgments_found&&anL.judgments_found.length){
+                p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${G};margin-bottom:5px">✅ Sygnatury orzeczeń w tekście (${anL.judgments_found.length})</div>`;
+                anL.judgments_found.slice(0,8).forEach(j=>{p5y+=`<div style="padding:3px 0;font-size:13px;color:${P};font-weight:600">${esc(j)}</div>`});
+                p5y+=`</div>`;
+            }else{
+                p5y+=`<div style="font-size:12px;color:${R};margin-bottom:8px">❌ Brak sygnatur orzeczeń w tekście</div>`;
+            }
+
+            if(anL.articles_cited&&anL.articles_cited.length){
+                p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${M};margin-bottom:5px">§ Cytowane przepisy (${anL.articles_cited.length})</div>`;
+                p5y+=`<div style="display:flex;flex-wrap:wrap;gap:5px">`;
+                anL.articles_cited.slice(0,15).forEach(a=>{p5y+=`<span style="padding:3px 8px;border-radius:6px;font-size:12px;background:var(--bd)">${esc(a)}</span>`});
                 p5y+=`</div></div>`;
             }
 
-            // Evidence indicators in article text
-            const evIn=anM.evidence_indicators||{};
-            if(Object.keys(evIn).length){
-                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Evidence Level w tekście:</div><div style="display:flex;gap:6px;flex-wrap:wrap">`;
-                Object.entries(evIn).forEach(([lvl,count])=>{
+            // Podsumowanie wykorzystania
+            p5y+=`<div style="margin-top:10px;padding:8px 12px;background:var(--s2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:12px">`;
+            p5y+=`<span style="color:${M}">Wykorzystano z bazy: <b>${anL.acts_from_context_used||0}</b> aktów, <b>${anL.judgments_from_context_used||0}</b> orzeczeń</span>`;
+            p5y+=`<span style="color:${anL.disclaimer_present?G:R};font-weight:700;font-size:13px">${anL.disclaimer_present?'✅ Zastrzeżenie prawne dodane':'❌ Brak zastrzeżenia prawnego!'}</span>`;
+            p5y+=`</div>`;
+
+            p5y+=`</div>`; // end legal section
+        }
+
+        // ═══════════════════════════════
+        // ── SEKCJA MEDYCZNA ──
+        // ═══════════════════════════════
+        if(ymMedical){
+            const mCtx=ymCtx.medical||{};
+            p5y+=`<div style="padding:14px;background:var(--bg2);border-radius:10px;margin-bottom:12px;border-left:3px solid #9e9e9e">`;
+            p5y+=`<div style="font-size:15px;font-weight:700;margin-bottom:12px">🏥 Kontekst medyczny</div>`;
+
+            // --- Publikacje podane do AI ---
+            const ctxP=mCtx.publications||[];
+            if(ctxP.length){
+                p5y+=`<div style="font-size:12px;font-weight:600;color:${M};margin-bottom:6px">📚 Publikacje podane do AI (${ctxP.length})</div>`;
+                p5y+=`<div style="display:grid;gap:6px;margin-bottom:12px">`;
+                ctxP.slice(0,6).forEach(p=>{
+                    p5y+=`<div style="padding:8px 10px;background:var(--s2);border-radius:8px;border-left:2px solid #fba92c">`;
+                    p5y+=`<div style="font-size:13px;font-weight:600;color:var(--fg)">"${esc(p.title||'brak tytułu')}"</div>`;
+                    p5y+=`<div style="font-size:12px;color:${P};margin-top:3px">${esc(p.authors||'')} (${esc(p.year||'')})</div>`;
+                    const tags=[];
+                    if(p.pmid)tags.push(`<span style="padding:2px 8px;border-radius:6px;font-size:11px;background:rgba(251,169,44,.15);color:#fba92c;font-weight:600">PMID: ${p.pmid}</span>`);
+                    if(p.journal)tags.push(`<span style="font-size:11px;color:${M}">${esc(p.journal)}</span>`);
+                    if(p.evidence_level)tags.push(`<span style="padding:2px 8px;border-radius:6px;font-size:11px;background:rgba(34,197,94,.15);color:${G};font-weight:600">Poziom: ${esc(p.evidence_level)}</span>`);
+                    if(p.study_type)tags.push(`<span style="padding:2px 8px;border-radius:6px;font-size:11px;background:rgba(245,158,11,.15);color:${W}">${esc(p.study_type)}</span>`);
+                    if(tags.length)p5y+=`<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">${tags.join('')}</div>`;
+                    p5y+=`</div>`;
+                });
+                p5y+=`</div>`;
+            }
+
+            // --- Poziomy dowodów z kontekstu ---
+            const evLvls=mCtx.evidence_levels||{};
+            if(Object.keys(evLvls).length){
+                const lvlNames={'Ia':'Meta-analizy','Ib':'Badania randomizowane (RCT)','IIa':'Badania kohortowe','IIb':'Badania case-control','III':'Serie przypadków','IV':'Opinie ekspertów'};
+                p5y+=`<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:${M};margin-bottom:6px">📊 Poziomy wiarygodności dowodów</div>`;
+                p5y+=`<div style="display:flex;gap:8px;flex-wrap:wrap">`;
+                Object.entries(evLvls).forEach(([lvl,count])=>{
                     const clr=lvl.startsWith('I')?G:lvl.startsWith('II')?W:M;
-                    p5y+=`<span style="padding:2px 8px;border-radius:10px;font-size:10px;border:1px solid ${clr};color:${clr};font-weight:700">${lvl}: ${count}×</span>`;
+                    const name=lvlNames[lvl]||lvl;
+                    p5y+=`<span style="padding:5px 12px;border-radius:10px;font-size:12px;border:1.5px solid ${clr};color:${clr};font-weight:600">${name}: ${count}</span>`;
                 });
                 p5y+=`</div></div>`;
             }
-            // Cross-reference
-            if(anM.pubs_from_context_used!=null){
-                p5y+=`<div style="margin-top:6px;font-size:10px;color:${M}">Wykorzystanie kontekstu: ${anM.pubs_from_context_used||0} publikacji z backendu</div>`;
+
+            // --- Co faktycznie trafiło do tekstu ---
+            p5y+=`<div style="font-size:13px;font-weight:700;margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--bd)">🔍 Co znaleziono w artykule</div>`;
+
+            if(anM.pmids_found&&anM.pmids_found.length){
+                p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${G};margin-bottom:5px">✅ Identyfikatory PMID w tekście (${anM.pmids_found.length})</div>`;
+                p5y+=`<div style="display:flex;flex-wrap:wrap;gap:5px">`;
+                anM.pmids_found.slice(0,10).forEach(id=>{p5y+=`<span style="padding:4px 10px;border-radius:8px;font-size:12px;background:rgba(251,169,44,.1);color:#fba92c;font-weight:600">PMID: ${esc(id)}</span>`});
+                p5y+=`</div></div>`;
+            }else{
+                p5y+=`<div style="font-size:12px;color:${R};margin-bottom:8px">❌ Brak identyfikatorów PMID w tekście</div>`;
             }
-            p5y+=`<div style="margin-top:6px"><span style="color:${anM.disclaimer_present?G:R};font-weight:700">${anM.disclaimer_present?'✅':'❌'} Disclaimer medyczny</span></div>`;
+
+            if(anM.studies_referenced&&anM.studies_referenced.length){
+                p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${G};margin-bottom:5px">✅ Odwołania do badań (${anM.studies_referenced.length})</div>`;
+                anM.studies_referenced.slice(0,6).forEach(s=>{p5y+=`<div style="padding:3px 0;font-size:12px;color:var(--fg)">· ${esc(s)}</div>`});
+                p5y+=`</div>`;
+            }else{
+                p5y+=`<div style="font-size:12px;color:${R};margin-bottom:8px">❌ Brak odwołań do badań naukowych</div>`;
+            }
+
+            if(anM.institutions_found&&anM.institutions_found.length){
+                p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${M};margin-bottom:5px">🏛️ Instytucje wymienione w tekście (${anM.institutions_found.length})</div>`;
+                p5y+=`<div style="display:flex;flex-wrap:wrap;gap:5px">`;
+                anM.institutions_found.forEach(i=>{p5y+=`<span style="padding:3px 10px;border-radius:6px;font-size:12px;background:var(--bd)">${esc(i)}</span>`});
+                p5y+=`</div></div>`;
+            }
+
+            // --- Poziomy dowodów w tekście ---
+            const evIn=anM.evidence_indicators||{};
+            if(Object.keys(evIn).length){
+                const lvlNames={'Ia':'Meta-analizy','Ib':'Badania RCT','IIa':'Kohortowe','IIb':'Case-control','III':'Serie przypadków','IV':'Opinie ekspertów'};
+                p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${M};margin-bottom:5px">📊 Poziomy dowodów wykryte w tekście</div>`;
+                p5y+=`<div style="display:flex;gap:8px;flex-wrap:wrap">`;
+                Object.entries(evIn).forEach(([lvl,count])=>{
+                    const clr=lvl.startsWith('I')?G:lvl.startsWith('II')?W:M;
+                    const name=lvlNames[lvl]||lvl;
+                    p5y+=`<span style="padding:5px 12px;border-radius:10px;font-size:12px;border:1.5px solid ${clr};color:${clr};font-weight:600">${name}: ${count}×</span>`;
+                });
+                p5y+=`</div></div>`;
+            }
+
+            // Podsumowanie wykorzystania
+            p5y+=`<div style="margin-top:10px;padding:8px 12px;background:var(--s2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:12px">`;
+            p5y+=`<span style="color:${M}">Wykorzystano z bazy: <b>${anM.pubs_from_context_used||0}</b> publikacji</span>`;
+            p5y+=`<span style="color:${anM.disclaimer_present?G:R};font-weight:700;font-size:13px">${anM.disclaimer_present?'✅ Zastrzeżenie medyczne dodane':'❌ Brak zastrzeżenia medycznego!'}</span>`;
             p5y+=`</div>`;
+
+            p5y+=`</div>`; // end medical section
         }
     }else{
-        p5y+=`<div style="color:${M};font-style:italic">Temat nie jest YMYL — panel nieaktywny</div>`;
+        p5y+=`<div style="color:${M};font-size:13px;font-style:italic;padding:8px">Temat nie jest YMYL (prawny/medyczny) — panel nieaktywny</div>`;
     }
 
-    const ymylBadge=ymLegal&&ymMedical?'⚖️🏥':ymLegal?'⚖️ Legal':ymMedical?'🏥 Medical':'—';
-    h+=ciSec('5️⃣','YMYL Intelligence',ymylBadge,p5y);
+    const ymylBadge=ymLegal&&ymMedical?'⚖️🏥':ymLegal?'⚖️ Prawo':ymMedical?'🏥 Medycyna':'—';
+    h+=ciSec('5️⃣','Wiarygodność YMYL',ymylBadge,p5y);
 
     // ════════════════════════════════════════════
     // PANEL 6: ANTI-FRANKENSTEIN
@@ -1156,7 +1202,7 @@ function renderCompDash(){
     if(batchLog.length){
         p7+=`<div style="font-weight:700;margin-bottom:8px">Batch Quality Timeline</div>`;
         p7+=`<div style="display:flex;align-items:end;gap:3px;height:50px">`;
-        batchLog.forEach(b=>{const q=b.quality_score||0;const ht=Math.max(4,Math.round(q/100*46));const clr=b.accepted?(q>=80?G:q>=60?W:'#e0e0e0'):R;p7+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div style="width:100%;height:${ht}px;background:${clr};border-radius:3px 3px 0 0;min-width:16px" title="B${b.batch}: ${q}/100"></div><div style="font-size:7px;color:${M}">${b.batch}</div></div>`});
+        batchLog.forEach(b=>{const q=b.quality_score||0;const ht=Math.max(4,Math.round(q/100*46));const clr=b.accepted?(q>=80?G:q>=60?W:'#9e9e9e'):R;p7+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div style="width:100%;height:${ht}px;background:${clr};border-radius:3px 3px 0 0;min-width:16px" title="B${b.batch}: ${q}/100"></div><div style="font-size:7px;color:${M}">${b.batch}</div></div>`});
         p7+=`</div>`;
         const accepted=batchLog.filter(b=>b.accepted);
         const avgQ=accepted.length?Math.round(accepted.reduce((a,b)=>a+(b.quality_score||0),0)/accepted.length):0;
