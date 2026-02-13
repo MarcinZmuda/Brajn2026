@@ -145,6 +145,7 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
 
         # ── TIER 3: CONTENT CONTEXT (enrichment data) ──
         lambda: _fmt_entity_salience(pre_batch),     # entity positioning rules (salience only)
+        lambda: _fmt_backend_placement(pre_batch),   # v47.0: entity placement from competitor analysis
         # _fmt_entities REMOVED v45.4.1 — gpt_instructions_v39 already contains
         # curated "🧠 ENCJE:" section (max 3/batch, importance≥0.7, with HOW hints).
         # Our version duplicated it with dirtier, unfiltered data from S1.
@@ -420,11 +421,66 @@ def _fmt_entity_salience(pre_batch):
     - Google Cloud NLP API salience scoring
     
     Data source: pre_batch["_entity_salience_instructions"] injected by app.py
+    v47.0: Also includes backend placement instructions from gpt-ngram-api
     """
+    # 1. Existing instructions from frontend (entity_salience.py local)
     instructions = pre_batch.get("_entity_salience_instructions", "")
-    if instructions:
-        return instructions
-    return ""
+    
+    # 2. NEW: Backend placement instructions (from gpt-ngram-api via master-seo-api)
+    backend_placement = pre_batch.get("_backend_placement_instruction", "")
+    if backend_placement:
+        if instructions:
+            instructions += "\n\n"
+        instructions += backend_placement
+    
+    return instructions
+
+
+def _fmt_backend_placement(pre_batch):
+    """v47.0: Dedicated backend placement section — entity placement from competitor analysis.
+    
+    Generates structured placement instructions including:
+    - Primary entity → H1 + first paragraph
+    - Secondary entities → H2 sections
+    - Co-occurring pairs → same paragraph/sentence
+    - First paragraph entities
+    - H2 entities
+    
+    Data source: pre_batch["_backend_placement_instruction"] injected by app.py
+    from gpt-ngram-api entity_placement.placement_instruction
+    """
+    placement = pre_batch.get("_backend_placement_instruction", "")
+    if not placement:
+        return ""
+    
+    parts = ["═══ ROZMIESZCZENIE ENCJI (z analizy konkurencji) ═══"]
+    parts.append(placement)
+    
+    # Add co-occurrence pairs if available
+    cooccurrence_pairs = pre_batch.get("_cooccurrence_pairs", [])
+    if cooccurrence_pairs:
+        pairs_text = []
+        for pair in cooccurrence_pairs[:5]:
+            entity_a = pair.get("entity_a", "")
+            entity_b = pair.get("entity_b", "")
+            strength = pair.get("strength", 0)
+            if entity_a and entity_b:
+                pairs_text.append(f"  • \"{entity_a}\" + \"{entity_b}\" (siła: {strength:.2f})")
+        if pairs_text:
+            parts.append("\n🔗 PARY WSPÓŁWYSTĘPUJĄCE (trzymaj w tym samym akapicie):")
+            parts.extend(pairs_text)
+    
+    # Add first paragraph entities
+    first_para = pre_batch.get("_first_paragraph_entities", [])
+    if first_para:
+        parts.append(f"\n📌 PIERWSZY AKAPIT — wprowadź razem: {', '.join(first_para[:5])}")
+    
+    # Add H2 entities
+    h2_entities = pre_batch.get("_h2_entities", [])
+    if h2_entities:
+        parts.append(f"\n📋 ENCJE NA H2 — każda powinna mieć swoją sekcję: {', '.join(h2_entities[:6])}")
+    
+    return "\n".join(parts)
 
 
 def _fmt_entities(pre_batch):
