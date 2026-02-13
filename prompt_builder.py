@@ -65,6 +65,57 @@ def build_system_prompt(pre_batch, batch_type):
 # USER PROMPT BUILDER
 # ════════════════════════════════════════════════════════════
 
+import logging as _logging
+_pb_logger = _logging.getLogger("prompt_builder")
+
+# ═══════════════════════════════════════════════════════════
+# SCHEMA GUARD — validates critical pre_batch fields
+# Ensures backend sent everything needed. Logs warnings for
+# missing fields so we catch backend API changes early.
+# ═══════════════════════════════════════════════════════════
+
+_CRITICAL_FIELDS = [
+    "keywords",             # keyword list — without this, article has no SEO
+    "main_keyword",         # primary keyword
+    "batch_number",         # batch sequencing
+]
+_IMPORTANT_FIELDS = [
+    "gpt_instructions_v39", # backend writing instructions
+    "enhanced",             # enhanced_pre_batch AI data
+    "h2_remaining",         # H2 structure
+    "article_memory",       # context from previous batches
+    "keyword_limits",       # STOP/EXCEEDED rules
+    "coverage",             # keyword coverage state
+]
+
+def _schema_guard(pre_batch):
+    """Validate pre_batch has critical fields. Log warnings for missing."""
+    missing_critical = [f for f in _CRITICAL_FIELDS if f not in pre_batch or pre_batch[f] is None]
+    missing_important = [f for f in _IMPORTANT_FIELDS if f not in pre_batch or pre_batch[f] is None]
+
+    if missing_critical:
+        _pb_logger.warning(
+            f"⚠️ SCHEMA GUARD: Missing CRITICAL fields: {missing_critical}. "
+            f"Backend may have changed API. Article quality will be degraded."
+        )
+    if missing_important:
+        _pb_logger.info(
+            f"ℹ️ Schema guard: Missing optional fields: {missing_important} "
+            f"(batch {pre_batch.get('batch_number', '?')})"
+        )
+
+    # Validate enhanced sub-fields if enhanced exists
+    enhanced = pre_batch.get("enhanced") or {}
+    if enhanced:
+        expected_enhanced = [
+            "smart_instructions_formatted", "causal_context",
+            "information_gain", "relations_to_establish"
+        ]
+        missing_enh = [f for f in expected_enhanced if not enhanced.get(f)]
+        if missing_enh:
+            _pb_logger.info(f"ℹ️ Enhanced missing: {missing_enh}")
+
+
 def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
     """
     Main user prompt builder.
@@ -74,25 +125,35 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
     pre_batch = pre_batch or {}
     sections = []
 
+    # ── SCHEMA GUARD: validate critical fields from backend ──
+    _schema_guard(pre_batch)
+
     formatters = [
+        # ── TIER 1: NON-NEGOTIABLE (backend hard rules) ──
         lambda: _fmt_batch_header(pre_batch, h2, batch_type),
-        lambda: _fmt_intro_guidance(pre_batch, batch_type),
-        lambda: _fmt_smart_instructions(pre_batch),
-        lambda: _fmt_keywords(pre_batch),
+        lambda: _fmt_keywords(pre_batch),           # MUST/STOP/EXCEEDED — hardest constraints
+        lambda: _fmt_smart_instructions(pre_batch),  # enhanced_pre_batch AI instructions
+        lambda: _fmt_legal_medical(pre_batch),        # YMYL — legal compliance, non-negotiable
+
+        # ── TIER 2: BACKEND WRITE INSTRUCTIONS (gpt_instructions_v39 etc.) ──
         lambda: _fmt_semantic_plan(pre_batch, h2),
-        lambda: _fmt_entity_salience(pre_batch),
+        lambda: _fmt_coverage_density(pre_batch),
+        lambda: _fmt_phrase_hierarchy(pre_batch),
+        lambda: _fmt_continuation(pre_batch),
+        lambda: _fmt_article_memory(article_memory),
+        lambda: _fmt_h2_remaining(pre_batch),
+
+        # ── TIER 3: CONTENT CONTEXT (enrichment data) ──
+        lambda: _fmt_entity_salience(pre_batch),     # entity positioning rules
         lambda: _fmt_entities(pre_batch),
         lambda: _fmt_ngrams(pre_batch),
         lambda: _fmt_serp_enrichment(pre_batch),
-        lambda: _fmt_continuation(pre_batch),
-        lambda: _fmt_article_memory(article_memory),
-        lambda: _fmt_coverage_density(pre_batch),
-        lambda: _fmt_style(pre_batch),
-        lambda: _fmt_legal_medical(pre_batch),
-        lambda: _fmt_experience_markers(pre_batch),
         lambda: _fmt_causal_context(pre_batch),
-        lambda: _fmt_phrase_hierarchy(pre_batch),
-        lambda: _fmt_h2_remaining(pre_batch),
+        lambda: _fmt_experience_markers(pre_batch),
+
+        # ── TIER 4: SOFT GUIDELINES (format, style, intro) ──
+        lambda: _fmt_intro_guidance(pre_batch, batch_type),
+        lambda: _fmt_style(pre_batch),
         lambda: _fmt_output_format(h2, batch_type),
     ]
 

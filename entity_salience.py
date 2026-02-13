@@ -639,6 +639,541 @@ def _entity_relation_hint(entity, main_keyword):
     return f"powiązanie z {main_keyword}"
 
 
+def analyze_style_consistency(text):
+    """
+    Anti-Frankenstein analysis — detect style drift across batches.
+    
+    Measures:
+    - Sentence length variation (CV < 0.4 = consistent, > 0.6 = Frankenstein)
+    - Paragraph length variation
+    - Passive voice ratio (Polish heuristic: "jest/są/został/została" patterns)
+    - Formality indicators
+    - Repetition patterns
+    
+    Returns dict with metrics and score (0-100, higher = more consistent).
+    """
+    if not text or len(text) < 100:
+        return {"score": 0, "error": "Text too short"}
+
+    # Split into sentences
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 5]
+
+    # Split into paragraphs
+    paragraphs = [p.strip() for p in text.split('\n') if len(p.strip()) > 20]
+
+    # Sentence lengths
+    sent_lengths = [len(s.split()) for s in sentences]
+    avg_sent_len = sum(sent_lengths) / max(1, len(sent_lengths))
+    
+    import math
+    if len(sent_lengths) > 1 and avg_sent_len > 0:
+        variance = sum((x - avg_sent_len) ** 2 for x in sent_lengths) / len(sent_lengths)
+        std_dev = math.sqrt(variance)
+        cv_sentences = std_dev / avg_sent_len  # coefficient of variation
+    else:
+        cv_sentences = 0
+
+    # Paragraph lengths
+    para_lengths = [len(p.split()) for p in paragraphs]
+    avg_para_len = sum(para_lengths) / max(1, len(para_lengths))
+    if len(para_lengths) > 1 and avg_para_len > 0:
+        p_var = sum((x - avg_para_len) ** 2 for x in para_lengths) / len(para_lengths)
+        cv_paragraphs = math.sqrt(p_var) / avg_para_len
+    else:
+        cv_paragraphs = 0
+
+    # Passive voice (Polish heuristic)
+    passive_patterns = [
+        r'\bjest\s+\w+[aeioyąę][nm]?[aey]?\b',  # jest + participle
+        r'\bsą\s+\w+[aeioyąę][nm]?[aey]?\b',
+        r'\bzostał[aoy]?\b', r'\bzostanie\b', r'\bzostają\b',
+        r'\bbyło\b', r'\bbył[aoy]?\b',
+    ]
+    passive_count = 0
+    for sent in sentences:
+        for pattern in passive_patterns:
+            if re.search(pattern, sent, re.IGNORECASE):
+                passive_count += 1
+                break
+    passive_ratio = passive_count / max(1, len(sentences))
+
+    # Transition words (Polish)
+    transition_words = [
+        'jednak', 'natomiast', 'ponadto', 'podsumowując', 'warto',
+        'należy', 'co więcej', 'w związku', 'dlatego', 'bowiem',
+        'przede wszystkim', 'w rezultacie', 'z kolei', 'mimo to',
+        'w praktyce', 'w konsekwencji', 'co istotne', 'warto podkreślić',
+    ]
+    transition_count = sum(
+        1 for sent in sentences
+        if any(sent.lower().startswith(tw) or f' {tw} ' in sent.lower() for tw in transition_words)
+    )
+    transition_ratio = transition_count / max(1, len(sentences))
+
+    # Repetition: consecutive sentences starting with same word
+    repetition_count = 0
+    for i in range(1, len(sentences)):
+        w1 = sentences[i-1].split()[0].lower() if sentences[i-1].split() else ''
+        w2 = sentences[i].split()[0].lower() if sentences[i].split() else ''
+        if w1 and w1 == w2 and len(w1) > 2:
+            repetition_count += 1
+    repetition_ratio = repetition_count / max(1, len(sentences) - 1)
+
+    # Score calculation (0-100, higher = more consistent/natural)
+    score = 100
+
+    # Sentence CV: 0.3-0.5 is ideal (natural variation)
+    if cv_sentences < 0.2:
+        score -= 15  # too monotone
+    elif cv_sentences > 0.6:
+        score -= 20  # Frankenstein
+    elif cv_sentences > 0.5:
+        score -= 10
+
+    # Passive voice: < 20% ideal
+    if passive_ratio > 0.35:
+        score -= 20
+    elif passive_ratio > 0.25:
+        score -= 10
+
+    # Transitions: 15-30% ideal
+    if transition_ratio < 0.05:
+        score -= 10  # abrupt
+    elif transition_ratio > 0.4:
+        score -= 10  # over-connected
+
+    # Repetition: < 5% ideal
+    if repetition_ratio > 0.15:
+        score -= 15
+    elif repetition_ratio > 0.08:
+        score -= 8
+
+    # Paragraph consistency
+    if cv_paragraphs > 0.7:
+        score -= 10
+
+    score = max(0, min(100, score))
+
+    return {
+        "score": score,
+        "sentence_count": len(sentences),
+        "paragraph_count": len(paragraphs),
+        "avg_sentence_length": round(avg_sent_len, 1),
+        "cv_sentences": round(cv_sentences, 3),
+        "avg_paragraph_length": round(avg_para_len, 1),
+        "cv_paragraphs": round(cv_paragraphs, 3),
+        "passive_ratio": round(passive_ratio, 3),
+        "passive_count": passive_count,
+        "transition_ratio": round(transition_ratio, 3),
+        "repetition_ratio": round(repetition_ratio, 3),
+        "issues": _style_issues(cv_sentences, passive_ratio, transition_ratio, repetition_ratio, cv_paragraphs, avg_sent_len),
+    }
+
+
+def _style_issues(cv_sent, passive, transitions, repetition, cv_para, avg_len):
+    """Generate human-readable style issues."""
+    issues = []
+    if cv_sent > 0.6:
+        issues.append(f"Duża zmienność długości zdań (CV={cv_sent:.2f}) — możliwy efekt Frankenstein między batchami")
+    elif cv_sent < 0.2:
+        issues.append(f"Zbyt monotonne zdania (CV={cv_sent:.2f}) — brak naturalnej wariacji")
+    if passive > 0.3:
+        issues.append(f"Wysoki udział strony biernej ({passive:.0%}) — osłabia entity salience")
+    if transitions < 0.05:
+        issues.append("Brak słów łączących — tekst może być chaotyczny")
+    elif transitions > 0.4:
+        issues.append("Nadmiar słów łączących — tekst może brzmi sztucznie")
+    if repetition > 0.1:
+        issues.append(f"Powtarzające się początki zdań ({repetition:.0%}) — widoczny wzorzec AI")
+    if cv_para > 0.7:
+        issues.append("Duża zmienność długości akapitów — niespójny rytm tekstu")
+    if avg_len > 25:
+        issues.append(f"Długie zdania (śr. {avg_len:.0f} słów) — trudne w czytaniu")
+    elif avg_len < 10:
+        issues.append(f"Bardzo krótkie zdania (śr. {avg_len:.0f} słów) — może być zbyt pocięte")
+    return issues
+
+
+def analyze_subject_position(text, main_keyword):
+    """
+    Measure how often main entity appears as grammatical subject vs object.
+    
+    Based on Dunietz & Gillick (2014): subject position gives 3-6× higher salience.
+    
+    Heuristic approach (no dependency parser needed):
+    - Subject: entity at START of sentence (first 3 words)
+    - Object: entity at END of sentence (last 40% of words)
+    - Middle: entity in middle of sentence
+    
+    Returns:
+      {
+        "total_sentences": 120,
+        "sentences_with_entity": 35,
+        "subject_position": 18,  # entity in first 3 words
+        "object_position": 8,    # entity in last 40%
+        "middle_position": 9,
+        "subject_ratio": 0.51,   # subject / sentences_with_entity
+        "first_sentence_has_entity": True,
+        "h1_has_entity": True,
+        "h2_entity_count": 3,
+        "paragraph_starts_with_entity": 8,
+        "score": 75,  # 0-100
+      }
+    """
+    if not text or not main_keyword:
+        return {"total_sentences": 0, "sentences_with_entity": 0, "score": 0}
+
+    # Normalize
+    kw_lower = main_keyword.lower().strip()
+    kw_variants = {kw_lower}
+    # Add common Polish declension patterns (simplified)
+    if len(kw_lower) > 4:
+        for suffix in ['u', 'a', 'em', 'ie', 'ę', 'ą', 'om', 'ami', 'ach', 'ów']:
+            if kw_lower.endswith(suffix):
+                stem = kw_lower[:-len(suffix)]
+                if len(stem) >= 3:
+                    kw_variants.add(stem)
+                break
+
+    def contains_entity(text_fragment):
+        frag_lower = text_fragment.lower()
+        return any(v in frag_lower for v in kw_variants)
+
+    # Split into sentences
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
+
+    # Split into paragraphs
+    paragraphs = [p.strip() for p in text.split('\n') if len(p.strip()) > 20]
+
+    # Extract H2 headers
+    h2_lines = re.findall(r'^##\s+(.+)$', text, re.MULTILINE)
+
+    result = {
+        "total_sentences": len(sentences),
+        "sentences_with_entity": 0,
+        "subject_position": 0,
+        "object_position": 0,
+        "middle_position": 0,
+        "subject_ratio": 0.0,
+        "first_sentence_has_entity": False,
+        "h1_has_entity": False,
+        "h2_entity_count": 0,
+        "paragraph_starts_with_entity": 0,
+        "score": 0,
+    }
+
+    if not sentences:
+        return result
+
+    # Check first sentence
+    result["first_sentence_has_entity"] = contains_entity(sentences[0])
+
+    # Check H2s
+    result["h2_entity_count"] = sum(1 for h in h2_lines if contains_entity(h))
+
+    # Check H1 (first line or first ## line)
+    h1_lines = re.findall(r'^#\s+(.+)$', text, re.MULTILINE)
+    if h1_lines:
+        result["h1_has_entity"] = contains_entity(h1_lines[0])
+
+    # Check paragraph starts
+    for p in paragraphs:
+        first_words = ' '.join(p.split()[:5])
+        if contains_entity(first_words):
+            result["paragraph_starts_with_entity"] += 1
+
+    # Analyze each sentence
+    for sent in sentences:
+        if not contains_entity(sent):
+            continue
+        result["sentences_with_entity"] += 1
+
+        words = sent.split()
+        total_words = len(words)
+        if total_words < 3:
+            result["subject_position"] += 1
+            continue
+
+        first_3 = ' '.join(words[:3]).lower()
+        last_40pct = ' '.join(words[int(total_words * 0.6):]).lower()
+
+        if any(v in first_3 for v in kw_variants):
+            result["subject_position"] += 1
+        elif any(v in last_40pct for v in kw_variants):
+            result["object_position"] += 1
+        else:
+            result["middle_position"] += 1
+
+    # Calculate ratios
+    with_entity = result["sentences_with_entity"]
+    if with_entity > 0:
+        result["subject_ratio"] = round(result["subject_position"] / with_entity, 3)
+
+    # Score (0-100)
+    score = 0
+
+    # Subject ratio (max 40 pts)
+    sr = result["subject_ratio"]
+    if sr >= 0.5:
+        score += 40
+    elif sr >= 0.35:
+        score += 30
+    elif sr >= 0.2:
+        score += 20
+    elif sr >= 0.1:
+        score += 10
+
+    # First sentence (15 pts)
+    if result["first_sentence_has_entity"]:
+        score += 15
+
+    # H2 presence (15 pts)
+    if result["h2_entity_count"] >= 2:
+        score += 15
+    elif result["h2_entity_count"] >= 1:
+        score += 8
+
+    # Paragraph starts (15 pts)
+    para_ratio = result["paragraph_starts_with_entity"] / max(1, len(paragraphs))
+    if para_ratio >= 0.3:
+        score += 15
+    elif para_ratio >= 0.15:
+        score += 8
+
+    # Entity presence overall (15 pts)
+    ent_ratio = with_entity / max(1, len(sentences))
+    if ent_ratio >= 0.25:
+        score += 15
+    elif ent_ratio >= 0.15:
+        score += 10
+    elif ent_ratio >= 0.08:
+        score += 5
+
+    result["score"] = min(100, score)
+    return result
+
+
+def analyze_ymyl_references(text, legal_context=None, medical_context=None):
+    """
+    Scan article text for legal references and medical citations.
+    Works locally without any API — pure regex/heuristic analysis.
+    
+    Returns:
+      {
+        "legal": {
+          "acts_found": [...],          # Legal acts mentioned in text
+          "judgments_found": [...],       # Case law signatures found
+          "articles_cited": [...],       # "art. 13 kc" etc.
+          "disclaimer_present": bool,
+          "acts_from_context_used": int, # How many backend-provided acts appear
+          "judgments_from_context_used": int,
+          "score": 0-100,
+        },
+        "medical": {
+          "pmids_found": [...],
+          "studies_referenced": [...],   # "badanie z 2023" etc.
+          "institutions_found": [...],   # WHO, NIH, etc.
+          "disclaimer_present": bool,
+          "pubs_from_context_used": int,
+          "evidence_indicators": [...],  # "meta-analiza", "RCT" etc.
+          "score": 0-100,
+        }
+      }
+    """
+    result = {"legal": {}, "medical": {}}
+    
+    if not text:
+        return result
+    
+    text_lower = text.lower()
+    
+    # ═══ LEGAL ANALYSIS ═══
+    
+    # 1. Find legal act references
+    act_patterns = [
+        r'[Uu]staw[aąy]?\s+(?:z\s+dnia\s+)?\d{1,2}\s+\w+\s+\d{4}',
+        r'[Kk]odeks\s+(?:cywilny|karny|postępowania|pracy|rodzinny|spółek|morski)',
+        r'[Rr]ozporządzeni[eua]\s+[^.]{10,60}\d{4}',
+        r'[Dd]yrektyw[aąy]\s+[^.]{5,40}\d{4}',
+        r'[Kk]\.?[cp]\.?(?:\s|$)',  # k.c., k.p., kc, kp
+        r'[Oo]rdynacja\s+podatkowa',
+        r'[Pp]rawo\s+(?:budowlane|zamówień|bankowe|energetyczne|telekomunikacyjne)',
+    ]
+    acts_found = []
+    for pattern in act_patterns:
+        matches = re.findall(pattern, text)
+        acts_found.extend([m.strip()[:100] for m in matches])
+    acts_found = list(dict.fromkeys(acts_found))  # deduplicate preserving order
+    
+    # 2. Find judgment signatures (Polish court format)
+    judgment_patterns = [
+        r'(?:sygn\.?\s*(?:akt\s*)?)?[IVX]{1,4}\s+[A-Z]{1,4}\s+\d{1,5}/\d{2,4}',  # I CSK 123/20
+        r'[IVX]{1,4}\s+[A-Z]{1,4}\s+\d+/\d+',
+        r'(?:wyrok|uchwała|postanowienie)\s+(?:SN|SA|SO|WSA|NSA|TK)\s+z\s+(?:dnia\s+)?\d{1,2}',
+        r'(?:SN|SA|SO|WSA|NSA|TK)\s+z\s+\d{1,2}\s+\w+\s+\d{4}',
+    ]
+    judgments_found = []
+    for pattern in judgment_patterns:
+        matches = re.findall(pattern, text)
+        judgments_found.extend([m.strip()[:80] for m in matches])
+    judgments_found = list(dict.fromkeys(judgments_found))
+    
+    # 3. Find article/paragraph citations
+    article_patterns = [
+        r'art\.?\s*\d{1,4}(?:\s*§\s*\d{1,3})?(?:\s*(?:ust|pkt|zd)\.?\s*\d{1,3})*',
+        r'§\s*\d{1,4}(?:\s*(?:ust|pkt)\.?\s*\d{1,3})*',
+        r'artykuł[u]?\s+\d{1,4}',
+    ]
+    articles_cited = []
+    for pattern in article_patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        articles_cited.extend([m.strip()[:60] for m in matches])
+    articles_cited = list(dict.fromkeys(articles_cited))
+    
+    # 4. Disclaimer check
+    legal_disclaimer_keywords = [
+        'konsultacja z prawnikiem', 'porada prawna', 'nie stanowi porady',
+        'charakter informacyjny', 'skonsultuj z adwokatem', 'skonsultuj z radcą',
+        'nie zastępuje porady', 'konsultacji z prawnikiem',
+    ]
+    legal_disclaimer = any(kw in text_lower for kw in legal_disclaimer_keywords)
+    
+    # 5. Cross-reference with context
+    acts_from_ctx = 0
+    judgments_from_ctx = 0
+    if legal_context:
+        ctx_judgments = legal_context.get("top_judgments") or []
+        for j in ctx_judgments:
+            if isinstance(j, dict):
+                sig = (j.get("signature") or j.get("caseNumber") or "").lower()
+                if sig and any(sig[:10] in jf.lower() for jf in judgments_found):
+                    judgments_from_ctx += 1
+        ctx_acts = legal_context.get("legal_acts") or []
+        for a in ctx_acts:
+            name = (a.get("name") if isinstance(a, dict) else str(a)).lower()[:30]
+            if name and name in text_lower:
+                acts_from_ctx += 1
+    
+    # Legal score
+    legal_score = 0
+    if acts_found: legal_score += min(30, len(acts_found) * 10)
+    if judgments_found: legal_score += min(30, len(judgments_found) * 15)
+    if articles_cited: legal_score += min(20, len(articles_cited) * 5)
+    if legal_disclaimer: legal_score += 20
+    legal_score = min(100, legal_score)
+    
+    result["legal"] = {
+        "acts_found": acts_found[:15],
+        "judgments_found": judgments_found[:10],
+        "articles_cited": articles_cited[:20],
+        "disclaimer_present": legal_disclaimer,
+        "acts_from_context_used": acts_from_ctx,
+        "judgments_from_context_used": judgments_from_ctx,
+        "score": legal_score,
+    }
+    
+    # ═══ MEDICAL ANALYSIS ═══
+    
+    # 1. Find PMID references
+    pmids = re.findall(r'PMID[:\s]*(\d{6,9})', text)
+    pmids = list(dict.fromkeys(pmids))
+    
+    # 2. Find DOI references
+    dois = re.findall(r'(?:doi[:\s]*|https?://doi\.org/)(\d{2}\.\d{4,}/[^\s,)]+)', text, re.IGNORECASE)
+    
+    # 3. Find study references
+    study_patterns = [
+        r'badan(?:ie|ia|iu)\s+(?:z\s+)?\d{4}\s+(?:roku?|r\.?)',
+        r'(?:meta-analiz|metaanaliz|przegląd\s+systematic|systematic\s+review|randomiz)',
+        r'(?:badanie\s+)?(?:RCT|randomizowane|kohortowe|przekrojowe|retrospektywne|prospektywne)',
+        r'(?:trial|study|research)\s+(?:by|from|published)',
+        r'opublikowane?\s+w\s+\d{4}',
+        r'et\s+al\.\s*[\(,]\s*\d{4}',
+    ]
+    studies_found = []
+    for pattern in study_patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        studies_found.extend([m.strip()[:80] for m in matches])
+    studies_found = list(dict.fromkeys(studies_found))
+    
+    # 4. Find medical institutions
+    institutions_patterns = [
+        r'WHO|World Health Organization|Światow\w+ Organizacj\w+ Zdrowia',
+        r'NIH|National Institutes? of Health',
+        r'EMA|European Medicines Agency|Europejsk\w+ Agencj\w+ Lek',
+        r'FDA|Food and Drug Administration',
+        r'CDC|Centers? for Disease Control',
+        r'NFZ|Narodow\w+ Fundusz\w+ Zdrowia',
+        r'PZH|Państwow\w+ Zakład\w+ Higieny|NIZP',
+        r'Cochrane',
+        r'(?:Polskie|Europejskie|Amerykańskie)\s+Towarzystwo\s+\w+',
+        r'(?:wytyczne|rekomendacje|zalecenia)\s+(?:PTL|PTK|PTP|PTG|PTD|PTE)',
+    ]
+    institutions_found = []
+    for pattern in institutions_patterns:
+        matches = re.findall(pattern, text)
+        institutions_found.extend([m.strip()[:60] for m in matches])
+    institutions_found = list(dict.fromkeys(institutions_found))
+    
+    # 5. Evidence level indicators
+    evidence_keywords = {
+        "Ia": ["meta-analiz", "metaanaliz", "przegląd systematyczny", "systematic review"],
+        "Ib": ["randomizowane", "RCT", "randomized controlled"],
+        "IIa": ["kohortowe", "cohort study", "prospektywne"],
+        "IIb": ["case-control", "przekrojowe", "retrospektywne"],
+        "III": ["seria przypadków", "case series", "opis przypadku"],
+        "IV": ["opinia eksperta", "expert opinion", "konsensus"],
+    }
+    evidence_found = {}
+    for level, keywords in evidence_keywords.items():
+        for kw in keywords:
+            if kw.lower() in text_lower:
+                evidence_found[level] = evidence_found.get(level, 0) + 1
+    
+    # 6. Medical disclaimer
+    medical_disclaimer_keywords = [
+        'konsultacja z lekarzem', 'skonsultuj z lekarzem', 'porada medyczna',
+        'nie stanowi diagnozy', 'charakter informacyjny', 'nie zastępuje wizyty',
+        'skonsultuj ze specjalistą', 'porady lekarskiej',
+    ]
+    medical_disclaimer = any(kw in text_lower for kw in medical_disclaimer_keywords)
+    
+    # 7. Cross-reference with context
+    pubs_from_ctx = 0
+    if medical_context:
+        ctx_pubs = medical_context.get("top_publications") or []
+        for p in ctx_pubs:
+            if isinstance(p, dict):
+                pmid = str(p.get("pmid", ""))
+                title_frag = (p.get("title", ""))[:25].lower()
+                if (pmid and pmid in pmids) or (title_frag and title_frag in text_lower):
+                    pubs_from_ctx += 1
+    
+    # Medical score
+    med_score = 0
+    if pmids: med_score += min(25, len(pmids) * 10)
+    if studies_found: med_score += min(20, len(studies_found) * 7)
+    if institutions_found: med_score += min(20, len(institutions_found) * 7)
+    if evidence_found: med_score += min(15, len(evidence_found) * 5)
+    if medical_disclaimer: med_score += 20
+    med_score = min(100, med_score)
+    
+    result["medical"] = {
+        "pmids_found": pmids[:15],
+        "dois_found": dois[:10],
+        "studies_referenced": studies_found[:15],
+        "institutions_found": institutions_found[:10],
+        "disclaimer_present": medical_disclaimer,
+        "pubs_from_context_used": pubs_from_ctx,
+        "evidence_indicators": evidence_found,
+        "score": med_score,
+    }
+    
+    return result
+
+
 def is_salience_available():
     """Check if Google NLP API key is configured."""
     return bool(GOOGLE_NLP_API_KEY)

@@ -58,6 +58,9 @@ from entity_salience import (
     build_entity_salience_instructions,
     is_salience_available,
     analyze_entities_google_nlp,
+    analyze_subject_position,
+    analyze_style_consistency,
+    analyze_ymyl_references,
 )
 
 # ================================================================
@@ -468,9 +471,23 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
     job = active_jobs.get(job_id, {})
+    step_times = {}  # {step_num: {"start": time, "end": time}}
+    workflow_start = time.time()
+
+    def step_start(num):
+        step_times[num] = {"start": time.time()}
+
+    def step_done(num):
+        if num in step_times:
+            step_times[num]["end"] = time.time()
+            elapsed = step_times[num]["end"] - step_times[num]["start"]
+            step_times[num]["elapsed"] = round(elapsed, 1)
+            return round(elapsed, 1)
+        return 0
 
     try:
         # ─── KROK 1: S1 Analysis ───
+        step_start(1)
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "running"})
         yield emit("log", {"msg": f"POST /api/s1_analysis → {main_keyword}"})
 
@@ -502,6 +519,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         gaps_count = (s1.get("content_gaps") or {}).get("total_gaps", 0)
         suggested_h2s = (s1.get("content_gaps") or {}).get("suggested_new_h2s", [])
 
+        step_done(1)
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "done",
                             "detail": f"{h2_patterns} H2 patterns | {causal_count} causal triplets | {gaps_count} content gaps"})
         
@@ -598,6 +616,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": "ℹ️ Entity Salience: instrukcje pozycjonowania encji aktywne (brak API key dla walidacji)"})
 
         # ─── KROK 2: YMYL Detection ───
+        step_start(2)
         yield emit("step", {"step": 2, "name": "YMYL Detection", "status": "running"})
 
         legal_result = brajen_call("post", "/api/legal/detect", {"main_keyword": main_keyword})
@@ -622,9 +641,83 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 medical_context = mc["data"]
 
         ymyl_detail = f"Legal: {'TAK' if is_legal else 'NIE'} | Medical: {'TAK' if is_medical else 'NIE'}"
+
+        # ═══ EMIT YMYL CONTEXT FOR DASHBOARD ═══
+        ymyl_panel_data = {
+            "is_legal": is_legal,
+            "is_medical": is_medical,
+            "legal": {},
+            "medical": {},
+        }
+        if legal_context:
+            judgments_raw = legal_context.get("top_judgments") or []
+            judgments_clean = []
+            for j in judgments_raw[:10]:
+                if isinstance(j, dict):
+                    judgments_clean.append({
+                        "signature": j.get("signature", j.get("caseNumber", "")),
+                        "court": j.get("court", j.get("courtName", "")),
+                        "date": j.get("date", j.get("judgmentDate", "")),
+                        "summary": (j.get("summary", j.get("excerpt", "")))[:150],
+                        "type": j.get("type", j.get("judgmentType", "")),
+                    })
+            # Extract legal acts from instruction
+            legal_acts = legal_context.get("legal_acts") or legal_context.get("acts") or []
+            if not legal_acts and legal_context.get("legal_instruction"):
+                # Try to extract act references from instruction text
+                import re as _re
+                act_patterns = _re.findall(
+                    r'(?:ustaw[aąy]?\s+(?:z\s+dnia\s+)?\d{1,2}\s+\w+\s+\d{4}[^.]*|'
+                    r'[Kk]odeks\s+\w+[^.]*|'
+                    r'[Rr]ozporządzeni[eua][^.]*\d{4}[^.]*|'
+                    r'[Dd]yrektyw[aąy][^.]*\d{4}[^.]*)',
+                    legal_context.get("legal_instruction", "")
+                )
+                legal_acts = [{"name": a.strip()[:120]} for a in act_patterns[:8]]
+
+            ymyl_panel_data["legal"] = {
+                "instruction_preview": (legal_context.get("legal_instruction", ""))[:300],
+                "judgments": judgments_clean,
+                "judgments_count": len(judgments_raw),
+                "legal_acts": legal_acts[:8] if isinstance(legal_acts, list) else [],
+                "citation_hint": legal_context.get("citation_hint", ""),
+            }
+
+        if medical_context:
+            pubs_raw = medical_context.get("top_publications") or []
+            pubs_clean = []
+            for p in pubs_raw[:10]:
+                if isinstance(p, dict):
+                    pubs_clean.append({
+                        "title": (p.get("title", ""))[:120],
+                        "authors": (p.get("authors", ""))[:80],
+                        "year": p.get("year", ""),
+                        "pmid": p.get("pmid", ""),
+                        "journal": (p.get("journal", ""))[:60],
+                        "evidence_level": p.get("evidence_level", p.get("level", "")),
+                        "study_type": p.get("study_type", p.get("type", "")),
+                    })
+            # Evidence level breakdown
+            evidence_levels = {}
+            for p in pubs_clean:
+                lvl = p.get("evidence_level") or p.get("study_type") or "unknown"
+                evidence_levels[lvl] = evidence_levels.get(lvl, 0) + 1
+
+            ymyl_panel_data["medical"] = {
+                "instruction_preview": (medical_context.get("medical_instruction", ""))[:300],
+                "publications": pubs_clean,
+                "publications_count": len(pubs_raw),
+                "evidence_levels": evidence_levels,
+                "guidelines": medical_context.get("guidelines") or [],
+            }
+
+        yield emit("ymyl_context", ymyl_panel_data)
+
+        step_done(2)
         yield emit("step", {"step": 2, "name": "YMYL Detection", "status": "done", "detail": ymyl_detail})
 
         # ─── KROK 3: H2 Planning (auto from S1 + phrase optimization) ───
+        step_start(3)
         yield emit("step", {"step": 3, "name": "H2 Planning", "status": "running"})
 
         if not h2_structure or len(h2_structure) == 0:
@@ -653,10 +746,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # Emit the final H2 plan for the UI
         yield emit("h2_plan", {"h2_list": h2_structure, "count": len(h2_structure)})
         yield emit("log", {"msg": f"Plan H2 ({len(h2_structure)} sekcji): {' | '.join(h2_structure)}"})
+        step_done(3)
         yield emit("step", {"step": 3, "name": "H2 Planning", "status": "done",
                             "detail": f"{len(h2_structure)} nagłówków H2"})
 
         # ─── KROK 4: Create Project ───
+        step_start(4)
         yield emit("step", {"step": 4, "name": "Create Project", "status": "running"})
 
         # Build keywords array
@@ -742,6 +837,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         project_id = project.get("project_id")
         total_batches = project.get("total_planned_batches", len(h2_structure))
 
+        step_done(4)
         yield emit("step", {"step": 4, "name": "Create Project", "status": "done",
                             "detail": f"ID: {project_id} | Mode: {mode} | Batche: {total_batches}"})
         yield emit("project", {"project_id": project_id, "total_batches": total_batches})
@@ -750,6 +846,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         job["project_id"] = project_id
 
         # ─── KROK 5: Phrase Hierarchy ───
+        step_start(5)
         yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "running"})
         hier_result = brajen_call("get", f"/api/project/{project_id}/phrase_hierarchy")
         phrase_hierarchy_data = {}
@@ -757,6 +854,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             hier = hier_result["data"]
             phrase_hierarchy_data = hier  # Store for injection into pre_batch
             strategy = (hier.get("strategies") or {})
+            step_done(5)
             yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "done",
                                 "detail": json.dumps(strategy, ensure_ascii=False)[:200]})
         else:
@@ -764,6 +862,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                 "detail": "Nie udało się pobrać — kontynuuję"})
 
         # ─── KROK 6: Batch Loop ───
+        step_start(6)
         yield emit("step", {"step": 6, "name": "Batch Loop", "status": "running",
                             "detail": f"0/{total_batches} batchy"})
 
@@ -998,10 +1097,25 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("step", {"step": 6, "name": "Batch Loop", "status": "running",
                                 "detail": f"{batch_num}/{total_batches} batchy"})
 
+        step_done(6)
         yield emit("step", {"step": 6, "name": "Batch Loop", "status": "done",
                             "detail": f"{total_batches}/{total_batches} batchy"})
 
+        # Emit article memory state for dashboard
+        if article_memory:
+            mem = article_memory if isinstance(article_memory, dict) else {}
+            yield emit("article_memory", {
+                "topics_covered": mem.get("topics_covered", [])[:20],
+                "open_threads": mem.get("open_threads", [])[:10],
+                "entities_introduced": mem.get("entities_introduced", [])[:15],
+                "defined_terms": mem.get("defined_terms", [])[:15],
+                "thesis": mem.get("thesis", ""),
+                "tone": mem.get("tone", ""),
+                "batch_count": len(accepted_batches_log),
+            })
+
         # ─── KROK 7: PAA Check ───
+        step_start(7)
         yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "running"})
         try:
             paa_check = brajen_call("get", f"/api/project/{project_id}/paa")
@@ -1032,10 +1146,21 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             questions.append({"question": cq, "answer": " ".join(ca)})
                         if questions:
                             brajen_call("post", f"/api/project/{project_id}/paa/save", {"questions": questions})
+
+                        # Emit PAA data for dashboard
+                        paa_from_serp = (s1.get("paa") or s1.get("paa_questions") or [])
+                        yield emit("paa_data", {
+                            "questions_generated": len(questions) if questions else 0,
+                            "faq_text_length": len(faq_text) if faq_text else 0,
+                            "paa_questions_from_serp": len(paa_from_serp),
+                            "paa_unanswered": len((s1.get("content_gaps") or {}).get("paa_unanswered", [])),
+                            "status": "generated",
+                        })
                     else:
                         yield emit("log", {"msg": "⚠️ Brak danych PAA — pomijam FAQ"})
                 else:
                     yield emit("log", {"msg": "⚠️ PAA analyze pusty — pomijam FAQ"})
+                step_done(7)
                 yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done"})
             else:
                 yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done",
@@ -1047,6 +1172,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                 "detail": "Błąd FAQ — pominięto"})
 
         # ─── KROK 8: Final Review ───
+        step_start(8)
         yield emit("step", {"step": 8, "name": "Final Review", "status": "running"})
         yield emit("log", {"msg": "GET /final_review..."})
         final_result = brajen_call("get", f"/api/project/{project_id}/final_review", timeout=HEAVY_REQUEST_TIMEOUT)
@@ -1080,27 +1206,38 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "extended_coverage": final.get("extended_coverage"),
             })
 
+            step_done(8)
             yield emit("step", {"step": 8, "name": "Final Review", "status": "done",
                                 "detail": f"Score: {final_score}/100 | Status: {final_status}"})
 
             # YMYL validation
+            ymyl_validation = {"legal": None, "medical": None}
             if is_legal:
                 yield emit("log", {"msg": "Walidacja prawna..."})
                 full_art = brajen_call("get", f"/api/project/{project_id}/full_article")
                 if full_art["ok"] and full_art["data"].get("full_article"):
-                    brajen_call("post", "/api/legal/validate",
+                    legal_val = brajen_call("post", "/api/legal/validate",
                                {"full_text": full_art["data"]["full_article"]})
+                    if legal_val["ok"]:
+                        ymyl_validation["legal"] = legal_val.get("data") or {}
+                        yield emit("log", {"msg": f"⚖️ Legal validation: {(legal_val.get('data') or {}).get('status', 'done')}"})
             if is_medical:
                 yield emit("log", {"msg": "Walidacja medyczna..."})
                 full_art = brajen_call("get", f"/api/project/{project_id}/full_article")
                 if full_art["ok"] and full_art["data"].get("full_article"):
-                    brajen_call("post", "/api/medical/validate",
+                    med_val = brajen_call("post", "/api/medical/validate",
                                {"full_text": full_art["data"]["full_article"]})
+                    if med_val["ok"]:
+                        ymyl_validation["medical"] = med_val.get("data") or {}
+                        yield emit("log", {"msg": f"🏥 Medical validation: {(med_val.get('data') or {}).get('status', 'done')}"})
+            if ymyl_validation["legal"] or ymyl_validation["medical"]:
+                yield emit("ymyl_validation", ymyl_validation)
         else:
             yield emit("step", {"step": 8, "name": "Final Review", "status": "warning",
                                 "detail": "Nie udało się — kontynuuję"})
 
         # ─── KROK 9: Editorial Review ───
+        step_start(9)
         yield emit("step", {"step": 9, "name": "Editorial Review", "status": "running"})
         yield emit("log", {"msg": "POST /editorial_review — to może chwilę potrwać..."})
 
@@ -1130,12 +1267,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if rollback.get("triggered"):
                 yield emit("log", {"msg": f"⚠️ ROLLBACK: {rollback.get('reason', 'unknown')}"})
 
+            step_done(9)
             yield emit("step", {"step": 9, "name": "Editorial Review", "status": "done", "detail": detail})
         else:
             yield emit("step", {"step": 9, "name": "Editorial Review", "status": "warning",
                                 "detail": "Nie udało się — artykuł bez recenzji"})
 
         # ─── KROK 10: Export ───
+        step_start(10)
         yield emit("step", {"step": 10, "name": "Export", "status": "running"})
 
         # Get full article
@@ -1158,6 +1297,79 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             full_text = full.get("full_article", "")
             salience_result = {}
             nlp_entities = []
+            subject_pos = {}
+            
+            # Subject position analysis — always runs (free, no API)
+            if full_text:
+                try:
+                    subject_pos = analyze_subject_position(full_text, main_keyword)
+                    sp_score = subject_pos.get("score", 0)
+                    sr = subject_pos.get("subject_ratio", 0)
+                    yield emit("log", {"msg": (
+                        f"📐 Subject Position: score {sp_score}/100 | "
+                        f"podmiot: {subject_pos.get('subject_position', 0)}/{subject_pos.get('sentences_with_entity', 0)} zdań ({sr:.0%}) | "
+                        f"H2: {subject_pos.get('h2_entity_count', 0)} | "
+                        f"1. zdanie: {'✅' if subject_pos.get('first_sentence_has_entity') else '❌'}"
+                    )})
+                except Exception as sp_err:
+                    logger.warning(f"Subject position analysis failed: {sp_err}")
+
+            # ═══ ANTI-FRANKENSTEIN: Style consistency analysis (free, always runs) ═══
+            style_metrics = {}
+            if full_text:
+                try:
+                    style_metrics = analyze_style_consistency(full_text)
+                    st_score = style_metrics.get("score", 0)
+                    yield emit("log", {"msg": (
+                        f"🎭 Anti-Frankenstein: score {st_score}/100 | "
+                        f"CV zdań: {style_metrics.get('cv_sentences', 0):.2f} | "
+                        f"passive: {style_metrics.get('passive_ratio', 0):.0%} | "
+                        f"śr. zdanie: {style_metrics.get('avg_sentence_length', 0):.0f} słów"
+                    )})
+                    yield emit("style_analysis", {
+                        "score": st_score,
+                        "sentence_count": style_metrics.get("sentence_count", 0),
+                        "paragraph_count": style_metrics.get("paragraph_count", 0),
+                        "avg_sentence_length": style_metrics.get("avg_sentence_length", 0),
+                        "cv_sentences": style_metrics.get("cv_sentences", 0),
+                        "avg_paragraph_length": style_metrics.get("avg_paragraph_length", 0),
+                        "cv_paragraphs": style_metrics.get("cv_paragraphs", 0),
+                        "passive_ratio": style_metrics.get("passive_ratio", 0),
+                        "transition_ratio": style_metrics.get("transition_ratio", 0),
+                        "repetition_ratio": style_metrics.get("repetition_ratio", 0),
+                        "issues": style_metrics.get("issues", []),
+                    })
+                except Exception as style_err:
+                    logger.warning(f"Style analysis failed: {style_err}")
+
+            # ═══ YMYL INTELLIGENCE: Analyze legal/medical references in text ═══
+            if full_text and (is_legal or is_medical):
+                try:
+                    ymyl_refs = analyze_ymyl_references(full_text, legal_context, medical_context)
+                    
+                    if is_legal:
+                        lr = ymyl_refs.get("legal", {})
+                        yield emit("log", {"msg": (
+                            f"⚖️ YMYL Legal: score {lr.get('score', 0)}/100 | "
+                            f"akty: {len(lr.get('acts_found', []))} | "
+                            f"orzeczenia: {len(lr.get('judgments_found', []))} | "
+                            f"art.: {len(lr.get('articles_cited', []))} | "
+                            f"disclaimer: {'✅' if lr.get('disclaimer_present') else '❌'}"
+                        )})
+                    
+                    if is_medical:
+                        mr = ymyl_refs.get("medical", {})
+                        yield emit("log", {"msg": (
+                            f"🏥 YMYL Medical: score {mr.get('score', 0)}/100 | "
+                            f"PMID: {len(mr.get('pmids_found', []))} | "
+                            f"badania: {len(mr.get('studies_referenced', []))} | "
+                            f"instytucje: {len(mr.get('institutions_found', []))} | "
+                            f"disclaimer: {'✅' if mr.get('disclaimer_present') else '❌'}"
+                        )})
+                    
+                    yield emit("ymyl_analysis", ymyl_refs)
+                except Exception as ymyl_err:
+                    logger.warning(f"YMYL analysis failed: {ymyl_err}")
             
             if full_text and is_salience_available():
                 yield emit("log", {"msg": "🔬 Entity Salience: analiza artykułu przez Google NLP API..."})
@@ -1194,6 +1406,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         ],
                         "issues": salience_result.get("issues", []),
                         "recommendations": salience_result.get("recommendations", []),
+                        "subject_position": subject_pos,
                     })
                 except Exception as sal_err:
                     logger.warning(f"Entity salience check failed: {sal_err}")
@@ -1203,6 +1416,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     "enabled": False,
                     "score": None,
                     "message": "Ustaw GOOGLE_NLP_API_KEY aby włączyć walidację salience",
+                    "subject_position": subject_pos,
                 })
 
             # ═══ SCHEMA.ORG JSON-LD: Generate from real NLP entities ═══
@@ -1270,16 +1484,23 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 f.write(export_docx["content"])
             job["export_docx"] = export_path
 
+        step_done(10)
         yield emit("step", {"step": 10, "name": "Export", "status": "done",
                             "detail": "HTML + DOCX gotowe"})
 
         # ─── DONE ───
+        total_elapsed = round(time.time() - workflow_start, 1)
+        yield emit("log", {"msg": f"⏱️ Workflow zakończony w {total_elapsed}s"})
         yield emit("done", {
             "project_id": project_id,
             "word_count": stats.get("word_count", 0) if full_result["ok"] else 0,
             "exports": {
                 "html": bool(job.get("export_html")),
                 "docx": bool(job.get("export_docx"))
+            },
+            "timing": {
+                "total_seconds": total_elapsed,
+                "steps": {str(k): v.get("elapsed", 0) for k, v in step_times.items()},
             }
         })
 

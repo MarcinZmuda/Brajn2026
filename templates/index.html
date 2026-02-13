@@ -311,9 +311,12 @@
             <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frQB" style="display:none;margin-top:10px;padding:8px 0;border-top:1px solid var(--bd)"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--fg)">Quality Breakdown</div><div id="frBars" style="display:grid;grid-template-columns:90px 1fr 32px;gap:3px 8px;font-size:11px;align-items:center"></div></div><div id="frD" style="font-size:11px;color:var(--mg);margin-top:10px;max-height:60px;overflow-y:auto"></div></div>
             <div class="crd" id="edC" style="display:none"><div class="crd-t"><b>Editorial</b> Review</div><div class="sv xl" style="text-align:center" id="edSc">—<span>/10</span></div><div class="sg sg3"><div class="sc"><div class="sv" id="edCh">—</div><div class="sl">Zmiany</div></div><div class="sc"><div class="sv" id="edW">—</div><div class="sl">Słowa</div></div><div class="sc"><div class="sv" id="edR">—</div><div class="sl">Rollback</div></div></div></div>
             <div class="pnl" id="cpP" style="display:none"><div class="pnl-h" onclick="tPnl('cpP')"><span>✅ S1 Compliance</span><span class="arr">▼</span></div><div class="pnl-b" id="cpB"></div></div>
-            <div class="crd" id="esC" style="display:none"><div class="crd-t"><b>🔬 Entity</b> Salience (Google NLP)</div><div class="sg sg3"><div class="sc"><div class="sv" id="esSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="esSal">—</div><div class="sl">Main Salience</div></div><div class="sc"><div class="sv" id="esDom">—</div><div class="sl">Dominacja</div></div></div><div id="esEnts" style="margin-top:10px;font-size:11px;display:none"></div><div id="esIss" style="margin-top:8px;font-size:11px;color:var(--mg)"></div></div>
+            <div class="crd" id="esC" style="display:none"><div class="crd-t"><b>🔬 Entity</b> Salience (Google NLP)</div><div class="sg sg3"><div class="sc"><div class="sv" id="esSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="esSal">—</div><div class="sl">Main Salience</div></div><div class="sc"><div class="sv" id="esDom">—</div><div class="sl">Dominacja</div></div></div><div id="esSP" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd)"><div style="font-size:11px;font-weight:600;margin-bottom:4px">📐 Subject Position</div><div class="sg sg4" style="font-size:10px"><div class="sc"><div class="sv" id="spSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="spSR">—</div><div class="sl">Podmiot %</div></div><div class="sc"><div class="sv" id="spH2">—</div><div class="sl">H2</div></div><div class="sc"><div class="sv" id="sp1st">—</div><div class="sl">1. zdanie</div></div></div></div><div id="esEnts" style="margin-top:10px;font-size:11px;display:none"></div><div id="esIss" style="margin-top:8px;font-size:11px;color:var(--mg)"></div></div>
+            <div class="crd" id="afC" style="display:none"><div class="crd-t"><b>🎭 Anti-Frankenstein</b> Style Analysis</div><div class="sg sg4"><div class="sc"><div class="sv" id="afSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="afCV">—</div><div class="sl">CV Zdań</div></div><div class="sc"><div class="sv" id="afP">—</div><div class="sl">Passive</div></div><div class="sc"><div class="sv" id="afSL">—</div><div class="sl">Śr. zdanie</div></div></div><div id="afIss" style="margin-top:8px;font-size:11px;color:var(--mg)"></div></div>
+            <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Intelligence</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Legal Score</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medical Score</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Referencje</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Disclaimer</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:10px;color:var(--mg)"></div></div>
             <div class="pnl" id="schP" style="display:none"><div class="pnl-h" onclick="tPnl('schP')"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:10px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
             <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" onclick="tPnl('tmP')"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
+            <div class="pnl" id="ciP" style="display:none"><div class="pnl-h" onclick="tPnl('ciP')"><span>📊 Competitive Intelligence Dashboard</span><span class="arr">▼</span></div><div class="pnl-b open" id="ciB"></div></div>
             <div class="done" id="doneB" style="display:none"><h2>✓ Artykuł gotowy</h2><p id="doneD"></p></div>
             <div class="exp" id="expB" style="display:none"><a class="btn-e pri" id="exH">HTML</a><a class="btn-e" id="exD">DOCX</a></div>
             <div style="margin-top:20px"><span class="lbl">Podgląd <button class="tbtn" onclick="tog('artP')">pokaż</button></span></div>
@@ -349,7 +352,7 @@
 <script>
 (function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Final Review','Editorial','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
-let mode='standard',jid=null,tb=0,es=null,rawArticle='',selTxt='';
+let mode='standard',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null;
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
 // XSS sanitization for SSE data
@@ -580,11 +583,11 @@ async function startWorkflow(){
 
     for(let i=1;i<=10;i++)uStep(i,'pending','—');
     ['logC','bRes','biB','s1B','cpB'].forEach(id=>document.getElementById(id).innerHTML='');
-    ['bpC','edC','frC','h2C','s1P','biP','cpP','esC','schP','tmP','doneB','expB','artP'].forEach(id=>document.getElementById(id).style.display='none');
+    ['bpC','edC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP'].forEach(id=>document.getElementById(id).style.display='none');
     document.getElementById('editorWrap').classList.remove('visible');
     document.getElementById('chatHist').innerHTML='<div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>';
     document.getElementById('valResult').classList.remove('vis');
-    rawArticle='';selTxt='';
+    rawArticle='';selTxt='';s1Data=null;batchLog=[];finalData=null;salienceData=null;styleData=null;memoryData=null;articleData=null;editorialData=null;stepTimingData=null;paaData=null;ymylCtxData=null;ymylAnalysisData=null;ymylValData=null;
     log(`Start: "${kw}" [${mode}]`);
 
     try{
@@ -600,18 +603,24 @@ async function startWorkflow(){
         es.addEventListener('log',e=>{log(JSON.parse(e.data).msg)});
         es.addEventListener('project',e=>{const d=JSON.parse(e.data);tb=d.total_batches;log(`Project: ${d.project_id}`);const r=document.getElementById('bRes');r.innerHTML='';for(let i=1;i<=tb;i++)r.innerHTML+=`<div class="bchip pend" id="bc${i}">B${i}</div>`});
         es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:13px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(h)}</div>`).join('')});
-        es.addEventListener('s1_data',e=>{rS1(JSON.parse(e.data));const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}});
+        es.addEventListener('s1_data',e=>{s1Data=JSON.parse(e.data);rS1(s1Data);const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}});
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
         es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
-        es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;if(d.text_preview)rx+=`<div class="pre" style="max-height:150px">${esc(d.text_preview)}${d.word_count>100?'…':''}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}});
-        es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);document.getElementById('edC').style.display='';document.getElementById('edSc').innerHTML=`${d.score}<span>/10</span>`;document.getElementById('edCh').textContent=`${d.changes_applied}/${d.changes_applied+d.changes_failed}`;document.getElementById('edW').textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;document.getElementById('edR').textContent=d.rollback?'⚠️ TAK':'✓ NIE'});
-        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=d.issues_count||0;let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--bd);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}});
+        es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);batchLog.push(d);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;if(d.text_preview)rx+=`<div class="pre" style="max-height:150px">${esc(d.text_preview)}${d.word_count>100?'…':''}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}});
+        es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);editorialData=d;document.getElementById('edC').style.display='';document.getElementById('edSc').innerHTML=`${d.score}<span>/10</span>`;document.getElementById('edCh').textContent=`${d.changes_applied}/${d.changes_applied+d.changes_failed}`;document.getElementById('edW').textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;document.getElementById('edR').textContent=d.rollback?'⚠️ TAK':'✓ NIE'});
+        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=d.issues_count||0;let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--bd);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
-        es.addEventListener('article',e=>{const d=JSON.parse(e.data);rawArticle=d.text||'';renderArt(rawArticle);document.getElementById('editorWrap').classList.add('visible')});
-        es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`;return}document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:10px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss});
+        es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';renderArt(rawArticle);document.getElementById('editorWrap').classList.add('visible')});
+        es.addEventListener('article_memory',e=>{memoryData=JSON.parse(e.data)});
+        es.addEventListener('paa_data',e=>{paaData=JSON.parse(e.data)});
+        es.addEventListener('ymyl_context',e=>{ymylCtxData=JSON.parse(e.data)});
+        es.addEventListener('ymyl_analysis',e=>{ymylAnalysisData=JSON.parse(e.data);renderYmylCard()});
+        es.addEventListener('ymyl_validation',e=>{ymylValData=JSON.parse(e.data)});
+        es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);salienceData=d;const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`}else{document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:10px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss}const sp=d.subject_position;if(sp&&sp.total_sentences>0){document.getElementById('esSP').style.display='';document.getElementById('spSc').textContent=`${sp.score}/100`;document.getElementById('spSc').style.color=sp.score>=70?G:sp.score>=40?W:R;document.getElementById('spSR').textContent=`${Math.round(sp.subject_ratio*100)}%`;document.getElementById('spSR').style.color=sp.subject_ratio>=0.35?G:sp.subject_ratio>=0.2?W:R;document.getElementById('spH2').textContent=sp.h2_entity_count||0;document.getElementById('sp1st').textContent=sp.first_sentence_has_entity?'✅':'❌';document.getElementById('sp1st').style.color=sp.first_sentence_has_entity?G:R}});
+        es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:11px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--bd)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:10px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:10px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
-        es.addEventListener('done',e=>{const d=JSON.parse(e.data);document.getElementById('doneB').style.display='';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html)document.getElementById('exH').href=`/api/export/${jid}/html`;if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
+        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html)document.getElementById('exH').href=`/api/export/${jid}/html`;if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
 
         let rr=0;
@@ -621,6 +630,544 @@ async function startWorkflow(){
 }
 
 // ═══ ARTICLE EDITOR ═══
+// ═══ YMYL INTELLIGENCE CARD ═══
+function renderYmylCard(){
+    const d=ymylAnalysisData;if(!d)return;
+    const lr=d.legal||{};const mr=d.medical||{};
+    const hasL=lr.score!=null&&lr.score>0;const hasM=mr.score!=null&&mr.score>0;
+    if(!hasL&&!hasM)return;
+    document.getElementById('ymC').style.display='';
+    document.getElementById('ymLS').textContent=hasL?`${lr.score}/100`:'N/A';
+    if(hasL)document.getElementById('ymLS').style.color=lr.score>=70?G:lr.score>=40?W:R;
+    document.getElementById('ymMS').textContent=hasM?`${mr.score}/100`:'N/A';
+    if(hasM)document.getElementById('ymMS').style.color=mr.score>=70?G:mr.score>=40?W:R;
+    const totalRefs=(lr.acts_found||[]).length+(lr.judgments_found||[]).length+(mr.pmids_found||[]).length+(mr.studies_referenced||[]).length;
+    document.getElementById('ymR').textContent=totalRefs;
+    const hasDisclaimer=(hasL&&lr.disclaimer_present)||(hasM&&mr.disclaimer_present);
+    document.getElementById('ymD').textContent=hasDisclaimer?'✅':'❌';
+    document.getElementById('ymD').style.color=hasDisclaimer?G:R;
+    let detail='';
+    if(hasL){detail+=`<div>⚖️ Akty: ${(lr.acts_found||[]).length} | Orzeczenia: ${(lr.judgments_found||[]).length} | Art.: ${(lr.articles_cited||[]).length}</div>`}
+    if(hasM){detail+=`<div>🏥 PMID: ${(mr.pmids_found||[]).length} | Badania: ${(mr.studies_referenced||[]).length} | Instytucje: ${(mr.institutions_found||[]).length}</div>`}
+    document.getElementById('ymDetail').innerHTML=detail;
+}
+
+// ═══ COMPETITIVE INTELLIGENCE DASHBOARD v2.0 ═══
+// 7-panel comprehensive dashboard with all backend data
+function ciSec(num,title,badge,content){
+    return `<div class="ci-sec"><div class="ci-sec-h" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.arr').textContent=this.nextElementSibling.classList.contains('open')?'▲':'▼'"><span class="ci-sec-n"><b>${num}</b> ${title}</span>${badge?`<span class="ci-badge">${badge}</span>`:''}<span class="arr">▼</span></div><div class="ci-sec-b">${content}</div></div>`;
+}
+function ciBar(pct,clr){return `<div style="background:var(--bd);border-radius:3px;height:7px;overflow:hidden"><div style="width:${Math.min(100,Math.max(0,pct))}%;height:100%;background:${clr};border-radius:3px"></div></div>`}
+function ciGrid(cols){return `<div style="display:grid;grid-template-columns:${cols};gap:3px 8px;font-size:10px;align-items:center">`}
+function ciStat(val,label,clr){return `<div style="text-align:center"><div style="font-size:18px;font-weight:800;${clr?'color:'+clr:''}">${val}</div><div style="font-size:9px;color:var(--mg)">${label}</div></div>`}
+
+function renderCompDash(){
+    if(!s1Data&&!finalData&&!batchLog.length)return;
+    document.getElementById('ciP').style.display='';
+    const G='#34d399',W='#fba92c',R='#f87171',P='var(--pr)',M='var(--mg)';
+    const clrV=(v,g,w)=>v>=g?G:v>=w?W:R;
+    let h='<style>.ci-sec{border:1px solid var(--bd);border-radius:8px;margin-bottom:8px;overflow:hidden}.ci-sec-h{padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;background:var(--bg2)}.ci-sec-h:hover{opacity:.8}.ci-sec-n{flex:1}.ci-sec-n b{color:var(--pr);margin-right:4px}.ci-badge{font-size:10px;padding:1px 8px;border-radius:10px;background:var(--bd);font-weight:600}.ci-sec-b{display:none;padding:10px 12px;font-size:11px}.ci-sec-b.open{display:block}.ci-kw-row{display:grid;grid-template-columns:1fr 55px 35px 35px 55px;gap:2px 6px;padding:2px 0;border-bottom:1px solid var(--bd);font-size:10px;align-items:center}</style>';
+
+    // ════════════════════════════════════════════
+    // PANEL 1: PROJECT INTELLIGENCE OVERVIEW
+    // ════════════════════════════════════════════
+    let p1='';
+    const fr=finalData||{};const qb=fr.quality_breakdown||{};
+    const art=articleData||{};
+    const salS=(salienceData&&salienceData.enabled)?salienceData.score:null;
+    const spS=salienceData&&salienceData.subject_position?salienceData.subject_position.score:null;
+    const stS=styleData?styleData.score:null;
+
+    // 1A: Global Quality Score
+    const overallScore=fr.score||0;
+    const grade=overallScore>=90?'A+':overallScore>=80?'A':overallScore>=70?'B+':overallScore>=60?'B':overallScore>=50?'C':'D';
+    const recLen=(s1Data&&s1Data.recommended_length)||'?';
+    const wordCount=art.word_count||fr.word_count||0;
+    const wcClr=recLen!=='?'?clrV(wordCount/recLen*100,85,60):M;
+
+    p1+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px">`;
+    p1+=ciStat(`${overallScore}<span style="font-size:12px">/100</span>`,'Quality Score',clrV(overallScore,75,50));
+    p1+=ciStat(grade,'Grade',clrV(overallScore,75,50));
+    p1+=ciStat(`${wordCount}<span style="font-size:10px;color:${M}">/${recLen}</span>`,'Words',wcClr);
+    p1+=ciStat(mode||'standard','Mode',null);
+    p1+=`</div>`;
+
+    // 1B: All metrics radar
+    const allScores=[
+        ['Quality',fr.score],['Keywords',qb.keywords],['Humanness',qb.humanness],
+        ['Grammar',qb.grammar],['Structure',qb.structure],['Semantic',qb.semantic],
+        ['Depth',qb.depth],['Coherence',qb.coherence],
+    ];
+    if(salS!=null)allScores.push(['Entity Sal.',salS]);
+    if(spS!=null)allScores.push(['Subject Pos.',spS]);
+    if(stS!=null)allScores.push(['Style',stS]);
+    const validScores=allScores.filter(s=>s[1]!=null);
+    const avgAll=validScores.length?Math.round(validScores.reduce((a,s)=>a+s[1],0)/validScores.length):0;
+
+    p1+=ciGrid('100px 1fr 36px');
+    validScores.forEach(([label,val])=>{const clr=clrV(val,80,60);p1+=`<div style="color:${M}">${label}</div>${ciBar(val,clr)}<div style="text-align:right;font-weight:700;color:${clr}">${Math.round(val)}</div>`});
+    p1+=`</div>`;
+    p1+=`<div style="text-align:center;margin-top:8px;font-size:10px;color:${M}">Średnia: <b style="color:${clrV(avgAll,75,50)}">${avgAll}/100</b></div>`;
+
+    h+=ciSec('1️⃣','Project Intelligence Overview',`${overallScore}/100 ${grade}`,p1);
+
+    // ════════════════════════════════════════════
+    // PANEL 2: KEYWORD CONTROL PANEL
+    // ════════════════════════════════════════════
+    let p2='';
+    const cov=art.coverage||{};const dens=art.density||fr.density||{};
+    // Show coverage summary
+    const basicCov=fr.basic_coverage||cov.basic||{};const extCov=fr.extended_coverage||cov.extended||{};
+    p2+=`<div class="ci-kw-row" style="font-weight:700;border-bottom:2px solid var(--bd)"><div>Keyword</div><div>Type</div><div>Used</div><div>Max</div><div>Status</div></div>`;
+
+    // Process coverage data if available
+    const kwEntries=[];
+    if(typeof cov==='object'){
+        Object.entries(cov).forEach(([key,val])=>{
+            if(typeof val==='object'&&val!==null&&!Array.isArray(val)){
+                Object.entries(val).forEach(([kw,st])=>{
+                    if(typeof st==='object'&&st!==null){kwEntries.push({keyword:kw,type:key,used:st.count||st.used||0,min:st.min||0,max:st.max||st.limit||'∞',status:st.status||'ok',...st})}
+                })
+            }
+        })
+    }
+    // Also from batch instructions if no coverage data
+    if(!kwEntries.length&&batchLog.length){
+        const lastBI=batchLog[batchLog.length-1];
+        if(lastBI&&lastBI.exceeded){lastBI.exceeded.forEach(k=>kwEntries.push({keyword:k,type:'exceeded',used:'!',min:'-',max:'-',status:'exceeded'}))}
+    }
+    // From final_review missing keywords
+    if(fr.missing_keywords){fr.missing_keywords.forEach(k=>{const name=typeof k==='string'?k:(k.keyword||'');if(name)kwEntries.push({keyword:name,type:'missing',used:0,min:1,max:'∞',status:'missing'})})}
+
+    if(kwEntries.length){
+        kwEntries.slice(0,25).forEach(kw=>{
+            const st=kw.status||'ok';
+            const stClr=st==='ok'||st==='done'?G:st==='exceeded'||st==='over'?R:st==='stop'?M:st==='missing'?R:st==='near'||st==='warn'?W:G;
+            const stIcon=st==='ok'||st==='done'?'✓':st==='exceeded'?'⚠️':st==='stop'?'🛑':st==='missing'?'❌':'•';
+            p2+=`<div class="ci-kw-row"><div>${esc(kw.keyword)}</div><div style="color:${M}">${kw.type}</div><div>${kw.used}</div><div>${kw.max}</div><div style="color:${stClr};font-weight:700">${stIcon} ${st}</div></div>`;
+        });
+    }else{
+        p2+=`<div style="color:${M};padding:8px">Szczegółowe dane keywords_state dostępne z backendu — sprawdź coverage w panelu Batch Instructions</div>`;
+    }
+    // Missing + Exceeded summary
+    const missCount=fr.missing_keywords_count||0;const issCount=fr.issues_count||0;
+    if(missCount||issCount){p2+=`<div style="margin-top:8px;display:flex;gap:12px">${missCount?`<span style="color:${R};font-weight:700">❌ ${missCount} brakujących</span>`:''}${issCount?`<span style="color:${W};font-weight:700">⚠️ ${issCount} issues</span>`:''}</div>`}
+
+    h+=ciSec('2️⃣','Keyword Control Panel',kwEntries.length?`${kwEntries.length} kw`:`${missCount} missing`,p2);
+
+    // ════════════════════════════════════════════
+    // PANEL 3: ENTITY INTELLIGENCE
+    // ════════════════════════════════════════════
+    let p3='';
+    const ent=s1Data?s1Data.entity_seo||{}:{};
+    const compEnts=ent.top_entities||[];const mustEnts=ent.must_mention||[];
+    const compRels=ent.relations||[];const tCov=ent.topical_coverage||[];
+    const salEnts=(salienceData&&salienceData.entities)?salienceData.entities:[];
+    const ourEntNames=salEnts.map(e=>e.name.toLowerCase());
+
+    // 3A: Entity Coverage Table
+    const allMust=[...new Set([...mustEnts.map(e=>typeof e==='string'?e:(e.text||e.entity||'')), ...compEnts.slice(0,10).map(e=>typeof e==='string'?e:(e.text||e.entity||''))])].filter(Boolean);
+    if(allMust.length){
+        p3+=`<div style="font-weight:700;margin-bottom:6px">Entity Coverage</div>`;
+        p3+=ciGrid('1fr 45px 50px 55px 50px');
+        p3+=`<div style="font-weight:600;color:${M}">Entity</div><div style="font-weight:600;color:${M}">In S1</div><div style="font-weight:600;color:${M}">In Art.</div><div style="font-weight:600;color:${M}">Salience</div><div style="font-weight:600;color:${M}">Type</div>`;
+        let covered=0;
+        allMust.slice(0,15).forEach(name=>{
+            const nameLow=name.toLowerCase();
+            const found=ourEntNames.find(n=>n.includes(nameLow)||nameLow.includes(n));
+            const salEnt=found?salEnts.find(e=>e.name.toLowerCase()===found):null;
+            if(found)covered++;
+            p3+=`<div>${esc(name)}</div><div style="color:${G}">✓</div><div style="color:${found?G:R};font-weight:700">${found?'✅':'❌'}</div><div>${salEnt?salEnt.salience.toFixed(3):'—'}</div><div style="font-size:9px">${salEnt?salEnt.type:'—'}</div>`;
+        });
+        p3+=`</div>`;
+        const covPct=allMust.length?Math.round(covered/allMust.length*100):0;
+        p3+=`<div style="margin:8px 0"><b style="color:${clrV(covPct,80,50)}">Pokrycie: ${covPct}%</b> (${covered}/${allMust.length})</div>`;
+    }
+
+    // 3B: Entity Salience Heatmap (bar chart)
+    if(salEnts.length){
+        p3+=`<div style="font-weight:700;margin:12px 0 6px">Entity Salience Map</div>`;
+        p3+=`<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:end">`;
+        salEnts.slice(0,12).forEach(e=>{
+            const isMain=e.name.toLowerCase().includes((salienceData.main_keyword||'').toLowerCase());
+            const ht=Math.max(12,Math.round(e.salience*180));
+            const clr=isMain?P:e.has_kg?G:e.has_wikipedia?W:M;
+            p3+=`<div style="display:flex;flex-direction:column;align-items:center;width:50px"><div style="width:100%;height:${ht}px;background:${clr};border-radius:3px 3px 0 0;opacity:${isMain?1:.6}" title="${e.name}: ${e.salience}"></div><div style="font-size:7px;margin-top:2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;font-weight:${isMain?'800':'400'}">${esc(e.name)}</div></div>`;
+        });
+        p3+=`</div>`;
+        p3+=`<div style="margin-top:6px;font-size:9px;display:flex;gap:8px;color:${M}"><span>🟣 Główna</span><span>🟢 KG</span><span>🟡 Wikipedia</span></div>`;
+    }
+
+    // 3C: Relation Depth
+    if(compRels.length){
+        p3+=`<div style="font-weight:700;margin:12px 0 6px">Relation Depth (S-V-O Triplets)</div>`;
+        const causal=s1Data?s1Data.causal_triplets_count||0:0;
+        p3+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;margin-bottom:8px">`;
+        p3+=ciStat(compRels.length,'Relacji S-V-O',null);
+        p3+=ciStat(s1Data?(s1Data.causal_count_chains||0):0,'Łańcuchów',null);
+        p3+=ciStat(causal,'Total Causal',null);
+        p3+=`</div>`;
+        compRels.slice(0,6).forEach(r=>{if(typeof r==='object'){p3+=`<div style="padding:2px 0;font-size:10px"><span style="color:${P}">${esc(r.from||r.subject||'?')}</span> <span style="opacity:.5">${esc(r.relation||r.verb||'→')}</span> <span style="color:${P}">${esc(r.to||r.object||'?')}</span></div>`}});
+    }
+    if(tCov.length){
+        p3+=`<div style="font-weight:700;margin:12px 0 6px">Topical Coverage</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
+        tCov.slice(0,10).forEach(t=>{const topic=typeof t==='string'?t:(t.subtopic||t.topic||'');const pri=typeof t==='object'?(t.priority||''):'';const clr=pri==='MUST'?R:pri==='HIGH'?W:G;p3+=`<span style="padding:1px 6px;border-radius:10px;font-size:9px;border:1px solid ${clr};color:${clr}">${esc(topic)}</span>`});
+        p3+=`</div>`;
+    }
+
+    h+=ciSec('3️⃣','Entity Intelligence Panel',`${allMust.length} encji`,p3);
+
+    // ════════════════════════════════════════════
+    // PANEL 4: E-E-A-T & DEPTH
+    // ════════════════════════════════════════════
+    let p4='';
+    // Depth Signals
+    if(s1Data&&s1Data.depth_signals){
+        const ds=s1Data.depth_signals;
+        const signals=[
+            ['🔢','Dane liczbowe',ds.numbers_used],['📅','Daty/ramy czasowe',ds.dates_used],
+            ['🏛️','Instytucje',ds.institutions_cited],['📚','Badania/źródła',ds.research_cited],
+            ['⚖️','Przepisy prawne',ds.laws_referenced],['⚠️','Wyjątki/edge cases',ds.exceptions_noted],
+            ['⚖','Porównania',ds.comparisons_made],['📋','Step-by-step',ds.step_by_step]
+        ];
+        const compPresent=signals.filter(s=>s[2]).length;
+        const avgDepth=batchLog.filter(b=>b.accepted).length?Math.round(batchLog.filter(b=>b.accepted).reduce((a,b)=>a+parseFloat(b.depth_score||0),0)/batchLog.filter(b=>b.accepted).length*10)/10:0;
+        p4+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;margin-bottom:10px">`;
+        p4+=ciStat(`${compPresent}/8`,'Sygnałów konk.',clrV(compPresent/8*100,75,50));
+        p4+=ciStat(avgDepth,'Nasz Depth',clrV(avgDepth*20,75,50));
+        p4+=ciStat(Math.round(qb.depth||0),'Depth Score',clrV(qb.depth||0,80,60));
+        p4+=`</div>`;
+        p4+=ciGrid('24px 1fr 70px');
+        signals.forEach(([icon,label,inComp])=>{p4+=`<div>${icon}</div><div>${label}</div><div style="font-weight:700;color:${inComp?G:M}">${inComp?'✅ w konk.':'—'}</div>`});
+        p4+=`</div>`;
+        const dmi=s1Data.depth_missing_items||[];
+        if(dmi.length){p4+=`<div style="margin-top:8px"><b style="color:${W}">Luki głębokości:</b> ${dmi.slice(0,6).map(g=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;background:rgba(245,158,11,.12);color:${W};margin:2px">${typeof g==='string'?esc(g):esc(g.item||g.signal||'')}</span>`).join('')}</div>`}
+    }
+    // YMYL
+    if(s1Data&&s1Data.ymyl_hints){
+        const ym=s1Data.ymyl_hints;
+        const any=ym.legal_signals||ym.medical_signals||ym.needs_citations||ym.needs_disclaimer;
+        if(any){p4+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)"><b>YMYL/E-E-A-T Signals:</b> ${ym.legal_signals?'⚖️ Prawo ':''} ${ym.medical_signals?'🏥 Zdrowie ':''} ${ym.needs_citations?'📚 Cytowania ':''} ${ym.needs_disclaimer?'⚠️ Disclaimer':''}</div>`}
+    }
+    h+=ciSec('4️⃣','E-E-A-T & Depth Analysis',`${s1Data?(s1Data.depth_signals?Object.values(s1Data.depth_signals).filter(Boolean).length:0):0}/8`,p4);
+
+
+    // ════════════════════════════════════════════
+    // PANEL 5: YMYL INTELLIGENCE
+    // ════════════════════════════════════════════
+    let p5y='';
+    const ymCtx=ymylCtxData||{};const ymAn=ymylAnalysisData||{};const ymVal=ymylValData||{};
+    const ymLegal=ymCtx.is_legal;const ymMedical=ymCtx.is_medical;
+
+    if(ymLegal||ymMedical){
+        // Status summary
+        p5y+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:12px">`;
+        const anL=ymAn.legal||{};const anM=ymAn.medical||{};
+        p5y+=ciStat(ymLegal?`${anL.score||0}/100`:'N/A','Legal Score',ymLegal?clrV(anL.score||0,70,40):M);
+        p5y+=ciStat(ymMedical?`${anM.score||0}/100`:'N/A','Medical Score',ymMedical?clrV(anM.score||0,70,40):M);
+        const totalRefs=(anL.acts_found||[]).length+(anL.judgments_found||[]).length+(anM.pmids_found||[]).length+(anM.studies_referenced||[]).length;
+        p5y+=ciStat(totalRefs,'Referencji',totalRefs>5?G:totalRefs>0?W:R);
+        const anyDiscl=(anL.disclaimer_present)||(anM.disclaimer_present);
+        p5y+=ciStat(anyDiscl?'✅':'❌','Disclaimer',anyDiscl?G:R);
+        p5y+=`</div>`;
+
+        // ── LEGAL SECTION ──
+        if(ymLegal){
+            const lCtx=ymCtx.legal||{};
+            p5y+=`<div style="padding:10px;background:var(--bg2);border-radius:8px;margin-bottom:10px"><div style="font-weight:700;margin-bottom:8px">⚖️ Kontekst prawny</div>`;
+
+            // Judgments from backend (provided to Claude)
+            const ctxJ=lCtx.judgments||[];
+            if(ctxJ.length){
+                p5y+=`<div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Orzeczenia (z backendu → w prompt):</div>`;
+                ctxJ.slice(0,6).forEach(j=>{
+                    p5y+=`<div style="padding:3px 0;font-size:10px;border-bottom:1px solid var(--bd)"><span style="color:${P};font-weight:700">${esc(j.signature||'?')}</span> — <span style="color:${M}">${esc(j.court||'')} (${esc(j.date||'')})</span>${j.summary?`<div style="color:${M};font-size:9px;margin-top:1px">${esc(j.summary)}</div>`:''}</div>`;
+                });
+            }
+
+            // Legal acts from backend
+            const ctxA=lCtx.legal_acts||[];
+            if(ctxA.length){
+                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Akty prawne (z backendu):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
+                ctxA.slice(0,8).forEach(a=>{const name=typeof a==='string'?a:(a.name||'');p5y+=`<span style="padding:2px 6px;border-radius:8px;font-size:9px;border:1px solid ${W};color:${W}">${esc(name)}</span>`});
+                p5y+=`</div></div>`;
+            }
+
+            // What actually made it into the article
+            if(anL.acts_found&&anL.acts_found.length){
+                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${G};margin-bottom:4px">✅ Akty znalezione w tekście (${anL.acts_found.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
+                anL.acts_found.slice(0,10).forEach(a=>{p5y+=`<span style="padding:2px 6px;border-radius:8px;font-size:9px;background:rgba(34,197,94,.1);color:${G}">${esc(a)}</span>`});
+                p5y+=`</div></div>`;
+            }
+            if(anL.judgments_found&&anL.judgments_found.length){
+                p5y+=`<div style="margin-top:6px"><div style="font-weight:600;font-size:10px;color:${G};margin-bottom:4px">✅ Sygnatury w tekście (${anL.judgments_found.length}):</div>`;
+                anL.judgments_found.slice(0,8).forEach(j=>{p5y+=`<div style="padding:2px 0;font-size:10px;color:${P};font-weight:600">${esc(j)}</div>`});
+                p5y+=`</div>`;
+            }
+            if(anL.articles_cited&&anL.articles_cited.length){
+                p5y+=`<div style="margin-top:6px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Cytowane artykuły/paragrafy (${anL.articles_cited.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
+                anL.articles_cited.slice(0,15).forEach(a=>{p5y+=`<span style="padding:1px 5px;border-radius:6px;font-size:9px;background:var(--bd)">${esc(a)}</span>`});
+                p5y+=`</div></div>`;
+            }
+            // Cross-reference
+            if(anL.judgments_from_context_used!=null||anL.acts_from_context_used!=null){
+                p5y+=`<div style="margin-top:6px;font-size:10px;color:${M}">Wykorzystanie kontekstu: ${anL.acts_from_context_used||0} aktów, ${anL.judgments_from_context_used||0} orzeczeń z backendu</div>`;
+            }
+            p5y+=`<div style="margin-top:6px"><span style="color:${anL.disclaimer_present?G:R};font-weight:700">${anL.disclaimer_present?'✅':'❌'} Disclaimer prawny</span></div>`;
+            p5y+=`</div>`;
+        }
+
+        // ── MEDICAL SECTION ──
+        if(ymMedical){
+            const mCtx=ymCtx.medical||{};
+            p5y+=`<div style="padding:10px;background:var(--bg2);border-radius:8px;margin-bottom:10px"><div style="font-weight:700;margin-bottom:8px">🏥 Kontekst medyczny</div>`;
+
+            // Publications from backend
+            const ctxP=mCtx.publications||[];
+            if(ctxP.length){
+                p5y+=`<div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Publikacje (z backendu → w prompt):</div>`;
+                ctxP.slice(0,6).forEach(p=>{
+                    p5y+=`<div style="padding:3px 0;font-size:10px;border-bottom:1px solid var(--bd)">`;
+                    p5y+=`<span style="color:${P};font-weight:600">${esc(p.authors||'')} (${esc(p.year||'')})</span>`;
+                    p5y+=`<div style="color:var(--fg)">"${esc(p.title||'')}"</div>`;
+                    const tags=[];
+                    if(p.pmid)tags.push(`<span style="padding:1px 4px;border-radius:4px;font-size:8px;background:rgba(99,102,241,.15);color:#6366f1">PMID:${p.pmid}</span>`);
+                    if(p.journal)tags.push(`<span style="font-size:9px;color:${M}">${esc(p.journal)}</span>`);
+                    if(p.evidence_level)tags.push(`<span style="padding:1px 4px;border-radius:4px;font-size:8px;background:rgba(34,197,94,.15);color:${G}">${esc(p.evidence_level)}</span>`);
+                    if(p.study_type)tags.push(`<span style="padding:1px 4px;border-radius:4px;font-size:8px;background:rgba(245,158,11,.15);color:${W}">${esc(p.study_type)}</span>`);
+                    if(tags.length)p5y+=`<div style="margin-top:2px;display:flex;gap:4px;flex-wrap:wrap">${tags.join('')}</div>`;
+                    p5y+=`</div>`;
+                });
+            }
+
+            // Evidence level breakdown from context
+            const evLvls=mCtx.evidence_levels||{};
+            if(Object.keys(evLvls).length){
+                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Evidence Level Breakdown (kontekst):</div><div style="display:flex;gap:6px;flex-wrap:wrap">`;
+                Object.entries(evLvls).forEach(([lvl,count])=>{
+                    const clr=lvl.startsWith('I')?G:lvl.startsWith('II')?W:M;
+                    p5y+=`<span style="padding:2px 8px;border-radius:10px;font-size:10px;border:1px solid ${clr};color:${clr};font-weight:700">${lvl}: ${count}</span>`;
+                });
+                p5y+=`</div></div>`;
+            }
+
+            // What actually made it into the article
+            if(anM.pmids_found&&anM.pmids_found.length){
+                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${G};margin-bottom:4px">✅ PMID w tekście (${anM.pmids_found.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
+                anM.pmids_found.slice(0,10).forEach(id=>{p5y+=`<span style="padding:2px 6px;border-radius:8px;font-size:9px;background:rgba(99,102,241,.1);color:#6366f1;font-weight:600">PMID:${esc(id)}</span>`});
+                p5y+=`</div></div>`;
+            }
+            if(anM.studies_referenced&&anM.studies_referenced.length){
+                p5y+=`<div style="margin-top:6px"><div style="font-weight:600;font-size:10px;color:${G};margin-bottom:4px">✅ Badania w tekście (${anM.studies_referenced.length}):</div>`;
+                anM.studies_referenced.slice(0,6).forEach(s=>{p5y+=`<div style="padding:2px 0;font-size:10px;color:var(--fg)">${esc(s)}</div>`});
+                p5y+=`</div>`;
+            }
+            if(anM.institutions_found&&anM.institutions_found.length){
+                p5y+=`<div style="margin-top:6px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Instytucje w tekście:</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
+                anM.institutions_found.forEach(i=>{p5y+=`<span style="padding:1px 5px;border-radius:6px;font-size:9px;background:var(--bd)">${esc(i)}</span>`});
+                p5y+=`</div></div>`;
+            }
+
+            // Evidence indicators in article text
+            const evIn=anM.evidence_indicators||{};
+            if(Object.keys(evIn).length){
+                p5y+=`<div style="margin-top:8px"><div style="font-weight:600;font-size:10px;color:${M};margin-bottom:4px">Evidence Level w tekście:</div><div style="display:flex;gap:6px;flex-wrap:wrap">`;
+                Object.entries(evIn).forEach(([lvl,count])=>{
+                    const clr=lvl.startsWith('I')?G:lvl.startsWith('II')?W:M;
+                    p5y+=`<span style="padding:2px 8px;border-radius:10px;font-size:10px;border:1px solid ${clr};color:${clr};font-weight:700">${lvl}: ${count}×</span>`;
+                });
+                p5y+=`</div></div>`;
+            }
+            // Cross-reference
+            if(anM.pubs_from_context_used!=null){
+                p5y+=`<div style="margin-top:6px;font-size:10px;color:${M}">Wykorzystanie kontekstu: ${anM.pubs_from_context_used||0} publikacji z backendu</div>`;
+            }
+            p5y+=`<div style="margin-top:6px"><span style="color:${anM.disclaimer_present?G:R};font-weight:700">${anM.disclaimer_present?'✅':'❌'} Disclaimer medyczny</span></div>`;
+            p5y+=`</div>`;
+        }
+    }else{
+        p5y+=`<div style="color:${M};font-style:italic">Temat nie jest YMYL — panel nieaktywny</div>`;
+    }
+
+    const ymylBadge=ymLegal&&ymMedical?'⚖️🏥':ymLegal?'⚖️ Legal':ymMedical?'🏥 Medical':'—';
+    h+=ciSec('5️⃣','YMYL Intelligence',ymylBadge,p5y);
+
+    // ════════════════════════════════════════════
+    // PANEL 6: ANTI-FRANKENSTEIN
+    // ════════════════════════════════════════════
+    let p5='';
+    // 5A: Style Drift
+    if(styleData){
+        const metrics=[
+            ['CV Zdań',styleData.cv_sentences,'0.25–0.50',(v)=>v>=0.25&&v<=0.5?G:v>0.6?R:W],
+            ['Passive Voice',styleData.passive_ratio,'< 20%',(v)=>v<=0.2?G:v<=0.3?W:R],
+            ['Transitions',styleData.transition_ratio,'10–35%',(v)=>v>=0.1&&v<=0.35?G:W],
+            ['Repetition',styleData.repetition_ratio,'< 8%',(v)=>v<0.08?G:v<0.15?W:R],
+            ['CV Akapitów',styleData.cv_paragraphs,'< 0.50',(v)=>v<0.5?G:v<0.7?W:R],
+        ];
+        p5+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:10px">`;
+        p5+=ciStat(`${styleData.score}/100`,'Style Score',clrV(styleData.score,75,50));
+        p5+=ciStat(styleData.sentence_count,'Zdań',null);
+        p5+=ciStat(`${styleData.avg_sentence_length}`,'Śr. długość',null);
+        p5+=ciStat(styleData.paragraph_count,'Akapitów',null);
+        p5+=`</div>`;
+        p5+=ciGrid('90px 1fr 45px 80px');
+        p5+=`<div style="font-weight:600;color:${M}">Metric</div><div style="font-weight:600;color:${M}">Bar</div><div style="font-weight:600;color:${M}">Value</div><div style="font-weight:600;color:${M}">Target</div>`;
+        metrics.forEach(([label,val,target,clrFn])=>{if(val==null)return;const clr=clrFn(val);p5+=`<div>${label}</div>${ciBar(Math.min(100,val*100),clr)}<div style="text-align:right;font-weight:700;color:${clr}">${val<1?val.toFixed(2):val.toFixed(0)}</div><div style="font-size:9px;color:${M}">${target}</div>`});
+        p5+=`</div>`;
+        if(styleData.issues&&styleData.issues.length){p5+=`<div style="margin-top:8px">${styleData.issues.map(i=>`<div style="color:${W};margin-top:2px;font-size:10px">⚠️ ${esc(i)}</div>`).join('')}</div>`}
+    }
+    // 5B: Article Memory
+    if(memoryData){
+        p5+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)"><div style="font-weight:700;margin-bottom:6px">🧠 Article Memory</div>`;
+        if(memoryData.thesis)p5+=`<div style="margin:4px 0"><b>Teza:</b> ${esc(memoryData.thesis)}</div>`;
+        if(memoryData.tone)p5+=`<div style="margin:4px 0"><b>Ton:</b> ${esc(memoryData.tone)}</div>`;
+        if(memoryData.open_threads&&memoryData.open_threads.length)p5+=`<div style="margin:4px 0"><b style="color:${W}">Open threads (${memoryData.open_threads.length}):</b> ${memoryData.open_threads.map(t=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;background:rgba(245,158,11,.12);color:${W};margin:2px">${esc(typeof t==='string'?t:t.thread||t.topic||'')}</span>`).join('')}</div>`;
+        if(memoryData.entities_introduced&&memoryData.entities_introduced.length)p5+=`<div style="margin:4px 0"><b>Entities introduced:</b> ${memoryData.entities_introduced.slice(0,10).map(e=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;border:1px solid ${G};color:${G};margin:2px">${esc(typeof e==='string'?e:e.name||e.entity||'')}</span>`).join('')}</div>`;
+        if(memoryData.defined_terms&&memoryData.defined_terms.length)p5+=`<div style="margin:4px 0"><b>Defined terms:</b> ${memoryData.defined_terms.slice(0,10).map(t=>`<span style="padding:1px 5px;border-radius:8px;font-size:9px;border:1px solid ${P};color:${P};margin:2px">${esc(typeof t==='string'?t:t.term||'')}</span>`).join('')}</div>`;
+        if(memoryData.topics_covered&&memoryData.topics_covered.length)p5+=`<div style="margin:4px 0"><b>Topics covered (${memoryData.topics_covered.length}):</b> ${memoryData.topics_covered.slice(0,12).map(t=>`<span style="padding:1px 5px;border-radius:8px;font-size:9px;background:var(--bd);margin:2px">${esc(typeof t==='string'?t:t.topic||t.h2||'')}</span>`).join('')}</div>`;
+        p5+=`</div>`;
+    }
+    h+=ciSec('6️⃣','Anti-Frankenstein & Memory',styleData?`${styleData.score}/100`:'—',p5);
+
+    // ════════════════════════════════════════════
+    // PANEL 7: PAA & SNIPPET OPTIMIZATION
+    // ════════════════════════════════════════════
+    let p6paa='';
+    const s1paa=s1Data?s1Data.paa_questions||[]:[];
+    const paaUn=s1Data?s1Data.paa_unanswered||[]:[];
+    const schData=document.getElementById('schB')?document.getElementById('schB').textContent:'';
+    const hasFaqSchema=schData.includes('FAQPage');
+
+    p6paa+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:10px">`;
+    p6paa+=ciStat(s1paa.length,'PAA z SERP',null);
+    p6paa+=ciStat(paaData?paaData.questions_generated:0,'FAQ wygenerowane',paaData&&paaData.questions_generated>0?G:M);
+    p6paa+=ciStat(paaUn.length,'Bez odpowiedzi',paaUn.length?R:G);
+    p6paa+=ciStat(hasFaqSchema?'✅':'—','FAQ Schema',hasFaqSchema?G:M);
+    p6paa+=`</div>`;
+
+    // PAA questions list with coverage status
+    if(s1paa.length){
+        p6paa+=`<div style="font-weight:700;margin-bottom:4px">Pytania PAA z SERP</div>`;
+        s1paa.slice(0,10).forEach(q=>{
+            const txt=typeof q==='string'?q:(q.question||q.text||JSON.stringify(q));
+            const isUnanswered=paaUn.some(u=>{const ut=typeof u==='string'?u:(u.question||u.text||'');return ut.toLowerCase()===txt.toLowerCase()});
+            p6paa+=`<div style="padding:2px 0;font-size:10px"><span style="color:${isUnanswered?R:G};font-weight:700">${isUnanswered?'✗':'✓'}</span> ${esc(txt)}</div>`;
+        });
+        const coveredPct=s1paa.length?Math.round((s1paa.length-paaUn.length)/s1paa.length*100):0;
+        p6paa+=`<div style="margin-top:6px"><b style="color:${clrV(coveredPct,80,50)}">Pokrycie PAA: ${coveredPct}%</b></div>`;
+    }
+
+    // Semantic gaps
+    const sGaps=s1Data?s1Data.subtopic_missing||(s1Data.content_gaps||{}).subtopic_missing||[]:[];
+    if(sGaps.length){
+        p6paa+=`<div style="margin-top:8px"><b style="color:${W}">Semantic Gaps (${sGaps.length}):</b><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">${sGaps.slice(0,8).map(g=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;background:rgba(245,158,11,.1);color:${W}">${typeof g==='string'?esc(g):esc(g.subtopic||g.topic||'')}</span>`).join('')}</div></div>`;
+    }
+
+    h+=ciSec('7️⃣','PAA & Snippet Optimization',`${s1paa.length} PAA`,p6paa);
+
+    // ════════════════════════════════════════════
+    // PANEL 8: COMPETITIVE ENTITY GAP
+    // ════════════════════════════════════════════
+    let p6='';
+    // Competitor comparison
+    const ourEntCount=salEnts.length;const compEntCount=compEnts.length+mustEnts.length;
+    const ourTriplets=compRels.length;
+    const ourBatchDepthAvg=batchLog.filter(b=>b.accepted).length?Math.round(batchLog.filter(b=>b.accepted).reduce((a,b)=>a+parseFloat(b.depth_score||0),0)/batchLog.filter(b=>b.accepted).length*10)/10:0;
+
+    p6+=`<div style="font-weight:700;margin-bottom:8px">Your Article vs Competitors (avg top 5)</div>`;
+    p6+=ciGrid('1fr 80px 80px');
+    p6+=`<div style="font-weight:600;color:${M}">Metric</div><div style="font-weight:600;color:${M}">Competitors</div><div style="font-weight:600;color:${M}">Your Article</div>`;
+    const compData=[
+        ['Entities',compEntCount,ourEntCount],
+        ['Triplets/Relations',compRels.length,compRels.length],
+        ['Depth Signals',s1Data?(Object.values(s1Data.depth_signals||{}).filter(Boolean).length):0,'—'],
+        ['Word Count',s1Data?s1Data.average_length||'?':'?',wordCount],
+    ];
+    compData.forEach(([m,comp,ours])=>{
+        const better=typeof ours==='number'&&typeof comp==='number'?ours>=comp:false;
+        p6+=`<div>${m}</div><div style="text-align:center">${comp}</div><div style="text-align:center;font-weight:700;color:${better?G:typeof ours==='number'?R:M}">${ours}${better?' ✓':''}</div>`;
+    });
+    p6+=`</div>`;
+
+    // Content Gaps — unique advantages
+    const gaps=s1Data?s1Data.content_gaps||{}:{};
+    const pU=s1Data?(s1Data.paa_unanswered||gaps.paa_unanswered||[]):[];
+    const sM=s1Data?(s1Data.subtopic_missing||gaps.subtopic_missing||[]):[];
+    const sh2=s1Data?s1Data.suggested_h2s||[]:[];
+    if(pU.length||sh2.length){
+        p6+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)"><b>🎯 Information Gain (przewagi)</b></div>`;
+        if(pU.length){p6+=`<div style="margin:4px 0"><span style="color:${R};font-weight:700">PAA bez odpowiedzi (${pU.length}):</span><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">${pU.slice(0,5).map(g=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;background:rgba(239,68,68,.08);color:${R}">${typeof g==='string'?esc(g):esc(g.question||'')}</span>`).join('')}</div></div>`}
+        if(sh2.length){p6+=`<div style="margin:4px 0"><span style="color:${G};font-weight:700">Unikalne sekcje:</span><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">${sh2.slice(0,5).map(x=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;background:rgba(34,197,94,.08);color:${G}">${typeof x==='string'?esc(x):esc(x.h2||x.heading||'')}</span>`).join('')}</div></div>`}
+    }
+
+    // Subject Position
+    const sp=salienceData&&salienceData.subject_position;
+    if(sp&&sp.total_sentences>0){
+        p6+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)"><b>📐 Subject Position</b></div>`;
+        const totalPos=sp.subject_position+sp.middle_position+sp.object_position;
+        if(totalPos>0){
+            p6+=`<div style="display:flex;height:16px;border-radius:8px;overflow:hidden;margin:6px 0">`;
+            [[sp.subject_position,G,'Podmiot'],[sp.middle_position,W,'Środek'],[sp.object_position,R,'Dopełn.']].forEach(([val,clr,label])=>{const pct=val/totalPos*100;if(pct>0)p6+=`<div style="width:${pct}%;background:${clr};display:flex;align-items:center;justify-content:center;font-size:8px;color:white;font-weight:700" title="${label}: ${val}">${pct>12?Math.round(pct)+'%':''}</div>`});
+            p6+=`</div><div style="display:flex;justify-content:space-between;font-size:9px;color:${M}"><span>Podmiot: ${sp.subject_position}</span><span>Środek: ${sp.middle_position}</span><span>Dopełn.: ${sp.object_position}</span></div>`;
+        }
+    }
+
+    h+=ciSec('8️⃣','Competitive Entity Gap',`${allMust.length?Math.round((allMust.filter(n=>ourEntNames.find(o=>o.includes(n.toLowerCase())||n.toLowerCase().includes(o))).length/allMust.length)*100):0}% cov.`,p6);
+
+    // ════════════════════════════════════════════
+    // PANEL 9: BATCH QUALITY + WORKFLOW TIMELINE
+    // ════════════════════════════════════════════
+    let p7='';
+    // 7A: Batch Quality Timeline
+    if(batchLog.length){
+        p7+=`<div style="font-weight:700;margin-bottom:8px">Batch Quality Timeline</div>`;
+        p7+=`<div style="display:flex;align-items:end;gap:3px;height:50px">`;
+        batchLog.forEach(b=>{const q=b.quality_score||0;const ht=Math.max(4,Math.round(q/100*46));const clr=b.accepted?(q>=80?G:q>=60?W:'#e0e0e0'):R;p7+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div style="width:100%;height:${ht}px;background:${clr};border-radius:3px 3px 0 0;min-width:16px" title="B${b.batch}: ${q}/100"></div><div style="font-size:7px;color:${M}">${b.batch}</div></div>`});
+        p7+=`</div>`;
+        const accepted=batchLog.filter(b=>b.accepted);
+        const avgQ=accepted.length?Math.round(accepted.reduce((a,b)=>a+(b.quality_score||0),0)/accepted.length):0;
+        const totalW=accepted.reduce((a,b)=>a+(b.word_count||0),0);
+        const exceeded=[...new Set(batchLog.reduce((a,b)=>a.concat(b.exceeded||[]),[]))];
+        p7+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px;text-align:center">`;
+        p7+=ciStat(avgQ,'Avg Quality',clrV(avgQ,75,50));
+        p7+=ciStat(accepted.length+'/'+batchLog.length,'Accepted',null);
+        p7+=ciStat(totalW,'Words',null);
+        p7+=ciStat(exceeded.length,'Exceeded',exceeded.length?R:G);
+        p7+=`</div>`;
+        if(exceeded.length){p7+=`<div style="margin-top:4px">${exceeded.map(k=>`<span style="padding:1px 5px;border-radius:8px;font-size:9px;background:rgba(239,68,68,.1);color:${R};margin:2px">${esc(k)}</span>`).join('')}</div>`}
+    }
+
+    // 7B: Workflow Timeline
+    if(stepTimingData){
+        p7+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)"><div style="font-weight:700;margin-bottom:6px">⏱️ Workflow Timeline <span style="font-size:10px;color:${M}">${Math.round(stepTimingData.total_seconds||0)}s total</span></div>`;
+        const stepNames=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Final Review','Editorial','Export'];
+        const steps=stepTimingData.steps||{};
+        p7+=ciGrid('24px 1fr 50px 1fr');
+        p7+=`<div style="font-weight:600;color:${M}">#</div><div style="font-weight:600;color:${M}">Step</div><div style="font-weight:600;color:${M}">Time</div><div></div>`;
+        const maxTime=Math.max(...Object.values(steps).map(Number),1);
+        stepNames.forEach((name,i)=>{
+            const t=steps[String(i+1)]||0;
+            const pct=t/maxTime*100;
+            p7+=`<div style="color:${M}">${i+1}</div><div>${name}</div><div style="font-weight:700">${t>=60?Math.round(t/60*10)/10+'m':t.toFixed(1)+'s'}</div><div>${ciBar(pct,t>60?W:G)}</div>`;
+        });
+        p7+=`</div></div>`;
+    }
+
+    // AI Competitive Summary
+    if(s1Data&&s1Data.competitive_summary){
+        p7+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)"><b>🤖 AI Summary</b><div style="margin-top:4px;font-size:10px;color:var(--lg);line-height:1.4;padding:6px;background:var(--bg2);border-radius:6px">${esc(s1Data.competitive_summary)}</div></div>`;
+    }
+
+    h+=ciSec('9️⃣','Batch Quality & Workflow Timeline',stepTimingData?`${Math.round(stepTimingData.total_seconds)}s`:'',p7);
+
+    document.getElementById('ciB').innerHTML=h;
+    // Auto-expand panel 1
+    document.getElementById('ciB').querySelector('.ci-sec-b').classList.add('open');
+}
+
+
+
 function renderArt(text){
     const pv=document.getElementById('artP');
     let html=text.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
