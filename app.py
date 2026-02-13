@@ -291,6 +291,31 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
 
 
 # ============================================================
+# TEXT POST-PROCESSING — strip duplicate headers, clean artifacts
+# ============================================================
+def _clean_batch_text(text):
+    """Remove duplicate ## headers when h2: format exists, strip markdown artifacts."""
+    if not text:
+        return text
+    lines = text.split("\n")
+    has_h2_prefix = any(l.strip().startswith("h2:") for l in lines)
+    has_h3_prefix = any(l.strip().startswith("h3:") for l in lines)
+    cleaned = []
+    for line in lines:
+        stripped = line.strip()
+        # Remove ## headers if h2: format is already used
+        if has_h2_prefix and stripped.startswith("## ") and not stripped.startswith("## h2:"):
+            continue
+        if has_h3_prefix and stripped.startswith("### ") and not stripped.startswith("### h3:"):
+            continue
+        # Remove stray markdown bold headers
+        if has_h2_prefix and _re.match(r'^\*\*[^*]+\*\*$', stripped):
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned)
+
+
+# ============================================================
 # H2 PLAN GENERATOR (from S1 + user phrases)
 # ============================================================
 def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, user_h2_hints=None):
@@ -401,7 +426,14 @@ def generate_faq_text(paa_data, pre_batch=None, engine="claude"):
     """Generate FAQ section using optimized prompts.
     
     v45.3: Uses prompt_builder for structured instructions instead of json.dumps().
+    v45.3.4: Handles paa_data as list or dict.
     """
+    # Normalize: if paa_data is a list, wrap it as dict
+    if isinstance(paa_data, list):
+        paa_data = {"serp_paa": paa_data}
+    elif not isinstance(paa_data, dict):
+        paa_data = {}
+
     system_prompt = build_faq_system_prompt(pre_batch)
     user_prompt = build_faq_user_prompt(paa_data, pre_batch)
 
@@ -819,6 +851,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             word_count = len(text.split())
             yield emit("log", {"msg": f"Wygenerowano {word_count} słów"})
 
+            # Post-process: strip duplicate ## headers (Claude sometimes outputs both h2: and ##)
+            text = _clean_batch_text(text)
+
             # 6d-6g: Submit with retry logic
             # Max 4 attempts: original + 2 AI smart retries + 1 forced
             max_attempts = 4
@@ -854,7 +889,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     "depth_score": depth,
                     "exceeded": [e.get("keyword", "") for e in exceeded] if exceeded else [],
                     "word_count": len(text.split()) if text else 0,
-                    "text_preview": text[:600] if text else ""
+                    "text_preview": text if accepted else ""
                 })
 
                 if accepted:
@@ -887,6 +922,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     )
                     new_word_count = len(text.split())
                     yield emit("log", {"msg": f"🔄 Smart retry: {new_word_count} słów, próba {attempt + 2}/{max_attempts}"})
+                    text = _clean_batch_text(text)
                 else:
                     # Fallback: mechanical fix for non-exceeded issues
                     fixes_applied = 0

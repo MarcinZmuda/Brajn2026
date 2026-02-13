@@ -760,6 +760,11 @@ def build_faq_system_prompt(pre_batch=None):
 
 def build_faq_user_prompt(paa_data, pre_batch=None):
     """User prompt for FAQ generation."""
+    # Normalize: if paa_data is a list (raw PAA questions), wrap it
+    if isinstance(paa_data, list):
+        paa_data = {"serp_paa": paa_data}
+    elif not isinstance(paa_data, dict):
+        paa_data = {}
     paa_questions = paa_data.get("serp_paa") or []
     unused = paa_data.get("unused_keywords") or {}
     avoid = paa_data.get("avoid_in_faq") or []

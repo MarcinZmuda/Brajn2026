@@ -127,6 +127,63 @@ def clean_s1_entities(entities: list) -> list:
     return clean
 
 
+def ai_validate_entities(raw_entities: list, main_keyword: str) -> list:
+    """
+    Use Haiku to validate which entities are topically relevant.
+    Replaces unreliable regex filtering for semantic garbage like
+    font names, brand artifacts, HTML leftovers.
+    Falls back to regex-only if API unavailable.
+    """
+    if not raw_entities or not ANTHROPIC_API_KEY:
+        return clean_s1_entities(raw_entities)
+
+    # Step 1: quick pre-filter (obvious junk)
+    pre_filtered = clean_s1_entities(raw_entities)
+    if not pre_filtered:
+        return []
+
+    # Step 2: extract names for AI validation
+    names = []
+    for ent in pre_filtered[:25]:
+        if isinstance(ent, dict):
+            text = ent.get("text", "") or ent.get("entity", "") or ent.get("name", "")
+            etype = ent.get("type", "")
+            names.append(f"{text} [{etype}]" if etype else text)
+        else:
+            names.append(str(ent))
+
+    if not names:
+        return pre_filtered
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        response = client.messages.create(
+            model=MIDDLEWARE_MODEL, max_tokens=300, temperature=0,
+            system="Jesteś ekspertem NER/SEO. Filtruj encje z wyników SERP. Odpowiedz TYLKO listą JSON.",
+            messages=[{"role": "user", "content": (
+                f'Temat artykułu: "{main_keyword}"\n\n'
+                f'Encje znalezione w wynikach SERP:\n{chr(10).join(f"- {n}" for n in names)}\n\n'
+                f'Które z tych encji są TEMATYCZNIE POWIĄZANE z artykułem "{main_keyword}"?\n'
+                f'Odrzuć: nazwy fontów (Helvetica, Arial, sans-serif), CSS/HTML artefakty, '
+                f'niezwiązane marki (chyba że to temat artykułu), fragmenty kodu.\n'
+                f'Zwróć JSON: [{{"text":"nazwa","type":"typ","importance":0.0-1.0}}]\n'
+                f'Tylko encje przydatne w tekście artykułu.'
+            )}]
+        )
+        text = response.content[0].text.strip()
+        json_match = re.search(r'\[[\s\S]*\]', text)
+        if json_match:
+            validated = json.loads(json_match.group())
+            if isinstance(validated, list) and validated:
+                logger.info(f"[AI_MW] Entity validation: {len(pre_filtered)} → {len(validated)} (AI filtered)")
+                return validated
+
+    except Exception as e:
+        logger.warning(f"[AI_MW] Entity validation failed, using regex fallback: {e}")
+
+    return pre_filtered
+
+
 def clean_s1_ngrams(ngrams: list) -> list:
     if not ngrams:
         return []
@@ -144,7 +201,7 @@ def ai_clean_s1_data(s1_data: dict, main_keyword: str) -> dict:
     raw_entities = (s1_data.get("entity_seo") or {}).get("top_entities", 
                    (s1_data.get("entity_seo") or {}).get("entities", []))
     raw_ngrams = s1_data.get("ngrams", [])
-    clean_entities = clean_s1_entities(raw_entities)
+    clean_entities = ai_validate_entities(raw_entities, main_keyword)
     clean_ngrams = clean_s1_ngrams(raw_ngrams)
     entities_removed = len(raw_entities) - len(clean_entities)
     ngrams_removed = len(raw_ngrams) - len(clean_ngrams)
@@ -230,37 +287,56 @@ def smart_retry_batch(original_text, exceeded_keywords, pre_batch, h2, batch_typ
         kw = exc.get("keyword", "")
         synonyms = exc.get("use_instead") or exc.get("synonyms") or []
         severity = exc.get("severity", "WARNING")
-        if not kw or not synonyms:
+        if not kw:
             continue
-        syn_list = [s if isinstance(s, str) else str(s) for s in synonyms[:3]]
+        syn_list = [s if isinstance(s, str) else str(s) for s in synonyms[:3]] if synonyms else []
         replacements.append({"keyword": kw, "synonyms": syn_list, "severity": severity})
     if not replacements:
         return original_text
     stop_kw = (pre_batch.get("keyword_limits") or {}).get("stop_keywords", [])
     stop_kw_names = [kw.get("keyword", kw) if isinstance(kw, dict) else str(kw) for kw in stop_kw[:10]]
-    replacement_instructions = "\n".join(
-        f'  • "{r["keyword"]}" → zamień na: {", ".join(r["synonyms"])} '
-        f'({"KRYTYCZNE" if r["severity"] == "CRITICAL" else "ostrzeżenie"})'
-        for r in replacements)
+    
+    replacement_instructions = []
+    for r in replacements:
+        if r["synonyms"]:
+            replacement_instructions.append(
+                f'  • "{r["keyword"]}" → zamień na: {", ".join(r["synonyms"])} '
+                f'({"KRYTYCZNE" if r["severity"] == "CRITICAL" else "ostrzeżenie"})')
+        else:
+            replacement_instructions.append(
+                f'  • "{r["keyword"]}" → USUŃ nadmiarowe wystąpienia (przeformułuj zdanie bez tej frazy)')
+    
+    replacement_text = "\n".join(replacement_instructions)
+    
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = client.messages.create(
             model=MIDDLEWARE_MODEL, max_tokens=4000, temperature=0.3,
-            system=f"""Jesteś redaktorem SEO. Przepisujesz tekst zastępując nadużywane frazy ich synonimami.
-ZASADY:
-1. Zamień WSZYSTKIE formy odmieniowe danej frazy → synonim
-2. Zachowaj sens, naturalność i płynność tekstu
-3. NIE dodawaj nowych treści — tylko zamieniaj słowa
-4. NIE zmieniaj struktury (nagłówki, akapity zostają jak są)
-5. Zachowaj format: h2: na początku, potem akapity
-6. Wynik = TYLKO przepisany tekst, bez komentarzy""",
+            system=f"""Jesteś polskim redaktorem SEO. Przepisujesz tekst zastępując nadużywane frazy.
+
+KRYTYCZNE ZASADY:
+1. Używaj TYLKO istniejących polskich słów. NIGDY nie wymyślaj neologizmów.
+2. Jeśli nie znasz dobrego synonimu — PRZEFORMUŁUJ zdanie tak, by fraza była zbędna.
+3. NIE zamieniaj "walizka" na "kufer" ani "spakować" na "zapakowć" — to brzmi nienaturalnie.
+4. Lepsze strategie redukcji niż sztuczne synonimy:
+   - Użyj zaimka: "walizka" → "ją", "w niej", "do niej"
+   - Przeformułuj: "spakuj walizkę" → "ułóż wszystko w bagażu"
+   - Usuń powtórzenie: jeśli zdanie powtarza frazę z poprzedniego akapitu, po prostu je przeformułuj
+5. Zachowaj sens, naturalność i płynność — tekst musi brzmieć jak pisany przez człowieka
+6. NIE zmieniaj struktury (nagłówki h2:/h3:, akapity zostają)
+7. NIE dodawaj nowych treści
+8. Zachowaj format: h2: na początku, potem akapity
+9. Wynik = TYLKO przepisany tekst, bez komentarzy ani oznaczeń zmian""",
             messages=[{"role": "user", "content": f"""Nagłówek sekcji: {h2}
-FRAZY DO ZAMIANY:
-{replacement_instructions}
-{"FRAZY STOP (nie używaj wcale): " + ", ".join(stop_kw_names) if stop_kw_names else ""}
+
+FRAZY DO ZREDUKOWANIA:
+{replacement_text}
+{"FRAZY STOP (nie używaj wcale — przeformułuj zdania): " + ", ".join(stop_kw_names) if stop_kw_names else ""}
+
 ORYGINALNY TEKST:
 {original_text}
-Przepisz tekst zamieniając nadużywane frazy na synonimy. Zwróć TYLKO przepisany tekst."""}])
+
+Przepisz tekst redukując nadużywane frazy. Używaj TYLKO poprawnych polskich słów. Zwróć TYLKO przepisany tekst."""}])
         rewritten = response.content[0].text.strip()
         orig_words = len(original_text.split())
         new_words = len(rewritten.split())
