@@ -145,7 +145,6 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
 
         # ── TIER 3: CONTENT CONTEXT (enrichment data) ──
         lambda: _fmt_entity_salience(pre_batch),     # entity positioning rules (salience only)
-        lambda: _fmt_backend_placement(pre_batch),   # v47.0: entity placement from competitor analysis
         # _fmt_entities REMOVED v45.4.1 — gpt_instructions_v39 already contains
         # curated "🧠 ENCJE:" section (max 3/batch, importance≥0.7, with HOW hints).
         # Our version duplicated it with dirtier, unfiltered data from S1.
@@ -420,67 +419,43 @@ def _fmt_entity_salience(pre_batch):
     - Dunietz & Gillick (2014) entity salience research
     - Google Cloud NLP API salience scoring
     
-    Data source: pre_batch["_entity_salience_instructions"] injected by app.py
-    v47.0: Also includes backend placement instructions from gpt-ngram-api
-    """
-    # 1. Existing instructions from frontend (entity_salience.py local)
-    instructions = pre_batch.get("_entity_salience_instructions", "")
+    v47.0: Also includes backend placement instructions from competitor analysis
+    (entity_salience.py in gpt-ngram-api: salience scoring, co-occurrence, placement)
     
-    # 2. NEW: Backend placement instructions (from gpt-ngram-api via master-seo-api)
+    Data sources:
+    - pre_batch["_entity_salience_instructions"] — local positioning rules (from entity_salience.py frontend)
+    - pre_batch["_backend_placement_instruction"] — backend placement from competitor analysis
+    - pre_batch["_concept_instruction"] — topical concepts agent instruction
+    - pre_batch["_must_cover_concepts"] — concept entities that must be covered
+    """
+    parts = []
+    
+    # 1. Local salience positioning rules
+    local_instructions = pre_batch.get("_entity_salience_instructions", "")
+    if local_instructions:
+        parts.append(local_instructions)
+    
+    # 2. v47.0: Backend placement instructions (from gpt-ngram-api competitor analysis)
     backend_placement = pre_batch.get("_backend_placement_instruction", "")
     if backend_placement:
-        if instructions:
-            instructions += "\n\n"
-        instructions += backend_placement
+        parts.append("═══ ROZMIESZCZENIE ENCJI (z analizy konkurencji) ═══")
+        parts.append(backend_placement)
     
-    return instructions
-
-
-def _fmt_backend_placement(pre_batch):
-    """v47.0: Dedicated backend placement section — entity placement from competitor analysis.
+    # 3. v47.0: Concept instruction + must-cover concepts
+    concept_instr = pre_batch.get("_concept_instruction", "")
+    must_concepts = pre_batch.get("_must_cover_concepts", [])
+    if concept_instr:
+        parts.append(concept_instr)
+    elif must_concepts:
+        # Build instruction from concept list if no agent instruction provided
+        concept_names = [c.get("text", c) if isinstance(c, dict) else str(c) for c in must_concepts[:10]]
+        parts.append(
+            "═══ POJĘCIA TEMATYCZNE (z analizy konkurencji) ═══\n"
+            f"Następujące pojęcia pojawiają się u konkurencji — wpleć naturalnie w tekst:\n"
+            f"{', '.join(concept_names)}"
+        )
     
-    Generates structured placement instructions including:
-    - Primary entity → H1 + first paragraph
-    - Secondary entities → H2 sections
-    - Co-occurring pairs → same paragraph/sentence
-    - First paragraph entities
-    - H2 entities
-    
-    Data source: pre_batch["_backend_placement_instruction"] injected by app.py
-    from gpt-ngram-api entity_placement.placement_instruction
-    """
-    placement = pre_batch.get("_backend_placement_instruction", "")
-    if not placement:
-        return ""
-    
-    parts = ["═══ ROZMIESZCZENIE ENCJI (z analizy konkurencji) ═══"]
-    parts.append(placement)
-    
-    # Add co-occurrence pairs if available
-    cooccurrence_pairs = pre_batch.get("_cooccurrence_pairs", [])
-    if cooccurrence_pairs:
-        pairs_text = []
-        for pair in cooccurrence_pairs[:5]:
-            entity_a = pair.get("entity_a", "")
-            entity_b = pair.get("entity_b", "")
-            strength = pair.get("strength", 0)
-            if entity_a and entity_b:
-                pairs_text.append(f"  • \"{entity_a}\" + \"{entity_b}\" (siła: {strength:.2f})")
-        if pairs_text:
-            parts.append("\n🔗 PARY WSPÓŁWYSTĘPUJĄCE (trzymaj w tym samym akapicie):")
-            parts.extend(pairs_text)
-    
-    # Add first paragraph entities
-    first_para = pre_batch.get("_first_paragraph_entities", [])
-    if first_para:
-        parts.append(f"\n📌 PIERWSZY AKAPIT — wprowadź razem: {', '.join(first_para[:5])}")
-    
-    # Add H2 entities
-    h2_entities = pre_batch.get("_h2_entities", [])
-    if h2_entities:
-        parts.append(f"\n📋 ENCJE NA H2 — każda powinna mieć swoją sekcję: {', '.join(h2_entities[:6])}")
-    
-    return "\n".join(parts)
+    return "\n\n".join(parts) if parts else ""
 
 
 def _fmt_entities(pre_batch):

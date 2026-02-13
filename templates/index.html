@@ -426,7 +426,13 @@ function rS1(d){
     const h2p=d.competitor_h2_patterns||[];
     if(h2p.length)b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Dominujące wzorce H2</div>${h2p.slice(0,12).map((x,i)=>`<div style="color:var(--lg);font-size:11px;padding:2px 0"><span style="color:var(--orange);font-weight:700;width:18px;display:inline-block">${i+1}.</span>${el(x)}</div>`).join('')}</div>`;
     const ss2=d.serp_sources||[];
-    if(ss2.length)b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Źródła SERP</div>${ss2.slice(0,8).map(s=>`<div style="font-size:10px;color:var(--mg);padding:2px 0">${esc(typeof s==='string'?s:(s.url||s.title||s.domain||JSON.stringify(s)).substring(0,80))}</div>`).join('')}</div>`;
+    // v47: Competitor table with titles, word counts, H2 counts
+    const sc=d.serp_competitors||[];
+    if(sc.length){b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Konkurencja SERP (${sc.length} stron)</div><div style="display:grid;grid-template-columns:1fr 60px 40px;gap:2px 8px;font-size:10px">`;b1+=`<div style="font-weight:600;color:var(--mg)">URL / Tytuł</div><div style="font-weight:600;color:var(--mg)">Słów</div><div style="font-weight:600;color:var(--mg)">H2</div>`;sc.slice(0,8).forEach(c=>{const url=c.url||'';const title=c.title||'';const wc2=c.word_count||0;const h2c=c.h2_count||0;b1+=`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(url)}">${esc(title||url.replace(/https?:\/\/(www\.)?/,'').substring(0,50))}</div><div style="color:${wc2>2000?G:wc2>1000?W:R}">${wc2||'?'}</div><div>${h2c}</div>`});b1+=`</div></div>`}
+    else if(ss2.length)b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Źródła SERP</div>${ss2.slice(0,8).map(s=>`<div style="font-size:10px;color:var(--mg);padding:2px 0">${esc(typeof s==='string'?s:(s.url||s.title||s.domain||JSON.stringify(s)).substring(0,80))}</div>`).join('')}</div>`;
+    // v47: Competitor snippets (what Google shows in SERP)
+    const cSnippets=d.competitor_snippets||[];
+    if(cSnippets.length>0){b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">SERP Snippets (co Google pokazuje)</div>`;cSnippets.slice(0,5).forEach((sn,i)=>{b1+=`<div style="font-size:10px;color:var(--lg);padding:3px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(typeof sn==='string'?sn.substring(0,120):(sn.snippet||'').substring(0,120))}</div>`});b1+=`</div>`}
     const fs=d.featured_snippet,aio=d.ai_overview,rs=d.related_searches||[];
     if(fs)b1+=`<div style="margin:6px 0"><span class="tag g" style="white-space:normal;line-height:1.4">📋 Featured Snippet: ${esc((typeof fs==='string'?fs:(fs.text||JSON.stringify(fs))).substring(0,150))}</span></div>`;
     if(aio)b1+=`<div style="margin:6px 0"><span class="tag o" style="white-space:normal;line-height:1.4">🤖 AI Overview: ${esc((typeof aio==='string'?aio:(aio.text||JSON.stringify(aio))).substring(0,150))}</span></div>`;
@@ -458,23 +464,30 @@ function rS1(d){
     // ─── 4️⃣ Entity SEO ───
     let b4='';
     const ent=d.entity_seo||{},tE=ent.top_entities||[],mE=ent.must_mention||[],eR=ent.relations||[],tC=ent.topical_coverage||[],cE=ent.concept_entities||[];
-    // v47.0: Entity Pipeline new data
-    const entSal=ent.entity_salience||[],entCooc=ent.entity_cooccurrence||[],entPlace=ent.entity_placement||{},placeInstr=ent.placement_instruction||'';
     // v45.4.1: Show concept entities (from topical_entity_extractor) FIRST — most valuable
     if(cE.length){b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🧠 CONCEPT ENTITIES (${cE.length})</div>${cE.slice(0,15).map(e=>{const name=el(e),imp=typeof e==='object'?(e.importance||''):'';return`<span class="s1-ent top" style="border-color:var(--gn)">${name}${imp?` <span style="font-size:8px;opacity:.5">${typeof imp==='number'?imp.toFixed(2):imp}</span>`:''}</span>`}).join('')}</div>`}
-    if(ent.topical_summary)b4+=`<div class="s1-instr" style="margin:6px 0;border-left:2px solid var(--gn)">${esc(ent.topical_summary)}</div>`;
+    // v47.0: Topical summary — render as object with must_cover/should_cover
+    const tSum=ent.topical_summary||{};
+    if(typeof tSum==='object'&&tSum!==null){const mc=tSum.must_cover||[],sc=tSum.should_cover||[],ai=tSum.agent_instruction||'';if(mc.length||sc.length||ai){b4+=`<div style="margin:6px 0;border-left:2px solid var(--gn);padding-left:8px">`;if(ai)b4+=`<div class="s1-instr" style="margin-bottom:4px">${esc(ai)}</div>`;if(mc.length)b4+=`<div style="margin:4px 0"><span style="font-size:8px;color:var(--rd);font-weight:700;text-transform:uppercase">MUST COVER (${tSum.must_cover_count||mc.length}):</span> ${mc.slice(0,8).map(c=>{const t=typeof c==='object'?(c.text||c.entity||''):c;return`<span class="tag r">${esc(t)}</span>`}).join('')}</div>`;if(sc.length)b4+=`<div style="margin:4px 0"><span style="font-size:8px;color:var(--yl);font-weight:700;text-transform:uppercase">SHOULD COVER:</span> ${sc.slice(0,6).map(c=>{const t=typeof c==='object'?(c.text||c.entity||''):c;return`<span class="tag o">${esc(t)}</span>`}).join('')}</div>`;b4+=`</div>`}}else if(typeof tSum==='string'&&tSum){b4+=`<div class="s1-instr" style="margin:6px 0;border-left:2px solid var(--gn)">${esc(tSum)}</div>`}
+    // v47.0: Top-level must_cover_concepts and concept_instruction
+    const mcc=d.must_cover_concepts||[],ci=d.concept_instruction||'';
+    if(!tSum.must_cover&&mcc.length){b4+=`<div style="margin:6px 0"><span style="font-size:8px;color:var(--gn);font-weight:700;text-transform:uppercase">💡 MUST COVER CONCEPTS:</span> ${mcc.slice(0,8).map(c=>{const t=typeof c==='object'?(c.text||c.entity||''):c;return`<span class="tag g">${esc(t)}</span>`}).join('')}</div>`}
+    if(!tSum.agent_instruction&&ci){b4+=`<div class="s1-instr" style="margin:6px 0;border-left:2px solid var(--gn)">${esc(ci)}</div>`}
     if(mE.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--rd);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">MUST MENTION</div>${mE.map(e=>`<span class="s1-ent must">${el(e)}</span>`).join('')}</div>`;
     if(tE.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Named entities (${ent.entity_count||tE.length})</div>${tE.slice(0,15).map(e=>{const name=el(e),typ=typeof e==='object'?(e.type||''):'',imp=typeof e==='object'?(e.importance||''):'';return`<span class="s1-ent top">${name}${typ?` <span style="font-size:8px;opacity:.5">${typ}</span>`:''}${imp?` <span style="font-size:8px;opacity:.5">${typeof imp==='number'?imp.toFixed(2):imp}</span>`:''}</span>`}).join('')}</div>`;
-    // v47.0: Entity Salience (backend — from competitor analysis)
-    if(entSal.length){b4+=`<div style="margin:8px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🎯 ENTITY SALIENCE (${entSal.length})</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:end">${entSal.slice(0,10).map(e=>{const sal=e.salience||0;const ht=Math.max(14,Math.round(sal*60));const sig=e.signals||{};return`<div style="display:flex;flex-direction:column;align-items:center;width:58px" title="${esc(e.entity)}: salience ${sal.toFixed(3)}, pos:${sig.position||'?'}, hdg:${sig.in_headings||0}, subj:${sig.subject_ratio||'?'}"><div style="width:100%;height:${ht}px;background:${sal>=0.6?'var(--gn)':sal>=0.3?'var(--orange)':'var(--mg)'};border-radius:3px 3px 0 0;opacity:.7"></div><div style="font-size:7px;margin-top:2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%">${esc(e.entity)}</div><div style="font-size:7px;opacity:.5">${sal.toFixed(2)}</div></div>`}).join('')}</div></div>`}
-    // v47.0: Co-occurrence Pairs
-    if(entCooc.length){b4+=`<div style="margin:8px 0"><div style="font-size:9px;color:#60a5fa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔗 CO-OCCURRENCE PAIRS (${entCooc.length})</div>${entCooc.slice(0,8).map(p=>{const str=p.strength||0;return`<div style="padding:2px 0;font-size:10px"><span style="color:var(--pr)">${esc(p.entity_a)}</span> <span style="opacity:.4">+</span> <span style="color:var(--pr)">${esc(p.entity_b)}</span> <span style="font-size:8px;opacity:.5">str:${str.toFixed(2)} · ${p.sentence_co_occurrences||0}zd · ${p.sources_count||0}src</span></div>`}).join('')}</div>`}
-    // v47.0: Entity Placement (primary entity, H2, first paragraph)
-    if(entPlace.status==='OK'){const pe=entPlace.primary_entity||{};const h2e=entPlace.h2_entities||[];const fpe=entPlace.first_paragraph_entities||[];b4+=`<div style="margin:8px 0;padding:6px 8px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.2);border-radius:6px"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📐 PLACEMENT INSTRUCTIONS</div>`;if(pe.entity)b4+=`<div style="font-size:10px;margin:2px 0">🎯 Primary: <b style="color:var(--gn)">${esc(pe.entity)}</b> <span style="opacity:.5">(salience: ${(pe.salience||0).toFixed(2)})</span></div>`;if(fpe.length)b4+=`<div style="font-size:10px;margin:2px 0">📌 1st paragraph: ${fpe.map(e=>`<span style="color:var(--lg);font-weight:600">${esc(e)}</span>`).join(', ')}</div>`;if(h2e.length)b4+=`<div style="font-size:10px;margin:2px 0">📋 H2 entities: ${h2e.map(e=>`<span class="tag d" style="font-size:9px">${esc(e)}</span>`).join('')}</div>`;b4+=`</div>`}
-    if(eR.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Relacje między encjami</div>${eR.map(r=>{if(typeof r==='string')return`<span class="s1-ent rel">${esc(r)}</span>`;return`<span class="s1-ent rel">${esc(r.from||r.subject||'?')} → ${esc(r.to||r.object||'?')}${r.relation?` (${esc(r.relation)})`:''}</span>`}).join('')}</div>`;
+    if(eR.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Relacje SVO (${eR.length})</div>${eR.slice(0,8).map(r=>{if(typeof r==='string')return`<span class="s1-ent rel">${esc(r)}</span>`;const subj=r.from||r.subject||'?',obj=r.to||r.object||'?',verb=r.relation||r.verb||'→',rtype=r.type||'';return`<span class="s1-ent rel">${esc(subj)} <span style="opacity:.5">${esc(verb)}</span> ${esc(obj)}${rtype?` <span style="font-size:7px;opacity:.4">[${esc(rtype)}]</span>`:''}</span>`}).join('')}</div>`;
+    // v47.0: Entity Salience from backend competitor analysis
+    const bSal=ent.entity_salience||[];
+    if(bSal.length){b4+=`<div style="margin:8px 0"><div style="font-size:9px;color:var(--pr);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔬 SALIENCE (z analizy konkurencji)</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:end">`;bSal.slice(0,10).forEach(s=>{const ht=Math.max(14,Math.round((s.salience||0)*80));const isPrimary=bSal.indexOf(s)===0;b4+=`<div style="display:flex;flex-direction:column;align-items:center;width:55px"><div style="width:100%;height:${ht}px;background:${isPrimary?'var(--pr)':'var(--gn)'};border-radius:3px 3px 0 0;opacity:${isPrimary?1:.6}" title="${s.entity}: ${s.salience}"></div><div style="font-size:7px;margin-top:2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;font-weight:${isPrimary?'800':'400'}">${esc(s.entity||'')}</div><div style="font-size:7px;opacity:.5">${(s.salience||0).toFixed(2)}</div></div>`});b4+=`</div></div>`}
+    // v47.0: Co-occurrence pairs
+    const bCooc=ent.entity_cooccurrence||[];
+    if(bCooc.length){b4+=`<div style="margin:8px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔗 CO-OCCURRENCE (${bCooc.length} par)</div>`;bCooc.slice(0,6).forEach(p=>{b4+=`<div style="padding:2px 0;font-size:10px"><span style="color:var(--pr)">${esc(p.entity_a||'')}</span> + <span style="color:var(--pr)">${esc(p.entity_b||'')}</span> <span style="opacity:.4;font-size:8px">str: ${(p.strength||0).toFixed(2)} | ${p.sentence_co_occurrences||0} zdań | ${p.sources_count||0} źródeł</span></div>`});b4+=`</div>`}
+    // v47.0: Placement instruction preview
+    const bPlace=ent.entity_placement||{};
+    if(bPlace.placement_instruction){b4+=`<div style="margin:8px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📐 PLACEMENT INSTRUCTION</div><div class="s1-instr" style="max-height:200px;overflow-y:auto">${esc(bPlace.placement_instruction)}</div></div>`}
     if(tC.length)b4+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Topical Coverage</div>${tC.slice(0,10).map(t=>{const topic=typeof t==='string'?t:(t.subtopic||t.topic||el(t)),pri=typeof t==='object'?(t.priority||''):'';return`<span class="tag ${pri==='MUST'?'r':pri==='HIGH'?'o':'d'}">${topic}${pri?` · ${pri}`:''}</span>`}).join('')}</div>`;
     if(!tE.length&&!mE.length&&!cE.length)b4+=`<div style="color:var(--mg);font-style:italic">Brak danych encji — sprawdź czy trafilatura działa na produkcji</div>`;
-    h+=s1Sec(4,'Encje — mapa bytów tematu',`${cE.length?cE.length+' concept + ':''}${ent.entity_count||tE.length} named${entSal.length?' · '+entSal.length+' salience':''}`,b4);
+    h+=s1Sec(4,'Encje — mapa bytów tematu',`${cE.length?cE.length+' concept + ':''}${ent.entity_count||tE.length} named`,b4);
 
     // ─── 5️⃣ N-grams & Collocations ───
     let b5='';
@@ -533,18 +546,36 @@ function rS1(d){
     if(ai.semantic&&Object.keys(ai.semantic).length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🎯 Checkpoints semantyczne</div><div class="s1-instr">${esc(Object.entries(ai.semantic).map(([k,v])=>`${k}: ${v}`).join('\n'))}</div></div>`;
     if(sh.critical_entities&&sh.critical_entities.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--rd);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🔴 Critical entities</div>${sh.critical_entities.map(e=>`<span class="s1-ent must">${e.text||el(e)}${e.importance?` · ${e.importance.toFixed(2)}`:''}</span>`).join('')}</div>`;
     if(sh.must_topics&&sh.must_topics.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📌 Must topics</div>${sh.must_topics.map(t=>`<span class="tag o">${t.topic||el(t)}</span>`).join('')}</div>`;
-    // v47.0: New semantic hints from Entity Pipeline
-    if(sh.must_cover_concepts&&sh.must_cover_concepts.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🧠 Must cover concepts</div>${sh.must_cover_concepts.slice(0,10).map(c=>`<span class="s1-ent top" style="border-color:var(--gn)">${typeof c==='string'?esc(c):esc(c.text||el(c))}</span>`).join('')}</div>`;
-    if(sh.concept_instruction)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🎯 Concept instruction</div><div class="s1-instr" style="border-left:2px solid var(--gn)">${esc(sh.concept_instruction)}</div></div>`;
-    if(sh.primary_entity&&sh.primary_entity.entity)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🎯 Primary entity</div><span class="s1-ent must" style="border-color:#a78bfa">${esc(sh.primary_entity.entity)} <span style="font-size:8px;opacity:.5">salience: ${(sh.primary_entity.salience||0).toFixed(2)}</span></span></div>`;
-    if(sh.first_paragraph_entities&&sh.first_paragraph_entities.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📌 First paragraph entities</div>${sh.first_paragraph_entities.map(e=>`<span class="tag p">${esc(typeof e==='string'?e:(e.entity||e.text||el(e)))}</span>`).join('')}</div>`;
-    if(sh.h2_entities&&sh.h2_entities.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📋 H2 entities</div>${sh.h2_entities.map(e=>`<span class="tag d">${esc(typeof e==='string'?e:(e.entity||e.text||el(e)))}</span>`).join('')}</div>`;
-    if(sh.cooccurrence_pairs&&sh.cooccurrence_pairs.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#60a5fa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🔗 Co-occurrence pairs (top ${sh.cooccurrence_pairs.length})</div>${sh.cooccurrence_pairs.map(p=>`<div style="font-size:10px;padding:1px 0"><span style="color:var(--pr)">${esc(p.entity_a||'')}</span> <span style="opacity:.4">+</span> <span style="color:var(--pr)">${esc(p.entity_b||'')}</span></div>`).join('')}</div>`;
-    if(sh.checkpoints&&Object.keys(sh.checkpoints).length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">✅ Checkpoints v47.0</div><div class="s1-instr">${esc(Object.entries(sh.checkpoints).map(([k,v])=>`${k}: ${v}`).join('\n'))}</div></div>`;
-    if(sh.placement_instruction)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:#a78bfa;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📐 Placement instruction</div><div class="s1-instr" style="border-left:2px solid #a78bfa;white-space:pre-wrap;font-size:10px">${esc(sh.placement_instruction)}</div></div>`;
-    if(sh.version)b10+=`<div style="margin-top:4px;font-size:8px;opacity:.3">semantic_enhancement_hints ${esc(sh.version)}</div>`;
-    if(!ai.gaps&&!ai.causal&&!(sh.critical_entities&&sh.critical_entities.length)&&!sh.primary_entity)b10+=`<div style="color:var(--mg);font-style:italic">Agent instructions wygenerowane wewnętrznie — używane automatycznie w batch loop</div>`;
-    h+=s1Sec(10,'Instrukcje dla modelu',``,b10);
+    // v47.0: New semantic hint fields
+    if(sh.must_cover_concepts&&sh.must_cover_concepts.length)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">💡 Must-cover concepts (v47)</div>${sh.must_cover_concepts.slice(0,8).map(c=>{const t=typeof c==='object'?(c.text||c.entity||''):c;return`<span class="tag g">${esc(t)}</span>`}).join('')}</div>`;
+    if(sh.concept_instruction)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🧠 Concept instruction</div><div class="s1-instr">${esc(sh.concept_instruction)}</div></div>`;
+    if(sh.primary_entity&&sh.primary_entity.entity)b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--pr);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">🎯 Primary entity</div><span class="s1-ent must" style="border-color:var(--pr)">${esc(sh.primary_entity.entity)} <span style="font-size:8px;opacity:.5">salience: ${(sh.primary_entity.salience||0).toFixed(2)}</span></span></div>`;
+    if(sh.checkpoints){const cp=sh.checkpoints;b10+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📊 Checkpoints v47</div>`;Object.entries(cp).forEach(([k,v])=>{if(k!=='version')b10+=`<div style="font-size:10px;margin:2px 0"><b style="color:var(--orange)">${esc(k)}:</b> ${esc(v)}</div>`});b10+=`</div>`}
+    if(sh.version)b10+=`<div style="margin-top:6px;font-size:9px;opacity:.3">sem_hints ${esc(sh.version)}</div>`;
+    if(!ai.gaps&&!ai.causal&&!(sh.critical_entities&&sh.critical_entities.length)&&!(sh.must_cover_concepts&&sh.must_cover_concepts.length))b10+=`<div style="color:var(--mg);font-style:italic">Agent instructions wygenerowane wewnętrznie — używane automatycznie w batch loop</div>`;
+    h+=s1Sec(10,'Instrukcje dla modelu',`${sh.version||''}`,b10);
+
+    // ─── 1️⃣1️⃣ Cluster Expansion (related_searches + topical_coverage) ───
+    let b11='';
+    const clRs=d.related_searches||[],clTc=(d.entity_seo||{}).topical_coverage||[];
+    if(clRs.length||clTc.length){
+        if(clRs.length){b11+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--pr);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔗 Related Searches — frazy powiązane (${clRs.length})</div><div style="display:flex;flex-wrap:wrap;gap:4px">${clRs.map(r=>`<span class="tag d" style="font-size:11px">${ss(r)}</span>`).join('')}</div></div>`}
+        if(clTc.length){const mustT=clTc.filter(t=>typeof t==='object'&&t.priority==='MUST'),highT=clTc.filter(t=>typeof t==='object'&&t.priority==='HIGH'),otherT=clTc.filter(t=>typeof t==='object'&&t.priority!=='MUST'&&t.priority!=='HIGH');b11+=`<div style="margin:8px 0"><div style="font-size:9px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📊 Topical Coverage — klastry tematyczne</div>`;if(mustT.length)b11+=`<div style="margin:4px 0"><span style="font-size:8px;color:var(--rd);font-weight:700">MUST:</span> ${mustT.map(t=>`<span class="tag r">${esc(t.subtopic||t.topic||'')}</span>`).join('')}</div>`;if(highT.length)b11+=`<div style="margin:4px 0"><span style="font-size:8px;color:var(--orange);font-weight:700">HIGH:</span> ${highT.map(t=>`<span class="tag o">${esc(t.subtopic||t.topic||'')}</span>`).join('')}</div>`;if(otherT.length)b11+=`<div style="margin:4px 0"><span style="font-size:8px;color:var(--mg);font-weight:700">OPTIONAL:</span> ${otherT.map(t=>`<span class="tag d">${esc(t.subtopic||t.topic||'')}</span>`).join('')}</div>`;b11+=`</div>`}
+        b11+=`<div style="margin-top:8px;font-size:10px;color:var(--mg)">💡 Potencjał klastra: ${clRs.length+clTc.length} fraz powiązanych → możliwy klaster ${Math.max(3,Math.min(15,Math.round((clRs.length+clTc.length)/3)))}–${Math.max(6,Math.min(20,Math.round((clRs.length+clTc.length)/2)))} artykułów</div>`;
+    }else{b11+=`<div style="color:var(--mg);font-style:italic">Brak danych o frazach powiązanych</div>`}
+    h+=s1Sec(11,'Potencjał klastra / Cluster Expansion',`${clRs.length+clTc.length} fraz`,b11);
+
+    // ─── 1️⃣2️⃣ Suggested Structure (from suggested_h2s + top competitor H2 patterns) ───
+    let b12='';
+    const sgH2=d.suggested_h2s||[],topH2=d.competitor_h2_patterns||[];
+    if(sgH2.length||topH2.length){
+        if(sgH2.length){b12+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">✅ Sugerowane H2 (z gap analysis)</div>`;sgH2.forEach((h2,i)=>{b12+=`<div style="padding:3px 0;font-size:11px;color:var(--lg)"><span style="color:var(--gn);font-weight:700;width:22px;display:inline-block">${i+1}.</span>${esc(typeof h2==='string'?h2:(h2.h2||h2.title||h2.subtopic||''))}</div>`});b12+=`</div>`}
+        if(topH2.length){b12+=`<div style="margin:8px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📋 Dominujące H2 u konkurencji (${topH2.length})</div>`;topH2.slice(0,10).forEach((h2,i)=>{b12+=`<div style="padding:2px 0;font-size:10px;color:var(--mg)"><span style="color:var(--orange);font-weight:700;width:18px;display:inline-block">${i+1}.</span>${el(h2)}</div>`});b12+=`</div>`}
+        // Compute recommended length range
+        const recLen=d.recommended_length||3000,medLen=d.median_length||0;
+        b12+=`<div style="margin-top:8px;padding:8px;background:var(--sb);border-radius:6px"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📏 Rekomendowana struktura</div><div style="font-size:11px;color:var(--lg)">Sekcji H2: <b>${Math.max(sgH2.length, Math.min(10,Math.round(recLen/400)))}</b> | Długość: <b>${recLen}</b> słów | Mediana konkurencji: <b>${medLen}</b> słów</div></div>`;
+    }else{b12+=`<div style="color:var(--mg);font-style:italic">Brak danych o sugerowanej strukturze — sprawdź logi S1</div>`}
+    h+=s1Sec(12,'Sugerowana struktura artykułu',`${sgH2.length} H2`,b12);
 
     document.getElementById('s1B').innerHTML=h;
     // Auto-expand first section
@@ -560,7 +591,7 @@ function rBI(d){
     if(d.semantic_plan&&d.semantic_plan.profile)x+=`<span class="tag o">${d.semantic_plan.profile}</span>`;
     if(d.batch_length_detail&&d.batch_length_detail.complexity_score)x+=`<span class="tag c">cmplx: ${d.batch_length_detail.complexity_score}</span>`;
     if(d.main_keyword_ratio)x+=`<span class="tag d">MK: ${d.main_keyword_ratio}</span>`;x+=`</div>`;
-    x+=`<div class="flags">${fl('instructions',d.has_gpt_instructions,'g')}${fl('prompt',d.has_gpt_prompt,'g')}${fl('memory',d.has_article_memory,'g')}${fl('enhanced',d.has_enhanced,'g')}${fl('style',d.has_style,'g')}${fl('exp_markers',d.experience_markers,'o')}${fl('continuation',d.continuation_context,'o')}${fl('cont_v39',d.has_continuation_v39,'o')}${fl('causal',d.has_causal_context,'p')}${fl('info_gain',d.has_information_gain,'p')}${fl('smart',d.has_smart_instructions,'p')}${fl('hierarchy',d.has_phrase_hierarchy,'o')}${fl('salience',d.has_entity_salience,'p')}${fl('placement',d.has_backend_placement,'p')}${d.has_legal?fl('YMYL legal',1,'r'):''}${d.has_medical?fl('YMYL med',1,'r'):''}</div>`;
+    x+=`<div class="flags">${fl('instructions',d.has_gpt_instructions,'g')}${fl('prompt',d.has_gpt_prompt,'g')}${fl('memory',d.has_article_memory,'g')}${fl('enhanced',d.has_enhanced,'g')}${fl('style',d.has_style,'g')}${fl('exp_markers',d.experience_markers,'o')}${fl('continuation',d.continuation_context,'o')}${fl('cont_v39',d.has_continuation_v39,'o')}${fl('causal',d.has_causal_context,'p')}${fl('info_gain',d.has_information_gain,'p')}${fl('smart',d.has_smart_instructions,'p')}${fl('hierarchy',d.has_phrase_hierarchy,'o')}${d.has_backend_placement?fl('placement',1,'g'):''}${d.has_cooccurrence?fl('cooccur',1,'g'):''}${d.has_concepts?fl('concepts',1,'g'):''}${d.has_legal?fl('YMYL legal',1,'r'):''}${d.has_medical?fl('YMYL med',1,'r'):''}</div>`;
     x+=`<div class="sub"><div class="sub-t">MUST (${d.must_keywords.length})</div>${kc(d.must_keywords,'must')}</div>`;
     x+=`<div class="sub"><div class="sub-t">EXTENDED (${d.extended_keywords.length})</div>${kc(d.extended_keywords,'ext')}</div>`;
     if(d.stop_keywords&&d.stop_keywords.length)x+=`<div class="sub"><div class="sub-t">STOP</div>${kc(d.stop_keywords,'stop')}</div>`;
@@ -859,38 +890,6 @@ function renderCompDash(){
         p3+=`<div style="margin-top:6px;font-size:9px;display:flex;gap:8px;color:${M}"><span>🟣 Główna</span><span>🟢 KG</span><span>🟡 Wikipedia</span></div>`;
     }
 
-    // 3B2: Backend Entity Salience (from competitor analysis — v47.0)
-    const bkSal=s1Data?(s1Data.entity_seo||{}).entity_salience||[]:[];
-    if(bkSal.length){
-        p3+=`<div style="font-weight:700;margin:12px 0 6px;color:#a78bfa">Backend Entity Salience (competitor analysis)</div>`;
-        p3+=`<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:end">`;
-        bkSal.slice(0,12).forEach(e=>{
-            const sal=e.salience||0;const ht=Math.max(12,Math.round(sal*160));
-            const clr=sal>=0.7?G:sal>=0.4?W:M;
-            p3+=`<div style="display:flex;flex-direction:column;align-items:center;width:50px" title="${esc(e.entity)}: ${sal.toFixed(3)}"><div style="width:100%;height:${ht}px;background:${clr};border-radius:3px 3px 0 0;opacity:.65"></div><div style="font-size:7px;margin-top:2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;font-weight:${sal>=0.5?'700':'400'}">${esc(e.entity)}</div><div style="font-size:7px;opacity:.4">${sal.toFixed(2)}</div></div>`;
-        });
-        p3+=`</div>`;
-    }
-
-    // 3B3: Co-occurrence Pairs (v47.0)
-    const bkCooc=s1Data?(s1Data.entity_seo||{}).entity_cooccurrence||[]:[];
-    if(bkCooc.length){
-        p3+=`<div style="font-weight:700;margin:12px 0 6px;color:#60a5fa">Co-occurrence Pairs (${bkCooc.length})</div>`;
-        bkCooc.slice(0,6).forEach(p2=>{
-            const str=p2.strength||0;const barW=Math.max(20,Math.round(str*100));
-            p3+=`<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:10px"><span style="min-width:100px;text-align:right;color:${P}">${esc(p2.entity_a)}</span><div style="width:${barW}px;height:6px;background:#60a5fa;border-radius:3px;opacity:.5"></div><span style="color:${P}">${esc(p2.entity_b)}</span><span style="font-size:8px;opacity:.4">${str.toFixed(2)}</span></div>`;
-        });
-    }
-
-    // 3B4: Entity Placement Summary (v47.0)
-    const bkPlace=s1Data?(s1Data.entity_seo||{}).entity_placement||{}:{};
-    if(bkPlace.status==='OK'){
-        const pe2=bkPlace.primary_entity||{};const h2e2=bkPlace.h2_entities||[];
-        p3+=`<div style="font-weight:700;margin:12px 0 6px;color:#a78bfa">Entity Placement Plan</div>`;
-        if(pe2.entity)p3+=`<div style="font-size:10px">🎯 Primary: <b style="color:${G}">${esc(pe2.entity)}</b> (${(pe2.salience||0).toFixed(2)})</div>`;
-        if(h2e2.length)p3+=`<div style="font-size:10px;margin-top:2px">📋 H2: ${h2e2.map(e=>`<span style="padding:1px 5px;border-radius:8px;font-size:9px;border:1px solid ${M};color:${M};margin:1px">${esc(e)}</span>`).join('')}</div>`;
-    }
-
     // 3C: Relation Depth
     if(compRels.length){
         p3+=`<div style="font-weight:700;margin:12px 0 6px">Relation Depth (S-V-O Triplets)</div>`;
@@ -900,12 +899,34 @@ function renderCompDash(){
         p3+=ciStat(s1Data?(s1Data.causal_count_chains||0):0,'Łańcuchów',null);
         p3+=ciStat(causal,'Total Causal',null);
         p3+=`</div>`;
-        compRels.slice(0,6).forEach(r=>{if(typeof r==='object'){p3+=`<div style="padding:2px 0;font-size:10px"><span style="color:${P}">${esc(r.from||r.subject||'?')}</span> <span style="opacity:.5">${esc(r.relation||r.verb||'→')}</span> <span style="color:${P}">${esc(r.to||r.object||'?')}</span></div>`}});
+        compRels.slice(0,6).forEach(r=>{if(typeof r==='object'){const rtype=r.type||'';p3+=`<div style="padding:2px 0;font-size:10px"><span style="color:${P}">${esc(r.from||r.subject||'?')}</span> <span style="opacity:.5">${esc(r.relation||r.verb||'→')}</span> <span style="color:${P}">${esc(r.to||r.object||'?')}</span>${rtype?` <span style="font-size:8px;opacity:.3">[${esc(rtype)}]</span>`:''}</div>`}});
     }
     if(tCov.length){
         p3+=`<div style="font-weight:700;margin:12px 0 6px">Topical Coverage</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;
         tCov.slice(0,10).forEach(t=>{const topic=typeof t==='string'?t:(t.subtopic||t.topic||'');const pri=typeof t==='object'?(t.priority||''):'';const clr=pri==='MUST'?R:pri==='HIGH'?W:G;p3+=`<span style="padding:1px 6px;border-radius:10px;font-size:9px;border:1px solid ${clr};color:${clr}">${esc(topic)}</span>`});
         p3+=`</div>`;
+    }
+    // v47.0: Backend Salience in CI Dashboard
+    const ciSal=(ent.entity_salience||[]);
+    if(ciSal.length){
+        p3+=`<div style="font-weight:700;margin:12px 0 6px;color:var(--pr)">🔬 Backend Salience (${ciSal.length})</div>`;
+        p3+=`<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:end">`;
+        ciSal.slice(0,8).forEach((s,i)=>{const ht=Math.max(12,Math.round((s.salience||0)*120));const isPri=i===0;p3+=`<div style="display:flex;flex-direction:column;align-items:center;width:50px"><div style="width:100%;height:${ht}px;background:${isPri?P:G};border-radius:3px 3px 0 0;opacity:${isPri?1:.6}" title="${s.entity}: ${s.salience}"></div><div style="font-size:7px;margin-top:2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;font-weight:${isPri?'800':'400'}">${esc(s.entity||'')}</div></div>`});
+        p3+=`</div>`;
+        if(ciSal[0])p3+=`<div style="margin-top:6px;font-size:10px">🎯 Primary: <b style="color:var(--pr)">${esc(ciSal[0].entity||'')}</b> (${(ciSal[0].salience||0).toFixed(3)})</div>`;
+    }
+    // v47.0: Co-occurrence pairs in CI Dashboard
+    const ciCooc=(ent.entity_cooccurrence||[]);
+    if(ciCooc.length){
+        p3+=`<div style="font-weight:700;margin:12px 0 6px;color:var(--orange)">🔗 Co-occurrence (${ciCooc.length} par)</div>`;
+        ciCooc.slice(0,5).forEach(p2=>{p3+=`<div style="padding:2px 0;font-size:10px"><span style="color:${P}">${esc(p2.entity_a||'')}</span> <span style="opacity:.4">+</span> <span style="color:${P}">${esc(p2.entity_b||'')}</span> <span style="font-size:8px;opacity:.4">str:${(p2.strength||0).toFixed(2)}</span></div>`});
+    }
+    // v47.0: Placement instruction summary
+    const ciPlace=(ent.entity_placement||{});
+    if(ciPlace.first_paragraph_entities&&ciPlace.first_paragraph_entities.length){
+        p3+=`<div style="font-weight:700;margin:12px 0 6px;color:var(--gn)">📐 Placement</div>`;
+        p3+=`<div style="font-size:10px">1st paragraph: ${ciPlace.first_paragraph_entities.map(e=>`<b>${esc(e)}</b>`).join(', ')}</div>`;
+        if(ciPlace.h2_entities&&ciPlace.h2_entities.length)p3+=`<div style="font-size:10px;margin-top:3px">H2 entities: ${ciPlace.h2_entities.map(e=>`<b>${esc(e)}</b>`).join(', ')}</div>`;
     }
 
     h+=ciSec('3️⃣','Entity Intelligence Panel',`${ciConceptEnts.length?ciConceptEnts.length+' concept + ':''}${allMust.length} named`,p3);

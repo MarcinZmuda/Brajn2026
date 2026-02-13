@@ -586,7 +586,52 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             s1.get("concept_entities", [])
         )
         concept_entities = _filter_entities(raw_concept_entities)[:15]
-        topical_summary = (s1.get("entity_seo") or {}).get("topical_summary", "") or s1.get("topical_summary", "")
+        # v47.0: topical_summary is an OBJECT {must_cover_count, must_cover, should_cover, agent_instruction}
+        topical_summary_raw = (s1.get("entity_seo") or {}).get("topical_summary", {}) or s1.get("topical_summary", {})
+        # Normalize: if it's a string (legacy), wrap it
+        if isinstance(topical_summary_raw, str):
+            topical_summary = {"agent_instruction": topical_summary_raw} if topical_summary_raw else {}
+        else:
+            topical_summary = topical_summary_raw
+
+        # v47.0: Read entity_salience, co-occurrence, placement from backend
+        entity_seo_raw = s1.get("entity_seo") or {}
+        backend_entity_salience = entity_seo_raw.get("entity_salience", []) or s1.get("entity_salience", [])
+        backend_entity_cooccurrence = entity_seo_raw.get("entity_cooccurrence", []) or s1.get("entity_cooccurrence", [])
+        backend_entity_placement = (
+            s1.get("entity_placement") or
+            entity_seo_raw.get("entity_placement", {})
+        )
+        backend_placement_instruction = (
+            (s1.get("semantic_enhancement_hints") or {}).get("placement_instruction", "") or
+            (backend_entity_placement.get("placement_instruction", "") if isinstance(backend_entity_placement, dict) else "")
+        )
+        # v47.0: Read enhanced semantic hints
+        sem_hints = s1.get("semantic_enhancement_hints") or s1.get("semantic_hints") or {}
+        backend_first_para_entities = (
+            sem_hints.get("first_paragraph_entities", []) or
+            (backend_entity_placement.get("first_paragraph_entities", []) if isinstance(backend_entity_placement, dict) else [])
+        )
+        backend_h2_entities = (
+            sem_hints.get("h2_entities", []) or
+            (backend_entity_placement.get("h2_entities", []) if isinstance(backend_entity_placement, dict) else [])
+        )
+        backend_cooccurrence_pairs = (
+            sem_hints.get("cooccurrence_pairs", []) or
+            (backend_entity_placement.get("cooccurrence_pairs", []) if isinstance(backend_entity_placement, dict) else [])
+        )[:5]
+        # v47.0: must_cover_concepts & concept_instruction from semantic_enhancement_hints
+        must_cover_concepts = sem_hints.get("must_cover_concepts", []) or (topical_summary.get("must_cover", []) if isinstance(topical_summary, dict) else [])
+        concept_instruction = sem_hints.get("concept_instruction", "") or (topical_summary.get("agent_instruction", "") if isinstance(topical_summary, dict) else "")
+
+        if backend_entity_salience:
+            yield emit("log", {"msg": f"🔬 Entity Salience: {len(backend_entity_salience)} encji z analizy konkurencji"})
+        if backend_entity_cooccurrence:
+            yield emit("log", {"msg": f"🔗 Co-occurrence: {len(backend_entity_cooccurrence)} par encji"})
+        if backend_placement_instruction:
+            yield emit("log", {"msg": "📐 Placement instructions: wygenerowane z analizy konkurencji"})
+        if must_cover_concepts:
+            yield emit("log", {"msg": f"💡 Must-cover concepts: {len(must_cover_concepts)} pojęć tematycznych"})
 
         # v45.4.1: Filter semantic_keyphrases (Gemini may return YouTube/JS garbage)
         raw_semantic_kp = s1.get("semantic_keyphrases") or []
@@ -632,6 +677,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "length_analysis": s1.get("length_analysis") or {},
             # SERP competitor data
             "serp_competitors": (s1.get("serp_analysis") or {}).get("competitors", s1.get("competitors", []))[:10],
+            "competitor_titles": serp_analysis.get("competitor_titles", [])[:10],
+            "competitor_snippets": serp_analysis.get("competitor_snippets", [])[:10],
             # Competitor structure
             "h2_patterns_count": len(clean_h2_patterns),
             "competitor_h2_patterns": clean_h2_patterns,
@@ -668,14 +715,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 # v45.4.1: Concept entities from topical_entity_extractor
                 "concept_entities": concept_entities,
                 "topical_summary": topical_summary,
-                # v47.0: Entity Pipeline — salience, co-occurrence, placement
-                "entity_salience": (s1.get("entity_seo") or {}).get("entity_salience", []),
-                "entity_cooccurrence": (s1.get("entity_seo") or {}).get("entity_cooccurrence", []),
-                "entity_placement": s1.get("entity_placement") or
-                    (s1.get("entity_seo") or {}).get("entity_placement", {}),
-                "placement_instruction": (s1.get("semantic_enhancement_hints") or {})
-                    .get("placement_instruction", ""),
+                # v47.0: Salience, co-occurrence, placement from backend
+                "entity_salience": backend_entity_salience[:15],
+                "entity_cooccurrence": backend_entity_cooccurrence[:10],
+                "entity_placement": backend_entity_placement if isinstance(backend_entity_placement, dict) else {},
             },
+            # v47.0: Placement instruction (top-level for easy access)
+            "placement_instruction": backend_placement_instruction,
+            # v47.0: Concept coverage fields
+            "must_cover_concepts": must_cover_concepts[:10],
+            "concept_instruction": concept_instruction,
             # N-grams
             "ngrams": clean_ngrams,
             "semantic_keyphrases": clean_semantic_kp,
@@ -690,7 +739,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "paa_unanswered_count": len((s1.get("content_gaps") or {}).get("paa_unanswered", [])),
             # Agent instructions
             "agent_instructions": s1.get("agent_instructions") or {},
-            "semantic_hints": s1.get("semantic_enhancement_hints") or s1.get("semantic_hints") or {},
+            "semantic_hints": sem_hints,
             # Meta
             "competitive_summary": s1.get("_competitive_summary", "")
         })
@@ -705,16 +754,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": "🔬 Entity Salience: Google NLP API aktywne — walidacja po zakończeniu artykułu"})
         else:
             yield emit("log", {"msg": "ℹ️ Entity Salience: instrukcje pozycjonowania encji aktywne (brak API key dla walidacji)"})
-
-        # v47.0: Log backend entity placement data
-        _ep = s1.get("entity_placement") or (s1.get("entity_seo") or {}).get("entity_placement", {})
-        if _ep and _ep.get("status") == "OK":
-            _primary = (_ep.get("primary_entity") or {}).get("entity", "?")
-            _h2_count = len(_ep.get("h2_entities", []))
-            _cooc = len((s1.get("entity_seo") or {}).get("entity_cooccurrence", []))
-            yield emit("log", {"msg": f"🎯 Entity Placement v47: primary='{_primary}', H2 entities={_h2_count}, co-occurrence pairs={_cooc}"})
-        else:
-            yield emit("log", {"msg": "ℹ️ Entity Placement v47: brak danych z backendu (fallback do local salience)"})
 
         # ─── KROK 2: YMYL Detection ───
         step_start(2)
@@ -997,19 +1036,20 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if entity_salience_instructions:
                 pre_batch["_entity_salience_instructions"] = entity_salience_instructions
 
-            # ═══ v47.0: Inject backend entity placement data for prompt_builder ═══
-            backend_placement = (s1.get("entity_placement") or
-                (s1.get("entity_seo") or {}).get("entity_placement") or {}).get("placement_instruction", "")
-            if backend_placement:
-                pre_batch["_backend_placement_instruction"] = backend_placement
-                pre_batch["_cooccurrence_pairs"] = ((s1.get("entity_seo") or {})
-                    .get("entity_cooccurrence") or s1.get("entity_cooccurrence") or [])[:5]
-                pre_batch["_first_paragraph_entities"] = ((s1.get("entity_placement") or
-                    (s1.get("entity_seo") or {}).get("entity_placement") or {})
-                    .get("first_paragraph_entities") or [])
-                pre_batch["_h2_entities"] = ((s1.get("entity_placement") or
-                    (s1.get("entity_seo") or {}).get("entity_placement") or {})
-                    .get("h2_entities") or [])
+            # ═══ v47.0: Inject backend placement instructions for prompt_builder ═══
+            if backend_placement_instruction:
+                pre_batch["_backend_placement_instruction"] = backend_placement_instruction
+            if backend_cooccurrence_pairs:
+                pre_batch["_cooccurrence_pairs"] = backend_cooccurrence_pairs
+            if backend_first_para_entities:
+                pre_batch["_first_paragraph_entities"] = backend_first_para_entities
+            if backend_h2_entities:
+                pre_batch["_h2_entities"] = backend_h2_entities
+            # v47.0: Concept coverage for prompt
+            if concept_instruction:
+                pre_batch["_concept_instruction"] = concept_instruction
+            if must_cover_concepts:
+                pre_batch["_must_cover_concepts"] = must_cover_concepts
 
             # Get current H2 from API (most reliable) or fallback to our plan
             h2_remaining = (pre_batch.get("h2_remaining") or [])
@@ -1071,8 +1111,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "has_smart_instructions": bool(enhanced_data.get("smart_instructions")),
                 "has_phrase_hierarchy": bool(enhanced_data.get("phrase_hierarchy")),
                 "has_entity_salience": bool(entity_salience_instructions),
-                "has_backend_placement": bool(pre_batch.get("_backend_placement_instruction")),
-                "has_continuation_v39": bool(pre_batch.get("continuation_v39"))
+                "has_continuation_v39": bool(pre_batch.get("continuation_v39")),
+                # v47.0 flags
+                "has_backend_placement": bool(backend_placement_instruction),
+                "has_cooccurrence": bool(backend_cooccurrence_pairs),
+                "has_concepts": bool(must_cover_concepts or concept_instruction),
             })
 
             # 6c: Generate text
