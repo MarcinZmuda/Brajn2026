@@ -1036,6 +1036,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if entity_salience_instructions:
                 pre_batch["_entity_salience_instructions"] = entity_salience_instructions
 
+            # ═══ Inject YMYL flags for depth signals ═══
+            pre_batch["_is_ymyl"] = is_legal or is_medical
+
+            # ═══ Inject last depth score for adaptive depth signals ═══
+            if accepted_batches_log:
+                last_accepted = accepted_batches_log[-1]
+                last_depth = last_accepted.get("depth_score")
+                if last_depth is not None:
+                    pre_batch["_last_depth_score"] = last_depth
+
             # ═══ v47.0: Inject backend placement instructions for prompt_builder ═══
             if backend_placement_instruction:
                 pre_batch["_backend_placement_instruction"] = backend_placement_instruction
@@ -1198,7 +1208,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     yield emit("log", {"msg": f"✅ Batch {batch_num} accepted! Score: {quality.get('score')}/100"})
                     # Track for memory
                     accepted_batches_log.append({
-                        "text": text, "h2": current_h2, "batch_num": batch_num
+                        "text": text, "h2": current_h2, "batch_num": batch_num,
+                        "depth_score": depth
                     })
                     break
 
@@ -1206,7 +1217,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 if forced:
                     yield emit("log", {"msg": f"⚠️ Batch {batch_num} w forced mode — kontynuuję"})
                     accepted_batches_log.append({
-                        "text": text, "h2": current_h2, "batch_num": batch_num
+                        "text": text, "h2": current_h2, "batch_num": batch_num,
+                        "depth_score": depth
                     })
                     break
 
@@ -1342,6 +1354,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         final_result = brajen_call("get", f"/api/project/{project_id}/final_review", timeout=HEAVY_REQUEST_TIMEOUT)
         if final_result["ok"]:
             final = final_result["data"]
+            # Unwrap cached response format (GET returns {"status":"EXISTS","final_review":{...}})
+            if final.get("status") == "EXISTS" and "final_review" in final:
+                final = final["final_review"]
             final_score = final.get("quality_score", final.get("score", "?"))
             final_status = final.get("status", "?")
             missing_kw = (final.get("missing_keywords") or [])
