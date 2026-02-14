@@ -781,6 +781,7 @@ def _fmt_style(pre_batch):
 def _fmt_legal_medical(pre_batch):
     legal_ctx = pre_batch.get("legal_context") or {}
     medical_ctx = pre_batch.get("medical_context") or {}
+    ymyl_enrich = pre_batch.get("_ymyl_enrichment") or {}
 
     parts = []
 
@@ -790,6 +791,19 @@ def _fmt_legal_medical(pre_batch):
         parts.append("  1. Cytować realne przepisy i orzeczenia (podane niżej)")
         parts.append("  2. Dodać disclaimer o konsultacji z prawnikiem")
         parts.append("  3. NIE wymyślać sygnatur ani dat orzeczeń")
+        
+        # v47.2: Claude's enrichment — specific articles and concepts
+        legal_enrich = ymyl_enrich.get("legal", {})
+        if legal_enrich.get("articles"):
+            parts.append("")
+            parts.append("PODSTAWA PRAWNA (kluczowe przepisy):")
+            for art in legal_enrich["articles"][:5]:
+                parts.append(f"  • {art}")
+        if legal_enrich.get("acts"):
+            parts.append(f"  Ustawy: {', '.join(legal_enrich['acts'][:4])}")
+        if legal_enrich.get("key_concepts"):
+            parts.append(f"  Kluczowe pojęcia: {', '.join(legal_enrich['key_concepts'][:6])}")
+        
         parts.append("")
         parts.append("FORMATY CYTOWAŃ PRAWNYCH:")
         parts.append('  • Przepisy: "art. 13 § 1 k.c.", "art. 58 § 2 k.r.o."')
@@ -809,7 +823,11 @@ def _fmt_legal_medical(pre_batch):
                     sig = j.get("signature", j.get("caseNumber", ""))
                     court = j.get("court", j.get("courtName", ""))
                     date = j.get("date", j.get("judgmentDate", ""))
-                    parts.append(f'  • {sig} — {court} ({date})')
+                    matched = j.get("matched_article", "")
+                    line = f'  • {sig} — {court} ({date})'
+                    if matched:
+                        line += f' [dot. {matched}]'
+                    parts.append(line)
 
         citation_hint = legal_ctx.get("citation_hint", "")
         if citation_hint:
@@ -823,6 +841,21 @@ def _fmt_legal_medical(pre_batch):
         parts.append("  1. Cytować źródła naukowe (podane niżej)")
         parts.append("  2. NIE wymyślać statystyk ani nazw badań")
         parts.append("  3. Dodać informację o konsultacji z lekarzem")
+        
+        # v47.2: Claude's enrichment — specialization, evidence guidelines
+        med_enrich = ymyl_enrich.get("medical", {})
+        if med_enrich.get("specialization"):
+            parts.append(f"\n  Specjalizacja: {med_enrich['specialization']}")
+        if med_enrich.get("condition"):
+            cond = med_enrich["condition"]
+            latin = med_enrich.get("condition_latin", "")
+            icd = med_enrich.get("icd10", "")
+            parts.append(f"  Choroba/stan: {cond}" + (f" ({latin})" if latin else "") + (f" [ICD-10: {icd}]" if icd else ""))
+        if med_enrich.get("key_drugs"):
+            parts.append(f"  Kluczowe leki: {', '.join(med_enrich['key_drugs'][:5])}")
+        if med_enrich.get("evidence_note"):
+            parts.append(f"\n  ⚠️ WYTYCZNE: {med_enrich['evidence_note']}")
+        
         parts.append("")
         parts.append("FORMATY CYTOWAŃ MEDYCZNYCH:")
         parts.append('  • "Smith i wsp. (2023)", "Kowalski et al. (2024)"')
@@ -1289,13 +1322,13 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
 
 {phrases_text}""")
 
-    fast_note = "Tryb fast: max 3 sekcje + FAQ." if mode == "fast" else "Typowo 5-10 sekcji — tyle ile wymaga temat."
+    fast_note = "Tryb fast: DOKŁADNIE 3 sekcje + FAQ (4 H2 łącznie)." if mode == "fast" else "Tryb standard: MINIMUM 6, MAKSIMUM 9 sekcji + FAQ (7-10 H2 łącznie). NIE GENERUJ więcej niż 10 H2!"
     h2_hint_rule = ("Uwzględnij frazy H2 użytkownika w nagłówkach, o ile brzmią naturalnie."
                     if user_h2_hints else "Dobierz nagłówki na podstawie S1 i luk treściowych.")
 
     sections.append(f"""═══ ZASADY ═══
 
-1. LICZBA H2 wynika z analizy — ile sekcji potrzeba, by wyczerpująco pokryć temat. {fast_note}
+1. LICZBA H2: {fast_note}
 2. OSTATNI H2 MUSI być: "Najczęściej zadawane pytania"
 3. Pokryj najważniejsze wzorce z konkurencji + luki treściowe (przewaga nad konkurencją)
 4. {h2_hint_rule}
