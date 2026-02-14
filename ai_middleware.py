@@ -239,7 +239,7 @@ def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
         return _apply_clean_data(s1_data, clean, main_keyword)
 
     except Exception as e:
-        logger.warning(f"[AI_MW] Claude cleanup failed ({e}), fallback to regex")
+        logger.error(f"[AI_MW] Claude cleanup FAILED — {type(e).__name__}: {e}")
         return _regex_fallback_clean(s1_data, main_keyword)
 
 
@@ -484,7 +484,10 @@ def _is_garbage_regex(text: str) -> bool:
                    "strong", "section", "link", "list", "table", "column",
                    "row", "form", "embed", "widget", "footer", "sidebar",
                    "header", "nav", "menu", "sub", "mega", "wp", "template",
-                   "page", "item", "text", "content", "post", "input"}
+                   "page", "item", "text", "content", "post", "input",
+                   # v49: CSS variable tokens from SERP scraping
+                   "ast", "global", "color", "root", "utf", "responsive",
+                   "button", "card", "wrapper", "inner", "outer"}
         if all(w in css_all for w in words):
             return True
     return False
@@ -539,8 +542,12 @@ def _regex_fallback_clean(s1_data: dict, main_keyword: str) -> dict:
     if "topical_coverage" in entity_seo:
         entity_seo["topical_coverage"] = _regex_filter_list(entity_seo["topical_coverage"])
 
+    # v49: Clean H2 patterns in BOTH locations
     if "competitor_h2_patterns" in result:
         result["competitor_h2_patterns"] = _regex_filter_list(result["competitor_h2_patterns"])
+    serp = result.get("serp_analysis")
+    if isinstance(serp, dict) and "competitor_h2_patterns" in serp:
+        serp["competitor_h2_patterns"] = _regex_filter_list(serp["competitor_h2_patterns"])
 
     for key in ("ngrams", "hybrid_ngrams"):
         if key in result:
@@ -555,6 +562,7 @@ def _regex_fallback_clean(s1_data: dict, main_keyword: str) -> dict:
     if "entity_salience" in result:
         result["entity_salience"] = _regex_filter_list(result["entity_salience"])
 
+    # v49: Clean placement instruction — remove CSS garbage entities
     placement = entity_seo.get("entity_placement", {})
     if isinstance(placement, dict):
         for lk in ("first_paragraph_entities", "h2_entities"):
@@ -562,6 +570,18 @@ def _regex_fallback_clean(s1_data: dict, main_keyword: str) -> dict:
                 placement[lk] = _regex_filter_list(placement[lk])
         if "cooccurrence_pairs" in placement:
             placement["cooccurrence_pairs"] = _regex_filter_cooccurrence(placement["cooccurrence_pairs"])
+        # v49: Fix primary entity — if it's CSS garbage, replace with keyword
+        primary = placement.get("primary_entity", "")
+        if isinstance(primary, dict):
+            primary_text = primary.get("entity", primary.get("name", ""))
+        else:
+            primary_text = str(primary)
+        if _is_garbage_regex(primary_text):
+            placement["primary_entity"] = main_keyword
+            placement["placement_instruction"] = (
+                f"🎯 ENCJA GŁÓWNA: \"{main_keyword}\"\n"
+                f"   → MUSI być w tytule H1 i w pierwszym zdaniu artykułu"
+            )
 
     sem = result.get("semantic_enhancement_hints") or {}
     if sem:
@@ -570,6 +590,10 @@ def _regex_fallback_clean(s1_data: dict, main_keyword: str) -> dict:
                 sem[lk] = _regex_filter_list(sem[lk])
         if "cooccurrence_pairs" in sem:
             sem["cooccurrence_pairs"] = _regex_filter_cooccurrence(sem["cooccurrence_pairs"])
+        # v49: Clean placement_instruction text
+        pi = sem.get("placement_instruction", "")
+        if isinstance(pi, str) and _is_garbage_regex(pi.split('"')[1] if '"' in pi else pi[:30]):
+            sem["placement_instruction"] = ""
         result["semantic_enhancement_hints"] = sem
 
     ts = entity_seo.get("topical_summary", {})
@@ -577,6 +601,19 @@ def _regex_fallback_clean(s1_data: dict, main_keyword: str) -> dict:
         for lk in ("must_cover", "should_cover", "topics"):
             if lk in ts:
                 ts[lk] = _regex_filter_list(ts[lk])
+
+    # v49: Generate topical entities from concept_entities (regex can't classify, but can promote)
+    concept_ents = entity_seo.get("concept_entities", [])
+    clean_concepts = _regex_filter_list(concept_ents)
+    # Build topical entity dicts from clean concepts
+    topical_dicts = []
+    for c in clean_concepts[:12]:
+        text = _extract_text(c)
+        if text and len(text) > 2:
+            topical_dicts.append({"entity": text, "type": "TOPICAL", "source": "concept_entities"})
+    if topical_dicts:
+        entity_seo["ai_topical_entities"] = topical_dicts
+        entity_seo["ai_named_entities"] = []  # Can't distinguish in regex mode
 
     result["entity_seo"] = entity_seo
     removed = total_before - total_after
@@ -586,12 +623,13 @@ def _regex_fallback_clean(s1_data: dict, main_keyword: str) -> dict:
         "garbage_ratio": round(removed / max(total_before, 1), 2),
     }
     result["_ai_entity_panel"] = {
-        "topical_entities": [],
+        "topical_entities": [_extract_text(t) for t in topical_dicts[:12]],
         "named_entities": [],
+        "clean_ngrams": [_extract_text(n) for n in (result.get("ngrams") or [])[:15]],
         "garbage_summary": f"Regex fallback: {removed} items removed",
         "method": "regex_fallback",
     }
-    logger.info(f"[AI_MW] Regex fallback cleanup: removed {removed}/{total_before} items")
+    logger.info(f"[AI_MW] Regex fallback cleanup: removed {removed}/{total_before} items, {len(topical_dicts)} topical entities from concepts")
     return result
 
 
@@ -688,7 +726,6 @@ def synthesize_article_memory(accepted_batches: list) -> dict:
     if not accepted_batches:
         return {}
     topics = []
-    entities_seen = set()
     total_words = 0
     for batch in accepted_batches:
         h2 = batch.get("h2", "")
@@ -709,9 +746,9 @@ def ai_synthesize_memory(accepted_batches: list, main_keyword: str) -> dict:
         return synthesize_article_memory(accepted_batches)
     
     batch_summaries = []
-    for i, batch in enumerate(accepted_batches[-5:], 1):  # Last 5 batches max
+    for i, batch in enumerate(accepted_batches[-5:], 1):
         h2 = batch.get("h2", "Bez nagłówka")
-        text = batch.get("text", "")[:300]  # First 300 chars
+        text = batch.get("text", "")[:300]
         batch_summaries.append(f"Sekcja {i}: [{h2}] {text}...")
     
     try:
@@ -747,10 +784,9 @@ def should_use_smart_retry(result: dict, attempt: int) -> bool:
     exceeded = result.get("exceeded_keywords", [])
     if not exceeded:
         return False
-    # Only retry if there are fixable keyword issues
     critical = sum(1 for e in exceeded if e.get("severity") == "CRITICAL")
     if critical > 5:
-        return False  # Too many issues, retry won't help
+        return False
     return True
 
 
