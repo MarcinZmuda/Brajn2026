@@ -123,6 +123,10 @@ _CSS_NGRAM_EXACT = {
     "row row", "column column", "grid grid", "card card",
     "wrapper wrapper", "inner inner", "outer outer",
     "responsive table", "responsive responsive",
+    # v49: CSS variable patterns from SERP scraping
+    "ast global", "global color", "ast global color", "var ast",
+    "var ast global", "var ast global color", "var global",
+    "global ast", "color inherit", "inherit color",
 }
 
 _CSS_ENTITY_WORDS = {
@@ -136,6 +140,11 @@ _CSS_ENTITY_WORDS = {
     "menu", "submenu", "sidebar", "footer", "header", "widget",
     "navbar", "dropdown", "modal", "tooltip", "carousel",
     "accordion", "breadcrumb", "pagination", "thumbnail",
+    # v49: CSS variable tokens & font names
+    "ast", "var", "global", "color", "sich", "un", "uw",
+    "xl", "ac", "arrow", "dim",
+    "menlo", "monaco", "consolas", "courier", "arial", "helvetica",
+    "verdana", "georgia", "roboto", "poppins", "raleway",
 }
 
 def _is_css_garbage(text):
@@ -197,6 +206,8 @@ def _is_css_garbage(text):
         'utf', 'meta', 'viewport', 'charset', 'script', 'noscript',
         'dim', 'cover', 'inherit', 'font', 'serif', 'sans', 'display',
         'border', 'margin', 'padding', 'strong', 'color',
+        # v49: CSS variable tokens
+        'ast', 'var', 'global', 'min', 'max', 'wp',
     }
     if len(words) >= 2 and all(w in _CSS_VOCAB for w in words):
         return True
@@ -236,13 +247,38 @@ def _filter_ngrams(ngrams):
     return clean
 
 def _filter_h2_patterns(patterns):
+    """Filter H2 patterns — remove CSS garbage AND navigation elements."""
+    # v49: Navigation terms that appear as H2 on scraped pages
+    _NAV_H2_TERMS = {
+        "wyszukiwarka", "nawigacja", "moje strony", "mapa serwisu", "mapa strony",
+        "biuletyn informacji publicznej", "redakcja serwisu", "dostępność",
+        "nota prawna", "polityka prywatności", "regulamin", "deklaracja dostępności",
+        "newsletter", "social media", "archiwum", "logowanie", "rejestracja",
+        "komenda miejska", "komenda powiatowa", "inne wersje portalu",
+        "kontakt", "o nas", "strona główna", "menu główne", "szukaj",
+        "przydatne linki", "informacje", "stopka", "cookie",
+    }
     if not patterns:
         return []
     clean = []
     for p in patterns:
         text = p if isinstance(p, str) else (p.get("pattern", "") if isinstance(p, dict) else str(p))
-        if not _is_css_garbage(text) and len(text) > 3:
-            clean.append(p)
+        if not text or len(text) <= 3:
+            continue
+        t_lower = text.strip().lower()
+        # Skip CSS garbage
+        if _is_css_garbage(text):
+            continue
+        # v49: Skip navigation H2s
+        if t_lower in _NAV_H2_TERMS:
+            continue
+        # Skip if contains nav term (partial match for longer phrases)
+        if any(nav in t_lower for nav in _NAV_H2_TERMS if len(nav) >= 8):
+            continue
+        # Skip very short generic H2s
+        if len(text.strip()) < 5:
+            continue
+        clean.append(p)
     return clean
 
 
@@ -641,15 +677,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # ═══ AI MIDDLEWARE: Clean S1 data ═══
         s1 = process_s1_for_pipeline(s1_raw, main_keyword)
         cleanup_stats = s1.get("_cleanup_stats", {})
-        if cleanup_stats.get("entities_removed", 0) > 0 or cleanup_stats.get("ngrams_removed", 0) > 0:
-            yield emit("log", {"msg": f"🧹 AI Middleware: usunięto {cleanup_stats.get('entities_removed', 0)} śmieciowych encji, {cleanup_stats.get('ngrams_removed', 0)} n-gramów (garbage ratio: {cleanup_stats.get('garbage_ratio', 0):.0%})"})
-            if cleanup_stats.get("ai_enriched"):
-                yield emit("log", {"msg": "🤖 AI Middleware: wygenerowano uzupełniające insights z Sonnet"})
+        cleanup_method = cleanup_stats.get("method", "unknown")
+        items_removed = cleanup_stats.get("items_removed", 0)
+        ai_entity_panel = s1.get("_ai_entity_panel") or {}
+        garbage_summary = ai_entity_panel.get("garbage_summary", "")
+        if garbage_summary:
+            yield emit("log", {"msg": f"🧹 S1 cleanup ({cleanup_method}): {garbage_summary}"})
         
         h2_patterns = len((s1.get("competitor_h2_patterns") or (s1.get("serp_analysis") or {}).get("competitor_h2_patterns") or []))
         causal_count = (s1.get("causal_triplets") or {}).get("count", 0)
-        gaps_count = (s1.get("content_gaps") or {}).get("total_gaps", 0)
-        suggested_h2s = (s1.get("content_gaps") or {}).get("suggested_new_h2s", [])
+        gaps_count = ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("total_gaps", 0)
+        suggested_h2s = ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("suggested_new_h2s", [])
 
         step_done(1)
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "done",
@@ -810,10 +848,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "content_gaps_count": gaps_count,
             "content_gaps": (s1.get("content_gaps") or {}),
             "suggested_h2s": suggested_h2s,
-            "paa_unanswered": (s1.get("content_gaps") or {}).get("paa_unanswered", []),
-            "subtopic_missing": (s1.get("content_gaps") or {}).get("subtopic_missing", []),
-            "depth_missing": (s1.get("content_gaps") or {}).get("depth_missing", []),
-            "gaps_instruction": (s1.get("content_gaps") or {}).get("instruction", ""),
+            "paa_unanswered": ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("paa_unanswered", []),
+            "subtopic_missing": ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("subtopic_missing", []),
+            "depth_missing": ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("depth_missing", []),
+            "gaps_instruction": ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("instruction", ""),
             # Entity SEO — v48.0: topical entities primary
             "entity_seo": {
                 "top_entities": clean_entities,
@@ -846,11 +884,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "phrase_hierarchy_preview": s1.get("phrase_hierarchy_preview") or {},
             # Depth signals
             "depth_signals": s1.get("depth_signals") or {},
-            "depth_missing_items": s1.get("depth_missing_items") or (s1.get("content_gaps") or {}).get("depth_missing", []),
+            "depth_missing_items": s1.get("depth_missing_items") or ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("depth_missing", []),
             # YMYL hints
             "ymyl_hints": s1.get("ymyl_hints") or s1.get("ymyl_signals") or {},
             # PAA (already included above with serp_analysis fallback)
-            "paa_unanswered_count": len((s1.get("content_gaps") or {}).get("paa_unanswered", [])),
+            "paa_unanswered_count": len(({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("paa_unanswered", [])),
             # Agent instructions
             "agent_instructions": s1.get("agent_instructions") or {},
             "semantic_hints": sem_hints,
@@ -1490,14 +1528,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "running"})
         try:
             paa_check = brajen_call("get", f"/api/project/{project_id}/paa")
-            if not paa_check["ok"] or not (paa_check.get("data") or {}).get("paa_section"):
+            paa_data_check = paa_check.get("data") if paa_check.get("ok") else None
+            paa_has_section = isinstance(paa_data_check, dict) and paa_data_check.get("paa_section")
+            if not paa_has_section:
                 yield emit("log", {"msg": "Brak FAQ — analizuję PAA i generuję..."})
                 paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
                 if paa_analyze["ok"] and paa_analyze.get("data"):
                     # Fetch pre_batch for FAQ context (stop keywords, style, memory)
                     faq_pre = brajen_call("get", f"/api/project/{project_id}/pre_batch_info", timeout=HEAVY_REQUEST_TIMEOUT)
-                    faq_pre_batch = faq_pre["data"] if faq_pre.get("ok") else None
-                    faq_text = generate_faq_text(paa_analyze["data"], faq_pre_batch, engine=engine)
+                    faq_pre_batch = faq_pre["data"] if faq_pre.get("ok") and isinstance(faq_pre.get("data"), dict) else None
+                    paa_data_for_faq = paa_analyze["data"] if isinstance(paa_analyze.get("data"), dict) else {}
+                    faq_text = generate_faq_text(paa_data_for_faq, faq_pre_batch, engine=engine)
                     if faq_text and faq_text.strip():
                         brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
                         # Extract and save
@@ -1524,7 +1565,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             "questions_generated": len(questions) if questions else 0,
                             "faq_text_length": len(faq_text) if faq_text else 0,
                             "paa_questions_from_serp": len(paa_from_serp),
-                            "paa_unanswered": len((s1.get("content_gaps") or {}).get("paa_unanswered", [])),
+                            "paa_unanswered": len(({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("paa_unanswered", [])),
                             "status": "generated",
                         })
                     else:
