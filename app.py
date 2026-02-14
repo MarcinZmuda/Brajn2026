@@ -151,6 +151,33 @@ def _is_css_garbage(text):
         return True
     if text.lower() in _CSS_ENTITY_WORDS:
         return True
+    # v47.2: CSS compound tokens — inherit;color, section{display, serif;font
+    t_lower = text.lower()
+    if _re.match(r'^[\w-]+[;{}\[\]:]+[\w-]+$', t_lower):
+        _CSS_TOKENS = {
+            "inherit", "color", "display", "flex", "block", "inline", "grid",
+            "none", "auto", "hidden", "visible", "solid", "dotted", "dashed",
+            "bold", "normal", "italic", "pointer", "cursor", "border",
+            "margin", "padding", "font", "section", "strong", "help",
+            "center", "wrap", "cover", "contain", "serif", "sans",
+            "position", "relative", "absolute", "fixed", "opacity",
+            "background", "transform", "overflow", "scroll", "width",
+            "height", "text", "decoration", "underline", "uppercase",
+            "hover", "focus", "active", "image", "repeat", "content",
+            "table", "row", "column", "collapse", "weight", "size", "style",
+        }
+        parts = _re.split(r'[;{}\[\]:]+', t_lower)
+        parts = [p.strip('-') for p in parts if p]
+        if parts and any(p in _CSS_TOKENS for p in parts):
+            return True
+    # v47.2: Font names
+    _FONT_NAMES = {
+        "menlo", "monaco", "consolas", "courier", "arial", "helvetica",
+        "verdana", "georgia", "tahoma", "trebuchet", "lucida", "roboto",
+        "poppins", "raleway", "montserrat", "lato", "inter",
+    }
+    if t_lower in _FONT_NAMES:
+        return True
     # v45.4.1: Detect repeated-word patterns ("list list list", "heading heading")
     words = text.lower().split()
     if len(words) >= 2 and len(set(words)) == 1:
@@ -168,10 +195,21 @@ def _is_css_garbage(text):
         'dropdown', 'collapse', 'accordion', 'breadcrumb', 'pagination',
         'thumbnail', 'carousel', 'slider', 'progress', 'tooltip', 'popover',
         'utf', 'meta', 'viewport', 'charset', 'script', 'noscript',
+        'dim', 'cover', 'inherit', 'font', 'serif', 'sans', 'display',
+        'border', 'margin', 'padding', 'strong', 'color',
     }
     if len(words) >= 2 and all(w in _CSS_VOCAB for w in words):
         return True
     return bool(_CSS_GARBAGE_PATTERNS.search(text))
+
+def _extract_text(item):
+    """Extract text value from entity dict or string."""
+    if isinstance(item, str):
+        return item
+    if isinstance(item, dict):
+        return (item.get("entity") or item.get("text") or item.get("name")
+                or item.get("ngram") or item.get("phrase") or "")
+    return str(item)
 
 def _filter_entities(entities):
     if not entities:
@@ -206,6 +244,42 @@ def _filter_h2_patterns(patterns):
         if not _is_css_garbage(text) and len(text) > 3:
             clean.append(p)
     return clean
+
+
+def _filter_cooccurrence(pairs):
+    """Remove co-occurrence pairs where either entity is CSS/nav garbage."""
+    if not pairs:
+        return []
+    clean = []
+    for pair in pairs:
+        if isinstance(pair, dict):
+            e1 = pair.get("entity_1", pair.get("entity1", ""))
+            e2 = pair.get("entity_2", pair.get("entity2", ""))
+            if isinstance(e1, list) and len(e1) >= 2:
+                e1, e2 = str(e1[0]), str(e1[1])
+            if not _is_css_garbage(str(e1)) and not _is_css_garbage(str(e2)):
+                clean.append(pair)
+        elif isinstance(pair, str):
+            if not _is_css_garbage(pair):
+                clean.append(pair)
+    return clean
+
+
+def _sanitize_placement_instruction(text):
+    """Remove lines from placement instruction that reference garbage entities."""
+    if not text or not isinstance(text, str):
+        return ""
+    lines = text.split("\n")
+    clean_lines = []
+    for line in lines:
+        quoted = _re.findall(r'"([^"]+)"', line)
+        has_garbage = any(_is_css_garbage(q) for q in quoted)
+        if not has_garbage:
+            clean_lines.append(line)
+    result = "\n".join(clean_lines).strip()
+    if len(result) < len(text) * 0.2:
+        return ""
+    return result
 
 
 # ============================================================
@@ -395,23 +469,42 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
     response_text = response.content[0].text.strip()
     
     # Parse JSON response
+    h2_list = None
     try:
         clean = response_text.replace("```json", "").replace("```", "").strip()
-        h2_list = json.loads(clean)
-        if isinstance(h2_list, list) and len(h2_list) >= 2:
-            return h2_list
+        parsed = json.loads(clean)
+        if isinstance(parsed, list) and len(parsed) >= 2:
+            h2_list = parsed
     except (json.JSONDecodeError, ValueError):
         pass
     
-    # Fallback: extract lines that look like H2s
-    h2_lines = [l.strip().strip('"').strip("'").strip(",").strip('"') 
-             for l in response_text.split("\n") if l.strip() and not l.strip().startswith("[") and not l.strip().startswith("]")]
-    if h2_lines:
-        return h2_lines
+    if not h2_list:
+        # Fallback: extract lines that look like H2s
+        h2_lines = [l.strip().strip('"').strip("'").strip(",").strip('"') 
+                 for l in response_text.split("\n") if l.strip() and not l.strip().startswith("[") and not l.strip().startswith("]")]
+        if h2_lines:
+            h2_list = h2_lines
     
-    # Ultimate fallback
-    fallback = suggested_h2s[:7] + ["Najczęściej zadawane pytania"] if suggested_h2s else [main_keyword, "Najczęściej zadawane pytania"]
-    return fallback
+    if not h2_list:
+        # Ultimate fallback
+        h2_list = suggested_h2s[:7] + ["Najczęściej zadawane pytania"] if suggested_h2s else [main_keyword, "Najczęściej zadawane pytania"]
+    
+    # ═══ v47.2: Enforce H2 count limits based on mode ═══
+    MAX_H2 = {"fast": 4, "standard": 10}  # fast=3+FAQ, standard=9+FAQ
+    max_allowed = MAX_H2.get(mode, 10)
+    
+    if len(h2_list) > max_allowed:
+        logger.info(f"[H2_PLAN] ✂️ Trimming {len(h2_list)} H2s to {max_allowed} (mode={mode})")
+        # Keep FAQ at the end
+        has_faq = any("pytani" in h.lower() for h in h2_list[-2:])
+        if has_faq:
+            faq = [h for h in h2_list if "pytani" in h.lower()][-1]
+            content_h2s = [h for h in h2_list if "pytani" not in h.lower()]
+            h2_list = content_h2s[:max_allowed - 1] + [faq]
+        else:
+            h2_list = h2_list[:max_allowed]
+    
+    return h2_list
 
 
 
@@ -551,7 +644,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if cleanup_stats.get("entities_removed", 0) > 0 or cleanup_stats.get("ngrams_removed", 0) > 0:
             yield emit("log", {"msg": f"🧹 AI Middleware: usunięto {cleanup_stats.get('entities_removed', 0)} śmieciowych encji, {cleanup_stats.get('ngrams_removed', 0)} n-gramów (garbage ratio: {cleanup_stats.get('garbage_ratio', 0):.0%})"})
             if cleanup_stats.get("ai_enriched"):
-                yield emit("log", {"msg": "🤖 AI Middleware: wygenerowano uzupełniające insights z Haiku"})
+                yield emit("log", {"msg": "🤖 AI Middleware: wygenerowano uzupełniające insights z Sonnet"})
         
         h2_patterns = len((s1.get("competitor_h2_patterns") or (s1.get("serp_analysis") or {}).get("competitor_h2_patterns") or []))
         causal_count = (s1.get("causal_triplets") or {}).get("count", 0)
@@ -562,67 +655,84 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "done",
                             "detail": f"{h2_patterns} H2 patterns | {causal_count} causal triplets | {gaps_count} content gaps"})
         
-        # S1 data for UI — already cleaned by middleware, apply final filter for display
-        raw_entities = (s1.get("entity_seo") or {}).get("top_entities", (s1.get("entity_seo") or {}).get("entities", []))[:20]
-        raw_must_mention = (s1.get("entity_seo") or {}).get("must_mention_entities", [])[:10]
+        # S1 data for UI — already cleaned by Claude Sonnet middleware
+        entity_seo = s1.get("entity_seo") or {}
+        raw_entities = entity_seo.get("top_entities", entity_seo.get("entities", []))[:20]
+        raw_must_mention = entity_seo.get("must_mention_entities", [])[:10]
         raw_ngrams = (s1.get("ngrams") or s1.get("hybrid_ngrams") or [])[:30]
         serp_analysis = s1.get("serp_analysis") or {}
         raw_h2_patterns = (s1.get("competitor_h2_patterns") or serp_analysis.get("competitor_h2_patterns") or [])[:30]
 
-        # Lightweight display filter (middleware already did heavy lifting)
+        # v48.0: Claude already cleaned — lightweight safety net only
         clean_entities = _filter_entities(raw_entities)[:10]
         clean_must_mention = _filter_entities(raw_must_mention)[:5]
         clean_ngrams = _filter_ngrams(raw_ngrams)[:15]
         clean_h2_patterns = _filter_h2_patterns(raw_h2_patterns)[:20]
 
-        # Add AI-extracted entities if available
-        ai_entities = (s1.get("entity_seo") or {}).get("ai_extracted_entities", [])
-        if ai_entities and len(clean_entities) < 5:
+        # v48.0: Read Claude's topical/named entity split
+        ai_topical = entity_seo.get("ai_topical_entities", [])
+        ai_named = entity_seo.get("ai_named_entities", [])
+        ai_entity_panel = s1.get("_ai_entity_panel") or {}
+
+        # If Claude produced topical entities, use them as primary
+        if ai_topical:
+            clean_entities = ai_topical[:10]
+            yield emit("log", {"msg": f"🧠 Topical entities (AI): {', '.join(_extract_text(e) for e in ai_topical[:5])}"})
+        if ai_named:
+            yield emit("log", {"msg": f"🏷️ Named entities (AI, filtered): {', '.join(_extract_text(e) for e in ai_named[:5])}"})
+
+        # Legacy: AI-extracted entities fallback
+        ai_entities = entity_seo.get("ai_extracted_entities", [])
+        if ai_entities and not ai_topical and len(clean_entities) < 5:
             yield emit("log", {"msg": f"🤖 Uzupełniam encje z AI: {', '.join(str(e) for e in ai_entities[:5])}"})
 
-        # v45.4.1: Read concept_entities from new topical_entity_extractor backend
-        raw_concept_entities = (
-            (s1.get("entity_seo") or {}).get("concept_entities", []) or
-            s1.get("concept_entities", [])
-        )
-        concept_entities = _filter_entities(raw_concept_entities)[:15]
-        # v47.0: topical_summary is an OBJECT {must_cover_count, must_cover, should_cover, agent_instruction}
-        topical_summary_raw = (s1.get("entity_seo") or {}).get("topical_summary", {}) or s1.get("topical_summary", {})
-        # Normalize: if it's a string (legacy), wrap it
+        # v48.0: concept_entities = topical from Claude (or fallback to backend)
+        concept_entities = ai_topical if ai_topical else _filter_entities(
+            entity_seo.get("concept_entities", []) or s1.get("concept_entities", [])
+        )[:15]
+        topical_summary_raw = entity_seo.get("topical_summary", {}) or s1.get("topical_summary", {})
         if isinstance(topical_summary_raw, str):
             topical_summary = {"agent_instruction": topical_summary_raw} if topical_summary_raw else {}
         else:
             topical_summary = topical_summary_raw
 
+        # v48.0: Emit AI entity panel for dashboard
+        cleanup_stats = s1.get("_cleanup_stats") or {}
+        if ai_entity_panel:
+            yield emit("ai_entity_panel", ai_entity_panel)
+            gs = ai_entity_panel.get("garbage_summary", "")
+            if gs:
+                yield emit("log", {"msg": f"🧹 S1 cleanup ({cleanup_stats.get('method', '?')}): {gs[:100]}"})
+
         # v47.0: Read entity_salience, co-occurrence, placement from backend
         entity_seo_raw = s1.get("entity_seo") or {}
-        backend_entity_salience = entity_seo_raw.get("entity_salience", []) or s1.get("entity_salience", [])
-        backend_entity_cooccurrence = entity_seo_raw.get("entity_cooccurrence", []) or s1.get("entity_cooccurrence", [])
+        backend_entity_salience = _filter_entities(entity_seo_raw.get("entity_salience", []) or s1.get("entity_salience", []))
+        backend_entity_cooccurrence = _filter_cooccurrence(entity_seo_raw.get("entity_cooccurrence", []) or s1.get("entity_cooccurrence", []))
         backend_entity_placement = (
             s1.get("entity_placement") or
             entity_seo_raw.get("entity_placement", {})
         )
-        backend_placement_instruction = (
+        backend_placement_instruction = _sanitize_placement_instruction(
             (s1.get("semantic_enhancement_hints") or {}).get("placement_instruction", "") or
             (backend_entity_placement.get("placement_instruction", "") if isinstance(backend_entity_placement, dict) else "")
         )
         # v47.0: Read enhanced semantic hints
         sem_hints = s1.get("semantic_enhancement_hints") or s1.get("semantic_hints") or {}
-        backend_first_para_entities = (
+        backend_first_para_entities = _filter_entities(
             sem_hints.get("first_paragraph_entities", []) or
             (backend_entity_placement.get("first_paragraph_entities", []) if isinstance(backend_entity_placement, dict) else [])
         )
-        backend_h2_entities = (
+        backend_h2_entities = _filter_entities(
             sem_hints.get("h2_entities", []) or
             (backend_entity_placement.get("h2_entities", []) if isinstance(backend_entity_placement, dict) else [])
         )
-        backend_cooccurrence_pairs = (
+        backend_cooccurrence_pairs = _filter_cooccurrence(
             sem_hints.get("cooccurrence_pairs", []) or
             (backend_entity_placement.get("cooccurrence_pairs", []) if isinstance(backend_entity_placement, dict) else [])
         )[:5]
         # v47.0: must_cover_concepts & concept_instruction from semantic_enhancement_hints
-        must_cover_concepts = sem_hints.get("must_cover_concepts", []) or (topical_summary.get("must_cover", []) if isinstance(topical_summary, dict) else [])
-        concept_instruction = sem_hints.get("concept_instruction", "") or (topical_summary.get("agent_instruction", "") if isinstance(topical_summary, dict) else "")
+        must_cover_concepts = _filter_entities(sem_hints.get("must_cover_concepts", []) or (topical_summary.get("must_cover", []) if isinstance(topical_summary, dict) else []))
+        concept_instruction = _sanitize_placement_instruction(sem_hints.get("concept_instruction", "") or (topical_summary.get("agent_instruction", "") if isinstance(topical_summary, dict) else ""))
 
         if backend_entity_salience:
             yield emit("log", {"msg": f"🔬 Entity Salience: {len(backend_entity_salience)} encji z analizy konkurencji"})
@@ -704,7 +814,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "subtopic_missing": (s1.get("content_gaps") or {}).get("subtopic_missing", []),
             "depth_missing": (s1.get("content_gaps") or {}).get("depth_missing", []),
             "gaps_instruction": (s1.get("content_gaps") or {}).get("instruction", ""),
-            # Entity SEO
+            # Entity SEO — v48.0: topical entities primary
             "entity_seo": {
                 "top_entities": clean_entities,
                 "must_mention": clean_must_mention,
@@ -712,13 +822,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "entity_count": (s1.get("entity_seo") or {}).get("entity_count", len(clean_entities)),
                 "relations": (s1.get("entity_seo") or {}).get("relations", [])[:10],
                 "topical_coverage": (s1.get("entity_seo") or {}).get("topical_coverage", [])[:10],
-                # v45.4.1: Concept entities from topical_entity_extractor
+                # v48.0: Topical (primary) vs Named (secondary) from Claude
+                "topical_entities": ai_topical[:12] if ai_topical else concept_entities[:12],
+                "named_entities": ai_named[:8] if ai_named else [],
                 "concept_entities": concept_entities,
                 "topical_summary": topical_summary,
                 # v47.0: Salience, co-occurrence, placement from backend
                 "entity_salience": backend_entity_salience[:15],
                 "entity_cooccurrence": backend_entity_cooccurrence[:10],
                 "entity_placement": backend_entity_placement if isinstance(backend_entity_placement, dict) else {},
+                # v48.0: Cleanup info
+                "cleanup_method": cleanup_stats.get("method", "unknown"),
             },
             # v47.0: Placement instruction (top-level for easy access)
             "placement_instruction": backend_placement_instruction,
@@ -744,8 +858,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "competitive_summary": s1.get("_competitive_summary", "")
         })
 
-        # ═══ ENTITY SALIENCE: Build instructions from S1 entities ═══
-        s1_must_mention = clean_must_mention + (ai_entities[:3] if ai_entities else [])
+        # ═══ ENTITY SALIENCE: Build instructions from topical entities (primary) ═══
+        # v48.0: Topical entities first, then NER, then fallback
+        s1_must_mention = []
+        if ai_topical:
+            s1_must_mention = ai_topical[:5]
+        elif clean_must_mention:
+            s1_must_mention = clean_must_mention
+        if ai_entities and len(s1_must_mention) < 5:
+            s1_must_mention += ai_entities[:3]
         entity_salience_instructions = build_entity_salience_instructions(
             main_keyword=main_keyword,
             entities_from_s1=s1_must_mention
@@ -755,37 +876,86 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         else:
             yield emit("log", {"msg": "ℹ️ Entity Salience: instrukcje pozycjonowania encji aktywne (brak API key dla walidacji)"})
 
-        # ─── KROK 2: YMYL Detection ───
+        # ─── KROK 2: YMYL Detection (Unified Claude Classifier) ───
         step_start(2)
         yield emit("step", {"step": 2, "name": "YMYL Detection", "status": "running"})
 
-        legal_result = brajen_call("post", "/api/legal/detect", {"main_keyword": main_keyword})
-        medical_result = brajen_call("post", "/api/medical/detect", {"main_keyword": main_keyword})
-
-        is_legal = (legal_result.get("data") or {}).get("is_ymyl", False) if legal_result["ok"] else False
-        is_medical = (medical_result.get("data") or {}).get("is_ymyl", False) if medical_result["ok"] else False
+        # v47.2: ONE Claude Sonnet call → classifies + returns search hints
+        ymyl_result = brajen_call("post", "/api/ymyl/detect_and_enrich", {
+            "main_keyword": main_keyword,
+        })
+        
+        ymyl_data = ymyl_result.get("data", {}) if ymyl_result.get("ok") else {}
+        is_legal = ymyl_data.get("is_legal", False)
+        is_medical = ymyl_data.get("is_medical", False)
+        is_finance = ymyl_data.get("is_finance", False)
+        ymyl_confidence = ymyl_data.get("confidence", 0)
+        ymyl_reasoning = ymyl_data.get("reasoning", "")
+        
+        if ymyl_reasoning:
+            yield emit("log", {"msg": f"🧠 YMYL klasyfikacja: {ymyl_data.get('category', '?')} ({ymyl_confidence}) — {ymyl_reasoning[:80]}"})
 
         legal_context = None
         medical_context = None
+        ymyl_enrichment = {}  # Claude's hints for downstream
 
         if is_legal:
-            yield emit("log", {"msg": "⚖️ Temat prawny YMYL — pobieram kontekst..."})
-            lc = brajen_call("post", "/api/legal/get_context", {"main_keyword": main_keyword})
+            legal_hints = ymyl_data.get("legal", {})
+            articles = legal_hints.get("articles", [])
+            arts_str = ", ".join(articles[:4]) if articles else "brak"
+            yield emit("log", {"msg": f"⚖️ Temat prawny YMYL — przepisy: {arts_str} — pobieram orzeczenia..."})
+            
+            # v47.2: Pass Claude's article hints to SAOS search
+            lc = brajen_call("post", "/api/legal/get_context", {
+                "main_keyword": main_keyword,
+                "force_enable": True,  # Claude already classified — skip keyword gate
+                "article_hints": articles,  # art. 178a k.k. etc.
+                "search_queries": legal_hints.get("search_queries", []),
+            })
             if lc["ok"]:
                 legal_context = lc["data"]
+            
+            ymyl_enrichment["legal"] = legal_hints
 
         if is_medical:
-            yield emit("log", {"msg": "🏥 Temat medyczny YMYL — pobieram kontekst..."})
-            mc = brajen_call("post", "/api/medical/get_context", {"main_keyword": main_keyword})
+            medical_hints = ymyl_data.get("medical", {})
+            mesh = medical_hints.get("mesh_terms", [])
+            spec = medical_hints.get("specialization", "")
+            yield emit("log", {"msg": f"🏥 Temat medyczny YMYL — {spec} | MeSH: {', '.join(mesh[:3])} — pobieram źródła..."})
+            
+            # v47.2: Pass Claude's MeSH hints to PubMed search
+            mc = brajen_call("post", "/api/medical/get_context", {
+                "main_keyword": main_keyword,
+                "force_enable": True,  # Claude already classified
+                "mesh_hints": mesh,  # MeSH terms for PubMed
+                "condition_en": medical_hints.get("condition_latin", ""),
+                "specialization": spec,
+                "key_drugs": medical_hints.get("key_drugs", []),
+                "evidence_note": medical_hints.get("evidence_note", ""),
+            })
             if mc["ok"]:
                 medical_context = mc["data"]
+            
+            ymyl_enrichment["medical"] = medical_hints
+        
+        if is_finance:
+            ymyl_enrichment["finance"] = ymyl_data.get("finance", {})
+            yield emit("log", {"msg": f"💰 Temat finansowy YMYL — {ymyl_reasoning[:60]}"})
 
-        ymyl_detail = f"Legal: {'TAK' if is_legal else 'NIE'} | Medical: {'TAK' if is_medical else 'NIE'}"
+        ymyl_detail = f"Legal: {'TAK' if is_legal else 'NIE'} | Medical: {'TAK' if is_medical else 'NIE'} | Finance: {'TAK' if is_finance else 'NIE'}"
 
         # ═══ EMIT YMYL CONTEXT FOR DASHBOARD ═══
         ymyl_panel_data = {
             "is_legal": is_legal,
             "is_medical": is_medical,
+            "is_finance": is_finance,
+            "classification": {
+                "category": ymyl_data.get("category", "general"),
+                "confidence": ymyl_confidence,
+                "reasoning": ymyl_reasoning,
+                "method": ymyl_data.get("detection_method", "unknown"),
+            },
+            "enrichment": ymyl_enrichment,  # v47.2: Claude's articles/MeSH/etc.
             "legal": {},
             "medical": {},
         }
@@ -800,26 +970,36 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         "date": j.get("date", j.get("judgmentDate", "")),
                         "summary": (j.get("summary", j.get("excerpt", "")))[:150],
                         "type": j.get("type", j.get("judgmentType", "")),
+                        "matched_article": j.get("matched_article", ""),  # v47.2: which article this matches
                     })
-            # Extract legal acts from instruction
-            legal_acts = legal_context.get("legal_acts") or legal_context.get("acts") or []
-            if not legal_acts and legal_context.get("legal_instruction"):
-                # Try to extract act references from instruction text
-                import re as _re
-                act_patterns = _re.findall(
-                    r'(?:ustaw[aąy]?\s+(?:z\s+dnia\s+)?\d{1,2}\s+\w+\s+\d{4}[^.]*|'
-                    r'[Kk]odeks\s+\w+[^.]*|'
-                    r'[Rr]ozporządzeni[eua][^.]*\d{4}[^.]*|'
-                    r'[Dd]yrektyw[aąy][^.]*\d{4}[^.]*)',
-                    legal_context.get("legal_instruction", "")
-                )
-                legal_acts = [{"name": a.strip()[:120]} for a in act_patterns[:8]]
+            # v47.2: Use Claude's article hints as primary source for legal acts
+            legal_enrich = ymyl_enrichment.get("legal", {})
+            legal_acts = legal_enrich.get("acts", [])
+            if legal_acts and isinstance(legal_acts, list):
+                legal_acts = [{"name": a} if isinstance(a, str) else a for a in legal_acts[:8]]
+            else:
+                # Fallback: extract from context
+                legal_acts = legal_context.get("legal_acts") or legal_context.get("acts") or []
+                if not legal_acts and legal_context.get("legal_instruction"):
+                    import re as _re
+                    act_patterns = _re.findall(
+                        r'(?:ustaw[aąy]?\s+(?:z\s+dnia\s+)?\d{1,2}\s+\w+\s+\d{4}[^.]*|'
+                        r'[Kk]odeks\s+\w+[^.]*|'
+                        r'[Rr]ozporządzeni[eua][^.]*\d{4}[^.]*|'
+                        r'[Dd]yrektyw[aąy][^.]*\d{4}[^.]*)',
+                        legal_context.get("legal_instruction", "")
+                    )
+                    legal_acts = [{"name": a.strip()[:120]} for a in act_patterns[:8]]
+            
+            # v47.2: Add Claude's specific articles to panel
+            legal_articles = legal_enrich.get("articles", [])
 
             ymyl_panel_data["legal"] = {
                 "instruction_preview": (legal_context.get("legal_instruction", ""))[:300],
                 "judgments": judgments_clean,
                 "judgments_count": len(judgments_raw),
                 "legal_acts": legal_acts[:8] if isinstance(legal_acts, list) else [],
+                "legal_articles": legal_articles[:6],  # v47.2: art. 178a k.k. etc.
                 "citation_hint": legal_context.get("citation_hint", ""),
             }
 
@@ -963,9 +1143,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "target_length": 3500 if mode == "standard" else 2000,
             "is_legal": is_legal,
             "is_medical": is_medical,
-            "is_ymyl": is_legal or is_medical,
+            "is_finance": is_finance,
+            "is_ymyl": is_legal or is_medical or is_finance,
             "legal_context": legal_context,
-            "medical_context": medical_context
+            "medical_context": medical_context,
+            # v47.2: Claude's YMYL enrichment (articles, MeSH, evidence notes)
+            "ymyl_enrichment": ymyl_enrichment,
         }
 
         create_result = brajen_call("post", "/api/project/create", project_payload)
@@ -1037,7 +1220,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 pre_batch["_entity_salience_instructions"] = entity_salience_instructions
 
             # ═══ Inject YMYL flags for depth signals ═══
-            pre_batch["_is_ymyl"] = is_legal or is_medical
+            pre_batch["_is_ymyl"] = is_legal or is_medical or is_finance
+            
+            # ═══ v47.2: Inject YMYL enrichment for prompt builder ═══
+            if ymyl_enrichment:
+                pre_batch["_ymyl_enrichment"] = ymyl_enrichment
+                # Legal: inject article references for credibility
+                if ymyl_enrichment.get("legal", {}).get("key_concepts"):
+                    pre_batch["_ymyl_key_concepts"] = ymyl_enrichment["legal"]["key_concepts"]
+                # Medical: inject evidence note for source prioritization
+                if ymyl_enrichment.get("medical", {}).get("evidence_note"):
+                    pre_batch["_ymyl_evidence_note"] = ymyl_enrichment["medical"]["evidence_note"]
+                if ymyl_enrichment.get("medical", {}).get("specialization"):
+                    pre_batch["_ymyl_specialization"] = ymyl_enrichment["medical"]["specialization"]
 
             # ═══ Inject last depth score for adaptive depth signals ═══
             if accepted_batches_log:
@@ -1224,7 +1419,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
                 # ═══ AI MIDDLEWARE: Smart retry ═══
                 if exceeded and should_use_smart_retry(result, attempt + 1):
-                    yield emit("log", {"msg": f"🤖 AI Smart Retry — Haiku przepisuje tekst (zamiana {len(exceeded)} fraz)..."})
+                    yield emit("log", {"msg": f"🤖 AI Smart Retry — Sonnet przepisuje tekst (zamiana {len(exceeded)} fraz)..."})
                     text = smart_retry_batch(
                         original_text=text,
                         exceeded_keywords=exceeded,
