@@ -680,6 +680,81 @@ TEKST DO PRZEPISANIA:
 
 
 # ================================================================
+# 3. ARTICLE MEMORY — inter-batch context
+# ================================================================
+
+def synthesize_article_memory(accepted_batches: list) -> dict:
+    """Simple (non-AI) article memory — extracts topics covered from accepted batches."""
+    if not accepted_batches:
+        return {}
+    topics = []
+    entities_seen = set()
+    total_words = 0
+    for batch in accepted_batches:
+        h2 = batch.get("h2", "")
+        if h2:
+            topics.append(h2)
+        text = batch.get("text", "")
+        total_words += len(text.split())
+    return {
+        "topics_covered": topics,
+        "total_words": total_words,
+        "batch_count": len(accepted_batches),
+    }
+
+
+def ai_synthesize_memory(accepted_batches: list, main_keyword: str) -> dict:
+    """AI-powered article memory — Claude summarizes what's been written so far."""
+    if not accepted_batches or not ANTHROPIC_API_KEY:
+        return synthesize_article_memory(accepted_batches)
+    
+    batch_summaries = []
+    for i, batch in enumerate(accepted_batches[-5:], 1):  # Last 5 batches max
+        h2 = batch.get("h2", "Bez nagłówka")
+        text = batch.get("text", "")[:300]  # First 300 chars
+        batch_summaries.append(f"Sekcja {i}: [{h2}] {text}...")
+    
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        response = client.messages.create(
+            model=MIDDLEWARE_MODEL, max_tokens=400, temperature=0,
+            messages=[{"role": "user", "content": (
+                f'Artykuł o: "{main_keyword}"\n\n'
+                f'Dotychczas napisane sekcje:\n' + "\n".join(batch_summaries) + "\n\n"
+                f'Zwróć JSON: {{"topics_covered": ["lista tematów"], '
+                f'"key_points": ["najważniejsze punkty"], '
+                f'"avoid_repetition": ["co nie powtarzać"], '
+                f'"total_words": {sum(len(b.get("text","").split()) for b in accepted_batches)}, '
+                f'"batch_count": {len(accepted_batches)}}}'
+            )}]
+        )
+        text = response.content[0].text.strip()
+        json_match = re.search(r'\{[\s\S]*\}', text)
+        if json_match:
+            return json.loads(json_match.group())
+    except Exception as e:
+        logger.warning(f"[AI_MW] AI memory synthesis failed: {e}")
+    
+    return synthesize_article_memory(accepted_batches)
+
+
+def should_use_smart_retry(result: dict, attempt: int) -> bool:
+    """Decide if smart retry is worth attempting."""
+    if attempt > 3:
+        return False
+    if not ANTHROPIC_API_KEY:
+        return False
+    exceeded = result.get("exceeded_keywords", [])
+    if not exceeded:
+        return False
+    # Only retry if there are fixable keyword issues
+    critical = sum(1 for e in exceeded if e.get("severity") == "CRITICAL")
+    if critical > 5:
+        return False  # Too many issues, retry won't help
+    return True
+
+
+# ================================================================
 # EXPORTS — compatibility
 # ================================================================
 
