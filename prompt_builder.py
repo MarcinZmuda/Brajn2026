@@ -52,10 +52,35 @@ def build_system_prompt(pre_batch, batch_type):
 
     # ── Core rules (always) ──
     parts.append("""ZASADY PISANIA:
-• PASSAGE-FIRST: Każdy akapit zaczynaj od konkretnej odpowiedzi, potem rozwijaj.
-• BURSTINESS: Mieszaj długość zdań — krótkie (8 słów) z dłuższymi (20-25 słów).
-• ANTI-AI: Unikaj fraz-klisz: "warto zauważyć", "należy podkreślić", "w dzisiejszych czasach", "kluczowe jest", "nie ulega wątpliwości". Brzmi to sztucznie.
+
+• PASSAGE-FIRST: Pod każdym H2 i w intro stosuj wzorzec:
+  → Zdanie 1: bezpośrednia odpowiedź/definicja (passage-ready dla Google)
+  → Zdanie 2: konkret (liczba, data, przykład, instytucja)
+  → Zdanie 3: doprecyzowanie lub wyjątek
+  Dopiero potem rozwijaj temat.
+
+• BURSTINESS (cel: CV zdań 0.35–0.45):
+  20% zdań krótkich (do 8 słów) — dynamika
+  55% zdań średnich (9–18 słów) — rdzeń
+  25% zdań długich (19–28 słów) — głębia
+  Mieszaj je nieregularnie, nie twórz wzorców.
+
+• SPACING — minimalna odległość między powtórzeniami frazy:
+  MAIN: ~60 słów | BASIC: ~80 słów | EXTENDED: ~120 słów
+  Nie klasteruj kilku fraz w jednym zdaniu — rozłóż je po całej sekcji.
+
+• FLEKSJA: Odmiany frazy liczą się jako jedno użycie!
+  „zespół turnera" = „zespołu turnera" = „zespołem turnera"
+  Pisz naturalnie, używaj różnych przypadków gramatycznych.
+
+• KAUZALNOŚĆ: Wyjaśniaj DLACZEGO (przyczyny→skutki), nie tylko CO.
+  Wzorce: powoduje, skutkuje, prowadzi do, zapobiega, w wyniku, ponieważ
+  ❌ „Alimenty wynoszą X zł." → ✅ „Brak wpłat prowadzi do zaległości, co skutkuje egzekucją."
+
+• ANTI-AI: Unikaj fraz-klisz: "warto zauważyć", "należy podkreślić", "w dzisiejszych czasach", "kluczowe jest", "nie ulega wątpliwości", "warto podkreślić", "należy pamiętać", "kluczowym aspektem", "w kontekście". Brzmi to sztucznie.
+
 • NATURALNOŚĆ: Pisz jak ekspert tłumaczący temat znajomemu — konkretnie, bez lania wody.
+
 • FORMAT: Używaj wyłącznie formatu h2:/h3: dla nagłówków. Żadnego markdown, HTML ani gwiazdek.""")
 
     return "\n\n".join(parts)
@@ -153,6 +178,7 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
         # Custom GPT never sees these and produces better text without them.
         lambda: _fmt_serp_enrichment(pre_batch),
         lambda: _fmt_causal_context(pre_batch),
+        lambda: _fmt_depth_signals(pre_batch),       # depth signals when previous batch scored low
         lambda: _fmt_experience_markers(pre_batch),
 
         # ── TIER 4: SOFT GUIDELINES (format, style, intro) ──
@@ -191,10 +217,13 @@ def _fmt_batch_header(pre_batch, h2, batch_type):
         if suggested:
             length_hint = f"\nSugerowana długość tej sekcji: ~{suggested} słów."
 
+    h2_instruction = ""
+    if batch_type not in ("INTRO", "intro"):
+        h2_instruction = f"\nZaczynaj DOKŁADNIE od: h2: {h2}"
+
     return f"""═══ BATCH {batch_number}/{total_batches} — {batch_type} ═══
 Sekcja H2: "{h2}"
-Długość: {min_w}-{max_w} słów{length_hint}
-Zaczynaj DOKŁADNIE od: h2: {h2}"""
+Długość: {min_w}-{max_w} słów{length_hint}{h2_instruction}"""
 
 
 def _fmt_intro_guidance(pre_batch, batch_type):
@@ -202,14 +231,19 @@ def _fmt_intro_guidance(pre_batch, batch_type):
         return ""
     guidance = pre_batch.get("intro_guidance", "")
 
+    main_kw = pre_batch.get("main_keyword") or {}
+    kw_name = main_kw.get("keyword", "") if isinstance(main_kw, dict) else str(main_kw)
+
     parts = ["═══ WPROWADZENIE (WSTĘP ARTYKUŁU) ═══",
              "To jest PIERWSZY batch — piszesz WSTĘP artykułu.",
              "MUSISZ:",
-             "  1. Zacząć od angażującego haka (hook) — pytanie, statystyka, scenariusz",
-             "  2. Przedstawić GŁÓWNĄ TEZĘ artykułu w 1-2 zdaniach",
-             "  3. Zapowiedzieć co czytelnik znajdzie dalej (bez listy H2!)",
-             "  4. NIE zaczynać od definicji ani od 'W dzisiejszych czasach...'",
-             "  5. Utrzymać zwięzłość — wstęp to max 150-200 słów"]
+             f'  1. Wpleć frazę główną ("{kw_name}") w PIERWSZE zdanie' if kw_name else "  1. Frazę główną umieść w pierwszym zdaniu",
+             "  2. Zacząć od angażującego haka (hook) — pytanie, statystyka, scenariusz",
+             "  3. Przedstawić GŁÓWNĄ TEZĘ artykułu w 1-2 zdaniach",
+             "  4. Zapowiedzieć co czytelnik znajdzie dalej (bez listy H2!)",
+             "  5. NIE zaczynać od definicji ani od 'W dzisiejszych czasach...'",
+             "  6. NIE dodawać nagłówka h2: — wstęp nie ma nagłówka",
+             "  7. Utrzymać zwięzłość — wstęp to 80-150 słów"]
 
     if guidance:
         if isinstance(guidance, dict):
@@ -756,6 +790,12 @@ def _fmt_legal_medical(pre_batch):
         parts.append("  1. Cytować realne przepisy i orzeczenia (podane niżej)")
         parts.append("  2. Dodać disclaimer o konsultacji z prawnikiem")
         parts.append("  3. NIE wymyślać sygnatur ani dat orzeczeń")
+        parts.append("")
+        parts.append("FORMATY CYTOWAŃ PRAWNYCH:")
+        parts.append('  • Przepisy: "art. 13 § 1 k.c.", "art. 58 § 2 k.r.o."')
+        parts.append('  • Wyroki: "wyrok SN z 12.03.2021, III CZP 45/19"')
+        parts.append('  • Dziennik Ustaw: "Dz.U. 2023 poz. 1234"')
+        parts.append('  Causal legal: "niedopełnienie obowiązku skutkuje...", "brak zgłoszenia prowadzi do..."')
 
         instruction = legal_ctx.get("legal_instruction", "")
         if instruction:
@@ -783,6 +823,18 @@ def _fmt_legal_medical(pre_batch):
         parts.append("  1. Cytować źródła naukowe (podane niżej)")
         parts.append("  2. NIE wymyślać statystyk ani nazw badań")
         parts.append("  3. Dodać informację o konsultacji z lekarzem")
+        parts.append("")
+        parts.append("FORMATY CYTOWAŃ MEDYCZNYCH:")
+        parts.append('  • "Smith i wsp. (2023)", "Kowalski et al. (2024)"')
+        parts.append('  • "PMID:12345678", "DOI:10.1000/xyz"')
+        parts.append("")
+        parts.append("HIERARCHIA DOWODÓW (cytuj najwyższy dostępny):")
+        parts.append("  1. Meta-analiza / Przegląd systematyczny (najsilniejszy)")
+        parts.append("  2. RCT (badanie randomizowane)")
+        parts.append("  3. Badanie kohortowe")
+        parts.append("  4. Opis przypadku")
+        parts.append("  5. Opinia eksperta (najsłabszy)")
+        parts.append('  Causal medical: "nieleczone prowadzi do...", "brak terapii skutkuje..."')
 
         instruction = medical_ctx.get("medical_instruction", "")
         if instruction:
@@ -839,6 +891,42 @@ def _fmt_causal_context(pre_batch):
         parts.append(f'{info_gain[:500]}')
 
     return "\n".join(parts) if parts else ""
+
+
+def _fmt_depth_signals(pre_batch):
+    """Depth signals — inject when previous batch scored low on depth
+    or always for YMYL content.
+    
+    Based on 10 depth signals from GPT prompt with weights.
+    Activated by:
+    - pre_batch["_last_depth_score"] < threshold (injected by app.py)
+    - pre_batch["_is_ymyl"] = True
+    """
+    last_depth = pre_batch.get("_last_depth_score")
+    is_ymyl = pre_batch.get("_is_ymyl", False)
+    
+    # Always show for YMYL, or when depth was low in previous batch
+    threshold = 40 if is_ymyl else 30
+    if last_depth is not None and last_depth >= threshold and not is_ymyl:
+        return ""
+    
+    # If no depth data at all and not YMYL, skip
+    if last_depth is None and not is_ymyl:
+        return ""
+    
+    parts = ["═══ SYGNAŁY GŁĘBOKOŚCI (dodaj od najwyższej wagi) ═══"]
+    
+    if last_depth is not None:
+        parts.append(f"⚠️ Ostatni batch: depth {last_depth}/100 (próg: {threshold}). Dodaj więcej konkretów!")
+    
+    parts.append("")
+    parts.append("WAGA 2.5: referencje prawne (art. k.c., wyroki SN, Dz.U.) + naukowe (PMID, DOI, badania)")
+    parts.append('WAGA 2.0: konkretne liczby (kwoty PLN, %, okresy — NIE "około")')
+    parts.append('WAGA 1.8: nazwane instytucje (konkretny sąd/urząd, NIE "właściwy sąd") + praktyczne porady (w praktyce, częsty błąd)')
+    parts.append("WAGA 1.5: wyjaśnienia przyczynowe (ponieważ, w wyniku) + wyjątki (z wyjątkiem, chyba że) + konkretne daty")
+    parts.append("WAGA 1.2: porównania (w odróżnieniu od) | WAGA 1.0: kroki procedur (najpierw/następnie)")
+    
+    return "\n".join(parts)
 
 
 def _fmt_phrase_hierarchy(pre_batch):
@@ -926,6 +1014,12 @@ def _fmt_h2_remaining(pre_batch):
 
 
 def _fmt_output_format(h2, batch_type):
+    if batch_type in ("INTRO", "intro"):
+        return f"""═══ FORMAT ODPOWIEDZI ═══
+Pisz TYLKO treść wstępu. NIE zaczynaj od "h2:" — wstęp nie ma nagłówka.
+80-150 słów. Frazę główną wpleć w PIERWSZE zdanie.
+NIE dodawaj komentarzy, wyjaśnień — TYLKO treść wstępu."""
+    
     return f"""═══ FORMAT ODPOWIEDZI ═══
 Pisz TYLKO treść tego batcha. Zaczynaj dokładnie od:
 
@@ -967,10 +1061,24 @@ def build_faq_user_prompt(paa_data, pre_batch=None):
     unused = paa_data.get("unused_keywords") or {}
     avoid = paa_data.get("avoid_in_faq") or []
     if isinstance(avoid, dict):
-        avoid = list(avoid.values()) if avoid else []
+        avoid = avoid.get("topics") or []
     elif not isinstance(avoid, list):
         avoid = []
-    instructions = paa_data.get("instructions", "")
+    instructions_raw = paa_data.get("instructions", "")
+    if isinstance(instructions_raw, dict):
+        parts = []
+        for k, v in instructions_raw.items():
+            if isinstance(v, str):
+                parts.append(f"• {v}")
+            elif isinstance(v, dict):
+                for sk, sv in v.items():
+                    if isinstance(sv, str):
+                        parts.append(f"• {sk}: {sv}")
+        instructions = "\n".join(parts)
+    elif isinstance(instructions_raw, str):
+        instructions = instructions_raw
+    else:
+        instructions = ""
 
     enhanced_paa = []
     if pre_batch:
@@ -1101,17 +1209,26 @@ TRYB: {mode} ({mode_desc})""")
             lines.append(f"  • {h_text}")
         sections.append("\n".join(lines))
 
+    # Content gaps — ordered by priority (GPT prompt: PAA_UNANSWERED > DEPTH_MISSING > SUBTOPIC_MISSING)
+    gap_priority_map = {
+        "paa_unanswered": ("🔴 HIGH", "PAA bez odpowiedzi"),
+        "depth_missing": ("🟡 MED-HIGH", "Brak głębi"),
+        "subtopic_missing": ("🟢 MED", "Brakujący podtemat"),
+        "gaps": ("", "Luka"),
+    }
     all_gaps = []
-    for key in ("paa_unanswered", "subtopic_missing", "depth_missing", "gaps"):
+    for key in ("paa_unanswered", "depth_missing", "subtopic_missing", "gaps"):
+        priority, label = gap_priority_map.get(key, ("", ""))
         items = content_gaps.get(key) or []
         for item in items[:5]:
             gap_text = item if isinstance(item, str) else item.get("gap", item.get("topic", str(item)))
-            if gap_text and gap_text not in all_gaps:
-                all_gaps.append(gap_text)
+            if gap_text and gap_text not in [g[0] for g in all_gaps]:
+                all_gaps.append((gap_text, priority, label))
     if all_gaps:
-        lines = ["═══ LUKI TREŚCIOWE (tematy do pokrycia) ═══"]
-        for g in all_gaps[:10]:
-            lines.append(f"  • {g}")
+        lines = ["═══ LUKI TREŚCIOWE (tematy do pokrycia — priorytet od najwyższego) ═══"]
+        for gap_text, priority, label in all_gaps[:10]:
+            prefix = f"[{priority}] " if priority else ""
+            lines.append(f"  • {prefix}{gap_text}")
         sections.append("\n".join(lines))
 
     if paa:
@@ -1123,14 +1240,28 @@ TRYB: {mode} ({mode_desc})""")
         sections.append("\n".join(lines))
 
     triplet_list = (causal_triplets.get("chains") or causal_triplets.get("singles")
-                    or causal_triplets.get("triplets") or [])[:5]
+                    or causal_triplets.get("triplets") or [])[:8]
     if triplet_list:
-        lines = ["═══ PRZYCZYNOWE ZALEŻNOŚCI (cause→effect z konkurencji) ═══"]
+        lines = ["═══ PRZYCZYNOWE ZALEŻNOŚCI (cause→effect z konkurencji) ═══",
+                 "Confidence: 🔴 ≥0.9 UŻYJ | 🟡 ≥0.6 gdy pasuje | 🟢 <0.6 opcjonalnie",
+                 "is_chain=True (A→B→C) = najcenniejsze — buduj logiczny przepływ"]
         for t in triplet_list:
             if isinstance(t, dict):
                 cause = t.get("cause", t.get("subject", ""))
                 effect = t.get("effect", t.get("object", ""))
-                lines.append(f"  • {cause} → {effect}")
+                conf = t.get("confidence", 0)
+                is_chain = t.get("is_chain", False)
+                
+                # Priority indicator
+                if conf >= 0.9:
+                    ind = "🔴"
+                elif conf >= 0.6:
+                    ind = "🟡"
+                else:
+                    ind = "🟢"
+                chain_tag = " [CHAIN]" if is_chain else ""
+                conf_str = f" ({conf:.1f})" if conf else ""
+                lines.append(f"  {ind} {cause} → {effect}{conf_str}{chain_tag}")
             elif isinstance(t, str):
                 lines.append(f"  • {t}")
         sections.append("\n".join(lines))
