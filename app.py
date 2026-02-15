@@ -226,15 +226,61 @@ def _filter_entities(entities):
     if not entities:
         return []
     clean = []
+    brand_count = 0
     for ent in entities:
         if isinstance(ent, dict):
             text = ent.get("text", "") or ent.get("entity", "") or ent.get("name", "")
-            if not _is_css_garbage(text):
-                clean.append(ent)
+            if _is_css_garbage(text):
+                continue
+            # v50: Brand entity cap — max 2 brand entities per article
+            if _is_brand_entity(text):
+                brand_count += 1
+                if brand_count > 2:
+                    continue  # Skip excess brands
+            clean.append(ent)
         elif isinstance(ent, str):
-            if not _is_css_garbage(ent):
-                clean.append(ent)
+            if _is_css_garbage(ent):
+                continue
+            if _is_brand_entity(ent):
+                brand_count += 1
+                if brand_count > 2:
+                    continue
+            clean.append(ent)
     return clean
+
+
+# v50: Brand entity detection patterns
+_BRAND_PATTERNS = {
+    # Energy companies (common in "prąd" articles)
+    "tauron", "pge", "enea", "energa", "innogy", "rwe", "e.on", "edf",
+    # Telecom
+    "orange", "play", "t-mobile", "plus", "polkomtel", "vectra",
+    # Banks
+    "pko", "mbank", "ing", "santander", "pekao", "bnp paribas", "millennium",
+    # Insurance
+    "pzu", "warta", "ergo hestia", "allianz", "generali", "axa",
+    # Tech / general
+    "allegro", "amazon", "google", "microsoft", "apple", "samsung",
+    # Legal entity suffixes
+    "s.a.", "sp. z o.o.", "sp.j.", "s.c.",
+}
+
+def _is_brand_entity(text: str) -> bool:
+    """Check if entity text looks like a brand/company name."""
+    if not text:
+        return False
+    t = text.lower().strip()
+    # Direct match
+    if t in _BRAND_PATTERNS:
+        return True
+    # Partial match (e.g. "TAURON Dystrybucja S.A.")
+    for pattern in _BRAND_PATTERNS:
+        if pattern in t:
+            return True
+    # Heuristic: ends with legal entity suffix
+    if any(t.endswith(suf) for suf in (" s.a.", " sp. z o.o.", " sp.j.", " s.c.", " sa", " sp z oo")):
+        return True
+    return False
 
 def _filter_ngrams(ngrams):
     if not ngrams:
@@ -929,9 +975,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         is_finance = ymyl_data.get("is_finance", False)
         ymyl_confidence = ymyl_data.get("confidence", 0)
         ymyl_reasoning = ymyl_data.get("reasoning", "")
+        # v50: YMYL intensity — full/light/none
+        ymyl_intensity = ymyl_data.get("ymyl_intensity", "none")
+        light_ymyl_note = ymyl_data.get("light_ymyl_note", "")
         
         if ymyl_reasoning:
-            yield emit("log", {"msg": f"🧠 YMYL klasyfikacja: {ymyl_data.get('category', '?')} ({ymyl_confidence}) — {ymyl_reasoning[:80]}"})
+            intensity_emoji = {"full": "🔴", "light": "🟡", "none": "⚪"}.get(ymyl_intensity, "⚪")
+            yield emit("log", {"msg": f"🧠 YMYL klasyfikacja: {ymyl_data.get('category', '?')} ({ymyl_confidence}) intensity={ymyl_intensity} {intensity_emoji} — {ymyl_reasoning[:80]}"})
 
         legal_context = None
         medical_context = None
@@ -987,11 +1037,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "is_legal": is_legal,
             "is_medical": is_medical,
             "is_finance": is_finance,
+            "ymyl_intensity": ymyl_intensity,
             "classification": {
                 "category": ymyl_data.get("category", "general"),
                 "confidence": ymyl_confidence,
                 "reasoning": ymyl_reasoning,
                 "method": ymyl_data.get("detection_method", "unknown"),
+                "ymyl_intensity": ymyl_intensity,
             },
             "enrichment": ymyl_enrichment,  # v47.2: Claude's articles/MeSH/etc.
             "legal": {},
@@ -1183,6 +1235,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "is_medical": is_medical,
             "is_finance": is_finance,
             "is_ymyl": is_legal or is_medical or is_finance,
+            # v50: YMYL intensity for conditional pipeline behavior
+            "ymyl_intensity": ymyl_intensity,
+            "light_ymyl_note": light_ymyl_note,
             "legal_context": legal_context,
             "medical_context": medical_context,
             # v47.2: Claude's YMYL enrichment (articles, MeSH, evidence notes)
@@ -1259,18 +1314,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             # ═══ Inject YMYL flags for depth signals ═══
             pre_batch["_is_ymyl"] = is_legal or is_medical or is_finance
+            # v50: Pass intensity to prompt_builder for conditional legal/medical injection
+            pre_batch["_ymyl_intensity"] = ymyl_intensity
+            if light_ymyl_note:
+                pre_batch["_light_ymyl_note"] = light_ymyl_note
             
             # ═══ v47.2: Inject YMYL enrichment for prompt builder ═══
             if ymyl_enrichment:
                 pre_batch["_ymyl_enrichment"] = ymyl_enrichment
-                # Legal: inject article references for credibility
-                if ymyl_enrichment.get("legal", {}).get("key_concepts"):
-                    pre_batch["_ymyl_key_concepts"] = ymyl_enrichment["legal"]["key_concepts"]
-                # Medical: inject evidence note for source prioritization
-                if ymyl_enrichment.get("medical", {}).get("evidence_note"):
-                    pre_batch["_ymyl_evidence_note"] = ymyl_enrichment["medical"]["evidence_note"]
-                if ymyl_enrichment.get("medical", {}).get("specialization"):
-                    pre_batch["_ymyl_specialization"] = ymyl_enrichment["medical"]["specialization"]
+                # v50: Removed redundant aliases (_ymyl_key_concepts, _ymyl_evidence_note,
+                # _ymyl_specialization) — data consumed through _ymyl_enrichment parent dict
+                # in _fmt_legal_medical() as ymyl_enrich.get("legal"/"medical").
 
             # ═══ Inject last depth score for adaptive depth signals ═══
             if accepted_batches_log:
