@@ -127,6 +127,13 @@ _CSS_NGRAM_EXACT = {
     "ast global", "global color", "ast global color", "var ast",
     "var ast global", "var ast global color", "var global",
     "global ast", "color inherit", "inherit color",
+    # v50.4: WordPress social sharing widgets / footer artifacts
+    "block social", "social link", "social block", "link block",
+    "style logos", "logos only", "only social", "social link block",
+    "link block social", "logos only social", "style logos only",
+    "only social link", "logos only social link",
+    "style logos only social", "social link block social",
+    "only social link block", "wp preset", "preset gradient",
 }
 
 _CSS_ENTITY_WORDS = {
@@ -145,6 +152,22 @@ _CSS_ENTITY_WORDS = {
     "xl", "ac", "arrow", "dim",
     "menlo", "monaco", "consolas", "courier", "arial", "helvetica",
     "verdana", "georgia", "roboto", "poppins", "raleway",
+    # v50.4: Scraper artifacts — English words spaCy misclassifies as entities
+    # These are CSS class names, color names, or HTML content words that
+    # appear in competitor pages and get extracted as Polish entities.
+    "vivid", "bluish", "muted", "faded", "bright", "subtle", "crisp",
+    "reviews", "review", "rating", "ratings", "share", "shares",
+    "click", "submit", "cancel", "close", "open", "toggle", "expand",
+    "czyste", "clean", "dark", "light", "primary", "secondary",
+    "success", "warning", "danger", "info", "muted",
+    # v50.4: Social media / platform names (scraper picks up footer links)
+    "facebook", "twitter", "instagram", "linkedin", "youtube",
+    "pinterest", "tiktok", "snapchat", "whatsapp", "telegram",
+    "bandcamp", "bluesky", "deviantart", "fivehundredpx", "mastodon",
+    "reddit", "tumblr", "flickr", "vimeo", "soundcloud", "spotify",
+    # v50.4: WordPress/CMS artifact words
+    "preset", "logos", "embed", "widget", "template", "shortcode",
+    "plugin", "theme", "customizer", "gutenberg", "elementor",
 }
 
 def _is_css_garbage(text):
@@ -211,6 +234,15 @@ def _is_css_garbage(text):
     }
     if len(words) >= 2 and all(w in _CSS_VOCAB for w in words):
         return True
+    # v50.4: Sentence fragments — real entities are max 5-6 words,
+    # scraper sometimes extracts entire sentence fragments as "entities"
+    if len(words) > 6:
+        return True
+    # v50.4: Pure ASCII single words that aren't Polish proper nouns
+    # These are typically CSS class names, HTML element names, or English words
+    # that spaCy misclassifies as entities in Polish competitor pages.
+    if len(words) == 1 and text.isascii() and text[0].islower():
+        return True  # Lowercase single ASCII word = never a Polish entity
     return bool(_CSS_GARBAGE_PATTERNS.search(text))
 
 def _extract_text(item):
@@ -292,6 +324,207 @@ def _filter_ngrams(ngrams):
             clean.append(ng)
     return clean
 
+
+# ============================================================
+# v50.4: TOPICAL ENTITY GENERATOR — FIX 20
+# When N-gram API fails to provide ai_topical_entities (common),
+# generate proper topical entities using a fast LLM call.
+# This replaces CSS/HTML garbage with real topic-based entities.
+#
+# Based on:
+# - Patent US10235423B2: entity relatedness & notability
+# - Patent US9009192B1: identifying central entities
+# - Dunietz & Gillick (2014): entity salience
+# - Document "Topical entities w SEO" — topical entities = concepts
+#   that define and contextualize a topic in Knowledge Graph
+# ============================================================
+
+_TOPICAL_ENTITY_PROMPT = """Jesteś ekspertem semantic SEO. Dla podanego tematu wygeneruj topical entities — koncepty, osoby, jednostki, prawa, urządzenia i pojęcia, które definiują ten temat w Knowledge Graph Google.
+
+ZASADY:
+1. Encje MUSZĄ być tematyczne — bezpośrednio powiązane z tematem, nie z komercyjnymi stronami w SERP
+2. Encja główna = sam temat (lub jego najbardziej precyzyjna forma)
+3. Encje wtórne = 10-12 kluczowych konceptów powiązanych (osoby historyczne, jednostki, prawa, urządzenia, podtypy)
+4. Dla każdej encji: 1 trójka E-A-V (Encja → Atrybut → Wartość)
+5. 3-5 par co-occurrence (encje które powinny występować blisko siebie w tekście)
+6. NIE dodawaj firm komercyjnych (TAURON, PGE itp.) — to nie są topical entities
+7. NIE dodawaj dat, cen, taryf — to nie są koncepty tematyczne
+8. Odpowiedź TYLKO w JSON, bez markdown, bez komentarzy
+
+FORMAT JSON:
+{
+  "primary_entity": {"text": "...", "type": "CONCEPT"},
+  "secondary_entities": [
+    {"text": "...", "type": "PERSON|CONCEPT|UNIT|LAW|DEVICE|EVENT", "eav": "encja → atrybut → wartość"}
+  ],
+  "cooccurrence_pairs": [
+    {"entity1": "...", "entity2": "...", "reason": "dlaczego blisko"}
+  ],
+  "placement_instruction": "Krótka instrukcja rozmieszczenia encji w tekście (2-3 zdania)"
+}"""
+
+
+def _generate_topical_entities(main_keyword: str, h2_plan: list = None) -> dict:
+    """Generate topical entities for keyword using fast LLM call.
+    
+    Returns dict with: primary_entity, secondary_entities, cooccurrence_pairs,
+    placement_instruction. Returns empty dict on failure.
+    
+    Uses gpt-4.1-mini for speed (~1-2s) and cost efficiency.
+    """
+    if not OPENAI_API_KEY:
+        logger.warning("[TOPICAL_ENTITIES] No OpenAI API key — skipping")
+        return {}
+    
+    try:
+        import openai as _openai
+        client = _openai.OpenAI(api_key=OPENAI_API_KEY)
+        
+        h2_context = ""
+        if h2_plan:
+            h2_context = f"\nPlan H2 artykułu: {' | '.join(h2_plan[:8])}"
+        
+        user_msg = f"Temat: \"{main_keyword}\"{h2_context}\n\nWygeneruj topical entities dla tego tematu."
+        
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {"role": "system", "content": _TOPICAL_ENTITY_PROMPT},
+                {"role": "user", "content": user_msg}
+            ],
+            temperature=0.3,
+            max_tokens=1200,
+            timeout=15
+        )
+        
+        raw = response.choices[0].message.content.strip()
+        # Clean potential markdown fences
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        result = json.loads(raw)
+        
+        if not isinstance(result, dict) or "primary_entity" not in result:
+            logger.warning(f"[TOPICAL_ENTITIES] Invalid response structure")
+            return {}
+        
+        logger.info(f"[TOPICAL_ENTITIES] ✅ Generated {len(result.get('secondary_entities', []))} topical entities for '{main_keyword}'")
+        return result
+        
+    except json.JSONDecodeError as e:
+        logger.warning(f"[TOPICAL_ENTITIES] JSON parse error: {e}")
+        return {}
+    except Exception as e:
+        logger.warning(f"[TOPICAL_ENTITIES] Error: {e}")
+        return {}
+
+
+def _topical_to_entity_list(topical_result: dict) -> list:
+    """Convert topical entity result to standard entity list format.
+    
+    Returns list of dicts compatible with clean_entities / ai_topical format:
+    [{"text": "...", "type": "...", "eav": "...", "source": "topical_generator"}]
+    """
+    if not topical_result:
+        return []
+    
+    entities = []
+    
+    # Primary entity first
+    primary = topical_result.get("primary_entity", {})
+    if primary and primary.get("text"):
+        entities.append({
+            "text": primary["text"],
+            "entity": primary["text"],
+            "type": primary.get("type", "CONCEPT"),
+            "eav": primary.get("eav", ""),
+            "source": "topical_generator",
+            "is_primary": True
+        })
+    
+    # Secondary entities
+    for ent in topical_result.get("secondary_entities", [])[:12]:
+        if ent and ent.get("text"):
+            entities.append({
+                "text": ent["text"],
+                "entity": ent["text"],
+                "type": ent.get("type", "CONCEPT"),
+                "eav": ent.get("eav", ""),
+                "source": "topical_generator",
+                "is_primary": False
+            })
+    
+    return entities
+
+
+def _topical_to_placement_instruction(topical_result: dict, main_keyword: str) -> str:
+    """Build placement instruction from topical entities.
+    
+    Generates structured placement rules following entity salience research:
+    - Primary entity → H1 + first sentence
+    - Secondary entities → H2 + first paragraphs
+    - E-A-V triples → explicit description in text
+    - Co-occurrence pairs → same paragraph
+    """
+    if not topical_result:
+        return ""
+    
+    lines = []
+    primary = topical_result.get("primary_entity", {})
+    secondary = topical_result.get("secondary_entities", [])[:8]
+    cooc = topical_result.get("cooccurrence_pairs", [])[:5]
+    
+    # Primary entity
+    if primary and primary.get("text"):
+        p_text = primary["text"]
+        lines.append(f'🎯 ENCJA GŁÓWNA: "{p_text}"')
+        lines.append(f'   → W tytule H1 i w pierwszym zdaniu artykułu')
+        lines.append(f'   → Jako PODMIOT zdań (nie dopełnienie)')
+        if primary.get("eav"):
+            lines.append(f'   → Opisz wprost: {primary["eav"]}')
+    
+    # First paragraph entities
+    fp_ents = [e["text"] for e in secondary[:3] if e.get("text")]
+    if fp_ents:
+        lines.append(f'')
+        lines.append(f'📌 PIERWSZY AKAPIT (100 słów): Wprowadź razem z encją główną:')
+        lines.append(f'   {", ".join(fp_ents)}')
+    
+    # H2 entities
+    h2_ents = [e for e in secondary if e.get("text")]
+    if h2_ents:
+        lines.append(f'')
+        lines.append(f'📋 ENCJE TEMATYCZNE (do rozmieszczenia w tekście):')
+        for e in h2_ents:
+            eav = f' — {e["eav"]}' if e.get("eav") else ""
+            lines.append(f'   • "{e["text"]}" ({e.get("type", "CONCEPT")}){eav}')
+    
+    # Co-occurrence pairs
+    if cooc:
+        lines.append(f'')
+        lines.append(f'🔗 CO-OCCURRENCE (umieść w TYM SAMYM akapicie):')
+        for pair in cooc:
+            e1 = pair.get("entity1", "")
+            e2 = pair.get("entity2", "")
+            reason = pair.get("reason", "")
+            if e1 and e2:
+                lines.append(f'   • "{e1}" + "{e2}"{" — " + reason if reason else ""}')
+    
+    return "\n".join(lines)
+
+
+def _topical_to_cooccurrence(topical_result: dict) -> list:
+    """Extract co-occurrence pairs in standard format."""
+    if not topical_result:
+        return []
+    pairs = []
+    for pair in topical_result.get("cooccurrence_pairs", [])[:8]:
+        if pair.get("entity1") and pair.get("entity2"):
+            pairs.append({
+                "entity1": pair["entity1"],
+                "entity2": pair["entity2"],
+                "source": "topical_generator"
+            })
+    return pairs
+
 def _filter_h2_patterns(patterns):
     """Filter H2 patterns — remove CSS garbage AND navigation elements."""
     # v49: Navigation terms that appear as H2 on scraped pages
@@ -356,10 +589,34 @@ def _sanitize_placement_instruction(text):
     for line in lines:
         quoted = _re.findall(r'"([^"]+)"', line)
         has_garbage = any(_is_css_garbage(q) for q in quoted)
-        if not has_garbage:
-            clean_lines.append(line)
+        if has_garbage:
+            continue
+        # v50.4: Filter lines where a PERSON entity appears alongside a brand
+        # These are brand page contacts, not topically relevant entities
+        # e.g. "Leszek Bober" appearing with "TAURON" → brand contact, not expert
+        if quoted and any(_is_brand_entity(q) for q in quoted):
+            # If ANY quoted entity on this line is a brand, check if another is a person
+            non_brand_quoted = [q for q in quoted if not _is_brand_entity(q)]
+            # If the line references a brand alongside a non-brand entity, keep only if
+            # the non-brand entity is clearly topical (skip PERSON contacts)
+            line_lower = line.lower()
+            if "person" in line_lower and non_brand_quoted:
+                continue  # Skip: this is a brand contact person
+        # v50.4: Filter relation lines that are scraped sentence fragments
+        # e.g. "porze nocnej → oferuje → ona również niższe stawki..."
+        if "→" in line:
+            # Extract the relation value (after last →)
+            parts = line.split("→")
+            if len(parts) >= 3:
+                relation_value = parts[-1].strip()
+                # If the relation value is >8 words, it's a scraped sentence fragment
+                if len(relation_value.split()) > 8:
+                    continue
+        clean_lines.append(line)
     result = "\n".join(clean_lines).strip()
-    if len(result) < len(text) * 0.2:
+    # v50.4: Raised threshold from 0.2 to 0.4 — if >60% of instruction was garbage,
+    # the S1 data is too contaminated to use for placement
+    if len(result) < len(text) * 0.4:
         return ""
     return result
 
@@ -758,10 +1015,49 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         ai_named = entity_seo.get("ai_named_entities", [])
         ai_entity_panel = s1.get("_ai_entity_panel") or {}
 
-        # If Claude produced topical entities, use them as primary
+        # ═══ v50.4 FIX 20: TOPICAL ENTITY GENERATOR ═══
+        # If N-gram API didn't produce ai_topical_entities (common failure),
+        # generate proper topical entities using a fast LLM call.
+        # This prevents CSS artifacts (vivid, bluish, reviews) from becoming
+        # the "primary entity" in the article.
+        topical_gen_result = {}
+        topical_gen_entities = []
+        topical_gen_placement = ""
+        topical_gen_cooc = []
+
+        if not ai_topical:
+            # Check if scraper entities are mostly garbage
+            _clean_count = len(clean_entities)
+            _raw_count = len(raw_entities)
+            _garbage_ratio = 1.0 - (_clean_count / max(_raw_count, 1))
+            
+            # Generate topical entities if:
+            # - No AI topical entities from N-gram API, AND
+            # - Either high garbage ratio (>40% filtered) or very few clean entities
+            if _garbage_ratio > 0.4 or _clean_count < 4:
+                yield emit("log", {"msg": f"🧬 Encje ze scrapera niskiej jakości ({_clean_count}/{_raw_count} przefiltrowanych) — generuję topical entities..."})
+                topical_gen_result = _generate_topical_entities(main_keyword)
+                
+                if topical_gen_result:
+                    topical_gen_entities = _topical_to_entity_list(topical_gen_result)
+                    topical_gen_placement = _topical_to_placement_instruction(topical_gen_result, main_keyword)
+                    topical_gen_cooc = _topical_to_cooccurrence(topical_gen_result)
+                    
+                    # Override: use topical entities as primary
+                    ai_topical = topical_gen_entities
+                    clean_entities = topical_gen_entities[:10]
+                    
+                    _ent_names = [e.get("text", "") for e in topical_gen_entities[:5]]
+                    yield emit("log", {"msg": f"🧬 Topical entities wygenerowane: {', '.join(_ent_names)}"})
+                else:
+                    yield emit("log", {"msg": "⚠️ Topical entity generation failed — używam przefiltrowanych encji ze scrapera"})
+            else:
+                yield emit("log", {"msg": f"✅ Encje ze scrapera OK ({_clean_count} clean) — bez dodatkowej generacji"})
+
+        # If Claude/N-gram API produced topical entities, use them as primary
         if ai_topical:
             clean_entities = ai_topical[:10]
-            yield emit("log", {"msg": f"🧠 Topical entities (AI): {', '.join(_extract_text(e) for e in ai_topical[:5])}"})
+            yield emit("log", {"msg": f"🧠 Topical entities: {', '.join(_extract_text(e) for e in ai_topical[:5])}"})
         if ai_named:
             yield emit("log", {"msg": f"🏷️ Named entities (AI, filtered): {', '.join(_extract_text(e) for e in ai_named[:5])}"})
 
@@ -770,7 +1066,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if ai_entities and not ai_topical and len(clean_entities) < 5:
             yield emit("log", {"msg": f"🤖 Uzupełniam encje z AI: {', '.join(str(e) for e in ai_entities[:5])}"})
 
-        # v48.0: concept_entities = topical from Claude (or fallback to backend)
+        # v48.0: concept_entities = topical from generator (or Claude, or backend)
         concept_entities = ai_topical if ai_topical else _filter_entities(
             entity_seo.get("concept_entities", []) or s1.get("concept_entities", [])
         )[:15]
@@ -817,6 +1113,20 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # v47.0: must_cover_concepts & concept_instruction from semantic_enhancement_hints
         must_cover_concepts = _filter_entities(sem_hints.get("must_cover_concepts", []) or (topical_summary.get("must_cover", []) if isinstance(topical_summary, dict) else []))
         concept_instruction = _sanitize_placement_instruction(sem_hints.get("concept_instruction", "") or (topical_summary.get("agent_instruction", "") if isinstance(topical_summary, dict) else ""))
+
+        # ═══ v50.4 FIX 20: Override backend placement with topical-generated data ═══
+        # When topical entity generator was used, its output is BETTER than
+        # the scraper-sourced placement (which may contain CSS artifacts,
+        # brand contacts, and sentence fragments from competitor pages).
+        if topical_gen_placement:
+            backend_placement_instruction = topical_gen_placement
+            yield emit("log", {"msg": "🧬 Placement instruction: z topical entity generator (zamiast scrapera)"})
+        if topical_gen_cooc:
+            backend_cooccurrence_pairs = topical_gen_cooc + backend_cooccurrence_pairs[:2]
+            yield emit("log", {"msg": f"🧬 Co-occurrence: {len(topical_gen_cooc)} par z topical generator"})
+        if topical_gen_entities and not must_cover_concepts:
+            # Use topical entities as must_cover_concepts
+            must_cover_concepts = topical_gen_entities[:8]
 
         if backend_entity_salience:
             yield emit("log", {"msg": f"🔬 Entity Salience: {len(backend_entity_salience)} encji z analizy konkurencji"})
