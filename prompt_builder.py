@@ -55,7 +55,7 @@ def build_system_prompt(pre_batch, batch_type):
 
 • PASSAGE-FIRST: Pod każdym H2 i w intro stosuj wzorzec:
   → Zdanie 1: bezpośrednia odpowiedź/definicja (passage-ready dla Google)
-  → Zdanie 2: konkret (liczba, data, przykład, instytucja)
+  → Zdanie 2: konkret (liczba, data, przykład, dane)
   → Zdanie 3: doprecyzowanie lub wyjątek
   Dopiero potem rozwijaj temat.
 
@@ -75,9 +75,29 @@ def build_system_prompt(pre_batch, batch_type):
 
 • KAUZALNOŚĆ: Wyjaśniaj DLACZEGO (przyczyny→skutki), nie tylko CO.
   Wzorce: powoduje, skutkuje, prowadzi do, zapobiega, w wyniku, ponieważ
-  ❌ „Alimenty wynoszą X zł." → ✅ „Brak wpłat prowadzi do zaległości, co skutkuje egzekucją."
+  ❌ „Temperatura wynosi X°C." → ✅ „Wzrost temperatury powyżej 100°C powoduje wrzenie, co prowadzi do parowania."
 
 • ANTI-AI: Unikaj fraz-klisz: "warto zauważyć", "należy podkreślić", "w dzisiejszych czasach", "kluczowe jest", "nie ulega wątpliwości", "warto podkreślić", "należy pamiętać", "kluczowym aspektem", "w kontekście". Brzmi to sztucznie.
+
+• ANTY-POWTÓRZENIA: NIE powtarzaj tej samej informacji w różnych sekcjach!
+  Jeśli zdefiniowałeś pojęcie raz, NIE definiuj go ponownie. Odwołuj się: "wspomniany wcześniej X".
+
+• ANTY-PYTANIA-RETORYCZNE: MAX 1 pytanie retoryczne na sekcję H2.
+  ❌ "Jak to wygląda w praktyce?", "Co to oznacza?", "Czy zawsze?" — to szablony AI.
+  ✅ Użyj zdań przejściowych (bridge): "To prowadzi do...", "Z tym wiąże się..."
+
+• ANTY-BRAND-STUFFING: NIE powtarzaj nazw firm/marek więcej niż 2x w artykule.
+  Jeśli w encjach pojawia się firma (np. TAURON, PGE), wspomnij ją MAX 2 razy.
+
+• POLSZCZYZNA (reguły NKJP):
+  → Przecinek OBOWIĄZKOWY przed: że, który/a/e, ponieważ, gdyż, aby, żeby, jednak, lecz, ale.
+    Brak przecinka przed "że" to NATYCHMIASTOWY sygnał sztuczności.
+  → Kolokacje — używaj POPRAWNYCH połączeń:
+    podjąć decyzję (NIE: zrobić decyzję), odnieść sukces (NIE: mieć sukces),
+    popełnić błąd (NIE: zrobić błąd), wysoki poziom (NIE: duży poziom),
+    silny ból (NIE: duży ból), wysokie ryzyko (NIE: duże ryzyko).
+  → Unikaj pleonazmów: "wzajemna współpraca", "aktualna sytuacja na dziś", "krótkie streszczenie".
+  → Mieszaj przypadki gramatyczne — nie powtarzaj frazy w mianowniku.
 
 • NATURALNOŚĆ: Pisz jak ekspert tłumaczący temat znajomemu — konkretnie, bez lania wody.
 
@@ -180,6 +200,7 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
         lambda: _fmt_causal_context(pre_batch),
         lambda: _fmt_depth_signals(pre_batch),       # depth signals when previous batch scored low
         lambda: _fmt_experience_markers(pre_batch),
+        lambda: _fmt_natural_polish(pre_batch),      # v50: fleksja, spacing, anti-stuffing
 
         # ── TIER 4: SOFT GUIDELINES (format, style, intro) ──
         lambda: _fmt_intro_guidance(pre_batch, batch_type),
@@ -489,113 +510,67 @@ def _fmt_entity_salience(pre_batch):
             f"{', '.join(concept_names)}"
         )
     
+    # 4. v50: Co-occurrence pairs — encje które MUSZĄ być blisko siebie
+    cooc_pairs = pre_batch.get("_cooccurrence_pairs") or []
+    if cooc_pairs:
+        cooc_lines = []
+        for pair in cooc_pairs[:8]:
+            if isinstance(pair, dict):
+                e1 = pair.get("entity1", pair.get("source", ""))
+                e2 = pair.get("entity2", pair.get("target", ""))
+                if e1 and e2:
+                    cooc_lines.append(f'  • "{e1}" + "{e2}" — w tym samym akapicie')
+            elif isinstance(pair, str) and "+" in pair:
+                cooc_lines.append(f"  • {pair} — w tym samym akapicie")
+        if cooc_lines:
+            parts.append(
+                "═══ WSPÓŁWYSTĘPOWANIE ENCJI (co-occurrence) ═══\n"
+                "Następujące pary encji często pojawiają się RAZEM u konkurencji.\n"
+                "Umieść je W TYM SAMYM AKAPICIE — bliskość buduje kontekst semantyczny:\n"
+                + "\n".join(cooc_lines)
+            )
+    
+    # 5. v50: First paragraph entities — encje z pierwszego akapitu top10
+    first_para_ents = pre_batch.get("_first_paragraph_entities") or []
+    if first_para_ents:
+        fp_names = []
+        for ent in first_para_ents[:6]:
+            name = ent.get("entity", ent.get("text", ent)) if isinstance(ent, dict) else str(ent)
+            if name:
+                fp_names.append(f'"{name}"')
+        if fp_names:
+            parts.append(
+                "PIERWSZY AKAPIT — encje z TOP10:\n"
+                f"Konkurencja umieszcza w pierwszym akapicie: {', '.join(fp_names)}.\n"
+                "Wpleć min. 2-3 z nich w pierwsze 100 słów."
+            )
+    
+    # 6. v50: H2 entities — encje z nagłówków H2 konkurencji
+    h2_ents = pre_batch.get("_h2_entities") or []
+    if h2_ents:
+        h2_names = []
+        for ent in h2_ents[:8]:
+            name = ent.get("entity", ent.get("text", ent)) if isinstance(ent, dict) else str(ent)
+            if name:
+                h2_names.append(f'"{name}"')
+        if h2_names:
+            parts.append(
+                "ENCJE W H2 (u konkurencji):\n"
+                f"Nagłówki H2 top10 zawierają: {', '.join(h2_names)}.\n"
+                "Użyj tych encji w swoich nagłówkach H2/H3 lub w pierwszym zdaniu pod H2."
+            )
+    
     return "\n\n".join(parts) if parts else ""
 
 
-def _fmt_entities(pre_batch):
-    entities_for_batch = pre_batch.get("entities_for_batch") or {}
-    entity_seo = pre_batch.get("entity_seo") or {}
-    enhanced = pre_batch.get("enhanced") or {}
-    entities_to_define = enhanced.get("entities_to_define") or []
-    relations = enhanced.get("relations_to_establish") or []
+# _fmt_entities REMOVED v45.4.1 → v50 cleanup: function deleted.
+# gpt_instructions_v39 already contains curated "🧠 ENCJE:" section
+# (max 3/batch, importance≥0.7, with HOW hints). Our version duplicated it
+# with dirtier, unfiltered data from S1.
 
-    if not entities_for_batch and not entity_seo.get("enabled") and not entities_to_define:
-        return ""
-
-    parts = ["═══ ENCJE (budują autorytet tematyczny) ═══"]
-
-    introduce = entities_for_batch.get("introduce") or []
-    if introduce:
-        parts.append("WPROWADŹ w tym batchu (pierwsza wzmianka):")
-        for ent in introduce[:5]:
-            if isinstance(ent, dict):
-                name = ent.get("entity", ent.get("text", ""))
-                etype = ent.get("type", "")
-                context = ent.get("context", "")
-                line = f'  • "{name}"'
-                if etype:
-                    line += f" ({etype})"
-                if context:
-                    line += f" — {context}"
-                parts.append(line)
-            else:
-                parts.append(f'  • "{ent}"')
-
-    if entities_to_define:
-        parts.append("\nZDEFINIUJ (wyjaśnij czytelnikowi):")
-        for ent in entities_to_define[:5]:
-            if isinstance(ent, dict):
-                name = ent.get("entity", ent.get("text", ""))
-                hint = ent.get("definition_hint", ent.get("hint", ""))
-                line = f'  • "{name}"'
-                if hint:
-                    line += f" — {hint}"
-                parts.append(line)
-            else:
-                parts.append(f'  • "{ent}"')
-
-    maintain = entities_for_batch.get("maintain") or []
-    if maintain:
-        names = ", ".join(f'"{m}"' if isinstance(m, str) else f'"{m.get("entity", "")}"' for m in maintain[:5])
-        parts.append(f"\nUTRZYMUJ (już wprowadzone wcześniej): {names}")
-
-    if relations:
-        parts.append("\nPOWIĄŻ ze sobą:")
-        for rel in relations[:4]:
-            if isinstance(rel, dict):
-                subj = rel.get("subject", "")
-                verb = rel.get("verb", rel.get("relation", "→"))
-                obj = rel.get("object", "")
-                parts.append(f'  • {subj} {verb} {obj}')
-            elif isinstance(rel, str):
-                parts.append(f'  • {rel}')
-
-    must_mention = entity_seo.get("must_mention") or []
-    if must_mention and not introduce:
-        parts.append("WSPOMNIJ w tekście:")
-        for ent in must_mention[:5]:
-            if isinstance(ent, dict):
-                name = ent.get("text", ent.get("entity", ""))
-                parts.append(f'  • "{name}"')
-            else:
-                parts.append(f'  • "{ent}"')
-
-    return "\n".join(parts) if len(parts) > 1 else ""
-
-
-def _fmt_ngrams(pre_batch):
-    ngrams = pre_batch.get("ngrams_for_batch") or []
-    ngram_guidance = pre_batch.get("ngram_guidance") or {}
-
-    if not ngrams and not ngram_guidance:
-        return ""
-
-    parts = ["═══ POPULARNE FRAZY Z TOP10 (n-gramy) ═══",
-             "Te frazy często pojawiają się u najlepszych wyników. Wpleć naturalnie:"]
-
-    for ng in ngrams[:10]:
-        if isinstance(ng, dict):
-            text = ng.get("ngram", ng.get("text", ""))
-            count = ng.get("count", ng.get("frequency", ""))
-            if text:
-                parts.append(f'  • "{text}"' + (f" ({count}× u konkurencji)" if count else ""))
-        elif isinstance(ng, str):
-            parts.append(f'  • "{ng}"')
-
-    if ngram_guidance:
-        overused = ngram_guidance.get("overused") or []
-        if overused:
-            over_list = ", ".join(f'"{o}"' if isinstance(o, str) else f'"{o.get("ngram", "")}"' for o in overused[:5])
-            parts.append(f"\n⚠️ Nadużywane n-gramy (użyj zamienników): {over_list}")
-
-        synonyms = ngram_guidance.get("suggested_synonyms") or ngram_guidance.get("synonyms") or {}
-        if synonyms and isinstance(synonyms, dict):
-            parts.append("Sugerowane zamienniki:")
-            for orig, alts in list(synonyms.items())[:5]:
-                if isinstance(alts, list):
-                    parts.append(f'  • "{orig}" → {", ".join(alts[:3])}')
-
-    return "\n".join(parts) if len(parts) > 2 else ""
+# _fmt_ngrams REMOVED v45.4.1 → v50 cleanup: function deleted.
+# Raw statistical n-grams from competitor pages often contain CSS/JS artifacts
+# ("button button", "block embed"). Custom GPT produces better text without them.
 
 
 def _fmt_serp_enrichment(pre_batch):
@@ -782,8 +757,21 @@ def _fmt_legal_medical(pre_batch):
     legal_ctx = pre_batch.get("legal_context") or {}
     medical_ctx = pre_batch.get("medical_context") or {}
     ymyl_enrich = pre_batch.get("_ymyl_enrichment") or {}
+    ymyl_intensity = pre_batch.get("_ymyl_intensity", "full")
 
     parts = []
+
+    # v50: For "light" YMYL — DON'T inject full legal/medical framework
+    if ymyl_intensity == "light":
+        light_note = pre_batch.get("_light_ymyl_note", "")
+        if light_note:
+            parts.append("═══ ASPEKT REGULACYJNY (peryferyjny — NIE główny temat!) ═══")
+            parts.append(f"  {light_note}")
+            parts.append("  ⚠️ OGRANICZENIE: Wspomnij o regulacjach MAX 1-2 razy w CAŁYM artykule.")
+            parts.append("  NIE cytuj artykułów ustaw, NIE dodawaj sygnatur orzeczeń,")
+            parts.append("  NIE dodawaj disclaimera o konsultacji z prawnikiem/lekarzem.")
+            parts.append("  Artykuł jest EDUKACYJNY/TECHNICZNY, nie prawniczy/medyczny.")
+        return "\n".join(parts) if parts else ""
 
     if legal_ctx and legal_ctx.get("active"):
         parts.append("═══ KONTEKST PRAWNY (YMYL) ═══")
@@ -928,23 +916,23 @@ def _fmt_causal_context(pre_batch):
 
 def _fmt_depth_signals(pre_batch):
     """Depth signals — inject when previous batch scored low on depth
-    or always for YMYL content.
+    or always for FULL YMYL content.
     
+    v50: Only force for full YMYL intensity, not light.
     Based on 10 depth signals from GPT prompt with weights.
-    Activated by:
-    - pre_batch["_last_depth_score"] < threshold (injected by app.py)
-    - pre_batch["_is_ymyl"] = True
     """
     last_depth = pre_batch.get("_last_depth_score")
     is_ymyl = pre_batch.get("_is_ymyl", False)
+    ymyl_intensity = pre_batch.get("_ymyl_intensity", "none")
+    is_full_ymyl = is_ymyl and ymyl_intensity == "full"
     
-    # Always show for YMYL, or when depth was low in previous batch
-    threshold = 40 if is_ymyl else 30
-    if last_depth is not None and last_depth >= threshold and not is_ymyl:
+    # Only force depth for FULL YMYL, not light
+    threshold = 40 if is_full_ymyl else 30
+    if last_depth is not None and last_depth >= threshold and not is_full_ymyl:
         return ""
     
-    # If no depth data at all and not YMYL, skip
-    if last_depth is None and not is_ymyl:
+    # If no depth data at all and not full YMYL, skip
+    if last_depth is None and not is_full_ymyl:
         return ""
     
     parts = ["═══ SYGNAŁY GŁĘBOKOŚCI (dodaj od najwyższej wagi) ═══"]
@@ -953,12 +941,76 @@ def _fmt_depth_signals(pre_batch):
         parts.append(f"⚠️ Ostatni batch: depth {last_depth}/100 (próg: {threshold}). Dodaj więcej konkretów!")
     
     parts.append("")
-    parts.append("WAGA 2.5: referencje prawne (art. k.c., wyroki SN, Dz.U.) + naukowe (PMID, DOI, badania)")
+    # v50: Legal references only for FULL YMYL
+    if is_full_ymyl:
+        parts.append("WAGA 2.5: referencje prawne (art. k.c., wyroki SN, Dz.U.) + naukowe (PMID, DOI, badania)")
     parts.append('WAGA 2.0: konkretne liczby (kwoty PLN, %, okresy — NIE "około")')
     parts.append('WAGA 1.8: nazwane instytucje (konkretny sąd/urząd, NIE "właściwy sąd") + praktyczne porady (w praktyce, częsty błąd)')
     parts.append("WAGA 1.5: wyjaśnienia przyczynowe (ponieważ, w wyniku) + wyjątki (z wyjątkiem, chyba że) + konkretne daty")
     parts.append("WAGA 1.2: porównania (w odróżnieniu od) | WAGA 1.0: kroki procedur (najpierw/następnie)")
     
+    return "\n".join(parts)
+
+
+def _fmt_natural_polish(pre_batch):
+    """v50: Natural Polish writing instructions — fleksja, spacing, anti-stuffing.
+
+    Based on natural_polish_instructions.py (master-seo-api-main).
+    Inlined here because prompt_builder runs in Brajn, not master.
+    
+    Prevents keyword stuffing by teaching Claude that:
+    1. Polish inflected forms count as the same keyword
+    2. Minimum spacing between repetitions is required
+    3. Max 2 uses of same phrase per paragraph
+    """
+    # Get keywords from pre_batch
+    keywords_info = pre_batch.get("keywords") or {}
+    must_kw = keywords_info.get("basic_must_use") or []
+    ext_kw = keywords_info.get("extended_this_batch") or []
+
+    all_kw = []
+    for kw in must_kw + ext_kw:
+        if isinstance(kw, dict):
+            name = kw.get("keyword", "")
+            kw_type = kw.get("type", "BASIC").upper()
+        elif isinstance(kw, str):
+            name = kw
+            kw_type = "BASIC"
+        else:
+            continue
+        if name:
+            all_kw.append((name, kw_type))
+
+    if not all_kw:
+        return ""
+
+    # Spacing rules
+    SPACING = {"MAIN": 60, "BASIC": 80, "EXTENDED": 120}
+
+    parts = ["═══ NATURALNY POLSKI — ANTY-STUFFING ═══"]
+
+    parts.append(
+        "🔄 FLEKSJA: Odmiany frazy liczą się jako jedno użycie!\n"
+        '   "zespół turnera" = "zespołu turnera" = "zespołem turnera"\n'
+        "   Pisz naturalnie, używaj różnych przypadków gramatycznych.\n"
+        "   NIE MUSISZ powtarzać frazy w mianowniku — system zaliczy każdą odmianę."
+    )
+
+    spacing_lines = []
+    for name, kw_type in all_kw[:8]:
+        spacing = SPACING.get(kw_type, 80)
+        spacing_lines.append(f'  • "{name}" ({kw_type}) — min {spacing} słów między powtórzeniami')
+    if spacing_lines:
+        parts.append("📏 ODSTĘPY MIĘDZY POWTÓRZENIAMI:\n" + "\n".join(spacing_lines))
+
+    parts.append(
+        "⚠️ ZASADY:\n"
+        "  • Max 2× ta sama fraza w jednym akapicie\n"
+        "  • Rozkładaj frazy RÓWNOMIERNIE w tekście (nie grupuj na początku/końcu)\n"
+        "  • Zamiast powtórzenia użyj: synonimu, zaimka, opisu ('ta choroba', 'omawiany zespół')\n"
+        "  • Podmiot → dopełnienie → synonim → kolejny akapit → ponownie fraza"
+    )
+
     return "\n".join(parts)
 
 
