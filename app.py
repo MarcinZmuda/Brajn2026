@@ -1050,7 +1050,7 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
 # ============================================================
 # TEXT GENERATION (Claude + OpenAI)
 # ============================================================
-def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="claude"):
+def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="claude", openai_model=None):
     """Generate batch text using optimized prompts built from pre_batch data.
     
     v45.3: Replaces raw json.dumps() with structured natural language prompts
@@ -1060,7 +1060,7 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
     user_prompt = build_user_prompt(pre_batch, h2, batch_type, article_memory)
 
     if engine == "openai" and OPENAI_API_KEY:
-        return _generate_openai(system_prompt, user_prompt)
+        return _generate_openai(system_prompt, user_prompt, model=openai_model)
     else:
         return _generate_claude(system_prompt, user_prompt)
 
@@ -1078,15 +1078,16 @@ def _generate_claude(system_prompt, user_prompt):
     return response.content[0].text.strip()
 
 
-def _generate_openai(system_prompt, user_prompt):
+def _generate_openai(system_prompt, user_prompt, model=None):
     """Generate text using OpenAI GPT."""
     if not OPENAI_AVAILABLE:
         logger.warning("OpenAI not installed, falling back to Claude")
         return _generate_claude(system_prompt, user_prompt)
     
+    effective_model = model or OPENAI_MODEL
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
     response = client.chat.completions.create(
-        model=OPENAI_MODEL,
+        model=effective_model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -1097,7 +1098,7 @@ def _generate_openai(system_prompt, user_prompt):
     return response.choices[0].message.content.strip()
 
 
-def generate_faq_text(paa_data, pre_batch=None, engine="claude"):
+def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=None):
     """Generate FAQ section using optimized prompts.
     
     v45.3: Uses prompt_builder for structured instructions instead of json.dumps().
@@ -1113,7 +1114,7 @@ def generate_faq_text(paa_data, pre_batch=None, engine="claude"):
     user_prompt = build_faq_user_prompt(paa_data, pre_batch)
 
     if engine == "openai" and OPENAI_API_KEY:
-        return _generate_openai(system_prompt, user_prompt)
+        return _generate_openai(system_prompt, user_prompt, model=openai_model)
     else:
         return _generate_claude(system_prompt, user_prompt)
 
@@ -1138,7 +1139,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
     step_times = {}  # {step_num: {"start": time, "end": time}}
     workflow_start = time.time()
     
-    engine_label = "OpenAI " + OPENAI_MODEL if engine == "openai" else "Claude " + ANTHROPIC_MODEL
+    engine_label = "OpenAI " + effective_openai_model if engine == "openai" else "Claude " + ANTHROPIC_MODEL
     yield emit("log", {"msg": f"🚀 Workflow: {main_keyword} [{mode}] [🤖 {engine_label}]"})
     
     if engine == "openai" and not OPENAI_API_KEY:
@@ -2023,13 +2024,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             has_memory = bool(pre_batch.get("article_memory"))
             has_causal = bool(enhanced_data.get("causal_context"))
             has_smart = bool(enhanced_data.get("smart_instructions"))
-            yield emit("log", {"msg": f"Generuję tekst przez {'🟢 ' + OPENAI_MODEL if engine == 'openai' else '🟣 ' + ANTHROPIC_MODEL}... [instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'} causal={'✅' if has_causal else '—'} smart={'✅' if has_smart else '—'}]"})
+            yield emit("log", {"msg": f"Generuję tekst przez {'🟢 ' + effective_openai_model if engine == 'openai' else '🟣 ' + ANTHROPIC_MODEL}... [instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'} causal={'✅' if has_causal else '—'} smart={'✅' if has_smart else '—'}]"})
 
             if batch_type == "FAQ":
                 # FAQ batch: first analyze PAA
                 paa_result = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
                 paa_data = paa_result["data"] if paa_result["ok"] else {}
-                text = generate_faq_text(paa_data, pre_batch, engine=engine)
+                text = generate_faq_text(paa_data, pre_batch, engine=engine, openai_model=effective_openai_model)
             else:
                 # ═══ AI MIDDLEWARE: Article memory fallback ═══
                 article_memory = pre_batch.get("article_memory")
@@ -2045,7 +2046,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 
                 text = generate_batch_text(
                     pre_batch, current_h2, batch_type,
-                    article_memory, engine=engine
+                    article_memory, engine=engine, openai_model=effective_openai_model
                 )
 
             word_count = len(text.split())
@@ -2199,10 +2200,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         logger.warning(f"[FAQ] pre_batch is {type(faq_pre_batch).__name__}, forcing None")
                         faq_pre_batch = None
                     try:
-                        faq_text = generate_faq_text(paa_data_for_faq, faq_pre_batch, engine=engine)
+                        faq_text = generate_faq_text(paa_data_for_faq, faq_pre_batch, engine=engine, openai_model=effective_openai_model)
                     except AttributeError as ae:
                         logger.warning(f"[FAQ] generate_faq_text AttributeError: {ae} — retrying without pre_batch")
-                        faq_text = generate_faq_text(paa_data_for_faq, None, engine=engine)
+                        faq_text = generate_faq_text(paa_data_for_faq, None, engine=engine, openai_model=effective_openai_model)
                     if faq_text and faq_text.strip():
                         brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
                         # Extract and save
