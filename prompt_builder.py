@@ -111,6 +111,14 @@ def build_system_prompt(pre_batch, batch_type):
   Podawaj fakty bezpośrednio, bez atrybuowania ich do źródeł.
   Jeśli musisz wspomnieć źródło — zrób to MAX 1 raz na cały artykuł.
 
+• ANTY-HALUCYNACJA: NIE wymyślaj danych, których nie jesteś pewien.
+  ❌ Wymyślone statystyki: „Według GUS w 2022 roku doszło do 300 wypadków..."
+  ❌ Wymyślone rozporządzenia: „Rozporządzenie Ministra X z dnia Y..."
+  ❌ Wymyślone daty/ceny/normy: „od 1 stycznia 2026 stawka wynosi..."
+  ✅ Podawaj TYLKO fakty, które znasz z pewną wiedzą.
+  ✅ Jeśli chcesz dać przykład — napisz ogólnie: „np. w Polsce napięcie sieciowe wynosi 230 V"
+  ✅ Zamiast wymyślonych przepisów — opisz zasadę ogólną bez podawania numerów ustaw.
+
 • POLSZCZYZNA (reguły NKJP):
   → Przecinek OBOWIĄZKOWY przed: że, który/a/e, ponieważ, gdyż, aby, żeby, jednak, lecz, ale.
     Brak przecinka przed "że" to NATYCHMIASTOWY sygnał sztuczności.
@@ -656,12 +664,12 @@ def _fmt_article_memory(article_memory):
     if not article_memory:
         return ""
 
-    parts = ["═══ PAMIĘĆ ARTYKUŁU (nie powtarzaj!) ═══"]
+    parts = ["═══ PAMIĘĆ ARTYKUŁU (KRYTYCZNE — nie powtarzaj!) ═══"]
 
     if isinstance(article_memory, dict):
         topics = article_memory.get("topics_covered") or article_memory.get("covered_topics") or []
         if topics:
-            parts.append("Tematy już omówione w artykule:")
+            parts.append("Sekcje już napisane:")
             for t in topics[:10]:
                 if isinstance(t, str):
                     parts.append(f'  ✓ {t}')
@@ -669,10 +677,20 @@ def _fmt_article_memory(article_memory):
                     parts.append(f'  ✓ {t.get("topic", t.get("h2", ""))}')
 
         facts = article_memory.get("key_facts_used") or article_memory.get("facts", [])
-        if facts:
-            parts.append("\nFakty już użyte (nie powtarzaj):")
-            for f in facts[:8]:
+        # v50.5 FIX 30: Also extract key_points and avoid_repetition from AI memory
+        key_points = article_memory.get("key_points") or []
+        avoid_rep = article_memory.get("avoid_repetition") or []
+        
+        all_facts = list(facts) + list(key_points)
+        if all_facts:
+            parts.append("\nFakty/definicje już podane (NIE POWTARZAJ — odwołuj się: 'wspomniany wcześniej'):")
+            for f in all_facts[:12]:
                 parts.append(f'  • {f}' if isinstance(f, str) else f'  • {json.dumps(f, ensure_ascii=False)[:100]}')
+
+        if avoid_rep:
+            parts.append("\n⛔ KONKRETNE TEMATY DO UNIKANIA (AI memory):")
+            for r in avoid_rep[:8]:
+                parts.append(f'  ❌ {r}')
 
         phrases_used = article_memory.get("phrases_used") or {}
         if phrases_used:
@@ -682,6 +700,16 @@ def _fmt_article_memory(article_memory):
                 parts.append("\nFrazy już często użyte (ogranicz):")
                 for name, count in high_use[:8]:
                     parts.append(f'  • "{name}" — już {count}×')
+        
+        # v50.5 FIX 30: Add strong anti-repetition instruction
+        if topics and len(topics) >= 2:
+            parts.append(
+                "\n⚠️ ZASADA ANTY-POWTÓRZEŃ: Jeśli pojęcie (np. prawo Ohma, definicja ampera) "
+                "zostało ZDEFINIOWANE w poprzedniej sekcji, NIE definiuj go ponownie. "
+                "Zamiast tego: użyj go w nowym kontekście lub odnieś się krótko: "
+                "'zgodnie z omówionym wcześniej prawem Ohma'. "
+                "Powtórzenie definicji = utrata punktów jakości."
+            )
     elif isinstance(article_memory, str):
         parts.append(article_memory[:1500])
 
@@ -1396,7 +1424,38 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
 
 {phrases_text}""")
 
-    fast_note = "Tryb fast: DOKŁADNIE 3 sekcje + FAQ (4 H2 łącznie)." if mode == "fast" else "Tryb standard: MINIMUM 6, MAKSIMUM 9 sekcji + FAQ (7-10 H2 łącznie). NIE GENERUJ więcej niż 10 H2!"
+    fast_note = "Tryb fast: DOKŁADNIE 3 sekcje + FAQ (4 H2 łącznie)." if mode == "fast" else ""
+    
+    # v50.5 FIX 29: Dynamic H2 count based on recommended article length
+    # Instead of hard-coded "6-9 H2", scale H2 count to match content needs.
+    # Each H2 section generates ~200-400 words. Too many H2s → article bloat.
+    length_analysis = s1_data.get("length_analysis") or {}
+    rec_length = length_analysis.get("recommended") or s1_data.get("recommended_length") or 0
+    median_length = length_analysis.get("median") or s1_data.get("median_length") or 0
+    
+    if mode != "fast":
+        # Use recommended length (or median × 2 as fallback) to determine H2 count
+        target = rec_length or (median_length * 2) or 1500
+        if target <= 600:
+            h2_range = "3-4"
+            h2_min, h2_max = 3, 4
+        elif target <= 1200:
+            h2_range = "4-6"
+            h2_min, h2_max = 4, 6
+        elif target <= 2500:
+            h2_range = "5-7"
+            h2_min, h2_max = 5, 7
+        else:
+            h2_range = "6-9"
+            h2_min, h2_max = 6, 9
+        
+        fast_note = (
+            f"Tryb standard: {h2_range} sekcji + FAQ ({h2_min+1}-{h2_max+1} H2 łącznie).\n"
+            f"   UWAGA: Rekomendowana długość artykułu: ~{target} słów (mediana konkurencji: {median_length}).\n"
+            f"   Każda sekcja H2 = ~{target // (h2_max + 1)}-{target // h2_min} słów.\n"
+            f"   NIE GENERUJ więcej niż {h2_max + 1} H2 (wliczając FAQ)!"
+        )
+    
     h2_hint_rule = ("Uwzględnij frazy H2 użytkownika w nagłówkach, o ile brzmią naturalnie."
                     if user_h2_hints else "Dobierz nagłówki na podstawie S1 i luk treściowych.")
 
