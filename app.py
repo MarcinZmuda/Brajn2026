@@ -1207,6 +1207,30 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "source": "topical_generator"
             }
 
+            # v50.7 FIX 34: Override sem_hints with clean topical data
+            # Without this, dashboard shows raw S1 sem_hints with garbage
+            # primary_entity ("Asturianu Azərbaycanca") and broken checkpoints.
+            _primary_name = topical_gen_entities[0].get("text", "") if topical_gen_entities else main_keyword
+            _secondary_names = [e.get("text", "") for e in topical_gen_entities[1:4]]
+            sem_hints = {
+                "primary_entity": {"text": _primary_name, "type": "CONCEPT", "source": "topical_generator"},
+                "secondary_entities": [{"text": n, "type": "CONCEPT"} for n in _secondary_names],
+                "must_cover_concepts": [e.get("text", "") for e in (must_cover_concepts or topical_gen_entities[:8])],
+                "placement_instruction": backend_placement_instruction,
+                "first_paragraph_entities": _fp_names,
+                "h2_entities": _h2_names,
+                "cooccurrence_pairs": backend_cooccurrence_pairs[:5] if backend_cooccurrence_pairs else [],
+                "concept_instruction": concept_instruction,
+                "checkpoints": {
+                    "batch_1": f"H1 contains '{_primary_name}', first paragraph mentions {', '.join(_secondary_names[:2])}",
+                    "batch_3": "entity_density >= 2.5, min 50% critical entities, min 30% must_cover_concepts",
+                    "batch_5": "topic_completeness >= 50%, concept coverage >= 50%",
+                    "pre_faq": "all critical entities present, all MUST topics covered",
+                },
+                "source": "topical_generator_override"
+            }
+            yield emit("log", {"msg": f"🧬 sem_hints: nadpisane z topical generator (primary: {_primary_name})"})
+
         if backend_entity_salience:
             yield emit("log", {"msg": f"🔬 Entity Salience: {len(backend_entity_salience)} encji z analizy konkurencji"})
         if backend_entity_cooccurrence:
@@ -1981,7 +2005,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     faq_pre = brajen_call("get", f"/api/project/{project_id}/pre_batch_info", timeout=HEAVY_REQUEST_TIMEOUT)
                     faq_pre_batch = faq_pre["data"] if faq_pre.get("ok") and isinstance(faq_pre.get("data"), dict) else None
                     paa_data_for_faq = paa_analyze["data"] if isinstance(paa_analyze.get("data"), dict) else {}
-                    faq_text = generate_faq_text(paa_data_for_faq, faq_pre_batch, engine=engine)
+                    # v50.7 FIX 37: Ensure faq_pre_batch is a dict (some endpoints return str)
+                    if faq_pre_batch and not isinstance(faq_pre_batch, dict):
+                        logger.warning(f"[FAQ] pre_batch is {type(faq_pre_batch).__name__}, forcing None")
+                        faq_pre_batch = None
+                    try:
+                        faq_text = generate_faq_text(paa_data_for_faq, faq_pre_batch, engine=engine)
+                    except AttributeError as ae:
+                        logger.warning(f"[FAQ] generate_faq_text AttributeError: {ae} — retrying without pre_batch")
+                        faq_text = generate_faq_text(paa_data_for_faq, None, engine=engine)
                     if faq_text and faq_text.strip():
                         brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
                         # Extract and save
@@ -2038,16 +2070,26 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 final = final["final_review"]
             final_score = final.get("quality_score", final.get("score", "?"))
             final_status = final.get("status", "?")
-            missing_kw = (final.get("missing_keywords") or [])
-            issues = (final.get("issues") or [])
+            # v50.7 FIX 36: Read from correct keys (final_review returns all_issues, not issues)
+            missing_kw = (final.get("missing_keywords") or final.get("recommendations") or [])
+            issues = (final.get("issues") or final.get("all_issues") or [])
 
             yield emit("final_review", {
                 "score": final_score,
                 "status": final_status,
+                # v50.7 FIX 36: Read from correct keys
                 "missing_keywords_count": len(missing_kw) if isinstance(missing_kw, list) else 0,
                 "missing_keywords": missing_kw[:10] if isinstance(missing_kw, list) else [],
                 "issues_count": len(issues) if isinstance(issues, list) else 0,
                 "issues": issues[:5] if isinstance(issues, list) else [],
+                # v50.7: Add recommendations (the actual correction instructions)
+                "recommendations": (final.get("recommendations") or [])[:10],
+                "recommendations_count": len(final.get("recommendations") or []),
+                # v50.7: Add issues_summary for dashboard
+                "issues_summary": final.get("issues_summary") or {},
+                # v50.7: Stuffing info
+                "stuffing": (final.get("validations") or {}).get("missing_keywords", {}).get("stuffing", [])[:5],
+                "priority_to_add": (final.get("validations") or {}).get("missing_keywords", {}).get("priority_to_add", {}).get("to_add_by_claude", [])[:5],
                 # P5: Quality breakdown
                 "quality_breakdown": {
                     "keywords": final.get("keyword_score", final.get("keywords_score")),
@@ -2062,6 +2104,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "word_count": final.get("word_count") or final.get("total_words"),
                 "basic_coverage": final.get("basic_coverage"),
                 "extended_coverage": final.get("extended_coverage"),
+                # v50.7: Entity scoring
+                "entity_scoring": final.get("entity_scoring") or {},
             })
 
             step_done(8)
