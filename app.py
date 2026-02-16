@@ -168,6 +168,35 @@ _CSS_ENTITY_WORDS = {
     # v50.4: WordPress/CMS artifact words
     "preset", "logos", "embed", "widget", "template", "shortcode",
     "plugin", "theme", "customizer", "gutenberg", "elementor",
+    # v50.5 FIX 23: Wikipedia sidebar language names
+    # Scraper extracts language links from Wikipedia interlanguage sidebar.
+    # spaCy misclassifies these as PERSON/LOC entities with high salience.
+    "asturianu", "azərbaycanca", "afrikaans", "aragonés", "bân",
+    "català", "čeština", "cymraeg", "dansk", "eesti", "esperanto",
+    "euskara", "galego", "hrvatski", "ido", "interlingua",
+    "íslenska", "italiano", "kurdî", "latina", "latviešu",
+    "lietuvių", "magyar", "македонски", "bahasa", "melayu",
+    "nordfriisk", "nynorsk", "occitan", "oʻzbekcha", "piemontèis",
+    "português", "română", "shqip", "sicilianu", "slovenčina",
+    "slovenščina", "srpskohrvatski", "suomi", "svenska", "tagalog",
+    "türkçe", "українська", "tiếng", "việt", "volapük",
+    "walon", "winaray", "ייִדיש",
+    "башҡортса", "беларуская", "български", "қазақша", "кыргызча",
+    "монгол", "русский", "српски", "татарча", "тоҷикӣ", "ўзбекча",
+    "العربية", "فارسی", "עברית", "हिन्दी", "বাংলা",
+    "ગુજરાતી", "ಕನ್ನಡ", "தமிழ்", "తెలుగు",
+    "中文", "日本語", "한국어", "粵語",
+    # Common multi-word Wikipedia language labels
+    "fiji hindi", "basa jawa", "basa sunda", "kreyòl ayisyen",
+    # v50.5 FIX 24: Wikipedia/website navigation artifacts
+    # Buttons, links, and navigation elements scraped as entities
+    "przejdź", "sprawdź", "edytuj", "historia", "dyskusja",
+    "zaloguj", "utwórz", "szukaj", "wyszukaj", "pokaż",
+    "ukryj", "rozwiń", "zwiń", "zamknij", "otwórz",
+    "czytaj", "wyświetl", "pobierz", "udostępnij",
+    "read", "view", "edit", "search", "login", "signup",
+    "subscribe", "download", "upload", "skip", "next", "previous",
+    "more", "less", "show", "hide", "back", "forward",
 }
 
 def _is_css_garbage(text):
@@ -243,6 +272,21 @@ def _is_css_garbage(text):
     # that spaCy misclassifies as entities in Polish competitor pages.
     if len(words) == 1 and text.isascii() and text[0].islower():
         return True  # Lowercase single ASCII word = never a Polish entity
+    # v50.5 FIX 23: Multi-word Wikipedia sidebar artifacts
+    # When scraper concatenates adjacent language links: "Asturianu Azərbaycanca"
+    # Check if ALL words in the text are known Wikipedia language names
+    if len(words) >= 2:
+        _all_wiki_lang = all(w.lower() in _CSS_ENTITY_WORDS for w in words)
+        if _all_wiki_lang:
+            return True  # All words are blocked terms → garbage
+    # v50.5 FIX 23: Detect non-Polish/non-English single capitalized words
+    # Wikipedia sidebar contains language names in native script (Türkçe, Čeština...)
+    # Polish proper nouns contain Polish diacritics (ą, ć, ę, ł, ń, ó, ś, ź, ż)
+    # but NOT characters like ə, ö, ü, ç, ş, ð, þ, ñ etc.
+    if len(words) == 1 and len(text) >= 3 and text[0].isupper():
+        _NON_POLISH_CHARS = set("əöüçşðþñãâêîôûàèìòùäëïü")
+        if any(c.lower() in _NON_POLISH_CHARS for c in text):
+            return True  # Contains non-Polish diacritics → likely Wikipedia language name
     return bool(_CSS_GARBAGE_PATTERNS.search(text))
 
 def _extract_text(item):
@@ -1127,6 +1171,30 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if topical_gen_entities and not must_cover_concepts:
             # Use topical entities as must_cover_concepts
             must_cover_concepts = topical_gen_entities[:8]
+
+        # ═══ v50.4 FIX 21: Override ALL contamination paths when topical gen active ═══
+        # Without this, backend_first_para_entities and backend_h2_entities
+        # still carry scraper garbage (e.g. Wikipedia sidebar languages like
+        # "Asturianu Azərbaycanca", navigation buttons like "Przejdź",
+        # brand contacts like "TAURON Sprzedaż GZE sp.") into the prompt,
+        # causing GPT to cite them as information sources.
+        if topical_gen_entities:
+            # Override first paragraph entities with topical primary + top 2 secondary
+            backend_first_para_entities = topical_gen_entities[:3]
+            # Override H2 entities with remaining topical entities
+            backend_h2_entities = topical_gen_entities[3:8]
+            # Override entity salience with topical-generated entities
+            # (prevents "Asturianu Azərbaycanca" as primary in dashboard)
+            backend_entity_salience = []
+            for i, ent in enumerate(topical_gen_entities[:12]):
+                _sal = round(0.85 - (i * 0.06), 2)  # Primary=0.85, decreasing
+                backend_entity_salience.append({
+                    "entity": ent.get("text", ent.get("entity", "")),
+                    "salience": max(0.05, _sal),
+                    "type": ent.get("type", "CONCEPT"),
+                    "source": "topical_generator"
+                })
+            yield emit("log", {"msg": f"🧬 Entity salience + first_para + H2: nadpisane z topical generator ({len(backend_entity_salience)} encji)"})
 
         if backend_entity_salience:
             yield emit("log", {"msg": f"🔬 Entity Salience: {len(backend_entity_salience)} encji z analizy konkurencji"})
@@ -2546,4 +2614,3 @@ def health():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=os.environ.get("DEBUG", "false").lower() == "true")
-    
