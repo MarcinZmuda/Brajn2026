@@ -1196,6 +1196,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 })
             yield emit("log", {"msg": f"🧬 Entity salience + first_para + H2: nadpisane z topical generator ({len(backend_entity_salience)} encji)"})
 
+            # v50.5 FIX 35: Also override backend_entity_placement for dashboard display
+            # Dashboard reads entity_placement.first_paragraph_entities/h2_entities directly.
+            _fp_names = [e.get("text", e.get("entity", "")) for e in backend_first_para_entities]
+            _h2_names = [e.get("text", e.get("entity", "")) for e in backend_h2_entities]
+            backend_entity_placement = {
+                "first_paragraph_entities": _fp_names,
+                "h2_entities": _h2_names,
+                "placement_instruction": backend_placement_instruction,
+                "source": "topical_generator"
+            }
+
         if backend_entity_salience:
             yield emit("log", {"msg": f"🔬 Entity Salience: {len(backend_entity_salience)} encji z analizy konkurencji"})
         if backend_entity_cooccurrence:
