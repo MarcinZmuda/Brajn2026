@@ -741,28 +741,35 @@ def synthesize_article_memory(accepted_batches: list) -> dict:
 
 
 def ai_synthesize_memory(accepted_batches: list, main_keyword: str) -> dict:
-    """AI-powered article memory — Claude summarizes what's been written so far."""
+    """AI-powered article memory — Claude summarizes what's been written so far.
+    v50.5 FIX 30: Enhanced to extract specific definitions, formulas, and facts
+    that must NOT be repeated in subsequent batches."""
     if not accepted_batches or not ANTHROPIC_API_KEY:
         return synthesize_article_memory(accepted_batches)
     
     batch_summaries = []
-    for i, batch in enumerate(accepted_batches[-5:], 1):
+    for i, batch in enumerate(accepted_batches[-6:], 1):
         h2 = batch.get("h2", "Bez nagłówka")
-        text = batch.get("text", "")[:300]
+        text = batch.get("text", "")[:500]  # v50.5: increased from 300 to 500
         batch_summaries.append(f"Sekcja {i}: [{h2}] {text}...")
     
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = client.messages.create(
-            model=MIDDLEWARE_MODEL, max_tokens=400, temperature=0,
+            model=MIDDLEWARE_MODEL, max_tokens=600, temperature=0,
             messages=[{"role": "user", "content": (
                 f'Artykuł o: "{main_keyword}"\n\n'
                 f'Dotychczas napisane sekcje:\n' + "\n".join(batch_summaries) + "\n\n"
-                f'Zwróć JSON: {{"topics_covered": ["lista tematów"], '
-                f'"key_points": ["najważniejsze punkty"], '
-                f'"avoid_repetition": ["co nie powtarzać"], '
-                f'"total_words": {sum(len(b.get("text","").split()) for b in accepted_batches)}, '
-                f'"batch_count": {len(accepted_batches)}}}'
+                f'Przeanalizuj tekst i zwróć JSON z:\n'
+                f'1. topics_covered: lista tematów/sekcji już omówionych\n'
+                f'2. key_points: KONKRETNE definicje i wzory już podane '
+                f'(np. "prawo Ohma: I=U/R", "amper = 1 kulomb/sekundę")\n'
+                f'3. avoid_repetition: co konkretnie NIE POWTARZAĆ '
+                f'(np. "definicja prądu", "wzór I=Q/t", "opis przewodnika vs izolatora")\n'
+                f'4. entities_defined: lista encji/pojęć już zdefiniowanych w tekście\n'
+                f'5. total_words: {sum(len(b.get("text","").split()) for b in accepted_batches)}\n'
+                f'6. batch_count: {len(accepted_batches)}\n\n'
+                f'Zwróć TYLKO JSON, bez komentarzy.'
             )}]
         )
         text = response.content[0].text.strip()
