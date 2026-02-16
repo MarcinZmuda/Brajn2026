@@ -134,6 +134,17 @@ _CSS_NGRAM_EXACT = {
     "only social link", "logos only social link",
     "style logos only social", "social link block social",
     "only social link block", "wp preset", "preset gradient",
+    # v50.7 FIX 39: CSS @font-face declaration fragments
+    "font family", "face font", "font style", "font weight",
+    "weight font", "display swap", "swap src", "src url",
+    "url blog", "blog wp", "content fonts", "unicode range",
+    "face font family", "weight font display", "font display swap",
+    "display swap src", "swap src url", "src url blog",
+    "font face", "woff2 format", "woff format", "ttf format",
+    "font awesome", "awesome regular", "awesome solid", "awesome brands",
+    # v50.7: WordPress content/blog patterns
+    "wp content", "content uploads", "content themes", "content plugins",
+    "wp includes", "wp json", "wp admin",
 }
 
 _CSS_ENTITY_WORDS = {
@@ -260,6 +271,16 @@ def _is_css_garbage(text):
         'border', 'margin', 'padding', 'strong', 'color',
         # v49: CSS variable tokens
         'ast', 'var', 'global', 'min', 'max', 'wp',
+        # v50.7 FIX 39: CSS font-face declaration fragments from @font-face rules
+        'family', 'face', 'style', 'weight', 'swap', 'src', 'url',
+        'unicode', 'range', 'fonts', 'woff', 'woff2', 'ttf', 'eot', 'svg',
+        'format', 'local', 'fallback', 'optional', 'preload',
+        # v50.7: Font Awesome / icon fonts scraped as entities
+        'awesome', 'regular', 'solid', 'brands', 'duotone', 'sharp',
+        'fa', 'fab', 'fas', 'far', 'fal', 'fad',
+        # v50.7: Blog/CMS URL fragments
+        'blog', 'post', 'page', 'category', 'tag', 'author', 'archive',
+        'sidebar', 'footer', 'header', 'nav', 'menu',
     }
     if len(words) >= 2 and all(w in _CSS_VOCAB for w in words):
         return True
@@ -287,6 +308,30 @@ def _is_css_garbage(text):
         _NON_POLISH_CHARS = set("əöüçşðþñãâêîôûàèìòùäëïü")
         if any(c.lower() in _NON_POLISH_CHARS for c in text):
             return True  # Contains non-Polish diacritics → likely Wikipedia language name
+    # v50.7 FIX 39: Hex color codes (A7FF, FEFC, FF00, 3B82F6 etc.)
+    # Scraper extracts CSS hex colors as "entities"
+    if len(words) == 1 and _re.match(r'^[0-9A-Fa-f]{3,8}$', text):
+        return True  # Pure hex string → CSS color code
+    # v50.7 FIX 39: Font Awesome / icon font declarations
+    if 'font awesome' in t_lower or 'fontawesome' in t_lower:
+        return True
+    # v50.7 FIX 39: CSS strings with quotes ('"Font Awesome 6 Regular";')
+    if '"' in text or "'" in text:
+        # Entities shouldn't contain quotes — these are CSS font-family values
+        stripped = text.replace('"', '').replace("'", '').replace(';', '').strip()
+        if stripped.lower() in {'font awesome', 'font awesome 6', 'font awesome 6 regular',
+                                'font awesome 6 free', 'font awesome 6 brands',
+                                'font awesome 5', 'font awesome 5 free'}:
+            return True
+        # Any string with semicolons + quotes = CSS
+        if ';' in text:
+            return True
+    # v50.7 FIX 39: Detect CSS @font-face artifacts in multi-word strings
+    _FONT_FACE_WORDS = {'font', 'family', 'face', 'style', 'weight', 'swap',
+                        'src', 'url', 'unicode', 'range', 'format', 'woff',
+                        'woff2', 'ttf', 'eot', 'local', 'awesome', 'regular'}
+    if len(words) >= 2 and all(w in _FONT_FACE_WORDS for w in words):
+        return True
     return bool(_CSS_GARBAGE_PATTERNS.search(text))
 
 def _extract_text(item):
@@ -369,8 +414,109 @@ def _filter_ngrams(ngrams):
     return clean
 
 
-# ============================================================
-# v50.4: TOPICAL ENTITY GENERATOR — FIX 20
+# v50.7 FIX 40: AI cleanup for n-grams and causal triplets
+# Uses Claude Haiku (cheap, ~$0.005/call) to filter scraper garbage
+# that regex-based _is_css_garbage() misses.
+_AI_CLEANUP_MODEL = "claude-haiku-4-5-20251001"
+
+def _ai_cleanup_ngrams_and_causal(main_keyword: str, ngrams: list, causal_chains: list, causal_singles: list) -> dict:
+    """Use AI to filter CSS/HTML garbage from n-grams and causal triplets.
+    
+    Returns: {"ngrams": [...], "causal_chains": [...], "causal_singles": [...]}
+    """
+    if not ngrams and not causal_chains and not causal_singles:
+        return {"ngrams": [], "causal_chains": [], "causal_singles": []}
+    
+    # Build concise input
+    ng_texts = []
+    for ng in ngrams[:20]:
+        text = ng.get("ngram", ng) if isinstance(ng, dict) else str(ng)
+        score = ng.get("score", ng.get("weight", 0)) if isinstance(ng, dict) else 0
+        ng_texts.append(f"{text} ({score:.2f})" if score else text)
+    
+    causal_texts = []
+    for c in (causal_chains + causal_singles)[:10]:
+        cause = c.get("cause", c.get("from", ""))
+        effect = c.get("effect", c.get("to", ""))
+        rel = c.get("relation", c.get("type", "→"))
+        causal_texts.append(f"{cause} → {rel} → {effect}")
+    
+    prompt = f"""Temat artykułu: "{main_keyword}"
+
+Poniżej są n-gramy i relacje kauzalne wyciągnięte ze stron konkurencji w SERP.
+Wiele z nich to ŚMIECI ze scrapera: fragmenty CSS, HTML, @font-face, nazwy klas CSS,
+nawigacja stron, elementy UI, nazwy języków z Wikipedii, tekst z reklam.
+
+ZADANIE: Zwróć TYLKO te elementy, które są MERYTORYCZNIE związane z tematem "{main_keyword}".
+Odrzuć wszystko co nie jest treścią merytoryczną.
+
+=== N-GRAMY ===
+{chr(10).join(ng_texts) if ng_texts else "(brak)"}
+
+=== RELACJE KAUZALNE ===
+{chr(10).join(causal_texts) if causal_texts else "(brak)"}
+
+Odpowiedz TYLKO w JSON (bez markdown):
+{{"ngrams": ["ngram1", "ngram2", ...], "causal": ["cause → relation → effect", ...]}}
+
+Jeśli WSZYSTKIE elementy to śmieci, zwróć {{"ngrams": [], "causal": []}}"""
+
+    try:
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model=_AI_CLEANUP_MODEL,
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        text = response.content[0].text.strip()
+        # Parse JSON
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        result = json.loads(text)
+        
+        clean_ng_texts = set(n.lower().split(" (")[0] for n in result.get("ngrams", []))
+        clean_causal_texts = set(result.get("causal", []))
+        
+        # Filter original ngrams to keep only AI-approved ones
+        filtered_ngrams = []
+        for ng in ngrams:
+            ng_text = (ng.get("ngram", ng) if isinstance(ng, dict) else str(ng)).lower()
+            if ng_text in clean_ng_texts:
+                filtered_ngrams.append(ng)
+        
+        # Filter causal — match by cause text
+        filtered_chains = []
+        filtered_singles = []
+        approved_causes = set()
+        for ct in clean_causal_texts:
+            parts = ct.split("→")
+            if parts:
+                approved_causes.add(parts[0].strip().lower())
+        
+        for c in causal_chains:
+            cause = c.get("cause", c.get("from", "")).lower().strip()
+            if cause in approved_causes or any(ac in cause for ac in approved_causes):
+                filtered_chains.append(c)
+        for c in causal_singles:
+            cause = c.get("cause", c.get("from", "")).lower().strip()
+            if cause in approved_causes or any(ac in cause for ac in approved_causes):
+                filtered_singles.append(c)
+        
+        logger.info(f"[AI_CLEANUP] ngrams: {len(ngrams)}→{len(filtered_ngrams)} | causal: {len(causal_chains)+len(causal_singles)}→{len(filtered_chains)+len(filtered_singles)}")
+        return {
+            "ngrams": filtered_ngrams,
+            "causal_chains": filtered_chains,
+            "causal_singles": filtered_singles,
+        }
+    except Exception as e:
+        logger.warning(f"[AI_CLEANUP] Failed: {e} — falling back to regex filter")
+        return {
+            "ngrams": ngrams,
+            "causal_chains": causal_chains,
+            "causal_singles": causal_singles,
+        }
 # When N-gram API fails to provide ai_topical_entities (common),
 # generate proper topical entities using a fast LLM call.
 # This replaces CSS/HTML garbage with real topic-based entities.
@@ -635,31 +781,41 @@ def _sanitize_placement_instruction(text):
         has_garbage = any(_is_css_garbage(q) for q in quoted)
         if has_garbage:
             continue
+        # v50.7 FIX 39: Also check unquoted entity-like words on the line
+        # Placement lines like "📎 ENCJE: A7FF, bluish, vivid" have no quotes
+        line_lower = line.lower()
+        # Check for hex color codes in the line
+        hex_matches = _re.findall(r'\b[A-Fa-f0-9]{4,8}\b', line)
+        if hex_matches and not any(c.isalpha() and c.lower() not in 'abcdef' for m in hex_matches for c in m):
+            # Line contains hex color codes with no other alpha → suspicious
+            pure_hex = [m for m in hex_matches if _re.match(r'^[0-9A-Fa-f]{4,8}$', m)]
+            if len(pure_hex) >= 2:
+                continue  # Multiple hex codes → CSS color line
+        # v50.7: Check for Font Awesome references
+        if 'font awesome' in line_lower or 'fontawesome' in line_lower:
+            continue
+        # v50.7: Check for CSS property patterns anywhere in the line
+        if any(css_pat in line_lower for css_pat in [
+            'placeholder{', 'relative;', 'serif;', '{color', 'display:', 
+            'font-family', '@font-face', 'woff2', '.woff', '.ttf',
+        ]):
+            continue
         # v50.4: Filter lines where a PERSON entity appears alongside a brand
-        # These are brand page contacts, not topically relevant entities
-        # e.g. "Leszek Bober" appearing with "TAURON" → brand contact, not expert
         if quoted and any(_is_brand_entity(q) for q in quoted):
-            # If ANY quoted entity on this line is a brand, check if another is a person
             non_brand_quoted = [q for q in quoted if not _is_brand_entity(q)]
-            # If the line references a brand alongside a non-brand entity, keep only if
-            # the non-brand entity is clearly topical (skip PERSON contacts)
             line_lower = line.lower()
             if "person" in line_lower and non_brand_quoted:
                 continue  # Skip: this is a brand contact person
         # v50.4: Filter relation lines that are scraped sentence fragments
-        # e.g. "porze nocnej → oferuje → ona również niższe stawki..."
         if "→" in line:
-            # Extract the relation value (after last →)
             parts = line.split("→")
             if len(parts) >= 3:
                 relation_value = parts[-1].strip()
-                # If the relation value is >8 words, it's a scraped sentence fragment
                 if len(relation_value.split()) > 8:
                     continue
         clean_lines.append(line)
     result = "\n".join(clean_lines).strip()
-    # v50.4: Raised threshold from 0.2 to 0.4 — if >60% of instruction was garbage,
-    # the S1 data is too contaminated to use for placement
+    # v50.4: If >60% of instruction was garbage, data is too contaminated
     if len(result) < len(text) * 0.4:
         return ""
     return result
@@ -1248,7 +1404,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # v45.4.1: Filter causal triplets — remove CSS-contaminated extractions
         def _filter_causal(triplets):
-            """Remove causal triplets where cause/effect looks like CSS."""
+            """Remove causal triplets where cause/effect looks like CSS or truncated."""
             if not triplets:
                 return []
             clean = []
@@ -1262,6 +1418,20 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     continue  # Truncated sentence fragments
                 if _is_css_garbage(cause) or _is_css_garbage(effect):
                     continue
+                # v50.7 FIX 39: Detect truncated sentence fragments
+                # "unkiem, że opiera się..." starts mid-word → garbage
+                cause_stripped = cause.strip()
+                effect_stripped = effect.strip()
+                if cause_stripped and cause_stripped[0].islower() and not cause_stripped.startswith(("np.", "tj.", "m.in.")):
+                    # Starts mid-word/mid-sentence — likely truncated scrape
+                    # Check if first word looks like a Polish suffix (ends with -iem, -iem, -ych, -ów)
+                    first_word = cause_stripped.split()[0].rstrip(",.:;")
+                    if len(first_word) < 4 or first_word.endswith(("iem", "iem", "ych", "ów", "ami", "ach", "owi")):
+                        continue
+                if effect_stripped and effect_stripped[0].islower() and not effect_stripped.startswith(("np.", "tj.", "m.in.")):
+                    first_word = effect_stripped.split()[0].rstrip(",.:;")
+                    if len(first_word) < 4 or first_word.endswith(("iem", "iem", "ych", "ów", "ami", "ach", "owi")):
+                        continue
                 clean.append(t)
             return clean
 
@@ -1269,6 +1439,25 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         raw_causal_singles = (s1.get("causal_triplets") or {}).get("singles", [])[:10]
         clean_causal_chains = _filter_causal(raw_causal_chains)
         clean_causal_singles = _filter_causal(raw_causal_singles)
+
+        # v50.7 FIX 40: AI cleanup for n-grams and causal triplets
+        # Regex filter catches obvious CSS, AI catches the rest (~$0.005, ~2s)
+        if clean_ngrams or clean_causal_chains or clean_causal_singles:
+            try:
+                ai_cleanup = _ai_cleanup_ngrams_and_causal(
+                    main_keyword, clean_ngrams, clean_causal_chains, clean_causal_singles
+                )
+                pre_ai_ng = len(clean_ngrams)
+                pre_ai_cc = len(clean_causal_chains) + len(clean_causal_singles)
+                clean_ngrams = ai_cleanup["ngrams"]
+                clean_causal_chains = ai_cleanup["causal_chains"]
+                clean_causal_singles = ai_cleanup["causal_singles"]
+                post_ai_ng = len(clean_ngrams)
+                post_ai_cc = len(clean_causal_chains) + len(clean_causal_singles)
+                if pre_ai_ng != post_ai_ng or pre_ai_cc != post_ai_cc:
+                    yield emit("log", {"msg": f"🧹 AI cleanup: n-gramy {pre_ai_ng}→{post_ai_ng} | kauzalne {pre_ai_cc}→{post_ai_cc}"})
+            except Exception as ai_err:
+                logger.warning(f"[AI_CLEANUP] Error in workflow: {ai_err}")
 
         if concept_entities:
             yield emit("log", {"msg": f"🧠 Concept entities: {len(concept_entities)} (z topical_entity_extractor)"})
@@ -2143,6 +2332,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 9, "name": "Editorial Review", "status": "running"})
         yield emit("log", {"msg": "POST /editorial_review — to może chwilę potrwać..."})
 
+        editorial_result = {"ok": False}  # v50.7: safety init for FIX 41
         editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review", timeout=HEAVY_REQUEST_TIMEOUT)
         if editorial_result["ok"]:
             ed = editorial_result["data"]
@@ -2163,12 +2353,30 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "word_count_after": word_guard.get("corrected"),
                 "rollback": rollback.get("triggered", False),
                 "rollback_reason": rollback.get("reason", ""),
-                "feedback": (ed.get("editorial_feedback") or {})
+                "feedback": (ed.get("editorial_feedback") or {}),
+                # v50.7 FIX 41: Add change details for expanded panel
+                "applied_changes": (ed.get("applied_changes") or diff.get("applied_changes") or [])[:15],
+                "failed_changes": (ed.get("failed_changes") or diff.get("failed_changes") or [])[:10],
+                "summary": (ed.get("editorial_feedback") or {}).get("summary", ed.get("summary", "")),
+                "errors_found": (ed.get("editorial_feedback") or {}).get("errors_to_fix", [])[:10],
+                "grammar_fixes": (ed.get("grammar_correction") or {}).get("fixes", 0),
+                "grammar_removed": (ed.get("grammar_correction") or {}).get("removed", [])[:5],
             })
 
             if rollback.get("triggered"):
                 yield emit("log", {"msg": f"⚠️ ROLLBACK: {rollback.get('reason', 'unknown')}"})
 
+            # v50.7 FIX 41: Re-emit corrected article to update preview
+            if not rollback.get("triggered"):
+                corrected_text = ed.get("corrected_article", "")
+                if corrected_text and len(corrected_text.strip()) > 50:
+                    corrected_wc = len(corrected_text.split())
+                    yield emit("article", {
+                        "text": corrected_text,
+                        "word_count": corrected_wc,
+                        "source": "editorial_review",
+                    })
+                    yield emit("log", {"msg": f"📝 Podgląd zaktualizowany po editorial ({corrected_wc} słów)"})
             step_done(9)
             yield emit("step", {"step": 9, "name": "Editorial Review", "status": "done", "detail": detail})
         else:
@@ -2186,9 +2394,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             stats = (full.get("stats") or {})
             coverage = (full.get("coverage") or {})
 
+            # v50.7 FIX 41: Use editorial corrected article if available
+            article_text = full.get("full_article", "")
+            if editorial_result and editorial_result.get("ok"):
+                ed_corrected = (editorial_result.get("data") or {}).get("corrected_article", "")
+                if ed_corrected and len(ed_corrected.strip()) > 50:
+                    ed_rollback = ((editorial_result.get("data") or {}).get("rollback") or {}).get("triggered", False)
+                    if not ed_rollback:
+                        article_text = ed_corrected
+                        yield emit("log", {"msg": f"📝 Export: użyto tekst po editorial review ({len(ed_corrected.split())} słów)"})
+
             yield emit("article", {
-                "text": full.get("full_article", ""),
-                "word_count": stats.get("word_count", 0),
+                "text": article_text,
+                "word_count": len(article_text.split()) if article_text else 0,
                 "h2_count": stats.get("h2_count", 0),
                 "h3_count": stats.get("h3_count", 0),
                 "coverage": coverage,
@@ -2196,7 +2414,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             })
 
             # ═══ ENTITY SALIENCE: Google NLP API validation ═══
-            full_text = full.get("full_article", "")
+            full_text = article_text
             salience_result = {}
             nlp_entities = []
             subject_pos = {}
