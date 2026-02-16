@@ -1218,11 +1218,17 @@ def build_faq_user_prompt(paa_data, pre_batch=None):
     enhanced_paa = []
     if pre_batch:
         enhanced = pre_batch.get("enhanced") or {}
+        if not isinstance(enhanced, dict):
+            enhanced = {}
         enhanced_paa = enhanced.get("paa_from_serp") or []
+        if not isinstance(enhanced_paa, list):
+            enhanced_paa = []
 
     keyword_limits = {}
     if pre_batch:
         keyword_limits = pre_batch.get("keyword_limits") or {}
+        if not isinstance(keyword_limits, dict):
+            keyword_limits = {}
     stop_raw = keyword_limits.get("stop_keywords") or []
     stop_names = [s.get("keyword", s) if isinstance(s, dict) else s for s in stop_raw]
 
@@ -1436,13 +1442,16 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
     if mode != "fast":
         # Use recommended length (or median × 2 as fallback) to determine H2 count
         target = rec_length or (median_length * 2) or 1500
-        if target <= 600:
+        if target <= 500:
+            h2_range = "2-3"
+            h2_min, h2_max = 2, 3
+        elif target <= 1000:
             h2_range = "3-4"
             h2_min, h2_max = 3, 4
-        elif target <= 1200:
+        elif target <= 2000:
             h2_range = "4-6"
             h2_min, h2_max = 4, 6
-        elif target <= 2500:
+        elif target <= 3500:
             h2_range = "5-7"
             h2_min, h2_max = 5, 7
         else:
