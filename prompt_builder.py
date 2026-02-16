@@ -89,6 +89,28 @@ def build_system_prompt(pre_batch, batch_type):
 • ANTY-BRAND-STUFFING: NIE powtarzaj nazw firm/marek więcej niż 2x w artykule.
   Jeśli w encjach pojawia się firma (np. TAURON, PGE), wspomnij ją MAX 2 razy.
 
+• ANTY-FILLER: Każde zdanie MUSI dodawać nową informację.
+  ❌ „Przewodnik elektryczny przewodzi prąd." — truizm, oczywistość
+  ❌ „Opór elektryczny wpływa na natężenie." — banał bez konkretu
+  ❌ „To kluczowa różnica technologiczna." — puste podsumowanie
+  ✅ „Miedź przewodzi prąd 6× lepiej niż żelazo, dlatego stanowi 60% okablowania domowego."
+  Zamiast powtarzać definicję encji jako truizm, opisz DLACZEGO, JAK, ILE, KIEDY.
+
+• ANTY-TRANSITIONS-FILLER: NIE używaj pustych zdań przejściowych:
+  ❌ „To prowadzi do kolejnego aspektu."
+  ❌ „Z tym wiąże się potrzeba zrozumienia..."
+  ❌ „Wynika z tego, że..."
+  ❌ „Kolejna część artykułu wyjaśnia..."
+  Te zdania marnują miejsce. Zamiast nich — przejdź bezpośrednio do nowego tematu.
+  Każde zdanie powinno nieść informację, a nie zapowiadać ją.
+
+• CYTOWANIE ŹRÓDEŁ: NIE cytuj nazw encji jako źródeł informacji.
+  ❌ „Wikipedia podaje, że..." (max 1× w całym artykule)
+  ❌ „Według [nazwa encji z listy]..." — encje to pojęcia, nie źródła
+  ❌ „[cokolwiek] potwierdza / podaje / przywołuje..."
+  Podawaj fakty bezpośrednio, bez atrybuowania ich do źródeł.
+  Jeśli musisz wspomnieć źródło — zrób to MAX 1 raz na cały artykuł.
+
 • POLSZCZYZNA (reguły NKJP):
   → Przecinek OBOWIĄZKOWY przed: że, który/a/e, ponieważ, gdyż, aby, żeby, jednak, lecz, ale.
     Brak przecinka przed "że" to NATYCHMIASTOWY sygnał sztuczności.
@@ -540,12 +562,12 @@ def _fmt_entity_salience(pre_batch):
                 fp_names.append(f'"{name}"')
         if fp_names:
             parts.append(
-                "PIERWSZY AKAPIT — encje z TOP10:\n"
-                f"Konkurencja umieszcza w pierwszym akapicie: {', '.join(fp_names)}.\n"
-                "Wpleć min. 2-3 z nich w pierwsze 100 słów."
+                "PIERWSZY AKAPIT — encje tematyczne:\n"
+                f"Wprowadź w pierwszym akapicie: {', '.join(fp_names)}.\n"
+                "⚠️ To POJĘCIA do opisania, NIE źródła do cytowania. Nie pisz '[encja] podaje/potwierdza...'."
             )
     
-    # 6. v50: H2 entities — encje z nagłówków H2 konkurencji
+    # 6. v50: H2 entities — encje tematyczne do rozmieszczenia w H2
     h2_ents = pre_batch.get("_h2_entities") or []
     if h2_ents:
         h2_names = []
@@ -555,9 +577,9 @@ def _fmt_entity_salience(pre_batch):
                 h2_names.append(f'"{name}"')
         if h2_names:
             parts.append(
-                "ENCJE W H2 (u konkurencji):\n"
-                f"Nagłówki H2 top10 zawierają: {', '.join(h2_names)}.\n"
-                "Użyj tych encji w swoich nagłówkach H2/H3 lub w pierwszym zdaniu pod H2."
+                "ENCJE TEMATYCZNE W H2:\n"
+                f"Rozłóż w tekście: {', '.join(h2_names)}.\n"
+                "⚠️ To POJĘCIA do opisania, NIE źródła. Nie pisz '[encja] podaje...'."
             )
     
     return "\n\n".join(parts) if parts else ""
