@@ -965,7 +965,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "brajen-seo-secret-" + str(uuid.uu
 
 BRAJEN_API = os.environ.get("BRAJEN_API_URL", "https://master-seo-api.onrender.com")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-6")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6-20250514")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1")
 
@@ -1229,6 +1229,7 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
     
     v45.3: Replaces raw json.dumps() with structured natural language prompts
     that Claude can follow effectively. Uses prompt_builder module.
+    v50.8 FIX 49: Adaptive thinking (effort) + web search for YMYL.
     """
     system_prompt = build_system_prompt(pre_batch, batch_type)
     user_prompt = build_user_prompt(pre_batch, h2, batch_type, article_memory)
@@ -1236,22 +1237,92 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
     if engine == "openai" and OPENAI_API_KEY:
         return _generate_openai(system_prompt, user_prompt, model=openai_model)
     else:
-        return _generate_claude(system_prompt, user_prompt)
+        # v50.8 FIX 49: Determine effort level and web search from context
+        is_ymyl = pre_batch.get("_is_ymyl", False)
+        ymyl_intensity = pre_batch.get("_ymyl_intensity", "none")
+        
+        # Adaptive effort: YMYL → high, INTRO → medium, rest → low
+        if ymyl_intensity == "full":
+            effort = "high"
+        elif ymyl_intensity == "light" or batch_type == "INTRO":
+            effort = "medium"
+        else:
+            effort = "low"
+        
+        # Web search: only for YMYL content (legal/medical/finance)
+        use_web_search = is_ymyl and ymyl_intensity == "full"
+        
+        return _generate_claude(system_prompt, user_prompt,
+                                effort=effort, web_search=use_web_search)
 
 
-def _generate_claude(system_prompt, user_prompt):
-    """Generate text using Anthropic Claude. v50.7 FIX 48: Auto-retry on 429/529."""
+def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False):
+    """Generate text using Anthropic Claude.
+    
+    v50.7 FIX 48: Auto-retry on 429/529.
+    v50.8 FIX 49: Adaptive thinking (effort) + web search for YMYL.
+    
+    Args:
+        effort: "high" | "medium" | "low" | None (None = no effort param, uses temperature)
+        web_search: True = enable web_search tool (for YMYL fact verification)
+    """
     def _call():
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=4000,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-            temperature=0.7
-        )
-        return response.content[0].text.strip()
-    return _llm_call_with_retry(_call)
+        
+        kwargs = {
+            "model": ANTHROPIC_MODEL,
+            "max_tokens": 4000,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_prompt}],
+        }
+        
+        # v50.8 FIX 49: Adaptive thinking — budget_tokens scales by task difficulty.
+        # max_tokens must exceed budget_tokens (thinking counts against it).
+        # YMYL (legal/medical) → more reasoning → better accuracy
+        # Regular content → less reasoning → faster, cheaper
+        if effort:
+            kwargs["temperature"] = 1  # Required: temperature must be 1 with thinking
+            budget = {"high": 3000, "medium": 1500, "low": 500}.get(effort, 1500)
+            kwargs["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": budget
+            }
+            # max_tokens must be > budget_tokens; ensure 4000 for output
+            kwargs["max_tokens"] = budget + 4000
+        else:
+            kwargs["temperature"] = 0.7
+        
+        # v50.8 FIX 49: Web search tool for YMYL content
+        # Claude searches the web to verify legal/medical facts during generation
+        if web_search:
+            kwargs["tools"] = [
+                {"type": "web_search_20250305", "name": "web_search"}
+            ]
+        
+        response = client.messages.create(**kwargs)
+        
+        # v50.8: Parse response — may contain thinking blocks + text + web search results
+        text_parts = []
+        for block in response.content:
+            if block.type == "text":
+                text_parts.append(block.text)
+        
+        return "\n".join(text_parts).strip()
+    
+    try:
+        return _llm_call_with_retry(_call)
+    except Exception as e:
+        # v50.8: Graceful fallback — if thinking/web_search not supported, retry without
+        err_str = str(e).lower()
+        if effort and ("thinking" in err_str or "budget_tokens" in err_str or "temperature" in err_str):
+            logger.warning(f"[FIX49] Thinking not supported, falling back: {str(e)[:100]}")
+            effort = None  # Disable for retry
+            return _llm_call_with_retry(_call)
+        if web_search and ("web_search" in err_str or "tool" in err_str):
+            logger.warning(f"[FIX49] Web search not supported, falling back: {str(e)[:100]}")
+            web_search = False  # Disable for retry
+            return _llm_call_with_retry(_call)
+        raise
 
 
 def _generate_openai(system_prompt, user_prompt, model=None):
@@ -1299,7 +1370,8 @@ def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=No
     if engine == "openai" and OPENAI_API_KEY:
         return _generate_openai(system_prompt, user_prompt, model=openai_model)
     else:
-        return _generate_claude(system_prompt, user_prompt)
+        # FAQ = simple Q&A, low effort is sufficient
+        return _generate_claude(system_prompt, user_prompt, effort="low")
 
 
 # ============================================================
@@ -2242,7 +2314,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             has_memory = bool(pre_batch.get("article_memory"))
             has_causal = bool(enhanced_data.get("causal_context"))
             has_smart = bool(enhanced_data.get("smart_instructions"))
-            yield emit("log", {"msg": f"Generuję tekst przez {'🟢 ' + effective_openai_model if engine == 'openai' else '🟣 ' + ANTHROPIC_MODEL}... [instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'} causal={'✅' if has_causal else '—'} smart={'✅' if has_smart else '—'}]"})
+            # v50.8 FIX 49: Determine effort/web_search for logging
+            _is_ymyl = pre_batch.get("_is_ymyl", False)
+            _ymyl_int = pre_batch.get("_ymyl_intensity", "none")
+            _effort = "high" if _ymyl_int == "full" else ("medium" if _ymyl_int == "light" or batch_type == "INTRO" else "low")
+            _web = _is_ymyl and _ymyl_int == "full"
+            yield emit("log", {"msg": f"Generuję tekst przez {'🟢 ' + effective_openai_model if engine == 'openai' else '🟣 ' + ANTHROPIC_MODEL}... [effort={_effort} web={'✅' if _web else '—'} instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'}]"})
 
             if batch_type == "FAQ":
                 # FAQ batch: first analyze PAA
@@ -2971,7 +3048,7 @@ def edit_article():
 
     try:
         client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
+        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6-20250514")
         
         # v50.7 FIX 48: Auto-retry on 429/529
         def _call():
