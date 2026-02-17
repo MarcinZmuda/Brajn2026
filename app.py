@@ -965,7 +965,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "brajen-seo-secret-" + str(uuid.uu
 
 BRAJEN_API = os.environ.get("BRAJEN_API_URL", "https://master-seo-api.onrender.com")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6-20250514")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1")
 
@@ -3048,7 +3048,7 @@ def edit_article():
 
     try:
         client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6-20250514")
+        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
         
         # v50.7 FIX 48: Auto-retry on 429/529
         def _call():
