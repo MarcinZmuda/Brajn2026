@@ -1445,31 +1445,26 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
 
     fast_note = "Tryb fast: DOKŁADNIE 3 sekcje + FAQ (4 H2 łącznie)." if mode == "fast" else ""
     
-    # v50.5 FIX 29: Dynamic H2 count based on recommended article length
-    # Instead of hard-coded "6-9 H2", scale H2 count to match content needs.
-    # Each H2 section generates ~200-400 words. Too many H2s → article bloat.
+    # v50.8 FIX 50: H2 scaling — minimum 5-6 sekcji nawet dla krótkich artykułów.
+    # Więcej sekcji = lepsza struktura, lepsze SEO, łatwiejsze skanowanie.
     length_analysis = s1_data.get("length_analysis") or {}
     rec_length = length_analysis.get("recommended") or s1_data.get("recommended_length") or 0
     median_length = length_analysis.get("median") or s1_data.get("median_length") or 0
     
     if mode != "fast":
-        # Use recommended length (or median × 2 as fallback) to determine H2 count
         target = rec_length or (median_length * 2) or 1500
-        if target <= 500:
-            h2_range = "2-3"
-            h2_min, h2_max = 2, 3
-        elif target <= 1000:
-            h2_range = "3-4"
-            h2_min, h2_max = 3, 4
+        if target <= 1000:
+            h2_range = "5-6"
+            h2_min, h2_max = 5, 6
         elif target <= 2000:
-            h2_range = "4-6"
-            h2_min, h2_max = 4, 6
+            h2_range = "6-8"
+            h2_min, h2_max = 6, 8
         elif target <= 3500:
-            h2_range = "5-7"
-            h2_min, h2_max = 5, 7
+            h2_range = "7-9"
+            h2_min, h2_max = 7, 9
         else:
-            h2_range = "6-9"
-            h2_min, h2_max = 6, 9
+            h2_range = "8-12"
+            h2_min, h2_max = 8, 12
         
         fast_note = (
             f"Tryb standard: {h2_range} sekcji + FAQ ({h2_min+1}-{h2_max+1} H2 łącznie).\n"
