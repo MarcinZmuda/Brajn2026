@@ -1202,8 +1202,8 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
         # Ultimate fallback
         h2_list = suggested_h2s[:7] + ["Najczęściej zadawane pytania"] if suggested_h2s else [main_keyword, "Najczęściej zadawane pytania"]
     
-    # ═══ v47.2: Enforce H2 count limits based on mode ═══
-    MAX_H2 = {"fast": 4, "standard": 10}  # fast=3+FAQ, standard=9+FAQ
+    # ═══ v50.8 FIX 50: Enforce H2 count limits based on mode ═══
+    MAX_H2 = {"fast": 4, "standard": 14}  # fast=3+FAQ, standard=up to 13+FAQ
     max_allowed = MAX_H2.get(mode, 10)
     
     if len(h2_list) > max_allowed:
