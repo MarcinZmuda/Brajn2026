@@ -597,15 +597,17 @@ Wypełnij TYLKO sekcję odpowiadającą kategorii. Resztę zostaw pustą."""
 
 
 def _detect_ymyl_local(main_keyword: str) -> dict:
-    """Local YMYL detection using Claude Haiku. ~$0.003, ~1s."""
+    """Local YMYL detection using Claude Haiku. ~$0.003, ~1s. v50.7 FIX 48: Auto-retry."""
     try:
-        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-        response = client.messages.create(
-            model=_AI_CLEANUP_MODEL,  # Haiku — cheap + fast
-            max_tokens=500,
-            temperature=0.1,
-            messages=[{"role": "user", "content": _YMYL_PROMPT.format(topic=main_keyword)}]
-        )
+        def _call():
+            client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+            return client.messages.create(
+                model=_AI_CLEANUP_MODEL,  # Haiku — cheap + fast
+                max_tokens=500,
+                temperature=0.1,
+                messages=[{"role": "user", "content": _YMYL_PROMPT.format(topic=main_keyword)}]
+            )
+        response = _llm_call_with_retry(_call)
         raw = response.content[0].text.strip()
         raw = raw.replace("```json", "").replace("```", "").strip()
         result = json.loads(raw)
@@ -958,6 +960,41 @@ HEAVY_REQUEST_TIMEOUT = 360  # For editorial_review, final_review, full_article 
 MAX_RETRIES = 3
 RETRY_DELAYS = [5, 15, 30]
 
+# v50.7 FIX 48: Auto-retry for transient LLM API errors (429 quota, 529 overloaded, 503 unavailable)
+LLM_RETRY_MAX = 3
+LLM_RETRY_DELAYS = [10, 30, 60]  # seconds between retries
+LLM_RETRYABLE_CODES = {429, 503, 529}
+
+def _llm_call_with_retry(fn, *args, **kwargs):
+    """Wrap LLM API call with retry on transient errors.
+    
+    Retries on: 429 (rate limit/quota), 503 (unavailable), 529 (overloaded).
+    Does NOT retry on: 400 (bad request), 401 (auth), 404, etc.
+    """
+    last_error = None
+    for attempt in range(LLM_RETRY_MAX + 1):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            last_error = e
+            # Extract HTTP status code from various API client exceptions
+            status = getattr(e, 'status_code', None) or getattr(e, 'status', None)
+            if status is None:
+                # anthropic.APIStatusError / openai.APIStatusError store it in .status_code
+                err_str = str(e)
+                for code in LLM_RETRYABLE_CODES:
+                    if str(code) in err_str:
+                        status = code
+                        break
+            
+            if status in LLM_RETRYABLE_CODES and attempt < LLM_RETRY_MAX:
+                delay = LLM_RETRY_DELAYS[attempt]
+                logger.warning(f"[LLM_RETRY] {status} error on attempt {attempt+1}/{LLM_RETRY_MAX+1}, retrying in {delay}s: {str(e)[:120]}")
+                time.sleep(delay)
+                continue
+            else:
+                raise  # Non-retryable or max retries exceeded
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -1098,9 +1135,8 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
     """
     Generate optimal H2 structure from S1 analysis data.
     v45.3: Uses prompt_builder for readable prompts instead of json.dumps().
+    v50.7 FIX 48: Auto-retry on 429/529.
     """
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    
     # Extract S1 insights for fallback
     suggested_h2s = (s1_data.get("content_gaps") or {}).get("suggested_new_h2s", [])
     
@@ -1117,13 +1153,17 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
         main_keyword, mode, s1_data, all_user_phrases, user_h2_hints
     )
 
-    response = client.messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=1000,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-        temperature=0.5
-    )
+    def _call():
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        return client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=1000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+            temperature=0.5
+        )
+    
+    response = _llm_call_with_retry(_call)
     
     response_text = response.content[0].text.strip()
     
@@ -1186,41 +1226,45 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
 
 
 def _generate_claude(system_prompt, user_prompt):
-    """Generate text using Anthropic Claude."""
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    response = client.messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=4000,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-        temperature=0.7
-    )
-    return response.content[0].text.strip()
+    """Generate text using Anthropic Claude. v50.7 FIX 48: Auto-retry on 429/529."""
+    def _call():
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=4000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+            temperature=0.7
+        )
+        return response.content[0].text.strip()
+    return _llm_call_with_retry(_call)
 
 
 def _generate_openai(system_prompt, user_prompt, model=None):
-    """Generate text using OpenAI GPT."""
+    """Generate text using OpenAI GPT. v50.7 FIX 48: Auto-retry on 429/529."""
     if not OPENAI_AVAILABLE:
         logger.warning("OpenAI not installed, falling back to Claude")
         return _generate_claude(system_prompt, user_prompt)
     
     effective_model = model or OPENAI_MODEL
-    client = openai.OpenAI(api_key=OPENAI_API_KEY)
     
     # v50.7 FIX 43: GPT-5.x and o-series use max_completion_tokens, not max_tokens
     use_new_param = any(effective_model.startswith(p) for p in ("gpt-5", "o1", "o3", "o4"))
     token_param = {"max_completion_tokens": 4000} if use_new_param else {"max_tokens": 4000}
     
-    response = client.chat.completions.create(
-        model=effective_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0.7,
-        **token_param
-    )
-    return response.choices[0].message.content.strip()
+    def _call():
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model=effective_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            **token_param
+        )
+        return response.choices[0].message.content.strip()
+    return _llm_call_with_retry(_call)
 
 
 def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=None):
@@ -2833,11 +2877,15 @@ def edit_article():
     try:
         client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
         model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
-        response = client.messages.create(
-            model=model, max_tokens=8000,
-            messages=[{"role": "user", "content": user_prompt}],
-            system=system_prompt
-        )
+        
+        # v50.7 FIX 48: Auto-retry on 429/529
+        def _call():
+            return client.messages.create(
+                model=model, max_tokens=8000,
+                messages=[{"role": "user", "content": user_prompt}],
+                system=system_prompt
+            )
+        response = _llm_call_with_retry(_call)
         result_text = response.content[0].text.strip()
         return jsonify({
             "ok": True, "edited_text": result_text,
