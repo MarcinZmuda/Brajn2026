@@ -41,7 +41,7 @@ except ImportError:
 
 import re as _re
 
-# AI Middleware — inteligentne czyszczenie danych i smart retry
+# AI Middleware: inteligentne czyszczenie danych i smart retry
 from ai_middleware import (
     process_s1_for_pipeline,
     smart_retry_batch,
@@ -78,7 +78,7 @@ except ImportError:
     LANGUAGETOOL_AVAILABLE = False
 
 # ================================================================
-# 🗑️ CSS/JS GARBAGE FILTER — czyści śmieci z S1 danych
+# 🗑️ CSS/JS GARBAGE FILTER: czyści śmieci z S1 danych
 # ================================================================
 _CSS_GARBAGE_PATTERNS = _re.compile(
     r'(?:'
@@ -127,7 +127,7 @@ _CSS_NGRAM_EXACT = {
     "wp block", "wp embed", "post type", "nav menu", "menu item",
     "header menu", "sub menu", "mega menu", "footer menu",
     "widget area", "sidebar widget", "page template",
-    # v45.4.1: Extended — catches observed CSS garbage from dashboard
+    # v45.4.1: Extended: catches observed CSS garbage from dashboard
     "list list", "heading heading", "container expand", "expand container",
     "container item", "container container", "table responsive",
     "heading heading heading", "list list list", "list list list list",
@@ -177,7 +177,7 @@ _CSS_ENTITY_WORDS = {
     "xl", "ac", "arrow", "dim",
     "menlo", "monaco", "consolas", "courier", "arial", "helvetica",
     "verdana", "georgia", "roboto", "poppins", "raleway",
-    # v50.4: Scraper artifacts — English words spaCy misclassifies as entities
+    # v50.4: Scraper artifacts: English words spaCy misclassifies as entities
     # These are CSS class names, color names, or HTML content words that
     # appear in competitor pages and get extracted as Polish entities.
     "vivid", "bluish", "muted", "faded", "bright", "subtle", "crisp",
@@ -237,7 +237,7 @@ def _is_css_garbage(text):
         return True
     if text.lower() in _CSS_ENTITY_WORDS:
         return True
-    # v47.2: CSS compound tokens — inherit;color, section{display, serif;font
+    # v47.2: CSS compound tokens: inherit;color, section{display, serif;font
     t_lower = text.lower()
     if _re.match(r'^[\w-]+[;{}\[\]:]+[\w-]+$', t_lower):
         _CSS_TOKENS = {
@@ -298,7 +298,7 @@ def _is_css_garbage(text):
     }
     if len(words) >= 2 and all(w in _CSS_VOCAB for w in words):
         return True
-    # v50.4: Sentence fragments — real entities are max 5-6 words,
+    # v50.4: Sentence fragments: real entities are max 5-6 words,
     # scraper sometimes extracts entire sentence fragments as "entities"
     if len(words) > 6:
         return True
@@ -331,7 +331,7 @@ def _is_css_garbage(text):
         return True
     # v50.7 FIX 39: CSS strings with quotes ('"Font Awesome 6 Regular";')
     if '"' in text or "'" in text:
-        # Entities shouldn't contain quotes — these are CSS font-family values
+        # Entities shouldn't contain quotes, these are CSS font-family values
         stripped = text.replace('"', '').replace("'", '').replace(';', '').strip()
         if stripped.lower() in {'font awesome', 'font awesome 6', 'font awesome 6 regular',
                                 'font awesome 6 free', 'font awesome 6 brands',
@@ -367,7 +367,7 @@ def _filter_entities(entities):
             text = ent.get("text", "") or ent.get("entity", "") or ent.get("name", "")
             if _is_css_garbage(text):
                 continue
-            # v50: Brand entity cap — max 2 brand entities per article
+            # v50: Brand entity cap: max 2 brand entities per article
             if _is_brand_entity(text):
                 brand_count += 1
                 if brand_count > 2:
@@ -574,7 +574,7 @@ Jeśli sekcja ma SAME śmieci, zwróć pustą listę/string."""
             "entities": filtered_entities,
         }
     except Exception as e:
-        logger.warning(f"[AI_CLEANUP] Failed: {e} — falling back to unfiltered data")
+        logger.warning(f"[AI_CLEANUP] Failed: {e}, falling back to unfiltered data")
         return {
             "ngrams": ngrams,
             "causal_chains": causal_chains,
@@ -591,10 +591,10 @@ Jeśli sekcja ma SAME śmieci, zwróć pustą listę/string."""
 _YMYL_PROMPT = """Klasyfikuj temat: "{topic}"
 
 Określ kategorię YMYL (Your Money Your Life):
-- "prawo" — jeśli temat dotyczy prawa, kar, przepisów, wyroków, umów, rozwodów, przestępstw
-- "zdrowie" — jeśli dotyczy zdrowia, chorób, leków, terapii, objawów, diagnoz
-- "finanse" — jeśli dotyczy inwestycji, kredytów, podatków, ubezpieczeń, oszczędności
-- "general" — wszystko inne
+- "prawo": jeśli temat dotyczy prawa, kar, przepisów, wyroków, umów, rozwodów, przestępstw
+- "zdrowie": jeśli dotyczy zdrowia, chorób, leków, terapii, objawów, diagnoz
+- "finanse": jeśli dotyczy inwestycji, kredytów, podatków, ubezpieczeń, oszczędności
+- "general": wszystko inne
 
 Odpowiedz TYLKO w JSON (bez markdown):
 {{
@@ -616,7 +616,7 @@ def _detect_ymyl_local(main_keyword: str) -> dict:
         def _call():
             client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
             return client.messages.create(
-                model=_AI_CLEANUP_MODEL,  # Haiku — cheap + fast
+                model=_AI_CLEANUP_MODEL,  # Haiku (cheap + fast)
                 max_tokens=500,
                 temperature=0.1,
                 messages=[{"role": "user", "content": _YMYL_PROMPT.format(topic=main_keyword)}]
@@ -661,20 +661,20 @@ def _detect_ymyl_local(main_keyword: str) -> dict:
 # - Patent US10235423B2: entity relatedness & notability
 # - Patent US9009192B1: identifying central entities
 # - Dunietz & Gillick (2014): entity salience
-# - Document "Topical entities w SEO" — topical entities = concepts
+# - Document "Topical entities w SEO": topical entities = concepts
 #   that define and contextualize a topic in Knowledge Graph
 # ============================================================
 
-_TOPICAL_ENTITY_PROMPT = """Jesteś ekspertem semantic SEO. Dla podanego tematu wygeneruj topical entities — koncepty, osoby, jednostki, prawa, urządzenia i pojęcia, które definiują ten temat w Knowledge Graph Google.
+_TOPICAL_ENTITY_PROMPT = """Jesteś ekspertem semantic SEO. Dla podanego tematu wygeneruj topical entities, czyli koncepty, osoby, jednostki, prawa, urządzenia i pojęcia, które definiują ten temat w Knowledge Graph Google.
 
 ZASADY:
-1. Encje MUSZĄ być tematyczne — bezpośrednio powiązane z tematem, nie z komercyjnymi stronami w SERP
+1. Encje MUSZĄ być tematyczne, bezpośrednio powiązane z tematem, nie z komercyjnymi stronami w SERP
 2. Encja główna = sam temat (lub jego najbardziej precyzyjna forma)
 3. Encje wtórne = 10-12 kluczowych konceptów powiązanych (osoby historyczne, jednostki, prawa, urządzenia, podtypy)
 4. Dla każdej encji: 1 trójka E-A-V (Encja → Atrybut → Wartość)
 5. 3-5 par co-occurrence (encje które powinny występować blisko siebie w tekście)
-6. NIE dodawaj firm komercyjnych (TAURON, PGE itp.) — to nie są topical entities
-7. NIE dodawaj dat, cen, taryf — to nie są koncepty tematyczne
+6. NIE dodawaj firm komercyjnych (TAURON, PGE itp.), to nie są topical entities
+7. NIE dodawaj dat, cen, taryf, to nie są koncepty tematyczne
 8. Odpowiedź TYLKO w JSON, bez markdown, bez komentarzy
 
 FORMAT JSON:
@@ -699,7 +699,7 @@ def _generate_topical_entities(main_keyword: str, h2_plan: list = None) -> dict:
     Uses gpt-4.1-mini for speed (~1-2s) and cost efficiency.
     """
     if not OPENAI_API_KEY:
-        logger.warning("[TOPICAL_ENTITIES] No OpenAI API key — skipping")
+        logger.warning("[TOPICAL_ENTITIES] No OpenAI API key, skipping")
         return {}
     
     try:
@@ -820,7 +820,7 @@ def _topical_to_placement_instruction(topical_result: dict, main_keyword: str) -
         lines.append(f'')
         lines.append(f'📋 ENCJE TEMATYCZNE (do rozmieszczenia w tekście):')
         for e in h2_ents:
-            eav = f' — {e["eav"]}' if e.get("eav") else ""
+            eav = f': {e["eav"]}' if e.get("eav") else ""
             lines.append(f'   • "{e["text"]}" ({e.get("type", "CONCEPT")}){eav}')
     
     # Co-occurrence pairs
@@ -832,7 +832,7 @@ def _topical_to_placement_instruction(topical_result: dict, main_keyword: str) -
             e2 = pair.get("entity2", "")
             reason = pair.get("reason", "")
             if e1 and e2:
-                lines.append(f'   • "{e1}" + "{e2}"{" — " + reason if reason else ""}')
+                lines.append(f'   • "{e1}" + "{e2}"{" (" + reason + ")" if reason else ""}')
     
     return "\n".join(lines)
 
@@ -852,7 +852,7 @@ def _topical_to_cooccurrence(topical_result: dict) -> list:
     return pairs
 
 def _filter_h2_patterns(patterns):
-    """Filter H2 patterns — remove CSS garbage AND navigation elements."""
+    """Filter H2 patterns: remove CSS garbage AND navigation elements."""
     # v49: Navigation terms that appear as H2 on scraped pages
     _NAV_H2_TERMS = {
         "wyszukiwarka", "nawigacja", "moje strony", "mapa serwisu", "mapa strony",
@@ -1012,7 +1012,7 @@ def _llm_call_with_retry(fn, *args, **kwargs):
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Auth — require env vars, no hardcoded fallbacks
+# Auth: require env vars, no hardcoded fallbacks
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 APP_USERNAME = os.environ.get("APP_USERNAME", "")
 if not APP_PASSWORD or not APP_USERNAME:
@@ -1105,7 +1105,7 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
             if attempt < MAX_RETRIES - 1:
                 time.sleep(RETRY_DELAYS[attempt])
                 continue
-            return {"ok": False, "status": 0, "error": "Timeout — Render cold start?"}
+            return {"ok": False, "status": 0, "error": "Timeout (Render cold start?)"}
 
         except http_requests.exceptions.ConnectionError as e:
             logger.warning(f"BRAJEN connection error: {endpoint}")
@@ -1118,7 +1118,7 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
 
 
 # ============================================================
-# TEXT POST-PROCESSING — strip duplicate headers, clean artifacts
+# TEXT POST-PROCESSING: strip duplicate headers, clean artifacts
 # ============================================================
 def _clean_batch_text(text):
     """Remove duplicate ## headers when h2: format exists, strip markdown artifacts."""
@@ -1154,7 +1154,7 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
     # Extract S1 insights for fallback
     suggested_h2s = (s1_data.get("content_gaps") or {}).get("suggested_new_h2s", [])
     
-    # Parse user phrases (strip ranges) — for topic context only
+    # Parse user phrases (strip ranges), for topic context only
     all_user_phrases = []
     for term_str in (basic_terms + extended_terms):
         kw = term_str.strip().split(":")[0].strip()
@@ -1276,7 +1276,7 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False):
             "messages": [{"role": "user", "content": user_prompt}],
         }
         
-        # v50.8 FIX 49: Adaptive thinking — budget_tokens scales by task difficulty.
+        # v50.8 FIX 49: Adaptive thinking: budget_tokens scales by task difficulty.
         # max_tokens must exceed budget_tokens (thinking counts against it).
         # YMYL (legal/medical) → more reasoning → better accuracy
         # Regular content → less reasoning → faster, cheaper
@@ -1301,7 +1301,7 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False):
         
         response = client.messages.create(**kwargs)
         
-        # v50.8: Parse response — may contain thinking blocks + text + web search results
+        # v50.8: Parse response: may contain thinking blocks + text + web search results
         text_parts = []
         for block in response.content:
             if block.type == "text":
@@ -1312,7 +1312,7 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False):
     try:
         return _llm_call_with_retry(_call)
     except Exception as e:
-        # v50.8: Graceful fallback — if thinking/web_search not supported, retry without
+        # v50.8: Graceful fallback: if thinking/web_search not supported, retry without
         err_str = str(e).lower()
         if effort and ("thinking" in err_str or "budget_tokens" in err_str or "temperature" in err_str):
             logger.warning(f"[FIX49] Thinking not supported, falling back: {str(e)[:100]}")
@@ -1398,7 +1398,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
     yield emit("log", {"msg": f"🚀 Workflow: {main_keyword} [{mode}] [🤖 {engine_label}]"})
     
     if engine == "openai" and not OPENAI_API_KEY:
-        yield emit("log", {"msg": "⚠️ OPENAI_API_KEY nie ustawiony — fallback na Claude"})
+        yield emit("log", {"msg": "⚠️ OPENAI_API_KEY nie ustawiony, fallback na Claude"})
         engine = "claude"
 
     def step_start(num):
@@ -1452,7 +1452,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "done",
                             "detail": f"{h2_patterns} H2 patterns | {causal_count} causal triplets | {gaps_count} content gaps"})
         
-        # S1 data for UI — already cleaned by Claude Sonnet middleware
+        # S1 data for UI, already cleaned by Claude Sonnet middleware
         entity_seo = s1.get("entity_seo") or {}
         raw_entities = entity_seo.get("top_entities", entity_seo.get("entities", []))[:20]
         raw_must_mention = entity_seo.get("must_mention_entities", [])[:10]
@@ -1460,7 +1460,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         serp_analysis = s1.get("serp_analysis") or {}
         raw_h2_patterns = (s1.get("competitor_h2_patterns") or serp_analysis.get("competitor_h2_patterns") or [])[:30]
 
-        # v48.0: Claude already cleaned — lightweight safety net only
+        # v48.0: Claude already cleaned, lightweight safety net only
         clean_entities = _filter_entities(raw_entities)[:10]
         clean_must_mention = _filter_entities(raw_must_mention)[:5]
         clean_ngrams = _filter_ngrams(raw_ngrams)[:15]
@@ -1491,7 +1491,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # - No AI topical entities from N-gram API, AND
             # - Either high garbage ratio (>40% filtered) or very few clean entities
             if _garbage_ratio > 0.4 or _clean_count < 4:
-                yield emit("log", {"msg": f"🧬 Encje ze scrapera niskiej jakości ({_clean_count}/{_raw_count} przefiltrowanych) — generuję topical entities..."})
+                yield emit("log", {"msg": f"🧬 Encje ze scrapera niskiej jakości ({_clean_count}/{_raw_count} przefiltrowanych), generuję topical entities..."})
                 topical_gen_result = _generate_topical_entities(main_keyword)
                 
                 if topical_gen_result:
@@ -1506,9 +1506,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     _ent_names = [_extract_text(e) for e in topical_gen_entities[:5]]
                     yield emit("log", {"msg": f"🧬 Topical entities wygenerowane: {', '.join(_ent_names)}"})
                 else:
-                    yield emit("log", {"msg": "⚠️ Topical entity generation failed — używam przefiltrowanych encji ze scrapera"})
+                    yield emit("log", {"msg": "⚠️ Topical entity generation failed, używam przefiltrowanych encji ze scrapera"})
             else:
-                yield emit("log", {"msg": f"✅ Encje ze scrapera OK ({_clean_count} clean) — bez dodatkowej generacji"})
+                yield emit("log", {"msg": f"✅ Encje ze scrapera OK ({_clean_count} clean), bez dodatkowej generacji"})
 
         # If Claude/N-gram API produced topical entities, use them as primary
         if ai_topical:
@@ -1578,8 +1578,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             backend_placement_instruction = topical_gen_placement
             yield emit("log", {"msg": "🧬 Placement instruction: z topical entity generator (zamiast scrapera)"})
         elif ai_topical and not topical_gen_entities:
-            # v50.7 FIX 44: N-gram API gave entities but no placement — build from entities
-            # v50.7 FIX 47: Use _extract_text() — handles str+dict
+            # v50.7 FIX 44: N-gram API gave entities but no placement, build from entities
+            # v50.7 FIX 47: Use _extract_text(): handles str+dict
             _ai_names = [_extract_text(e) for e in ai_topical[:8] if _extract_text(e)]
             if _ai_names:
                 _lines = [
@@ -1618,7 +1618,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             for i, ent in enumerate(_override_entities[:12]):
                 _sal = round(0.85 - (i * 0.06), 2)  # Primary=0.85, decreasing
                 backend_entity_salience.append({
-                    # v50.7 FIX 47: Use _extract_text() — entities can be str OR dict
+                    # v50.7 FIX 47: Use _extract_text(): entities can be str OR dict
                     "entity": _extract_text(ent),
                     "salience": max(0.05, _sal),
                     "type": ent.get("type", "CONCEPT") if isinstance(ent, dict) else "CONCEPT",
@@ -1627,7 +1627,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🧬 Entity salience + first_para + H2: nadpisane ({len(backend_entity_salience)} encji, src={'topical_gen' if topical_gen_entities else 'ai_topical'})"})
 
             # v50.5 FIX 35: Also override backend_entity_placement for dashboard display
-            # v50.7 FIX 47: Use _extract_text() — handles str+dict
+            # v50.7 FIX 47: Use _extract_text(): handles str+dict
             _fp_names = [_extract_text(e) for e in backend_first_para_entities]
             _h2_names = [_extract_text(e) for e in backend_h2_entities]
             backend_entity_placement = {
@@ -1638,7 +1638,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             }
 
             # v50.7 FIX 34: Override sem_hints with clean topical data
-            # v50.7 FIX 47: Use _extract_text() — handles str+dict
+            # v50.7 FIX 47: Use _extract_text(): handles str+dict
             _primary_name = _extract_text(_override_entities[0]) if _override_entities else main_keyword
             _secondary_names = [_extract_text(e) for e in _override_entities[1:4]]
             sem_hints = {
@@ -1677,7 +1677,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             kp.get("phrase", kp) if isinstance(kp, dict) else str(kp)
         )]
 
-        # v45.4.1: Filter causal triplets — remove CSS-contaminated extractions
+        # v45.4.1: Filter causal triplets: remove CSS-contaminated extractions
         def _filter_causal(triplets):
             """Remove causal triplets where cause/effect looks like CSS or truncated."""
             if not triplets:
@@ -1698,7 +1698,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 cause_stripped = cause.strip()
                 effect_stripped = effect.strip()
                 if cause_stripped and cause_stripped[0].islower() and not cause_stripped.startswith(("np.", "tj.", "m.in.")):
-                    # Starts mid-word/mid-sentence — likely truncated scrape
+                    # Starts mid-word/mid-sentence, likely truncated scrape
                     # Check if first word looks like a Polish suffix (ends with -iem, -iem, -ych, -ów)
                     first_word = cause_stripped.split()[0].rstrip(",.:;")
                     if len(first_word) < 4 or first_word.endswith(("iem", "iem", "ych", "ów", "ami", "ach", "owi")):
@@ -1715,7 +1715,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         clean_causal_chains = _filter_causal(raw_causal_chains)
         clean_causal_singles = _filter_causal(raw_causal_singles)
 
-        # v50.7 FIX 45: Comprehensive AI cleanup — one call cleans EVERYTHING
+        # v50.7 FIX 45: Comprehensive AI cleanup: one call cleans EVERYTHING
         # Replaces regex whack-a-mole with AI that understands context (~$0.008, ~2s)
         try:
             ai_cleanup = _ai_cleanup_all_s1_data(
@@ -1758,7 +1758,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if len(clean_ngrams) < len(raw_ngrams) * 0.5:
             yield emit("log", {"msg": f"⚠️ N-gramy: {len(raw_ngrams) - len(clean_ngrams)}/{len(raw_ngrams)} odfiltrowane jako CSS garbage"})
         yield emit("s1_data", {
-            # Stats for top bar — backend nests these in length_analysis{}
+            # Stats for top bar, backend nests these in length_analysis{}
             "recommended_length": s1.get("recommended_length") or (s1.get("length_analysis") or {}).get("recommended"),
             "median_length": s1.get("median_length") or (s1.get("length_analysis") or {}).get("median", 0),
             "average_length": (s1.get("length_analysis") or {}).get("average") or s1.get("average_length") or s1.get("avg_length"),
@@ -1777,7 +1777,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "featured_snippet": s1.get("featured_snippet") or serp_analysis.get("featured_snippet"),
             "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview"),
             "related_searches": s1.get("related_searches") or serp_analysis.get("related_searches") or [],
-            # PAA — check multiple locations
+            # PAA: check multiple locations
             "paa_questions": (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or [])[:10],
             # Causal triplets
             "causal_triplets_count": len(clean_causal_chains) + len(clean_causal_singles),
@@ -1794,7 +1794,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "subtopic_missing": ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("subtopic_missing", []),
             "depth_missing": ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("depth_missing", []),
             "gaps_instruction": ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("instruction", ""),
-            # Entity SEO — v48.0: topical entities primary
+            # Entity SEO: v48.0: topical entities primary
             "entity_seo": {
                 "top_entities": clean_entities,
                 "must_mention": clean_must_mention,
@@ -1852,7 +1852,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             entities_from_s1=s1_must_mention
         )
         if is_salience_available():
-            yield emit("log", {"msg": "🔬 Entity Salience: Google NLP API aktywne — walidacja po zakończeniu artykułu"})
+            yield emit("log", {"msg": "🔬 Entity Salience: Google NLP API aktywne, walidacja po zakończeniu artykułu"})
         else:
             yield emit("log", {"msg": "ℹ️ Entity Salience: instrukcje pozycjonowania encji aktywne (brak API key dla walidacji)"})
 
@@ -1868,13 +1868,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         is_finance = ymyl_data.get("is_finance", False)
         ymyl_confidence = ymyl_data.get("confidence", 0)
         ymyl_reasoning = ymyl_data.get("reasoning", "")
-        # v50: YMYL intensity — full/light/none
+        # v50: YMYL intensity: full/light/none
         ymyl_intensity = ymyl_data.get("ymyl_intensity", "none")
         light_ymyl_note = ymyl_data.get("light_ymyl_note", "")
         
         if ymyl_reasoning:
             intensity_emoji = {"full": "🔴", "light": "🟡", "none": "⚪"}.get(ymyl_intensity, "⚪")
-            yield emit("log", {"msg": f"🧠 YMYL klasyfikacja: {ymyl_data.get('category', '?')} ({ymyl_confidence}) intensity={ymyl_intensity} {intensity_emoji} — {ymyl_reasoning[:80]}"})
+            yield emit("log", {"msg": f"🧠 YMYL klasyfikacja: {ymyl_data.get('category', '?')} ({ymyl_confidence}) intensity={ymyl_intensity} {intensity_emoji} | {ymyl_reasoning[:80]}"})
 
         legal_context = None
         medical_context = None
@@ -1884,12 +1884,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             legal_hints = ymyl_data.get("legal", {})
             articles = legal_hints.get("articles", [])
             arts_str = ", ".join(articles[:4]) if articles else "brak"
-            yield emit("log", {"msg": f"⚖️ Temat prawny YMYL — przepisy: {arts_str} — pobieram orzeczenia..."})
+            yield emit("log", {"msg": f"⚖️ Temat prawny YMYL, przepisy: {arts_str}. Pobieram orzeczenia..."})
             
             # v47.2: Pass Claude's article hints to SAOS search
             lc = brajen_call("post", "/api/legal/get_context", {
                 "main_keyword": main_keyword,
-                "force_enable": True,  # Claude already classified — skip keyword gate
+                "force_enable": True,  # Claude already classified, skip keyword gate
                 "article_hints": articles,  # art. 178a k.k. etc.
                 "search_queries": legal_hints.get("search_queries", []),
             })
@@ -1902,7 +1902,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             medical_hints = ymyl_data.get("medical", {})
             mesh = medical_hints.get("mesh_terms", [])
             spec = medical_hints.get("specialization", "")
-            yield emit("log", {"msg": f"🏥 Temat medyczny YMYL — {spec} | MeSH: {', '.join(mesh[:3])} — pobieram źródła..."})
+            yield emit("log", {"msg": f"🏥 Temat medyczny YMYL: {spec} | MeSH: {', '.join(mesh[:3])}. Pobieram źródła..."})
             
             # v47.2: Pass Claude's MeSH hints to PubMed search
             mc = brajen_call("post", "/api/medical/get_context", {
@@ -1921,7 +1921,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         
         if is_finance:
             ymyl_enrichment["finance"] = ymyl_data.get("finance", {})
-            yield emit("log", {"msg": f"💰 Temat finansowy YMYL — {ymyl_reasoning[:60]}"})
+            yield emit("log", {"msg": f"💰 Temat finansowy YMYL: {ymyl_reasoning[:60]}"})
 
         ymyl_detail = f"Legal: {'TAK' if is_legal else 'NIE'} | Medical: {'TAK' if is_medical else 'NIE'} | Finance: {'TAK' if is_finance else 'NIE'}"
 
@@ -2034,7 +2034,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 extended_terms=extended_terms
             )
         elif len(h2_structure) > 0:
-            # User provided hints — use them as hints, optimize with S1
+            # User provided hints, use them as hints, optimize with S1
             user_hints = list(h2_structure)  # save original
             yield emit("log", {"msg": f"Optymalizuję {len(user_hints)} wskazówek H2 na podstawie S1..."})
             h2_structure = generate_h2_plan(
@@ -2168,7 +2168,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                 "detail": json.dumps(strategy, ensure_ascii=False)[:200]})
         else:
             yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "warning",
-                                "detail": "Nie udało się pobrać — kontynuuję"})
+                                "detail": "Nie udało się pobrać, kontynuuję"})
 
         # ─── KROK 6: Batch Loop ───
         step_start(6)
@@ -2216,7 +2216,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if ymyl_enrichment:
                 pre_batch["_ymyl_enrichment"] = ymyl_enrichment
                 # v50: Removed redundant aliases (_ymyl_key_concepts, _ymyl_evidence_note,
-                # _ymyl_specialization) — data consumed through _ymyl_enrichment parent dict
+                # _ymyl_specialization) , data consumed through _ymyl_enrichment parent dict
                 # in _fmt_legal_medical() as ymyl_enrich.get("legal"/"medical").
 
             # ═══ Inject last depth score for adaptive depth signals ═══
@@ -2330,7 +2330,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 # ═══ AI MIDDLEWARE: Article memory fallback ═══
                 article_memory = pre_batch.get("article_memory")
                 if not article_memory and accepted_batches_log:
-                    # Backend didn't provide memory — synthesize locally
+                    # Backend didn't provide memory, synthesize locally
                     if len(accepted_batches_log) >= 3:
                         article_memory = ai_synthesize_memory(accepted_batches_log, main_keyword)
                         yield emit("log", {"msg": f"🧠 AI Middleware: synteza pamięci artykułu ({len(accepted_batches_log)} batchy)"})
@@ -2360,7 +2360,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 submit_data = {"text": text}
                 if forced:
                     submit_data["forced"] = True
-                    yield emit("log", {"msg": "⚡ Forced mode ON — wymuszam zapis"})
+                    yield emit("log", {"msg": "⚡ Forced mode ON, wymuszam zapis"})
 
                 yield emit("log", {"msg": f"POST /batch_simple (próba {attempt + 1}/{max_attempts})"})
                 submit_result = brajen_call("post", f"/api/project/{project_id}/batch_simple", submit_data)
@@ -2398,9 +2398,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     })
                     break
 
-                # Not accepted — decide retry strategy
+                # Not accepted, decide retry strategy
                 if forced:
-                    yield emit("log", {"msg": f"⚠️ Batch {batch_num} w forced mode — kontynuuję"})
+                    yield emit("log", {"msg": f"⚠️ Batch {batch_num} w forced mode, kontynuuję"})
                     accepted_batches_log.append({
                         "text": text, "h2": current_h2, "batch_num": batch_num,
                         "depth_score": depth
@@ -2409,7 +2409,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
                 # ═══ AI MIDDLEWARE: Smart retry ═══
                 if exceeded and should_use_smart_retry(result, attempt + 1):
-                    yield emit("log", {"msg": f"🤖 AI Smart Retry — Sonnet przepisuje tekst (zamiana {len(exceeded)} fraz)..."})
+                    yield emit("log", {"msg": f"🤖 AI Smart Retry: Sonnet przepisuje tekst (zamiana {len(exceeded)} fraz)..."})
                     text = smart_retry_batch(
                         original_text=text,
                         exceeded_keywords=exceeded,
@@ -2433,7 +2433,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                 text = text.replace(kw, syn, 1)
                                 fixes_applied += 1
                                 yield emit("log", {"msg": f"🔧 Zamiana: '{kw}' → '{syn}'"})
-                    yield emit("log", {"msg": f"🔄 Retry — naprawiono {fixes_applied} fraz, próba {attempt + 2}/{max_attempts}"})
+                    yield emit("log", {"msg": f"🔄 Retry: naprawiono {fixes_applied} fraz, próba {attempt + 2}/{max_attempts}"})
 
             # Save FAQ if applicable
             if batch_type == "FAQ" and batch_accepted:
@@ -2483,7 +2483,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             paa_data_check = paa_check.get("data") if paa_check.get("ok") else None
             paa_has_section = isinstance(paa_data_check, dict) and paa_data_check.get("paa_section")
             if not paa_has_section:
-                yield emit("log", {"msg": "Brak FAQ — analizuję PAA i generuję..."})
+                yield emit("log", {"msg": "Brak FAQ, analizuję PAA i generuję..."})
                 paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
                 if paa_analyze["ok"] and paa_analyze.get("data"):
                     # Fetch pre_batch for FAQ context (stop keywords, style, memory)
@@ -2497,7 +2497,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     try:
                         faq_text = generate_faq_text(paa_data_for_faq, faq_pre_batch, engine=engine, openai_model=effective_openai_model)
                     except AttributeError as ae:
-                        logger.warning(f"[FAQ] generate_faq_text AttributeError: {ae} — retrying without pre_batch")
+                        logger.warning(f"[FAQ] generate_faq_text AttributeError: {ae}, retrying without pre_batch")
                         faq_text = generate_faq_text(paa_data_for_faq, None, engine=engine, openai_model=effective_openai_model)
                     if faq_text and faq_text.strip():
                         brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
@@ -2529,9 +2529,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             "status": "generated",
                         })
                     else:
-                        yield emit("log", {"msg": "⚠️ Brak danych PAA — pomijam FAQ"})
+                        yield emit("log", {"msg": "⚠️ Brak danych PAA, pomijam FAQ"})
                 else:
-                    yield emit("log", {"msg": "⚠️ PAA analyze pusty — pomijam FAQ"})
+                    yield emit("log", {"msg": "⚠️ PAA analyze pusty, pomijam FAQ"})
                 step_done(7)
                 yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "done"})
             else:
@@ -2539,9 +2539,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                     "detail": "FAQ już zapisane"})
         except Exception as faq_err:
             logger.warning(f"FAQ generation error (non-fatal): {faq_err}")
-            yield emit("log", {"msg": f"⚠️ FAQ error: {str(faq_err)[:80]} — pomijam, kontynuuję"})
+            yield emit("log", {"msg": f"⚠️ FAQ error: {str(faq_err)[:80]}, pomijam, kontynuuję"})
             yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "warning",
-                                "detail": "Błąd FAQ — pominięto"})
+                                "detail": "Błąd FAQ, pominięto"})
 
         # ─── KROK 8: Final Review ───
         step_start(8)
@@ -2621,12 +2621,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 yield emit("ymyl_validation", ymyl_validation)
         else:
             yield emit("step", {"step": 8, "name": "Final Review", "status": "warning",
-                                "detail": "Nie udało się — kontynuuję"})
+                                "detail": "Nie udało się, kontynuuję"})
 
         # ─── KROK 9: Editorial Review ───
         step_start(9)
         yield emit("step", {"step": 9, "name": "Editorial Review", "status": "running"})
-        yield emit("log", {"msg": "POST /editorial_review — to może chwilę potrwać..."})
+        yield emit("log", {"msg": "POST /editorial_review, to może chwilę potrwać..."})
 
         editorial_result = {"ok": False}  # v50.7: safety init for FIX 41
         editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review", timeout=HEAVY_REQUEST_TIMEOUT)
@@ -2677,7 +2677,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("step", {"step": 9, "name": "Editorial Review", "status": "done", "detail": detail})
         else:
             yield emit("step", {"step": 9, "name": "Editorial Review", "status": "warning",
-                                "detail": "Nie udało się — artykuł bez recenzji"})
+                                "detail": "Nie udało się, artykuł bez recenzji"})
 
         # ─── KROK 10: Export ───
         step_start(10)
@@ -2715,7 +2715,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             nlp_entities = []
             subject_pos = {}
             
-            # Subject position analysis — always runs (free, no API)
+            # Subject position analysis: always runs (free, no API)
             if full_text:
                 try:
                     subject_pos = analyze_subject_position(full_text, main_keyword)
@@ -2835,7 +2835,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             "style_issues": lt_result.get("style_issues", []),
                         })
                     else:
-                        yield emit("log", {"msg": "⚠️ LanguageTool API niedostępne — pominięto sprawdzanie"})
+                        yield emit("log", {"msg": "⚠️ LanguageTool API niedostępne, pominięto sprawdzanie"})
                 except Exception as lt_err:
                     logger.warning(f"LanguageTool check failed: {lt_err}")
 
@@ -3007,7 +3007,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
 
 # ============================================================
-# ARTICLE EDITOR — Chat + Inline editing with Claude
+# ARTICLE EDITOR: Chat + Inline editing with Claude
 # ============================================================
 @app.route("/api/edit", methods=["POST"])
 @login_required
@@ -3025,7 +3025,7 @@ def edit_article():
     if selected_text:
         system_prompt = (
             "Jesteś redaktorem artykułu SEO. Użytkownik zaznaczył fragment tekstu i chce go zmienić. "
-            "Zwróć TYLKO poprawiony fragment — nie cały artykuł. "
+            "Zwróć TYLKO poprawiony fragment, nie cały artykuł. "
             "Zachowaj formatowanie (h2:, h3: itd). Nie dodawaj komentarzy."
         )
         user_prompt = (
@@ -3038,7 +3038,7 @@ def edit_article():
         system_prompt = (
             "Jesteś redaktorem artykułu SEO. Użytkownik prosi o zmianę w artykule. "
             "Zwróć CAŁY poprawiony artykuł z naniesionymi zmianami. "
-            "Zachowaj formatowanie (h2:, h3: itd). Nie dodawaj komentarzy ani wyjaśnień — TYLKO tekst artykułu."
+            "Zachowaj formatowanie (h2:, h3: itd). Nie dodawaj komentarzy ani wyjaśnień. TYLKO tekst artykułu."
         )
         user_prompt = (
             f"ARTYKUŁ:\n{article_text}\n\n"
@@ -3082,7 +3082,7 @@ def validate_article():
     job = active_jobs.get(job_id, {})
     project_id = job.get("project_id")
     if not project_id:
-        return jsonify({"error": "Brak project_id — uruchom najpierw workflow"}), 400
+        return jsonify({"error": "Brak project_id, uruchom najpierw workflow"}), 400
     try:
         result = brajen_call("post", f"/api/project/{project_id}/validate_full_article",
                              {"full_text": article_text})
@@ -3143,7 +3143,7 @@ def start_workflow():
     engine = data.get("engine", "claude")  # "claude" or "openai"
     openai_model_override = data.get("openai_model")  # per-session model override
 
-    # H2 is now OPTIONAL — if empty, will be auto-generated from S1
+    # H2 is now OPTIONAL : if empty, will be auto-generated from S1
 
     job_id = str(uuid.uuid4())[:8]
     
@@ -3190,7 +3190,7 @@ def stream_with_keepalive(generator_fn, keepalive_interval=15):
                 break
             yield item
         except queue.Empty:
-            # No event for {keepalive_interval}s — send SSE comment to keep connection alive
+            # No event for {keepalive_interval}s : send SSE comment to keep connection alive
             yield ": keepalive\n\n"
 
 
