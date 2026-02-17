@@ -419,36 +419,51 @@ def _filter_ngrams(ngrams):
 # that regex-based _is_css_garbage() misses.
 _AI_CLEANUP_MODEL = "claude-haiku-4-5-20251001"
 
-def _ai_cleanup_ngrams_and_causal(main_keyword: str, ngrams: list, causal_chains: list, causal_singles: list) -> dict:
-    """Use AI to filter CSS/HTML garbage from n-grams and causal triplets.
+def _ai_cleanup_all_s1_data(main_keyword: str, ngrams: list, causal_chains: list, 
+                            causal_singles: list, placement_instruction: str,
+                            entity_salience: list, entities: list) -> dict:
+    """v50.7 FIX 45: One AI call to clean ALL scraper data at once.
     
-    Returns: {"ngrams": [...], "causal_chains": [...], "causal_singles": [...]}
+    Replaces regex whack-a-mole with AI that understands context.
+    Cost: ~$0.005-0.01 per call (Claude Haiku), ~2-3s.
+    
+    Returns dict with cleaned versions of all inputs.
     """
-    if not ngrams and not causal_chains and not causal_singles:
-        return {"ngrams": [], "causal_chains": [], "causal_singles": []}
-    
-    # Build concise input
+    # Build concise input for AI
     ng_texts = []
     for ng in ngrams[:20]:
         text = ng.get("ngram", ng) if isinstance(ng, dict) else str(ng)
-        score = ng.get("score", ng.get("weight", 0)) if isinstance(ng, dict) else 0
-        ng_texts.append(f"{text} ({score:.2f})" if score else text)
+        ng_texts.append(text)
     
     causal_texts = []
     for c in (causal_chains + causal_singles)[:10]:
         cause = c.get("cause", c.get("from", ""))
         effect = c.get("effect", c.get("to", ""))
-        rel = c.get("relation", c.get("type", "→"))
-        causal_texts.append(f"{cause} → {rel} → {effect}")
+        causal_texts.append(f"{cause} → {effect}")
     
+    sal_texts = []
+    for s in entity_salience[:15]:
+        ent = s.get("entity", s.get("text", "")) if isinstance(s, dict) else str(s)
+        sal = s.get("salience", 0) if isinstance(s, dict) else 0
+        typ = s.get("type", "") if isinstance(s, dict) else ""
+        sal_texts.append(f"{ent} ({typ}, {sal:.2f})")
+    
+    ent_texts = []
+    for e in entities[:15]:
+        text = e.get("text", e.get("entity", "")) if isinstance(e, dict) else str(e)
+        ent_texts.append(text)
+
     prompt = f"""Temat artykułu: "{main_keyword}"
 
-Poniżej są n-gramy i relacje kauzalne wyciągnięte ze stron konkurencji w SERP.
-Wiele z nich to ŚMIECI ze scrapera: fragmenty CSS, HTML, @font-face, nazwy klas CSS,
-nawigacja stron, elementy UI, nazwy języków z Wikipedii, tekst z reklam.
+Dane poniżej pochodzą ze scrapera stron konkurencji w SERP.
+DUŻO z nich to ŚMIECI: fragmenty CSS (@font-face, font-family, display:block),
+kody kolorów (hex: A7FF, FF00), nazwy fontów (Menlo, Monaco, Font Awesome),
+nawigacja (menu, sidebar), klasy CSS (relative;display), nazwy języków z Wikipedii,
+fragmenty URL (wp-content, blog/wp), urwane zdania (zaczynające się od małej litery
+lub od przyrostka słowa), elementy UI.
 
-ZADANIE: Zwróć TYLKO te elementy, które są MERYTORYCZNIE związane z tematem "{main_keyword}".
-Odrzuć wszystko co nie jest treścią merytoryczną.
+ZADANIE: Z każdej sekcji zwróć TYLKO elementy MERYTORYCZNIE związane z "{main_keyword}".
+Odrzuć wszelkie śmieci techniczne, CSS, HTML, nawigacyjne.
 
 === N-GRAMY ===
 {chr(10).join(ng_texts) if ng_texts else "(brak)"}
@@ -456,67 +471,172 @@ Odrzuć wszystko co nie jest treścią merytoryczną.
 === RELACJE KAUZALNE ===
 {chr(10).join(causal_texts) if causal_texts else "(brak)"}
 
-Odpowiedz TYLKO w JSON (bez markdown):
-{{"ngrams": ["ngram1", "ngram2", ...], "causal": ["cause → relation → effect", ...]}}
+=== PLACEMENT INSTRUCTION (tekst) ===
+{placement_instruction[:800] if placement_instruction else "(brak)"}
 
-Jeśli WSZYSTKIE elementy to śmieci, zwróć {{"ngrams": [], "causal": []}}"""
+=== ENTITY SALIENCE ===
+{chr(10).join(sal_texts) if sal_texts else "(brak)"}
+
+=== NAMED ENTITIES ===
+{chr(10).join(ent_texts) if ent_texts else "(brak)"}
+
+Odpowiedz TYLKO w JSON (bez markdown, bez ```):
+{{
+  "ngrams": ["ngram1", "ngram2"],
+  "causal": ["cause → effect", ...],
+  "placement": "oczyszczony tekst placement instruction (bez linii z CSS/śmieciami, zachowaj strukturę emoji 🎯📌📋📎🔺)",
+  "salience": ["entity1", "entity2", ...],
+  "entities": ["entity1", "entity2", ...]
+}}
+
+Jeśli sekcja ma SAME śmieci, zwróć pustą listę/string."""
 
     try:
         client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
         response = client.messages.create(
             model=_AI_CLEANUP_MODEL,
-            max_tokens=1000,
+            max_tokens=2000,
             messages=[{"role": "user", "content": prompt}]
         )
         text = response.content[0].text.strip()
-        # Parse JSON
         if text.startswith("```"):
             text = text.split("```")[1]
             if text.startswith("json"):
                 text = text[4:]
         result = json.loads(text)
         
-        clean_ng_texts = set(n.lower().split(" (")[0] for n in result.get("ngrams", []))
-        clean_causal_texts = set(result.get("causal", []))
-        
-        # Filter original ngrams to keep only AI-approved ones
+        # --- N-grams: keep only AI-approved ---
+        clean_ng_set = set(n.lower() for n in result.get("ngrams", []))
         filtered_ngrams = []
         for ng in ngrams:
             ng_text = (ng.get("ngram", ng) if isinstance(ng, dict) else str(ng)).lower()
-            if ng_text in clean_ng_texts:
+            if ng_text in clean_ng_set:
                 filtered_ngrams.append(ng)
         
-        # Filter causal — match by cause text
-        filtered_chains = []
-        filtered_singles = []
+        # --- Causal: keep by cause match ---
         approved_causes = set()
-        for ct in clean_causal_texts:
+        for ct in result.get("causal", []):
             parts = ct.split("→")
             if parts:
                 approved_causes.add(parts[0].strip().lower())
+        filtered_chains = [c for c in causal_chains 
+                          if c.get("cause", c.get("from", "")).lower().strip() in approved_causes
+                          or any(ac in c.get("cause", c.get("from", "")).lower() for ac in approved_causes)]
+        filtered_singles = [c for c in causal_singles
+                           if c.get("cause", c.get("from", "")).lower().strip() in approved_causes
+                           or any(ac in c.get("cause", c.get("from", "")).lower() for ac in approved_causes)]
         
-        for c in causal_chains:
-            cause = c.get("cause", c.get("from", "")).lower().strip()
-            if cause in approved_causes or any(ac in cause for ac in approved_causes):
-                filtered_chains.append(c)
-        for c in causal_singles:
-            cause = c.get("cause", c.get("from", "")).lower().strip()
-            if cause in approved_causes or any(ac in cause for ac in approved_causes):
-                filtered_singles.append(c)
+        # --- Placement: use AI-cleaned version ---
+        clean_placement = result.get("placement", placement_instruction) or placement_instruction
         
-        logger.info(f"[AI_CLEANUP] ngrams: {len(ngrams)}→{len(filtered_ngrams)} | causal: {len(causal_chains)+len(causal_singles)}→{len(filtered_chains)+len(filtered_singles)}")
+        # --- Salience: keep only AI-approved entities ---
+        clean_sal_set = set(s.lower() for s in result.get("salience", []))
+        filtered_salience = []
+        for s in entity_salience:
+            ent = (s.get("entity", s.get("text", "")) if isinstance(s, dict) else str(s)).lower()
+            if ent in clean_sal_set or any(cs in ent for cs in clean_sal_set):
+                filtered_salience.append(s)
+        
+        # --- Entities: keep only AI-approved ---
+        clean_ent_set = set(e.lower() for e in result.get("entities", []))
+        filtered_entities = []
+        for e in entities:
+            text = (e.get("text", e.get("entity", "")) if isinstance(e, dict) else str(e)).lower()
+            if text in clean_ent_set or any(ce in text for ce in clean_ent_set):
+                filtered_entities.append(e)
+        
+        logger.info(f"[AI_CLEANUP] ngrams:{len(ngrams)}→{len(filtered_ngrams)} | "
+                    f"causal:{len(causal_chains)+len(causal_singles)}→{len(filtered_chains)+len(filtered_singles)} | "
+                    f"salience:{len(entity_salience)}→{len(filtered_salience)} | "
+                    f"entities:{len(entities)}→{len(filtered_entities)} | "
+                    f"placement:{'cleaned' if clean_placement != placement_instruction else 'unchanged'}")
+        
         return {
             "ngrams": filtered_ngrams,
             "causal_chains": filtered_chains,
             "causal_singles": filtered_singles,
+            "placement_instruction": clean_placement,
+            "entity_salience": filtered_salience,
+            "entities": filtered_entities,
         }
     except Exception as e:
-        logger.warning(f"[AI_CLEANUP] Failed: {e} — falling back to regex filter")
+        logger.warning(f"[AI_CLEANUP] Failed: {e} — falling back to unfiltered data")
         return {
             "ngrams": ngrams,
             "causal_chains": causal_chains,
             "causal_singles": causal_singles,
+            "placement_instruction": placement_instruction,
+            "entity_salience": entity_salience,
+            "entities": entities,
         }
+# ============================================================
+# v50.7 FIX 46: LOCAL YMYL DETECTION (replaces master-seo-api call)
+# Single Claude Haiku call → classifies + enriches
+# Eliminates 404 error from broken /api/ymyl/detect_and_enrich
+# ============================================================
+_YMYL_PROMPT = """Klasyfikuj temat: "{topic}"
+
+Określ kategorię YMYL (Your Money Your Life):
+- "prawo" — jeśli temat dotyczy prawa, kar, przepisów, wyroków, umów, rozwodów, przestępstw
+- "zdrowie" — jeśli dotyczy zdrowia, chorób, leków, terapii, objawów, diagnoz
+- "finanse" — jeśli dotyczy inwestycji, kredytów, podatków, ubezpieczeń, oszczędności
+- "general" — wszystko inne
+
+Odpowiedz TYLKO w JSON (bez markdown):
+{{
+  "category": "prawo"|"zdrowie"|"finanse"|"general",
+  "confidence": 0.0-1.0,
+  "reasoning": "krótkie uzasadnienie po polsku",
+  "ymyl_intensity": "full"|"light"|"none",
+  "legal": {{"articles": ["art. X k.k."], "acts": ["Kodeks karny"], "key_concepts": ["..."], "search_queries": ["..."]}},
+  "medical": {{"condition": "...", "mesh_terms": [], "search_queries": []}},
+  "finance": {{"regulations": [], "search_queries": []}}
+}}
+
+Wypełnij TYLKO sekcję odpowiadającą kategorii. Resztę zostaw pustą."""
+
+
+def _detect_ymyl_local(main_keyword: str) -> dict:
+    """Local YMYL detection using Claude Haiku. ~$0.003, ~1s."""
+    try:
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model=_AI_CLEANUP_MODEL,  # Haiku — cheap + fast
+            max_tokens=500,
+            temperature=0.1,
+            messages=[{"role": "user", "content": _YMYL_PROMPT.format(topic=main_keyword)}]
+        )
+        raw = response.content[0].text.strip()
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        result = json.loads(raw)
+        
+        category = result.get("category", "general")
+        result["is_legal"] = category == "prawo"
+        result["is_medical"] = category in ("zdrowie", "medycyna")
+        result["is_finance"] = category in ("finanse", "finance")
+        result["is_ymyl"] = category != "general"
+        result["detection_method"] = "local_haiku"
+        
+        # Ensure all sections exist
+        result.setdefault("legal", {})
+        result.setdefault("medical", {})
+        result.setdefault("finance", {})
+        result.setdefault("ymyl_intensity", "full" if result["is_ymyl"] else "none")
+        result.setdefault("confidence", 0.8)
+        result.setdefault("reasoning", "")
+        
+        logger.info(f"[YMYL_LOCAL] {main_keyword} → {category} ({result.get('confidence', 0):.1f}) {result.get('reasoning', '')[:60]}")
+        return result
+    except Exception as e:
+        logger.warning(f"[YMYL_LOCAL] Failed: {e}")
+        return {
+            "category": "general", "is_ymyl": False, "is_legal": False,
+            "is_medical": False, "is_finance": False, "confidence": 0,
+            "reasoning": f"Detection failed: {e}", "detection_method": "fallback",
+            "ymyl_intensity": "none", "legal": {}, "medical": {}, "finance": {},
+        }
+
+
 # When N-gram API fails to provide ai_topical_entities (common),
 # generate proper topical entities using a fast LLM call.
 # This replaces CSS/HTML garbage with real topic-based entities.
@@ -1086,6 +1206,11 @@ def _generate_openai(system_prompt, user_prompt, model=None):
     
     effective_model = model or OPENAI_MODEL
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
+    
+    # v50.7 FIX 43: GPT-5.x and o-series use max_completion_tokens, not max_tokens
+    use_new_param = any(effective_model.startswith(p) for p in ("gpt-5", "o1", "o3", "o4"))
+    token_param = {"max_completion_tokens": 4000} if use_new_param else {"max_tokens": 4000}
+    
     response = client.chat.completions.create(
         model=effective_model,
         messages=[
@@ -1093,7 +1218,7 @@ def _generate_openai(system_prompt, user_prompt, model=None):
             {"role": "user", "content": user_prompt}
         ],
         temperature=0.7,
-        max_tokens=4000
+        **token_param
     )
     return response.choices[0].message.content.strip()
 
@@ -1322,57 +1447,72 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if topical_gen_placement:
             backend_placement_instruction = topical_gen_placement
             yield emit("log", {"msg": "🧬 Placement instruction: z topical entity generator (zamiast scrapera)"})
+        elif ai_topical and not topical_gen_entities:
+            # v50.7 FIX 44: N-gram API gave entities but no placement — build from entities
+            _ai_names = [e.get("text", e.get("entity", "")) for e in ai_topical[:8] if e.get("text") or e.get("entity")]
+            if _ai_names:
+                _lines = [
+                    f'🎯 ENCJA GŁÓWNA: "{_ai_names[0]}"',
+                    f'   → W tytule H1 i w pierwszym zdaniu artykułu',
+                ]
+                if len(_ai_names) > 1:
+                    _lines.append(f'📌 PIERWSZY AKAPIT: Wprowadź razem: {", ".join(_ai_names[:3])}')
+                if len(_ai_names) > 3:
+                    _lines.append(f'📋 ENCJE TEMATYCZNE:')
+                    for _n in _ai_names[1:]:
+                        _lines.append(f'   • "{_n}" (CONCEPT)')
+                backend_placement_instruction = "\n".join(_lines)
+                yield emit("log", {"msg": f"🧬 Placement instruction: wygenerowane z ai_topical entities ({len(_ai_names)} encji)"})
         if topical_gen_cooc:
             backend_cooccurrence_pairs = topical_gen_cooc + backend_cooccurrence_pairs[:2]
             yield emit("log", {"msg": f"🧬 Co-occurrence: {len(topical_gen_cooc)} par z topical generator"})
-        if topical_gen_entities and not must_cover_concepts:
-            # Use topical entities as must_cover_concepts
-            must_cover_concepts = topical_gen_entities[:8]
+        if (topical_gen_entities or ai_topical) and not must_cover_concepts:
+            # Use clean topical entities as must_cover_concepts
+            must_cover_concepts = (topical_gen_entities or ai_topical)[:8]
 
-        # ═══ v50.4 FIX 21: Override ALL contamination paths when topical gen active ═══
-        # Without this, backend_first_para_entities and backend_h2_entities
-        # still carry scraper garbage (e.g. Wikipedia sidebar languages like
-        # "Asturianu Azərbaycanca", navigation buttons like "Przejdź",
-        # brand contacts like "TAURON Sprzedaż GZE sp.") into the prompt,
-        # causing GPT to cite them as information sources.
-        if topical_gen_entities:
+        # ═══ v50.4 FIX 21 + v50.7 FIX 44: Override ALL contamination paths ═══
+        # Override with clean topical entities regardless of source:
+        # - topical_gen_entities: from topical generator (when scraper data was garbage)
+        # - ai_topical: from N-gram API concept extraction (when API provided entities)
+        # Without this, sem_hints/placement/salience keep raw S1 CSS garbage.
+        _override_entities = topical_gen_entities or ai_topical or []
+        if _override_entities:
             # Override first paragraph entities with topical primary + top 2 secondary
-            backend_first_para_entities = topical_gen_entities[:3]
+            backend_first_para_entities = _override_entities[:3]
             # Override H2 entities with remaining topical entities
-            backend_h2_entities = topical_gen_entities[3:8]
+            backend_h2_entities = _override_entities[3:8]
             # Override entity salience with topical-generated entities
             # (prevents "Asturianu Azərbaycanca" as primary in dashboard)
             backend_entity_salience = []
-            for i, ent in enumerate(topical_gen_entities[:12]):
+            for i, ent in enumerate(_override_entities[:12]):
                 _sal = round(0.85 - (i * 0.06), 2)  # Primary=0.85, decreasing
                 backend_entity_salience.append({
                     "entity": ent.get("text", ent.get("entity", "")),
                     "salience": max(0.05, _sal),
                     "type": ent.get("type", "CONCEPT"),
-                    "source": "topical_generator"
+                    "source": "topical_override"
                 })
-            yield emit("log", {"msg": f"🧬 Entity salience + first_para + H2: nadpisane z topical generator ({len(backend_entity_salience)} encji)"})
+            yield emit("log", {"msg": f"🧬 Entity salience + first_para + H2: nadpisane ({len(backend_entity_salience)} encji, src={'topical_gen' if topical_gen_entities else 'ai_topical'})"})
 
             # v50.5 FIX 35: Also override backend_entity_placement for dashboard display
-            # Dashboard reads entity_placement.first_paragraph_entities/h2_entities directly.
             _fp_names = [e.get("text", e.get("entity", "")) for e in backend_first_para_entities]
             _h2_names = [e.get("text", e.get("entity", "")) for e in backend_h2_entities]
             backend_entity_placement = {
                 "first_paragraph_entities": _fp_names,
                 "h2_entities": _h2_names,
                 "placement_instruction": backend_placement_instruction,
-                "source": "topical_generator"
+                "source": "topical_override"
             }
 
             # v50.7 FIX 34: Override sem_hints with clean topical data
-            # Without this, dashboard shows raw S1 sem_hints with garbage
-            # primary_entity ("Asturianu Azərbaycanca") and broken checkpoints.
-            _primary_name = topical_gen_entities[0].get("text", "") if topical_gen_entities else main_keyword
-            _secondary_names = [e.get("text", "") for e in topical_gen_entities[1:4]]
+            _primary_name = _override_entities[0].get("text", _override_entities[0].get("entity", "")) if _override_entities else main_keyword
+            _secondary_names = [e.get("text", e.get("entity", "")) for e in _override_entities[1:4]]
             sem_hints = {
-                "primary_entity": {"text": _primary_name, "type": "CONCEPT", "source": "topical_generator"},
-                "secondary_entities": [{"text": n, "type": "CONCEPT"} for n in _secondary_names],
-                "must_cover_concepts": [e.get("text", "") for e in (must_cover_concepts or topical_gen_entities[:8])],
+                # v50.7 FIX 44: Include BOTH "text" and "entity" keys
+                # Dashboard reads .entity, backend reads .text
+                "primary_entity": {"text": _primary_name, "entity": _primary_name, "type": "CONCEPT", "salience": 0.85, "source": "topical_override"},
+                "secondary_entities": [{"text": n, "entity": n, "type": "CONCEPT"} for n in _secondary_names],
+                "must_cover_concepts": [e.get("text", e.get("entity", "")) for e in (must_cover_concepts or _override_entities[:8])],
                 "placement_instruction": backend_placement_instruction,
                 "first_paragraph_entities": _fp_names,
                 "h2_entities": _h2_names,
@@ -1384,9 +1524,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     "batch_5": "topic_completeness >= 50%, concept coverage >= 50%",
                     "pre_faq": "all critical entities present, all MUST topics covered",
                 },
-                "source": "topical_generator_override"
+                "source": "topical_override"
             }
-            yield emit("log", {"msg": f"🧬 sem_hints: nadpisane z topical generator (primary: {_primary_name})"})
+            yield emit("log", {"msg": f"🧬 sem_hints: nadpisane (primary: {_primary_name}, src={'topical_gen' if topical_gen_entities else 'ai_topical'})"})
 
         if backend_entity_salience:
             yield emit("log", {"msg": f"🔬 Entity Salience: {len(backend_entity_salience)} encji z analizy konkurencji"})
@@ -1441,24 +1581,43 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         clean_causal_chains = _filter_causal(raw_causal_chains)
         clean_causal_singles = _filter_causal(raw_causal_singles)
 
-        # v50.7 FIX 40: AI cleanup for n-grams and causal triplets
-        # Regex filter catches obvious CSS, AI catches the rest (~$0.005, ~2s)
-        if clean_ngrams or clean_causal_chains or clean_causal_singles:
-            try:
-                ai_cleanup = _ai_cleanup_ngrams_and_causal(
-                    main_keyword, clean_ngrams, clean_causal_chains, clean_causal_singles
-                )
-                pre_ai_ng = len(clean_ngrams)
-                pre_ai_cc = len(clean_causal_chains) + len(clean_causal_singles)
-                clean_ngrams = ai_cleanup["ngrams"]
-                clean_causal_chains = ai_cleanup["causal_chains"]
-                clean_causal_singles = ai_cleanup["causal_singles"]
-                post_ai_ng = len(clean_ngrams)
-                post_ai_cc = len(clean_causal_chains) + len(clean_causal_singles)
-                if pre_ai_ng != post_ai_ng or pre_ai_cc != post_ai_cc:
-                    yield emit("log", {"msg": f"🧹 AI cleanup: n-gramy {pre_ai_ng}→{post_ai_ng} | kauzalne {pre_ai_cc}→{post_ai_cc}"})
-            except Exception as ai_err:
-                logger.warning(f"[AI_CLEANUP] Error in workflow: {ai_err}")
+        # v50.7 FIX 45: Comprehensive AI cleanup — one call cleans EVERYTHING
+        # Replaces regex whack-a-mole with AI that understands context (~$0.008, ~2s)
+        try:
+            ai_cleanup = _ai_cleanup_all_s1_data(
+                main_keyword=main_keyword,
+                ngrams=clean_ngrams,
+                causal_chains=clean_causal_chains,
+                causal_singles=clean_causal_singles,
+                placement_instruction=backend_placement_instruction,
+                entity_salience=backend_entity_salience,
+                entities=clean_entities,
+            )
+            _pre = {"ng": len(clean_ngrams), "cc": len(clean_causal_chains)+len(clean_causal_singles),
+                    "sal": len(backend_entity_salience), "ent": len(clean_entities)}
+            
+            clean_ngrams = ai_cleanup["ngrams"]
+            clean_causal_chains = ai_cleanup["causal_chains"]
+            clean_causal_singles = ai_cleanup["causal_singles"]
+            backend_placement_instruction = ai_cleanup["placement_instruction"]
+            backend_entity_salience = ai_cleanup["entity_salience"]
+            clean_entities = ai_cleanup["entities"]
+            
+            _post = {"ng": len(clean_ngrams), "cc": len(clean_causal_chains)+len(clean_causal_singles),
+                     "sal": len(backend_entity_salience), "ent": len(clean_entities)}
+            
+            changes = []
+            if _pre["ng"] != _post["ng"]: changes.append(f"n-gramy {_pre['ng']}→{_post['ng']}")
+            if _pre["cc"] != _post["cc"]: changes.append(f"kauzalne {_pre['cc']}→{_post['cc']}")
+            if _pre["sal"] != _post["sal"]: changes.append(f"salience {_pre['sal']}→{_post['sal']}")
+            if _pre["ent"] != _post["ent"]: changes.append(f"encje {_pre['ent']}→{_post['ent']}")
+            
+            if changes:
+                yield emit("log", {"msg": f"🧹 AI cleanup: {' | '.join(changes)}"})
+            else:
+                yield emit("log", {"msg": "🧹 AI cleanup: dane czyste, bez zmian"})
+        except Exception as ai_err:
+            logger.warning(f"[AI_CLEANUP] Error in workflow: {ai_err}")
 
         if concept_entities:
             yield emit("log", {"msg": f"🧠 Concept entities: {len(concept_entities)} (z topical_entity_extractor)"})
@@ -1568,11 +1727,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 2, "name": "YMYL Detection", "status": "running"})
 
         # v47.2: ONE Claude Sonnet call → classifies + returns search hints
-        ymyl_result = brajen_call("post", "/api/ymyl/detect_and_enrich", {
-            "main_keyword": main_keyword,
-        })
-        
-        ymyl_data = ymyl_result.get("data", {}) if ymyl_result.get("ok") else {}
+        # v50.7 FIX 46: Run LOCALLY (Haiku) instead of broken brajen_call to master-seo-api
+        ymyl_data = _detect_ymyl_local(main_keyword)
         is_legal = ymyl_data.get("is_legal", False)
         is_medical = ymyl_data.get("is_medical", False)
         is_finance = ymyl_data.get("is_finance", False)
