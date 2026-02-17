@@ -1373,7 +1373,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     ai_topical = topical_gen_entities
                     clean_entities = topical_gen_entities[:10]
                     
-                    _ent_names = [e.get("text", "") for e in topical_gen_entities[:5]]
+                    _ent_names = [_extract_text(e) for e in topical_gen_entities[:5]]
                     yield emit("log", {"msg": f"🧬 Topical entities wygenerowane: {', '.join(_ent_names)}"})
                 else:
                     yield emit("log", {"msg": "⚠️ Topical entity generation failed — używam przefiltrowanych encji ze scrapera"})
@@ -1449,7 +1449,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": "🧬 Placement instruction: z topical entity generator (zamiast scrapera)"})
         elif ai_topical and not topical_gen_entities:
             # v50.7 FIX 44: N-gram API gave entities but no placement — build from entities
-            _ai_names = [e.get("text", e.get("entity", "")) for e in ai_topical[:8] if e.get("text") or e.get("entity")]
+            # v50.7 FIX 47: Use _extract_text() — handles str+dict
+            _ai_names = [_extract_text(e) for e in ai_topical[:8] if _extract_text(e)]
             if _ai_names:
                 _lines = [
                     f'🎯 ENCJA GŁÓWNA: "{_ai_names[0]}"',
@@ -1487,16 +1488,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             for i, ent in enumerate(_override_entities[:12]):
                 _sal = round(0.85 - (i * 0.06), 2)  # Primary=0.85, decreasing
                 backend_entity_salience.append({
-                    "entity": ent.get("text", ent.get("entity", "")),
+                    # v50.7 FIX 47: Use _extract_text() — entities can be str OR dict
+                    "entity": _extract_text(ent),
                     "salience": max(0.05, _sal),
-                    "type": ent.get("type", "CONCEPT"),
+                    "type": ent.get("type", "CONCEPT") if isinstance(ent, dict) else "CONCEPT",
                     "source": "topical_override"
                 })
             yield emit("log", {"msg": f"🧬 Entity salience + first_para + H2: nadpisane ({len(backend_entity_salience)} encji, src={'topical_gen' if topical_gen_entities else 'ai_topical'})"})
 
             # v50.5 FIX 35: Also override backend_entity_placement for dashboard display
-            _fp_names = [e.get("text", e.get("entity", "")) for e in backend_first_para_entities]
-            _h2_names = [e.get("text", e.get("entity", "")) for e in backend_h2_entities]
+            # v50.7 FIX 47: Use _extract_text() — handles str+dict
+            _fp_names = [_extract_text(e) for e in backend_first_para_entities]
+            _h2_names = [_extract_text(e) for e in backend_h2_entities]
             backend_entity_placement = {
                 "first_paragraph_entities": _fp_names,
                 "h2_entities": _h2_names,
@@ -1505,14 +1508,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             }
 
             # v50.7 FIX 34: Override sem_hints with clean topical data
-            _primary_name = _override_entities[0].get("text", _override_entities[0].get("entity", "")) if _override_entities else main_keyword
-            _secondary_names = [e.get("text", e.get("entity", "")) for e in _override_entities[1:4]]
+            # v50.7 FIX 47: Use _extract_text() — handles str+dict
+            _primary_name = _extract_text(_override_entities[0]) if _override_entities else main_keyword
+            _secondary_names = [_extract_text(e) for e in _override_entities[1:4]]
             sem_hints = {
                 # v50.7 FIX 44: Include BOTH "text" and "entity" keys
                 # Dashboard reads .entity, backend reads .text
                 "primary_entity": {"text": _primary_name, "entity": _primary_name, "type": "CONCEPT", "salience": 0.85, "source": "topical_override"},
                 "secondary_entities": [{"text": n, "entity": n, "type": "CONCEPT"} for n in _secondary_names],
-                "must_cover_concepts": [e.get("text", e.get("entity", "")) for e in (must_cover_concepts or _override_entities[:8])],
+                "must_cover_concepts": [_extract_text(e) for e in (must_cover_concepts or _override_entities[:8])],
                 "placement_instruction": backend_placement_instruction,
                 "first_paragraph_entities": _fp_names,
                 "h2_entities": _h2_names,
