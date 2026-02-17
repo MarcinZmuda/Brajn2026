@@ -39,7 +39,7 @@ def build_system_prompt(pre_batch, batch_type):
     parts.append(
         "Jesteś doświadczonym polskim copywriterem SEO z 10-letnim stażem. "
         "Piszesz naturalnie, merytorycznie i angażująco. "
-        "Twój tekst nie brzmi jak AI — brzmi jak ekspert piszący dla ludzi."
+        "Twój tekst nie brzmi jak AI, brzmi jak ekspert piszący dla ludzi."
     )
 
     # ── Writing techniques from API (if available) ──
@@ -60,14 +60,14 @@ def build_system_prompt(pre_batch, batch_type):
   Dopiero potem rozwijaj temat.
 
 • BURSTINESS (cel: CV zdań 0.35–0.45):
-  20% zdań krótkich (do 8 słów) — dynamika
-  55% zdań średnich (9–18 słów) — rdzeń
-  25% zdań długich (19–28 słów) — głębia
+  20% zdań krótkich (do 8 słów) (dynamika)
+  55% zdań średnich (9–18 słów) (rdzeń)
+  25% zdań długich (19–28 słów) (głębia)
   Mieszaj je nieregularnie, nie twórz wzorców.
 
-• SPACING — minimalna odległość między powtórzeniami frazy:
+• SPACING: minimalna odległość między powtórzeniami frazy:
   MAIN: ~60 słów | BASIC: ~80 słów | EXTENDED: ~120 słów
-  Nie klasteruj kilku fraz w jednym zdaniu — rozłóż je po całej sekcji.
+  Nie klasteruj kilku fraz w jednym zdaniu. Rozłóż je po całej sekcji.
 
 • FLEKSJA: Odmiany frazy liczą się jako jedno użycie!
   „zespół turnera" = „zespołu turnera" = „zespołem turnera"
@@ -82,17 +82,24 @@ def build_system_prompt(pre_batch, batch_type):
 • ANTY-POWTÓRZENIA: NIE powtarzaj tej samej informacji w różnych sekcjach!
   Jeśli zdefiniowałeś pojęcie raz, NIE definiuj go ponownie. Odwołuj się: "wspomniany wcześniej X".
 
+• ANTY-MYŚLNIKI: MAX 1 myślnik (—) na 3 akapity. W polszczyźnie myślnik to rzadki znak interpunkcyjny.
+  ❌ "Prawo karne: to dziedzina prawa — która reguluje zasady — odpowiedzialności karnej."
+  ❌ "Wyrok — choć kontrowersyjny — został utrzymany." (wtrącenie w myślnikach co zdanie)
+  ✅ Używaj przecinków, dwukropków, nawiasów, średników zamiast myślników.
+  ✅ Myślnik stosuj TYLKO gdy żaden inny znak nie pasuje.
+  Nadmiar myślników to SYGNAŁ TEKSTU AI; naturalny polski tekst używa ich sporadycznie.
+
 • ANTY-PYTANIA-RETORYCZNE: MAX 1 pytanie retoryczne na sekcję H2.
-  ❌ "Jak to wygląda w praktyce?", "Co to oznacza?", "Czy zawsze?" — to szablony AI.
+  ❌ "Jak to wygląda w praktyce?", "Co to oznacza?", "Czy zawsze?": to szablony AI.
   ✅ Użyj zdań przejściowych (bridge): "To prowadzi do...", "Z tym wiąże się..."
 
 • ANTY-BRAND-STUFFING: NIE powtarzaj nazw firm/marek więcej niż 2x w artykule.
   Jeśli w encjach pojawia się firma (np. TAURON, PGE), wspomnij ją MAX 2 razy.
 
 • ANTY-FILLER: Każde zdanie MUSI dodawać nową informację.
-  ❌ „Przewodnik elektryczny przewodzi prąd." — truizm, oczywistość
-  ❌ „Opór elektryczny wpływa na natężenie." — banał bez konkretu
-  ❌ „To kluczowa różnica technologiczna." — puste podsumowanie
+  ❌ „Przewodnik elektryczny przewodzi prąd." (truizm, oczywistość)
+  ❌ „Opór elektryczny wpływa na natężenie." (banał bez konkretu)
+  ❌ „To kluczowa różnica technologiczna." (puste podsumowanie)
   ✅ „Miedź przewodzi prąd 6× lepiej niż żelazo, dlatego stanowi 60% okablowania domowego."
   Zamiast powtarzać definicję encji jako truizm, opisz DLACZEGO, JAK, ILE, KIEDY.
 
@@ -101,48 +108,48 @@ def build_system_prompt(pre_batch, batch_type):
   ❌ „Z tym wiąże się potrzeba zrozumienia..."
   ❌ „Wynika z tego, że..."
   ❌ „Kolejna część artykułu wyjaśnia..."
-  Te zdania marnują miejsce. Zamiast nich — przejdź bezpośrednio do nowego tematu.
+  Te zdania marnują miejsce. Zamiast nich przejdź bezpośrednio do nowego tematu.
   Każde zdanie powinno nieść informację, a nie zapowiadać ją.
 
 • CYTOWANIE ŹRÓDEŁ: NIE cytuj nazw encji jako źródeł informacji.
   ❌ „Wikipedia podaje, że..." (max 1× w całym artykule)
-  ❌ „Według [nazwa encji z listy]..." — encje to pojęcia, nie źródła
+  ❌ „Według [nazwa encji z listy]..." (encje to pojęcia, nie źródła)
   ❌ „[cokolwiek] potwierdza / podaje / przywołuje..."
   Podawaj fakty bezpośrednio, bez atrybuowania ich do źródeł.
-  Jeśli musisz wspomnieć źródło — zrób to MAX 1 raz na cały artykuł.
+  Jeśli musisz wspomnieć źródło, zrób to MAX 1 raz na cały artykuł.
 
 • ANTY-HALUCYNACJA: NIE wymyślaj danych, których nie jesteś pewien.
   ❌ Wymyślone statystyki: „Według GUS w 2022 roku doszło do 300 wypadków..."
   ❌ Wymyślone rozporządzenia: „Rozporządzenie Ministra X z dnia Y..."
   ❌ Wymyślone daty/ceny/normy: „od 1 stycznia 2026 stawka wynosi..."
   ✅ Podawaj TYLKO fakty, które znasz z pewną wiedzą.
-  ✅ Jeśli chcesz dać przykład — napisz ogólnie: „np. w Polsce napięcie sieciowe wynosi 230 V"
-  ✅ Zamiast wymyślonych przepisów — opisz zasadę ogólną bez podawania numerów ustaw.
+  ✅ Jeśli chcesz dać przykład, napisz ogólnie: „np. w Polsce napięcie sieciowe wynosi 230 V"
+  ✅ Zamiast wymyślonych przepisów, opisz zasadę ogólną bez podawania numerów ustaw.
 
-• POLSZCZYZNA (dane NKJP — Narodowy Korpus Języka Polskiego, 1,8 mld segmentów):
-  → PRZECINKI — OBOWIĄZKOWE przed: że, który/a/e, ponieważ, gdyż, aby, żeby, jednak, lecz, ale.
+• POLSZCZYZNA (dane NKJP, Narodowy Korpus Języka Polskiego, 1,8 mld segmentów):
+  → PRZECINKI: OBOWIĄZKOWE przed: że, który/a/e, ponieważ, gdyż, aby, żeby, jednak, lecz, ale.
     Brak przecinka przed "że" to NATYCHMIASTOWY sygnał sztuczności.
     W polszczyźnie przecinek występuje CZĘŚCIEJ niż litera "b" (>1,47% znaków).
-  → KOLOKACJE — używaj POPRAWNYCH połączeń:
+  → KOLOKACJE: używaj POPRAWNYCH połączeń:
     podjąć decyzję (NIE: zrobić decyzję), odnieść sukces (NIE: mieć sukces),
     popełnić błąd (NIE: zrobić błąd), ponieść konsekwencje (NIE: mieć konsekwencje),
     wysoki poziom (NIE: duży poziom), silny ból (NIE: duży ból),
     wysokie ryzyko (NIE: duże ryzyko), mocna kawa (NIE: silna kawa),
     rzęsisty deszcz (NIE: duży deszcz), wysunąć propozycję (NIE: dać propozycję),
     odgrywać rolę (NIE: pełnić rolę), osiągnąć porozumienie (NIE: zrobić porozumienie).
-  → DŁUGOŚĆ ZDAŃ — średnio 10–15 słów (styl publicystyczny).
-    NIE pisz wszystkich zdań jednej długości — to sygnał AI.
-  → ŚREDNIA DŁUGOŚĆ WYRAZU — 6 znaków (±0,5). Publicystyka=6,0, naukowe=6,4.
+  → DŁUGOŚĆ ZDAŃ: średnio 10–15 słów (styl publicystyczny).
+    NIE pisz wszystkich zdań jednej długości: to sygnał AI.
+  → ŚREDNIA DŁUGOŚĆ WYRAZU: 6 znaków (±0,5). Publicystyka=6,0, naukowe=6,4.
     Nie nadużywaj nominalizacji ("przeprowadzanie systematycznego monitorowania").
     Mieszaj krótkie słowa (3-4 znaki) z dłuższymi (8-10).
-  → DIAKRYTYKI — naturalny tekst ma ~7% znaków ą,ę,ć,ł,ń,ó,ś,ź,ż.
+  → DIAKRYTYKI: naturalny tekst ma ~7% znaków ą,ę,ć,ł,ń,ó,ś,ź,ż.
     Tekst <5% lub >9% diakrytyków = statystycznie nienaturalny.
-  → DWUZNAKI — ch, cz, rz, sz, dz, dź, dż stanowią ~3% tekstu.
-  → SAMOGŁOSKI — A,I,O,E,U,Y = 35-38% tekstu.
+  → DWUZNAKI: ch, cz, rz, sz, dz, dź, dż stanowią ~3% tekstu.
+  → SAMOGŁOSKI: A,I,O,E,U,Y = 35-38% tekstu.
   → Unikaj pleonazmów: "wzajemna współpraca", "aktualna sytuacja na dziś", "krótkie streszczenie".
-  → Mieszaj przypadki gramatyczne — nie powtarzaj frazy w mianowniku.
+  → Mieszaj przypadki gramatyczne, nie powtarzaj frazy w mianowniku.
 
-• NATURALNOŚĆ: Pisz jak ekspert tłumaczący temat znajomemu — konkretnie, bez lania wody.
+• NATURALNOŚĆ: Pisz jak ekspert tłumaczący temat znajomemu, konkretnie, bez lania wody.
 
 • FORMAT: Używaj wyłącznie formatu h2:/h3: dla nagłówków. Żadnego markdown, HTML ani gwiazdek.""")
 
@@ -157,13 +164,13 @@ import logging as _logging
 _pb_logger = _logging.getLogger("prompt_builder")
 
 # ═══════════════════════════════════════════════════════════
-# SCHEMA GUARD — validates critical pre_batch fields
+# SCHEMA GUARD: validates critical pre_batch fields
 # Ensures backend sent everything needed. Logs warnings for
 # missing fields so we catch backend API changes early.
 # ═══════════════════════════════════════════════════════════
 
 _CRITICAL_FIELDS = [
-    "keywords",             # keyword list — without this, article has no SEO
+    "keywords",             # keyword list: without this, article has no SEO
     "main_keyword",         # primary keyword
     "batch_number",         # batch sequencing
 ]
@@ -219,9 +226,9 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
     formatters = [
         # ── TIER 1: NON-NEGOTIABLE (backend hard rules) ──
         lambda: _fmt_batch_header(pre_batch, h2, batch_type),
-        lambda: _fmt_keywords(pre_batch),           # MUST/STOP/EXCEEDED — hardest constraints
+        lambda: _fmt_keywords(pre_batch),           # MUST/STOP/EXCEEDED: hardest constraints
         lambda: _fmt_smart_instructions(pre_batch),  # enhanced_pre_batch AI instructions
-        lambda: _fmt_legal_medical(pre_batch),        # YMYL — legal compliance, non-negotiable
+        lambda: _fmt_legal_medical(pre_batch),        # YMYL: legal compliance, non-negotiable
 
         # ── TIER 2: BACKEND WRITE INSTRUCTIONS (gpt_instructions_v39 etc.) ──
         lambda: _fmt_semantic_plan(pre_batch, h2),
@@ -233,10 +240,10 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
 
         # ── TIER 3: CONTENT CONTEXT (enrichment data) ──
         lambda: _fmt_entity_salience(pre_batch),     # entity positioning rules (salience only)
-        # _fmt_entities REMOVED v45.4.1 — gpt_instructions_v39 already contains
+        # _fmt_entities REMOVED v45.4.1: gpt_instructions_v39 already contains
         # curated "🧠 ENCJE:" section (max 3/batch, importance≥0.7, with HOW hints).
         # Our version duplicated it with dirtier, unfiltered data from S1.
-        # _fmt_ngrams REMOVED v45.4.1 — raw statistical n-grams from competitor
+        # _fmt_ngrams REMOVED v45.4.1: raw statistical n-grams from competitor
         # pages often contain CSS/JS artifacts ("button button", "block embed").
         # Custom GPT never sees these and produces better text without them.
         lambda: _fmt_serp_enrichment(pre_batch),
@@ -285,7 +292,7 @@ def _fmt_batch_header(pre_batch, h2, batch_type):
     if batch_type not in ("INTRO", "intro"):
         h2_instruction = f"\nZaczynaj DOKŁADNIE od: h2: {h2}"
 
-    return f"""═══ BATCH {batch_number}/{total_batches} — {batch_type} ═══
+    return f"""═══ BATCH {batch_number}/{total_batches}: {batch_type} ═══
 Sekcja H2: "{h2}"
 Długość: {min_w}-{max_w} słów{length_hint}{h2_instruction}"""
 
@@ -299,15 +306,15 @@ def _fmt_intro_guidance(pre_batch, batch_type):
     kw_name = main_kw.get("keyword", "") if isinstance(main_kw, dict) else str(main_kw)
 
     parts = ["═══ WPROWADZENIE (WSTĘP ARTYKUŁU) ═══",
-             "To jest PIERWSZY batch — piszesz WSTĘP artykułu.",
+             "To jest PIERWSZY batch, piszesz WSTĘP artykułu.",
              "MUSISZ:",
              f'  1. Wpleć frazę główną ("{kw_name}") w PIERWSZE zdanie' if kw_name else "  1. Frazę główną umieść w pierwszym zdaniu",
-             "  2. Zacząć od angażującego haka (hook) — pytanie, statystyka, scenariusz",
+             "  2. Zacząć od angażującego haka (hook): pytanie, statystyka, scenariusz",
              "  3. Przedstawić GŁÓWNĄ TEZĘ artykułu w 1-2 zdaniach",
              "  4. Zapowiedzieć co czytelnik znajdzie dalej (bez listy H2!)",
              "  5. NIE zaczynać od definicji ani od 'W dzisiejszych czasach...'",
-             "  6. NIE dodawać nagłówka h2: — wstęp nie ma nagłówka",
-             "  7. Utrzymać zwięzłość — wstęp to 80-150 słów"]
+             "  6. NIE dodawać nagłówka h2: (wstęp nie ma nagłówka",
+             "  7. Utrzymać zwięzłość; wstęp to 80-150 słów"]
 
     if guidance:
         if isinstance(guidance, dict):
@@ -324,7 +331,7 @@ def _fmt_intro_guidance(pre_batch, batch_type):
 
 
 def _fmt_smart_instructions(pre_batch):
-    """Smart instructions from enhanced_pre_batch — THE most valuable field."""
+    """Smart instructions from enhanced_pre_batch : THE most valuable field."""
     enhanced = pre_batch.get("enhanced") or {}
     smart = enhanced.get("smart_instructions_formatted", "")
     if smart:
@@ -391,7 +398,7 @@ def _fmt_keywords(pre_batch):
             elif use_range:
                 parts_line.append(f"cel: {use_range}× w tym batchu")
             
-            must_lines.append(f'  • {" — ".join(parts_line)}')
+            must_lines.append(f'  • {", ".join(parts_line)}')
         else:
             must_lines.append(f'  • "{kw}"')
 
@@ -410,7 +417,7 @@ def _fmt_keywords(pre_batch):
             
             line = f'  • "{name}"'
             if remaining:
-                line += f" — zostało {remaining}×"
+                line += f" , zostało {remaining}×"
             ext_lines.append(line)
         else:
             ext_lines.append(f'  • "{kw}"')
@@ -423,7 +430,7 @@ def _fmt_keywords(pre_batch):
             name = s.get("keyword", "")
             current = s.get("current_count", s.get("current", s.get("actual", "?")))
             max_c = s.get("max_count", s.get("max", s.get("target_max", "?")))
-            stop_lines.append(f'  • "{name}" (już {current}×, limit {max_c}) — STOP!')
+            stop_lines.append(f'  • "{name}" (już {current}×, limit {max_c}) , STOP!')
         else:
             stop_lines.append(f'  • "{s}"')
 
@@ -438,10 +445,10 @@ def _fmt_keywords(pre_batch):
             line = f'  • "{name}"'
             if current and max_c:
                 line += f" ({current}/{max_c})"
-            line += " — max 1× w tym batchu"
+            line += " , max 1× w tym batchu"
             caution_lines.append(line)
         else:
-            caution_lines.append(f'  • "{c}" — max 1×')
+            caution_lines.append(f'  • "{c}" , max 1×')
 
     # ── SOFT CAPS ──
     soft_notes = []
@@ -464,11 +471,11 @@ def _fmt_keywords(pre_batch):
         parts.extend(ext_lines)
 
     if stop_lines:
-        parts.append("\n🛑 STOP — NIE UŻYWAJ (przekroczone limity!):")
+        parts.append("\n🛑 STOP, NIE UŻYWAJ (przekroczone limity!):")
         parts.extend(stop_lines)
 
     if caution_lines:
-        parts.append("\n⚠️ OSTROŻNIE — użyj max 1× lub pomiń:")
+        parts.append("\n⚠️ OSTROŻNIE, użyj max 1× lub pomiń:")
         parts.extend(caution_lines)
 
     if soft_notes:
@@ -509,7 +516,7 @@ def _fmt_semantic_plan(pre_batch, h2):
 
 
 def _fmt_entity_salience(pre_batch):
-    """Entity salience instructions — grammatical positioning, hierarchy.
+    """Entity salience instructions : grammatical positioning, hierarchy.
     
     Based on:
     - Patent US10235423B2 (entity metrics)
@@ -521,10 +528,10 @@ def _fmt_entity_salience(pre_batch):
     (entity_salience.py in gpt-ngram-api: salience scoring, co-occurrence, placement)
     
     Data sources:
-    - pre_batch["_entity_salience_instructions"] — local positioning rules (from entity_salience.py frontend)
-    - pre_batch["_backend_placement_instruction"] — backend placement from competitor analysis
-    - pre_batch["_concept_instruction"] — topical concepts agent instruction
-    - pre_batch["_must_cover_concepts"] — concept entities that must be covered
+    - pre_batch["_entity_salience_instructions"] : local positioning rules (from entity_salience.py frontend)
+    - pre_batch["_backend_placement_instruction"] : backend placement from competitor analysis
+    - pre_batch["_concept_instruction"] : topical concepts agent instruction
+    - pre_batch["_must_cover_concepts"] : concept entities that must be covered
     """
     parts = []
     
@@ -549,11 +556,11 @@ def _fmt_entity_salience(pre_batch):
         concept_names = [c.get("text", c) if isinstance(c, dict) else str(c) for c in must_concepts[:10]]
         parts.append(
             "═══ POJĘCIA TEMATYCZNE (z analizy konkurencji) ═══\n"
-            f"Następujące pojęcia pojawiają się u konkurencji — wpleć naturalnie w tekst:\n"
+            f"Następujące pojęcia pojawiają się u konkurencji, wpleć naturalnie w tekst:\n"
             f"{', '.join(concept_names)}"
         )
     
-    # 4. v50: Co-occurrence pairs — encje które MUSZĄ być blisko siebie
+    # 4. v50: Co-occurrence pairs: encje które MUSZĄ być blisko siebie
     cooc_pairs = pre_batch.get("_cooccurrence_pairs") or []
     if cooc_pairs:
         cooc_lines = []
@@ -562,18 +569,18 @@ def _fmt_entity_salience(pre_batch):
                 e1 = pair.get("entity1", pair.get("source", ""))
                 e2 = pair.get("entity2", pair.get("target", ""))
                 if e1 and e2:
-                    cooc_lines.append(f'  • "{e1}" + "{e2}" — w tym samym akapicie')
+                    cooc_lines.append(f'  • "{e1}" + "{e2}"  (w tym samym akapicie)')
             elif isinstance(pair, str) and "+" in pair:
-                cooc_lines.append(f"  • {pair} — w tym samym akapicie")
+                cooc_lines.append(f"  • {pair}  (w tym samym akapicie)")
         if cooc_lines:
             parts.append(
                 "═══ WSPÓŁWYSTĘPOWANIE ENCJI (co-occurrence) ═══\n"
                 "Następujące pary encji często pojawiają się RAZEM u konkurencji.\n"
-                "Umieść je W TYM SAMYM AKAPICIE — bliskość buduje kontekst semantyczny:\n"
+                "Umieść je W TYM SAMYM AKAPICIE , bliskość buduje kontekst semantyczny:\n"
                 + "\n".join(cooc_lines)
             )
     
-    # 5. v50: First paragraph entities — encje z pierwszego akapitu top10
+    # 5. v50: First paragraph entities: encje z pierwszego akapitu top10
     first_para_ents = pre_batch.get("_first_paragraph_entities") or []
     if first_para_ents:
         fp_names = []
@@ -583,12 +590,12 @@ def _fmt_entity_salience(pre_batch):
                 fp_names.append(f'"{name}"')
         if fp_names:
             parts.append(
-                "PIERWSZY AKAPIT — encje tematyczne:\n"
+                "PIERWSZY AKAPIT, encje tematyczne:\n"
                 f"Wprowadź w pierwszym akapicie: {', '.join(fp_names)}.\n"
                 "⚠️ To POJĘCIA do opisania, NIE źródła do cytowania. Nie pisz '[encja] podaje/potwierdza...'."
             )
     
-    # 6. v50: H2 entities — encje tematyczne do rozmieszczenia w H2
+    # 6. v50: H2 entities: encje tematyczne do rozmieszczenia w H2
     h2_ents = pre_batch.get("_h2_entities") or []
     if h2_ents:
         h2_names = []
@@ -629,7 +636,7 @@ def _fmt_serp_enrichment(pre_batch):
     parts = ["═══ WZBOGACENIE Z SERP ═══"]
 
     if paa:
-        parts.append("Pytania które ludzie zadają w Google (PAA) — odpowiedz na 1-2 w tekście:")
+        parts.append("Pytania które ludzie zadają w Google (PAA), odpowiedz na 1-2 w tekście:")
         for q in paa[:5]:
             q_text = q.get("question", q) if isinstance(q, dict) else q
             if q_text:
@@ -666,7 +673,7 @@ def _fmt_continuation(pre_batch):
     if last_topic:
         parts.append(f'  Temat: {last_topic}')
 
-    parts.append("\nZacznij PŁYNNIE — nawiąż do poprzedniego wątku, ale nie powtarzaj zakończenia.")
+    parts.append("\nZacznij PŁYNNIE: nawiąż do poprzedniego wątku, ale nie powtarzaj zakończenia.")
     if transition_hint:
         parts.append(f'Sugerowane przejście: {transition_hint}')
 
@@ -677,7 +684,7 @@ def _fmt_article_memory(article_memory):
     if not article_memory:
         return ""
 
-    parts = ["═══ PAMIĘĆ ARTYKUŁU (KRYTYCZNE — nie powtarzaj!) ═══"]
+    parts = ["═══ PAMIĘĆ ARTYKUŁU (KRYTYCZNE, nie powtarzaj!) ═══"]
 
     if isinstance(article_memory, dict):
         topics = article_memory.get("topics_covered") or article_memory.get("covered_topics") or []
@@ -696,7 +703,7 @@ def _fmt_article_memory(article_memory):
         
         all_facts = list(facts) + list(key_points)
         if all_facts:
-            parts.append("\nFakty/definicje już podane (NIE POWTARZAJ — odwołuj się: 'wspomniany wcześniej'):")
+            parts.append("\nFakty/definicje już podane (NIE POWTARZAJ, odwołuj się: 'wspomniany wcześniej'):")
             for f in all_facts[:12]:
                 parts.append(f'  • {f}' if isinstance(f, str) else f'  • {json.dumps(f, ensure_ascii=False)[:100]}')
 
@@ -712,7 +719,7 @@ def _fmt_article_memory(article_memory):
             if high_use:
                 parts.append("\nFrazy już często użyte (ogranicz):")
                 for name, count in high_use[:8]:
-                    parts.append(f'  • "{name}" — już {count}×')
+                    parts.append(f'  • "{name}" (już {count}×)')
         
         # v50.5 FIX 30: Add strong anti-repetition instruction
         if topics and len(topics) >= 2:
@@ -755,7 +762,7 @@ def _fmt_coverage_density(pre_batch):
 
     missing = coverage.get("missing_phrases") or coverage.get("uncovered") or []
     if missing:
-        parts.append("⚠️ BRAKUJĄCE FRAZY — wpleć w tym batchu:")
+        parts.append("⚠️ BRAKUJĄCE FRAZY, wpleć w tym batchu:")
         for m in missing[:8]:
             name = m.get("keyword", m) if isinstance(m, dict) else m
             parts.append(f'  → "{name}"')
@@ -771,7 +778,7 @@ def _fmt_coverage_density(pre_batch):
         overused_d = density.get("overused") or []
         if overused_d:
             over_names = ", ".join(f'"{o}"' if isinstance(o, str) else f'"{o.get("keyword", "")}"' for o in overused_d[:5])
-            parts.append(f'Nadużywane: {over_names} — użyj synonimów')
+            parts.append(f'Nadużywane: {over_names}, użyj synonimów')
 
     if keyword_tracking:
         total_kw = keyword_tracking.get("total_keywords", 0)
@@ -824,11 +831,11 @@ def _fmt_legal_medical(pre_batch):
 
     parts = []
 
-    # v50: For "light" YMYL — DON'T inject full legal/medical framework
+    # v50: For "light" YMYL: DON'T inject full legal/medical framework
     if ymyl_intensity == "light":
         light_note = pre_batch.get("_light_ymyl_note", "")
         if light_note:
-            parts.append("═══ ASPEKT REGULACYJNY (peryferyjny — NIE główny temat!) ═══")
+            parts.append("═══ ASPEKT REGULACYJNY (peryferyjny, NIE główny temat!) ═══")
             parts.append(f"  {light_note}")
             parts.append("  ⚠️ OGRANICZENIE: Wspomnij o regulacjach MAX 1-2 razy w CAŁYM artykule.")
             parts.append("  NIE cytuj artykułów ustaw, NIE dodawaj sygnatur orzeczeń,")
@@ -843,7 +850,7 @@ def _fmt_legal_medical(pre_batch):
         parts.append("  2. Dodać disclaimer o konsultacji z prawnikiem")
         parts.append("  3. NIE wymyślać sygnatur ani dat orzeczeń")
         
-        # v47.2: Claude's enrichment — specific articles and concepts
+        # v47.2: Claude's enrichment: specific articles and concepts
         legal_enrich = ymyl_enrich.get("legal", {})
         if legal_enrich.get("articles"):
             parts.append("")
@@ -875,7 +882,7 @@ def _fmt_legal_medical(pre_batch):
                     court = j.get("court", j.get("courtName", ""))
                     date = j.get("date", j.get("judgmentDate", ""))
                     matched = j.get("matched_article", "")
-                    line = f'  • {sig} — {court} ({date})'
+                    line = f'  • {sig}, {court} ({date})'
                     if matched:
                         line += f' [dot. {matched}]'
                     parts.append(line)
@@ -893,7 +900,7 @@ def _fmt_legal_medical(pre_batch):
         parts.append("  2. NIE wymyślać statystyk ani nazw badań")
         parts.append("  3. Dodać informację o konsultacji z lekarzem")
         
-        # v47.2: Claude's enrichment — specialization, evidence guidelines
+        # v47.2: Claude's enrichment: specialization, evidence guidelines
         med_enrich = ymyl_enrich.get("medical", {})
         if med_enrich.get("specialization"):
             parts.append(f"\n  Specjalizacja: {med_enrich['specialization']}")
@@ -978,7 +985,7 @@ def _fmt_causal_context(pre_batch):
 
 
 def _fmt_depth_signals(pre_batch):
-    """Depth signals — inject when previous batch scored low on depth
+    """Depth signals: inject when previous batch scored low on depth
     or always for FULL YMYL content.
     
     v50: Only force for full YMYL intensity, not light.
@@ -1007,7 +1014,7 @@ def _fmt_depth_signals(pre_batch):
     # v50: Legal references only for FULL YMYL
     if is_full_ymyl:
         parts.append("WAGA 2.5: referencje prawne (art. k.c., wyroki SN, Dz.U.) + naukowe (PMID, DOI, badania)")
-    parts.append('WAGA 2.0: konkretne liczby (kwoty PLN, %, okresy — NIE "około")')
+    parts.append('WAGA 2.0: konkretne liczby (kwoty PLN, %, okresy, NIE "około")')
     parts.append('WAGA 1.8: nazwane instytucje (konkretny sąd/urząd, NIE "właściwy sąd") + praktyczne porady (w praktyce, częsty błąd)')
     parts.append("WAGA 1.5: wyjaśnienia przyczynowe (ponieważ, w wyniku) + wyjątki (z wyjątkiem, chyba że) + konkretne daty")
     parts.append("WAGA 1.2: porównania (w odróżnieniu od) | WAGA 1.0: kroki procedur (najpierw/następnie)")
@@ -1016,7 +1023,7 @@ def _fmt_depth_signals(pre_batch):
 
 
 def _fmt_natural_polish(pre_batch):
-    """v50: Natural Polish writing instructions — fleksja, spacing, anti-stuffing.
+    """v50: Natural Polish writing instructions: fleksja, spacing, anti-stuffing.
 
     Based on natural_polish_instructions.py (master-seo-api-main).
     Inlined here because prompt_builder runs in Brajn, not master.
@@ -1050,19 +1057,19 @@ def _fmt_natural_polish(pre_batch):
     # Spacing rules
     SPACING = {"MAIN": 60, "BASIC": 80, "EXTENDED": 120}
 
-    parts = ["═══ NATURALNY POLSKI — ANTY-STUFFING ═══"]
+    parts = ["═══ NATURALNY POLSKI, ANTY-STUFFING ═══"]
 
     parts.append(
         "🔄 FLEKSJA: Odmiany frazy liczą się jako jedno użycie!\n"
         '   "zespół turnera" = "zespołu turnera" = "zespołem turnera"\n'
         "   Pisz naturalnie, używaj różnych przypadków gramatycznych.\n"
-        "   NIE MUSISZ powtarzać frazy w mianowniku — system zaliczy każdą odmianę."
+        "   NIE MUSISZ powtarzać frazy w mianowniku. System zaliczy każdą odmianę."
     )
 
     spacing_lines = []
     for name, kw_type in all_kw[:8]:
         spacing = SPACING.get(kw_type, 80)
-        spacing_lines.append(f'  • "{name}" ({kw_type}) — min {spacing} słów między powtórzeniami')
+        spacing_lines.append(f'  • "{name}" ({kw_type}): min {spacing} słów między powtórzeniami')
     if spacing_lines:
         parts.append("📏 ODSTĘPY MIĘDZY POWTÓRZENIAMI:\n" + "\n".join(spacing_lines))
 
@@ -1081,8 +1088,8 @@ def _fmt_phrase_hierarchy(pre_batch):
     """Format phrase hierarchy: roots, extensions, strategy.
     
     Data sources (checked in order):
-    1. pre_batch["enhanced"]["phrase_hierarchy"] — from enhanced_pre_batch.py
-    2. pre_batch["_phrase_hierarchy"] — injected by app.py from /phrase_hierarchy endpoint
+    1. pre_batch["enhanced"]["phrase_hierarchy"]: from enhanced_pre_batch.py
+    2. pre_batch["_phrase_hierarchy"]: injected by app.py from /phrase_hierarchy endpoint
     """
     hier = (pre_batch.get("enhanced") or {}).get("phrase_hierarchy") or pre_batch.get("_phrase_hierarchy") or {}
     if not hier:
@@ -1092,7 +1099,7 @@ def _fmt_phrase_hierarchy(pre_batch):
 
     strategies = hier.get("strategies") or {}
 
-    # 1. Extensions sufficient — don't repeat root standalone
+    # 1. Extensions sufficient: don't repeat root standalone
     ext_suff = strategies.get("extensions_sufficient") or {}
     ext_roots = ext_suff.get("roots") or []
     if ext_roots:
@@ -1106,7 +1113,7 @@ def _fmt_phrase_hierarchy(pre_batch):
             elif isinstance(root_info, str):
                 parts.append(f'  • "{root_info}" → używaj rozszerzeń zamiast rdzenia')
 
-    # 2. Mixed — some standalone + extensions
+    # 2. Mixed: some standalone + extensions
     mixed = strategies.get("mixed") or {}
     mixed_roots = mixed.get("roots") or []
     if mixed_roots:
@@ -1121,7 +1128,7 @@ def _fmt_phrase_hierarchy(pre_batch):
             elif isinstance(root_info, str):
                 parts.append(f'  • "{root_info}" → kilka samodzielnie + rozszerzenia')
 
-    # 3. Need standalone — extensions insufficient
+    # 3. Need standalone: extensions insufficient
     standalone = strategies.get("need_standalone") or {}
     standalone_roots = standalone.get("roots") or []
     if standalone_roots:
@@ -1158,15 +1165,15 @@ def _fmt_h2_remaining(pre_batch):
         return ""
 
     h2_list = ", ".join(f'"{h}"' for h in h2_remaining[:6])
-    return f"═══ PLAN ═══\nPozostałe sekcje H2 w artykule: {h2_list}\nNie zachodź na ich tematy — zostaną pokryte później."
+    return f"═══ PLAN ═══\nPozostałe sekcje H2 w artykule: {h2_list}\nNie zachodź na ich tematy. Zostaną pokryte później."
 
 
 def _fmt_output_format(h2, batch_type):
     if batch_type in ("INTRO", "intro"):
         return f"""═══ FORMAT ODPOWIEDZI ═══
-Pisz TYLKO treść wstępu. NIE zaczynaj od "h2:" — wstęp nie ma nagłówka.
+Pisz TYLKO treść wstępu. NIE zaczynaj od "h2:". Wstęp nie ma nagłówka.
 80-150 słów. Frazę główną wpleć w PIERWSZE zdanie.
-NIE dodawaj komentarzy, wyjaśnień — TYLKO treść wstępu."""
+NIE dodawaj komentarzy, wyjaśnień. TYLKO treść wstępu."""
     
     return f"""═══ FORMAT ODPOWIEDZI ═══
 Pisz TYLKO treść tego batcha. Zaczynaj dokładnie od:
@@ -1174,7 +1181,7 @@ Pisz TYLKO treść tego batcha. Zaczynaj dokładnie od:
 h2: {h2}
 
 Potem: akapity tekstu (40-150 słów każdy), opcjonalnie h3: [podsekcja].
-NIE dodawaj komentarzy, wyjaśnień, podsumowań — TYLKO treść artykułu."""
+NIE dodawaj komentarzy, wyjaśnień, podsumowań. TYLKO treść artykułu."""
 
 
 # ════════════════════════════════════════════════════════════
@@ -1185,8 +1192,8 @@ def build_faq_system_prompt(pre_batch=None):
     """System prompt for FAQ generation."""
     base = (
         "Jesteś doświadczonym polskim copywriterem SEO. "
-        "Piszesz sekcję FAQ — zwięzłe, konkretne odpowiedzi na pytania użytkowników. "
-        "Każda odpowiedź ma szansę trafić do Google Featured Snippet — pisz bezpośrednio i merytorycznie."
+        "Piszesz sekcję FAQ: zwięzłe, konkretne odpowiedzi na pytania użytkowników. "
+        "Każda odpowiedź ma szansę trafić do Google Featured Snippet. Pisz bezpośrednio i merytorycznie."
     )
 
     gpt_instructions = ""
@@ -1257,7 +1264,7 @@ h2: Najczęściej zadawane pytania""")
 
     all_paa = list(dict.fromkeys(paa_questions + enhanced_paa))
     if all_paa:
-        sections.append("Pytania z Google (People Also Ask) — to NAPRAWDĘ pytają użytkownicy:")
+        sections.append("Pytania z Google (People Also Ask), to NAPRAWDĘ pytają użytkownicy:")
         for i, q in enumerate(all_paa[:8], 1):
             q_text = q.get("question", q) if isinstance(q, dict) else q
             if q_text and q_text.strip():
@@ -1274,17 +1281,17 @@ h2: Najczęściej zadawane pytania""")
                     unused_list.append(items)
             if unused_list:
                 names = ", ".join(f'"{u}"' if isinstance(u, str) else f'"{u.get("keyword", "")}"' for u in unused_list[:8])
-                sections.append(f'\nFrazy jeszcze nieużyte — wpleć w odpowiedzi: {names}')
+                sections.append(f'\nFrazy jeszcze nieużyte, wpleć w odpowiedzi: {names}')
         elif isinstance(unused, list):
             names = ", ".join(f'"{u}"' for u in unused[:8])
-            sections.append(f'\nFrazy jeszcze nieużyte — wpleć w odpowiedzi: {names}')
+            sections.append(f'\nFrazy jeszcze nieużyte, wpleć w odpowiedzi: {names}')
 
     if avoid:
         topics = ", ".join(f'"{a}"' if isinstance(a, str) else f'"{a.get("topic", "")}"' for a in avoid[:8])
         sections.append(f'\nNIE powtarzaj tematów już pokrytych w artykule: {topics}')
 
     if stop_names:
-        sections.append(f'\n🛑 STOP — NIE UŻYWAJ: {", ".join(f"{s}" for s in stop_names[:5])}')
+        sections.append(f'\n🛑 STOP, NIE UŻYWAJ: {", ".join(f"{s}" for s in stop_names[:5])}')
 
     if style:
         forbidden = style.get("forbidden_phrases") or []
@@ -1306,7 +1313,7 @@ h2: Najczęściej zadawane pytania""")
 ═══ FORMAT ═══
 h2: Najczęściej zadawane pytania
 
-h3: [Pytanie — 5-10 słów, zaczynaj od Jak/Czy/Co/Dlaczego/Ile]
+h3: [Pytanie, 5-10 słów, zaczynaj od Jak/Czy/Co/Dlaczego/Ile]
 [Odpowiedź 60-120 słów]
 → Zdanie 1: BEZPOŚREDNIA odpowiedź
 → Zdanie 2-3: rozwinięcie z konkretem
@@ -1357,13 +1364,13 @@ TRYB: {mode} ({mode_desc})""")
         sections.append("\n".join(lines))
 
     if suggested_h2s:
-        lines = ["═══ SUGEROWANE NOWE H2 (luki — tego NIKT z konkurencji nie pokrywa) ═══"]
+        lines = ["═══ SUGEROWANE NOWE H2 (luki, tego NIKT z konkurencji nie pokrywa) ═══"]
         for h in suggested_h2s[:10]:
             h_text = h if isinstance(h, str) else h.get("h2", h.get("title", str(h)))
             lines.append(f"  • {h_text}")
         sections.append("\n".join(lines))
 
-    # Content gaps — ordered by priority (GPT prompt: PAA_UNANSWERED > DEPTH_MISSING > SUBTOPIC_MISSING)
+    # Content gaps: ordered by priority (GPT prompt: PAA_UNANSWERED > DEPTH_MISSING > SUBTOPIC_MISSING)
     gap_priority_map = {
         "paa_unanswered": ("🔴 HIGH", "PAA bez odpowiedzi"),
         "depth_missing": ("🟡 MED-HIGH", "Brak głębi"),
@@ -1379,7 +1386,7 @@ TRYB: {mode} ({mode_desc})""")
             if gap_text and gap_text not in [g[0] for g in all_gaps]:
                 all_gaps.append((gap_text, priority, label))
     if all_gaps:
-        lines = ["═══ LUKI TREŚCIOWE (tematy do pokrycia — priorytet od najwyższego) ═══"]
+        lines = ["═══ LUKI TREŚCIOWE (tematy do pokrycia, priorytet od najwyższego) ═══"]
         for gap_text, priority, label in all_gaps[:10]:
             prefix = f"[{priority}] " if priority else ""
             lines.append(f"  • {prefix}{gap_text}")
@@ -1398,7 +1405,7 @@ TRYB: {mode} ({mode_desc})""")
     if triplet_list:
         lines = ["═══ PRZYCZYNOWE ZALEŻNOŚCI (cause→effect z konkurencji) ═══",
                  "Confidence: 🔴 ≥0.9 UŻYJ | 🟡 ≥0.6 gdy pasuje | 🟢 <0.6 opcjonalnie",
-                 "is_chain=True (A→B→C) = najcenniejsze — buduj logiczny przepływ"]
+                 "is_chain=True (A→B→C) = najcenniejsze. Buduj logiczny przepływ"]
         for t in triplet_list:
             if isinstance(t, dict):
                 cause = t.get("cause", t.get("subject", ""))
@@ -1426,9 +1433,9 @@ TRYB: {mode} ({mode_desc})""")
 
 Użytkownik podał te frazy z myślą o nagłówkach H2.
 Wykorzystaj je w nagłówkach tam, gdzie brzmią naturalnie po polsku.
-Nie musisz użyć każdej — ale nie ignoruj ich. Dopasuj z wyczuciem.
+Nie musisz użyć każdej, ale nie ignoruj ich. Dopasuj z wyczuciem.
 
-Jeśli fraza brzmi sztucznie jako nagłówek — przeformułuj lub pomiń (trafi do treści).
+Jeśli fraza brzmi sztucznie jako nagłówek, przeformułuj lub pomiń (trafi do treści).
 
 FRAZY H2:
 {h2_hints_list}""")
@@ -1445,7 +1452,7 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
 
     fast_note = "Tryb fast: DOKŁADNIE 3 sekcje + FAQ (4 H2 łącznie)." if mode == "fast" else ""
     
-    # v50.8 FIX 50: H2 scaling — minimum 5-6 sekcji nawet dla krótkich artykułów.
+    # v50.8 FIX 50: H2 scaling: minimum 5-6 sekcji nawet dla krótkich artykułów.
     # Więcej sekcji = lepsza struktura, lepsze SEO, łatwiejsze skanowanie.
     length_analysis = s1_data.get("length_analysis") or {}
     rec_length = length_analysis.get("recommended") or s1_data.get("recommended_length") or 0
@@ -1482,9 +1489,9 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
 2. OSTATNI H2 MUSI być: "Najczęściej zadawane pytania"
 3. Pokryj najważniejsze wzorce z konkurencji + luki treściowe (przewaga nad konkurencją)
 4. {h2_hint_rule}
-5. Logiczna narracja — od ogółu do szczegółu, chronologicznie, lub problemowo
+5. Logiczna narracja: od ogółu do szczegółu, chronologicznie, lub problemowo
 6. NIE powtarzaj hasła głównego dosłownie w każdym H2
-7. H2 muszą brzmieć naturalnie po polsku — żadnego keyword stuffingu
+7. H2 muszą brzmieć naturalnie po polsku, żadnego keyword stuffingu
 
 ═══ FORMAT ODPOWIEDZI ═══
 
