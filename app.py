@@ -63,6 +63,20 @@ from entity_salience import (
     analyze_ymyl_references,
 )
 
+# v50.7: Polish NLP validator (NKJP corpus norms)
+try:
+    from polish_nlp_validator import validate_polish_text, get_polish_nlp_summary
+    POLISH_NLP_AVAILABLE = True
+except ImportError:
+    POLISH_NLP_AVAILABLE = False
+
+# v50.7: LanguageTool integration (corpus-based grammar/collocation checker)
+try:
+    from languagetool_checker import check_text as lt_check_text, get_summary as lt_get_summary
+    LANGUAGETOOL_AVAILABLE = True
+except ImportError:
+    LANGUAGETOOL_AVAILABLE = False
+
 # ================================================================
 # 🗑️ CSS/JS GARBAGE FILTER — czyści śmieci z S1 danych
 # ================================================================
@@ -2666,6 +2680,87 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     })
                 except Exception as style_err:
                     logger.warning(f"Style analysis failed: {style_err}")
+
+            # ═══ POLISH NLP VALIDATOR: NKJP corpus norms check (free, always runs) ═══
+            polish_nlp = {}
+            if full_text and POLISH_NLP_AVAILABLE:
+                try:
+                    polish_nlp = validate_polish_text(full_text)
+                    pn_score = polish_nlp.get("score", 0)
+                    m = polish_nlp.get("metrics", {})
+                    yield emit("log", {"msg": (
+                        f"🇵🇱 Polish NLP: score {pn_score}/100 | "
+                        f"śr. wyraz: {m.get('avg_word_length', 0):.1f} zn | "
+                        f"śr. zdanie: {m.get('avg_sentence_length', 0):.0f} słów | "
+                        f"diakrytyki: {m.get('diacritics_pct', 0):.1f}% | "
+                        f"FOG-PL: {m.get('fog_pl', 0):.0f} | "
+                        f"przecinki: {m.get('comma_conjunction_ratio', 0):.0%}"
+                    )})
+                    # Log issues
+                    issues = polish_nlp.get("issues", [])
+                    if issues:
+                        yield emit("log", {"msg": f"   ⚠️ Issues: {' | '.join(issues[:3])}"})
+                    # Log collocation errors
+                    coll_issues = polish_nlp.get("collocation_issues", [])
+                    if coll_issues:
+                        for ci in coll_issues[:3]:
+                            yield emit("log", {"msg": f"   📝 Kolokacja: \"{ci['wrong']}\" → \"{ci['correct']}\" ({ci['count']}×)"})
+                    # Emit to dashboard
+                    yield emit("polish_nlp", {
+                        "score": pn_score,
+                        "avg_word_length": m.get("avg_word_length", 0),
+                        "avg_sentence_length": m.get("avg_sentence_length", 0),
+                        "diacritics_pct": m.get("diacritics_pct", 0),
+                        "vowel_pct": m.get("vowel_pct", 0),
+                        "fog_pl": m.get("fog_pl", 0),
+                        "comma_conjunction_ratio": m.get("comma_conjunction_ratio", 0),
+                        "sentence_cv": m.get("sentence_length_cv", 0),
+                        "collocation_errors": m.get("collocation_errors", 0),
+                        "hapax_ratio": m.get("hapax_ratio", 0),
+                        "type_token_ratio": m.get("type_token_ratio", 0),
+                        "issues": issues,
+                        "recommendations": polish_nlp.get("recommendations", []),
+                    })
+                except Exception as pnlp_err:
+                    logger.warning(f"Polish NLP validation failed: {pnlp_err}")
+
+            # ═══ LANGUAGETOOL: Corpus-based grammar/collocation/punctuation check ═══
+            lt_result = {}
+            if full_text and LANGUAGETOOL_AVAILABLE:
+                try:
+                    lt_result = lt_check_text(full_text)
+                    lt_score = lt_result.get("score", 0)
+                    cats = lt_result.get("categories", {})
+                    available = lt_result.get("api_available", False)
+                    if available:
+                        yield emit("log", {"msg": (
+                            f"🔍 LanguageTool: score {lt_score}/100 | "
+                            f"gramatyka: {cats.get('GRAMMAR', 0)} | "
+                            f"kolokacje: {cats.get('COLLOCATIONS', 0)} | "
+                            f"interpunkcja: {cats.get('PUNCTUATION', 0)} | "
+                            f"styl: {cats.get('STYLE', 0) + cats.get('REDUNDANCY', 0)} | "
+                            f"literówki: {cats.get('TYPOS', 0)}"
+                        )})
+                        # Log top issues
+                        for issue in lt_result.get("issues", [])[:5]:
+                            yield emit("log", {"msg": (
+                                f"   📝 [{issue['category_name']}] {issue['message'][:80]}"
+                                + (f" → {', '.join(issue['replacements'][:2])}" if issue.get('replacements') else "")
+                            )})
+                        # Emit to dashboard
+                        yield emit("languagetool", {
+                            "score": lt_score,
+                            "total_issues": lt_result.get("total_issues", 0),
+                            "categories": cats,
+                            "collocation_issues": lt_result.get("collocation_issues", []),
+                            "grammar_issues": lt_result.get("grammar_issues", []),
+                            "punctuation_issues": lt_result.get("punctuation_issues", []),
+                            "style_issues": lt_result.get("style_issues", []),
+                        })
+                    else:
+                        yield emit("log", {"msg": "⚠️ LanguageTool API niedostępne — pominięto sprawdzanie"})
+                except Exception as lt_err:
+                    logger.warning(f"LanguageTool check failed: {lt_err}")
 
             # ═══ YMYL INTELLIGENCE: Analyze legal/medical references in text ═══
             if full_text and (is_legal or is_medical):
