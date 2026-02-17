@@ -119,13 +119,26 @@ def build_system_prompt(pre_batch, batch_type):
   ✅ Jeśli chcesz dać przykład — napisz ogólnie: „np. w Polsce napięcie sieciowe wynosi 230 V"
   ✅ Zamiast wymyślonych przepisów — opisz zasadę ogólną bez podawania numerów ustaw.
 
-• POLSZCZYZNA (reguły NKJP):
-  → Przecinek OBOWIĄZKOWY przed: że, który/a/e, ponieważ, gdyż, aby, żeby, jednak, lecz, ale.
+• POLSZCZYZNA (dane NKJP — Narodowy Korpus Języka Polskiego, 1,8 mld segmentów):
+  → PRZECINKI — OBOWIĄZKOWE przed: że, który/a/e, ponieważ, gdyż, aby, żeby, jednak, lecz, ale.
     Brak przecinka przed "że" to NATYCHMIASTOWY sygnał sztuczności.
-  → Kolokacje — używaj POPRAWNYCH połączeń:
+    W polszczyźnie przecinek występuje CZĘŚCIEJ niż litera "b" (>1,47% znaków).
+  → KOLOKACJE — używaj POPRAWNYCH połączeń:
     podjąć decyzję (NIE: zrobić decyzję), odnieść sukces (NIE: mieć sukces),
-    popełnić błąd (NIE: zrobić błąd), wysoki poziom (NIE: duży poziom),
-    silny ból (NIE: duży ból), wysokie ryzyko (NIE: duże ryzyko).
+    popełnić błąd (NIE: zrobić błąd), ponieść konsekwencje (NIE: mieć konsekwencje),
+    wysoki poziom (NIE: duży poziom), silny ból (NIE: duży ból),
+    wysokie ryzyko (NIE: duże ryzyko), mocna kawa (NIE: silna kawa),
+    rzęsisty deszcz (NIE: duży deszcz), wysunąć propozycję (NIE: dać propozycję),
+    odgrywać rolę (NIE: pełnić rolę), osiągnąć porozumienie (NIE: zrobić porozumienie).
+  → DŁUGOŚĆ ZDAŃ — średnio 10–15 słów (styl publicystyczny).
+    NIE pisz wszystkich zdań jednej długości — to sygnał AI.
+  → ŚREDNIA DŁUGOŚĆ WYRAZU — 6 znaków (±0,5). Publicystyka=6,0, naukowe=6,4.
+    Nie nadużywaj nominalizacji ("przeprowadzanie systematycznego monitorowania").
+    Mieszaj krótkie słowa (3-4 znaki) z dłuższymi (8-10).
+  → DIAKRYTYKI — naturalny tekst ma ~7% znaków ą,ę,ć,ł,ń,ó,ś,ź,ż.
+    Tekst <5% lub >9% diakrytyków = statystycznie nienaturalny.
+  → DWUZNAKI — ch, cz, rz, sz, dz, dź, dż stanowią ~3% tekstu.
+  → SAMOGŁOSKI — A,I,O,E,U,Y = 35-38% tekstu.
   → Unikaj pleonazmów: "wzajemna współpraca", "aktualna sytuacja na dziś", "krótkie streszczenie".
   → Mieszaj przypadki gramatyczne — nie powtarzaj frazy w mianowniku.
 
