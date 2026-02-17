@@ -1224,7 +1224,7 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
 # ============================================================
 # TEXT GENERATION (Claude + OpenAI)
 # ============================================================
-def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="claude", openai_model=None):
+def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="claude", openai_model=None, temperature=None):
     """Generate batch text using optimized prompts built from pre_batch data.
     
     v45.3: Replaces raw json.dumps() with structured natural language prompts
@@ -1235,7 +1235,7 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
     user_prompt = build_user_prompt(pre_batch, h2, batch_type, article_memory)
 
     if engine == "openai" and OPENAI_API_KEY:
-        return _generate_openai(system_prompt, user_prompt, model=openai_model)
+        return _generate_openai(system_prompt, user_prompt, model=openai_model, temperature=temperature)
     else:
         # v50.8 FIX 49: Determine effort level and web search from context
         is_ymyl = pre_batch.get("_is_ymyl", False)
@@ -1253,19 +1253,25 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
         use_web_search = is_ymyl and ymyl_intensity == "full"
         
         return _generate_claude(system_prompt, user_prompt,
-                                effort=effort, web_search=use_web_search)
+                                effort=effort, web_search=use_web_search,
+                                temperature=temperature)
 
 
-def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False):
+def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False, temperature=None):
     """Generate text using Anthropic Claude.
     
     v50.7 FIX 48: Auto-retry on 429/529.
     v50.8 FIX 49: Adaptive thinking (effort) + web search for YMYL.
+    v50.9 FIX 52: User-configurable temperature.
     
     Args:
         effort: "high" | "medium" | "low" | None (None = no effort param, uses temperature)
         web_search: True = enable web_search tool (for YMYL fact verification)
+        temperature: 0.0-1.0, user-configured. When thinking is enabled, forced to 1.
     """
+    # v50.9: User temperature (default 0.7 if not set)
+    user_temp = temperature if temperature is not None else 0.7
+    
     def _call():
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         
@@ -1290,7 +1296,7 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False):
             # max_tokens must be > budget_tokens; ensure 4000 for output
             kwargs["max_tokens"] = budget + 4000
         else:
-            kwargs["temperature"] = 0.7
+            kwargs["temperature"] = user_temp  # v50.9: user-configurable temperature
         
         # v50.8 FIX 49: Web search tool for YMYL content
         # Claude searches the web to verify legal/medical facts during generation
@@ -1325,13 +1331,14 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False):
         raise
 
 
-def _generate_openai(system_prompt, user_prompt, model=None):
+def _generate_openai(system_prompt, user_prompt, model=None, temperature=None):
     """Generate text using OpenAI GPT. v50.7 FIX 48: Auto-retry on 429/529."""
     if not OPENAI_AVAILABLE:
         logger.warning("OpenAI not installed, falling back to Claude")
-        return _generate_claude(system_prompt, user_prompt)
+        return _generate_claude(system_prompt, user_prompt, temperature=temperature)
     
     effective_model = model or OPENAI_MODEL
+    user_temp = temperature if temperature is not None else 0.7
     
     # v50.7 FIX 43: GPT-5.x and o-series use max_completion_tokens, not max_tokens
     use_new_param = any(effective_model.startswith(p) for p in ("gpt-5", "o1", "o3", "o4"))
@@ -1345,14 +1352,14 @@ def _generate_openai(system_prompt, user_prompt, model=None):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.7,
+            temperature=user_temp,
             **token_param
         )
         return response.choices[0].message.content.strip()
     return _llm_call_with_retry(_call)
 
 
-def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=None):
+def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=None, temperature=None):
     """Generate FAQ section using optimized prompts.
     
     v45.3: Uses prompt_builder for structured instructions instead of json.dumps().
@@ -1368,16 +1375,16 @@ def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=No
     user_prompt = build_faq_user_prompt(paa_data, pre_batch)
 
     if engine == "openai" and OPENAI_API_KEY:
-        return _generate_openai(system_prompt, user_prompt, model=openai_model)
+        return _generate_openai(system_prompt, user_prompt, model=openai_model, temperature=temperature)
     else:
         # FAQ = simple Q&A, low effort is sufficient
-        return _generate_claude(system_prompt, user_prompt, effort="low")
+        return _generate_claude(system_prompt, user_prompt, effort="low", temperature=temperature)
 
 
 # ============================================================
 # WORKFLOW ORCHESTRATOR (SSE)
 # ============================================================
-def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None):
+def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None, temperature=None):
     """
     Full BRAJEN workflow as a generator yielding SSE events.
     Follows PROMPT_v45_2.md EXACTLY:
@@ -1395,7 +1402,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
     workflow_start = time.time()
     
     engine_label = "OpenAI " + effective_openai_model if engine == "openai" else "Claude " + ANTHROPIC_MODEL
-    yield emit("log", {"msg": f"🚀 Workflow: {main_keyword} [{mode}] [🤖 {engine_label}]"})
+    temp_label = f" [temp={temperature}]" if temperature is not None else ""
+    yield emit("log", {"msg": f"🚀 Workflow: {main_keyword} [{mode}] [🤖 {engine_label}]{temp_label}"})
     
     if engine == "openai" and not OPENAI_API_KEY:
         yield emit("log", {"msg": "⚠️ OPENAI_API_KEY nie ustawiony, fallback na Claude"})
@@ -2325,7 +2333,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 # FAQ batch: first analyze PAA
                 paa_result = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
                 paa_data = paa_result["data"] if paa_result["ok"] else {}
-                text = generate_faq_text(paa_data, pre_batch, engine=engine, openai_model=effective_openai_model)
+                text = generate_faq_text(paa_data, pre_batch, engine=engine, openai_model=effective_openai_model, temperature=temperature)
             else:
                 # ═══ AI MIDDLEWARE: Article memory fallback ═══
                 article_memory = pre_batch.get("article_memory")
@@ -2341,7 +2349,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 
                 text = generate_batch_text(
                     pre_batch, current_h2, batch_type,
-                    article_memory, engine=engine, openai_model=effective_openai_model
+                    article_memory, engine=engine, openai_model=effective_openai_model,
+                    temperature=temperature
                 )
 
             word_count = len(text.split())
@@ -2495,10 +2504,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         logger.warning(f"[FAQ] pre_batch is {type(faq_pre_batch).__name__}, forcing None")
                         faq_pre_batch = None
                     try:
-                        faq_text = generate_faq_text(paa_data_for_faq, faq_pre_batch, engine=engine, openai_model=effective_openai_model)
+                        faq_text = generate_faq_text(paa_data_for_faq, faq_pre_batch, engine=engine, openai_model=effective_openai_model, temperature=temperature)
                     except AttributeError as ae:
                         logger.warning(f"[FAQ] generate_faq_text AttributeError: {ae}, retrying without pre_batch")
-                        faq_text = generate_faq_text(paa_data_for_faq, None, engine=engine, openai_model=effective_openai_model)
+                        faq_text = generate_faq_text(paa_data_for_faq, None, engine=engine, openai_model=effective_openai_model, temperature=temperature)
                     if faq_text and faq_text.strip():
                         brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": faq_text})
                         # Extract and save
@@ -3142,6 +3151,9 @@ def start_workflow():
     custom_instructions = (data.get("custom_instructions") or "").strip()
     engine = data.get("engine", "claude")  # "claude" or "openai"
     openai_model_override = data.get("openai_model")  # per-session model override
+    user_temperature = data.get("temperature")  # 0.0-1.0 or None
+    if user_temperature is not None:
+        user_temperature = max(0.0, min(1.0, float(user_temperature)))
 
     # H2 is now OPTIONAL : if empty, will be auto-generated from S1
 
@@ -3155,6 +3167,7 @@ def start_workflow():
         "mode": mode,
         "engine": engine,
         "openai_model": openai_model_override,
+        "temperature": user_temperature,
         "h2_structure": h2_list,
         "basic_terms": basic_terms,
         "extended_terms": extended_terms,
@@ -3219,7 +3232,8 @@ def stream_workflow(job_id):
             basic_terms=bt,
             extended_terms=et,
             engine=data.get("engine", "claude"),
-            openai_model=data.get("openai_model")
+            openai_model=data.get("openai_model"),
+            temperature=data.get("temperature")
         )
 
     return Response(
