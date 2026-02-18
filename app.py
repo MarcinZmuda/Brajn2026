@@ -2035,6 +2035,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # === 1. ENTITIES (primary, Surfer-style) ===
             # Topical entities have per-source frequency from competition
             all_entity_sources = []
+            _first_topical_seen = False  # v57.1: track if first topical entity was processed
             if ai_topical:
                 all_entity_sources.extend(ai_topical)
             if clean_entities:
@@ -2051,11 +2052,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 freq_max = ent.get("freq_max", 0)
                 freq_median = ent.get("freq_median", 0)
                 sources_count = ent.get("sources_count", 0)
-                is_topical = ent.get("source") == "topical_generator" or ent.get("eav") or ent.get("is_primary")
+                is_topical = (
+                    ent.get("source") in ("topical_generator", "ai_cleanup", "concept_entities")
+                    or ent.get("type", "").upper() == "TOPICAL"
+                    or ent.get("eav") or ent.get("is_primary")
+                )
                 
                 if is_topical:
-                    # v57 FIX: Topical entities bypass freq filter — use salience-based targets
-                    if ent.get("is_primary"):
+                    # v57.1 FIX: Topical entities bypass freq filter — use salience-based targets
+                    # First topical entity = primary (highest salience), rest = secondary
+                    is_primary = ent.get("is_primary") or not _first_topical_seen
+                    _first_topical_seen = True
+                    if is_primary:
                         target_min, target_max = 3, 8
                     else:
                         target_min, target_max = 2, 5
