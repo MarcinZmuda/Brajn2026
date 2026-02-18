@@ -103,6 +103,10 @@
         /* ═══ STEPS ═══ */
         .steps{margin-bottom:24px}
         .stp{display:flex;align-items:center;gap:12px;padding:9px 0}
+        .steps.collapsed .stp:not(.done){display:none}
+        .steps.collapsed .stp.done{padding:4px 0}
+        .steps-toggle{font-size:10px;color:var(--mg);cursor:pointer;text-align:center;padding:4px 0;display:none}
+        .steps-toggle:hover{color:var(--orange)}
         .stp+.stp{border-top:1px solid var(--w5)}
         .stp-i{
             width:28px;height:28px;border-radius:var(--rs);display:flex;align-items:center;
@@ -330,22 +334,12 @@
         <div id="wel" class="welcome"><div class="w-icon">⚡</div><h2>BRAJEN SEO Engine</h2><p>Wpisz keyword i uruchom workflow</p></div>
         <div id="prog" style="display:none">
             <div class="steps" id="stC"></div>
+            <div class="steps-toggle" id="stToggle" onclick="document.getElementById('stC').classList.toggle('collapsed');this.textContent=document.getElementById('stC').classList.contains('collapsed')?'▼ pokaż kroki':'▲ zwiń kroki'">▲ zwiń kroki</div>
             <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
             <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" onclick="tPnl('s1P')"><span>📊 Analiza S1 — Pełna mapa tematu</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B" style="max-height:900px"></div></div>
             <div class="pnl" id="biP" style="display:none"><div class="pnl-h" onclick="tPnl('biP')"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
             <div class="crd" id="bpC" style="display:none"><div class="pg-top"><span class="pg-lbl">Generowanie</span><span class="pg-ct" id="bCt">0/0</span></div><div class="pg-bar"><div class="pg-fill" id="bFill" style="width:0%"></div></div><div class="chips" id="bRes"></div></div>
-            <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frQB" style="display:none;margin-top:10px;padding:8px 0;border-top:1px solid var(--bd)"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--fg)">Quality Breakdown</div><div id="frBars" style="display:grid;grid-template-columns:90px 1fr 32px;gap:3px 8px;font-size:11px;align-items:center"></div></div><div id="frD" style="font-size:11px;color:var(--mg);margin-top:10px;max-height:60px;overflow-y:auto"></div></div>
-            <div class="crd" id="edC" style="display:none"><div class="crd-t" style="cursor:pointer" onclick="document.getElementById('edDet').style.display=document.getElementById('edDet').style.display==='none'?'block':'none'"><b>Editorial</b> Review <span style="float:right;font-size:10px;color:var(--mg)">▼ szczegóły</span></div><div class="sv xl" style="text-align:center" id="edSc">—<span>/10</span></div><div class="sg sg3"><div class="sc"><div class="sv" id="edCh">—</div><div class="sl">Zmiany</div></div><div class="sc"><div class="sv" id="edW">—</div><div class="sl">Słowa</div></div><div class="sc"><div class="sv" id="edR">—</div><div class="sl">Rollback</div></div></div><div id="edDet" style="display:none;padding:8px 12px;font-size:11px;border-top:1px solid var(--bd);max-height:300px;overflow-y:auto"></div></div>
-            <div class="pnl" id="cpP" style="display:none"><div class="pnl-h" onclick="tPnl('cpP')"><span>✅ S1 Compliance</span><span class="arr">▼</span></div><div class="pnl-b" id="cpB"></div></div>
-            <div class="crd" id="esC" style="display:none"><div class="crd-t"><b>🔬 Entity</b> Salience (Google NLP)</div><div class="sg sg3"><div class="sc"><div class="sv" id="esSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="esSal">—</div><div class="sl">Main Salience</div></div><div class="sc"><div class="sv" id="esDom">—</div><div class="sl">Dominacja</div></div></div><div id="esSP" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd)"><div style="font-size:11px;font-weight:600;margin-bottom:4px">📐 Subject Position</div><div class="sg sg4" style="font-size:10px"><div class="sc"><div class="sv" id="spSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="spSR">—</div><div class="sl">Podmiot %</div></div><div class="sc"><div class="sv" id="spH2">—</div><div class="sl">H2</div></div><div class="sc"><div class="sv" id="sp1st">—</div><div class="sl">1. zdanie</div></div></div></div><div id="esEnts" style="margin-top:10px;font-size:11px;display:none"></div><div id="esIss" style="margin-top:8px;font-size:11px;color:var(--mg)"></div></div>
-            <div class="crd" id="afC" style="display:none"><div class="crd-t"><b>🎭 Anti-Frankenstein</b> Style Analysis</div><div class="sg sg4"><div class="sc"><div class="sv" id="afSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="afCV">—</div><div class="sl">CV Zdań</div></div><div class="sc"><div class="sv" id="afP">—</div><div class="sl">Passive</div></div><div class="sc"><div class="sv" id="afSL">—</div><div class="sl">Śr. zdanie</div></div></div><div id="afIss" style="margin-top:8px;font-size:11px;color:var(--mg)"></div></div>
-            <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Analiza wiarygodności</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Prawo</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medycyna</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Źródła</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Zastrzeżenie</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:12px;color:var(--mg)"></div></div>
-            <div class="pnl" id="schP" style="display:none"><div class="pnl-h" onclick="tPnl('schP')"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:10px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
-            <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" onclick="tPnl('tmP')"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
-            <div class="pnl" id="ciP" style="display:none"><div class="pnl-h" onclick="tPnl('ciP')"><span>📊 Competitive Intelligence Dashboard</span><span class="arr">▼</span></div><div class="pnl-b open" id="ciB"></div></div>
-            <div class="done" id="doneB" style="display:none"><h2>✓ Artykuł gotowy</h2><p id="doneD"></p></div>
-            <div class="exp" id="expB" style="display:none"><a class="btn-e pri" id="exH">HTML</a><a class="btn-e" id="exD">DOCX</a></div>
-            <div style="margin-top:20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        <div style="margin-top:20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <span class="lbl" style="margin:0">📄 Podgląd artykułu (buduje się na żywo)</span>
               <button class="tbtn" onclick="tog('artP')">pokaż/ukryj</button>
               <button class="tbtn" id="btnCopyArt" onclick="copyArticle()" style="background:var(--gn);color:#fff;border:none">📋 Kopiuj tekst</button>
@@ -374,6 +368,37 @@
                 <input type="text" id="inlineIn" placeholder="Co zmienić w zaznaczeniu?" onkeydown="if(event.key==='Enter')sendInline()">
                 <button onclick="sendInline()">OK</button>
                 <button class="bx" onclick="hideInl()">✕</button>
+
+            <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frQB" style="display:none;margin-top:10px;padding:8px 0;border-top:1px solid var(--b1)"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--fg)">Quality Breakdown</div><div id="frBars" style="display:grid;grid-template-columns:90px 1fr 32px;gap:3px 8px;font-size:11px;align-items:center"></div></div><div id="frD" style="font-size:11px;color:var(--mg);margin-top:10px;max-height:200px;overflow-y:auto"></div></div>
+            <div id="pipelineSummary" style="display:none;margin:6px 0;padding:10px 16px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);font-size:11px;color:var(--mg);display:flex;align-items:center;gap:8px">
+              <span id="psSEOStatus" style="font-weight:600"></span>
+              <span style="color:var(--b3)">→</span>
+              <span id="psEditStatus" style="font-weight:600"></span>
+            </div>
+            <div class="crd" id="edC" style="display:none">
+              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between">
+                <span><b>Editorial</b> Review</span>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:22px;font-weight:800;color:var(--white)" id="edSc">—<span style="font-size:13px;color:var(--mg);font-weight:400">/10</span></span>
+                  <button class="tbtn" onclick="const d=document.getElementById('edDet');d.style.display=d.style.display==='none'?'block':'none'">szczegóły ▾</button>
+                </div>
+              </div>
+              <div class="sg sg3" style="margin-top:10px">
+                <div class="sc"><div class="sv" id="edCh">—</div><div class="sl">Zmiany</div></div>
+                <div class="sc"><div class="sv" id="edW">—</div><div class="sl">Słowa przed→po</div></div>
+                <div class="sc"><div class="sv" id="edR">—</div><div class="sl">Rollback</div></div>
+              </div>
+              <div id="edDet" style="display:block;padding:10px 0 0;font-size:11px;border-top:1px solid var(--b1);margin-top:10px;max-height:400px;overflow-y:auto"></div>
+            </div>
+            <div class="pnl" id="cpP" style="display:none"><div class="pnl-h" onclick="tPnl('cpP')"><span>✅ S1 Compliance</span><span class="arr">▼</span></div><div class="pnl-b" id="cpB"></div></div>
+            <div class="crd" id="esC" style="display:none"><div class="crd-t"><b>🔬 Entity</b> Salience (Google NLP)</div><div class="sg sg3"><div class="sc"><div class="sv" id="esSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="esSal">—</div><div class="sl">Main Salience</div></div><div class="sc"><div class="sv" id="esDom">—</div><div class="sl">Dominacja</div></div></div><div id="esSP" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--b1)"><div style="font-size:11px;font-weight:600;margin-bottom:4px">📐 Subject Position</div><div class="sg sg4" style="font-size:10px"><div class="sc"><div class="sv" id="spSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="spSR">—</div><div class="sl">Podmiot %</div></div><div class="sc"><div class="sv" id="spH2">—</div><div class="sl">H2</div></div><div class="sc"><div class="sv" id="sp1st">—</div><div class="sl">1. zdanie</div></div></div></div><div id="esEnts" style="margin-top:10px;font-size:11px;display:none"></div><div id="esIss" style="margin-top:8px;font-size:11px;color:var(--mg)"></div></div>
+            <div class="crd" id="afC" style="display:none"><div class="crd-t"><b>🎭 Anti-Frankenstein</b> Style Analysis</div><div class="sg sg4"><div class="sc"><div class="sv" id="afSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="afCV">—</div><div class="sl">CV Zdań</div></div><div class="sc"><div class="sv" id="afP">—</div><div class="sl">Passive</div></div><div class="sc"><div class="sv" id="afSL">—</div><div class="sl">Śr. zdanie</div></div></div><div id="afIss" style="margin-top:8px;font-size:11px;color:var(--mg)"></div></div>
+            <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Analiza wiarygodności</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Prawo</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medycyna</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Źródła</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Zastrzeżenie</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:12px;color:var(--mg)"></div></div>
+            <div class="pnl" id="schP" style="display:none"><div class="pnl-h" onclick="tPnl('schP')"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:10px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
+            <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" onclick="tPnl('tmP')"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
+            <div class="pnl" id="ciP" style="display:none"><div class="pnl-h" onclick="tPnl('ciP')"><span>📊 Competitive Intelligence Dashboard</span><span class="arr">▼</span></div><div class="pnl-b open" id="ciB"></div></div>
+            <div class="done" id="doneB" style="display:none"><h2>✓ Artykuł gotowy</h2><p id="doneD"></p></div>
+            <div class="exp" id="expB" style="display:none"><a class="btn-e pri" id="exH">HTML</a><a class="btn-e" id="exD">DOCX</a></div>
             </div>
             <div style="margin-top:16px"><span class="lbl">Logi <button class="tbtn" onclick="tog('logC')">pokaż</button></span></div>
             <div class="logbox" id="logC"></div>
@@ -402,7 +427,18 @@ if(eng.claude&&!eng.claude.available){document.querySelector('.ebtn[data-engine=
 }}catch(e){}})()
 function tog(id){const e=document.getElementById(id);e.style.display=e.style.display==='none'?'':'none'}
 function log(m){const c=document.getElementById('logC');c.innerHTML+=`<div class="log-line"><span class="ts">${new Date().toLocaleTimeString('pl-PL')}</span> ${esc(m)}</div>`;c.scrollTop=c.scrollHeight}
-function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);if(!i)return;i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d}
+function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);if(!i)return;
+  // Dodaj klasę done do .stp elementu (dla CSS collapsed)
+  const stpEl=i.closest('.stp');if(stpEl&&st==='done')stpEl.classList.add('done');
+  i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d;
+  // FIX 7: Po kroku 10 (Export done) — zwiń kroki automatycznie
+  if(s===10&&st==='done'){
+    setTimeout(()=>{
+      const stC=document.getElementById('stC'),tog=document.getElementById('stToggle');
+      if(stC){stC.classList.add('collapsed');if(tog){tog.style.display='block';tog.textContent='▼ pokaż kroki (wszystkie ukończone)';}}
+    },1200);
+  }
+}
 function tPnl(id){const p=document.getElementById(id),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');b.classList.toggle('open');h.classList.toggle('open')}
 function tBd(id){document.getElementById(id).classList.toggle('open')}
 
@@ -441,7 +477,7 @@ function rS1(d){
     else if(ss2.length)b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Źródła SERP</div>${ss2.slice(0,8).map(s=>`<div style="font-size:10px;color:var(--mg);padding:2px 0">${esc(typeof s==='string'?s:(s.url||s.title||s.domain||JSON.stringify(s)).substring(0,80))}</div>`).join('')}</div>`;
     // v47: Competitor snippets (what Google shows in SERP)
     const cSnippets=d.competitor_snippets||[];
-    if(cSnippets.length>0){b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">SERP Snippets (co Google pokazuje)</div>`;cSnippets.slice(0,5).forEach((sn,i)=>{b1+=`<div style="font-size:10px;color:var(--lg);padding:3px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(typeof sn==='string'?sn.substring(0,120):(sn.snippet||'').substring(0,120))}</div>`});b1+=`</div>`}
+    if(cSnippets.length>0){b1+=`<div style="margin:10px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">SERP Snippets (co Google pokazuje)</div>`;cSnippets.slice(0,5).forEach((sn,i)=>{b1+=`<div style="font-size:10px;color:var(--lg);padding:3px 0;border-bottom:1px solid var(--b1)"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(typeof sn==='string'?sn.substring(0,120):(sn.snippet||'').substring(0,120))}</div>`});b1+=`</div>`}
     const fs=d.featured_snippet,aio=d.ai_overview,rs=d.related_searches||[];
     if(fs)b1+=`<div style="margin:6px 0"><span class="tag g" style="white-space:normal;line-height:1.4">📋 Featured Snippet: ${esc((typeof fs==='string'?fs:(fs.text||JSON.stringify(fs))).substring(0,150))}</span></div>`;
     if(aio)b1+=`<div style="margin:6px 0"><span class="tag o" style="white-space:normal;line-height:1.4">🤖 AI Overview: ${esc((typeof aio==='string'?aio:(aio.text||JSON.stringify(aio))).substring(0,150))}</span></div>`;
@@ -717,8 +753,14 @@ async function startWorkflow(){
         setTimeout(()=>banner.remove(), 5000);
       }
     }
+    // FIX: pipeline summary — editorial status
+    const _psEd=document.getElementById('psEditStatus'),_ps2=document.getElementById('pipelineSummary');
+    if(_psEd){const _ch=d.changes_applied||0,_fail=d.changes_failed||0,_rb=d.rollback;
+    const _ecol=_rb?'var(--rd)':_ch>0?'var(--gn)':'var(--yl)';
+    _psEd.innerHTML='<span style="color:'+_ecol+'">'+'Editorial: '+(_rb?'ROLLBACK':_ch+' zmian naprawiono')+(_fail>0?' ('+_fail+' nieznaleziono)':'')+' </span>';
+    if(_ps2)_ps2.style.display='flex';}
   });
-        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--bd);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}});
+        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
         es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';liveArticle=rawArticle;renderArt(rawArticle);document.getElementById('editorWrap').classList.add('visible')});
         es.addEventListener('article_memory',e=>{memoryData=JSON.parse(e.data)});
@@ -729,7 +771,7 @@ async function startWorkflow(){
         es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);salienceData=d;const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`}else{document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:10px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss}const sp=d.subject_position;if(sp&&sp.total_sentences>0){document.getElementById('esSP').style.display='';document.getElementById('spSc').textContent=`${sp.score}/100`;document.getElementById('spSc').style.color=sp.score>=70?G:sp.score>=40?W:R;document.getElementById('spSR').textContent=`${Math.round(sp.subject_ratio*100)}%`;document.getElementById('spSR').style.color=sp.subject_ratio>=0.35?G:sp.subject_ratio>=0.2?W:R;document.getElementById('spH2').textContent=sp.h2_entity_count||0;document.getElementById('sp1st').textContent=sp.first_sentence_has_entity?'✅':'❌';document.getElementById('sp1st').style.color=sp.first_sentence_has_entity?G:R}});
         es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
-        es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:11px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--bd)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:10px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:10px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
+        es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:11px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:10px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:10px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
         es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html)document.getElementById('exH').href=`/api/export/${jid}/html`;if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
 
@@ -767,7 +809,7 @@ function renderYmylCard(){
 function ciSec(num,title,badge,content){
     return `<div class="ci-sec"><div class="ci-sec-h" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.arr').textContent=this.nextElementSibling.classList.contains('open')?'▲':'▼'"><span class="ci-sec-n"><b>${num}</b> ${title}</span>${badge?`<span class="ci-badge">${badge}</span>`:''}<span class="arr">▼</span></div><div class="ci-sec-b">${content}</div></div>`;
 }
-function ciBar(pct,clr){return `<div style="background:var(--bd);border-radius:3px;height:7px;overflow:hidden"><div style="width:${Math.min(100,Math.max(0,pct))}%;height:100%;background:${clr};border-radius:3px"></div></div>`}
+function ciBar(pct,clr){return `<div style="background:var(--b1);border-radius:3px;height:7px;overflow:hidden"><div style="width:${Math.min(100,Math.max(0,pct))}%;height:100%;background:${clr};border-radius:3px"></div></div>`}
 function ciGrid(cols){return `<div style="display:grid;grid-template-columns:${cols};gap:3px 8px;font-size:10px;align-items:center">`}
 function ciStat(val,label,clr){return `<div style="text-align:center"><div style="font-size:18px;font-weight:800;${clr?'color:'+clr:''}">${val}</div><div style="font-size:9px;color:var(--mg)">${label}</div></div>`}
 
@@ -776,7 +818,7 @@ function renderCompDash(){
     document.getElementById('ciP').style.display='';
     const G='#34d399',W='#fba92c',R='#f87171',P='#fba92c',M='#9e9e9e';
     const clrV=(v,g,w)=>v>=g?G:v>=w?W:R;
-    let h='<style>.ci-sec{border:1px solid var(--bd);border-radius:8px;margin-bottom:8px;overflow:hidden}.ci-sec-h{padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;background:var(--bg2)}.ci-sec-h:hover{opacity:.8}.ci-sec-n{flex:1}.ci-sec-n b{color:var(--pr);margin-right:4px}.ci-badge{font-size:10px;padding:1px 8px;border-radius:10px;background:var(--bd);font-weight:600}.ci-sec-b{display:none;padding:10px 12px;font-size:11px}.ci-sec-b.open{display:block}.ci-kw-row{display:grid;grid-template-columns:1fr 55px 35px 35px 55px;gap:2px 6px;padding:2px 0;border-bottom:1px solid var(--bd);font-size:10px;align-items:center}</style>';
+    let h='<style>.ci-sec{border:1px solid var(--b1);border-radius:8px;margin-bottom:8px;overflow:hidden}.ci-sec-h{padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;background:var(--bg2)}.ci-sec-h:hover{opacity:.8}.ci-sec-n{flex:1}.ci-sec-n b{color:var(--pr);margin-right:4px}.ci-badge{font-size:10px;padding:1px 8px;border-radius:10px;background:var(--b1);font-weight:600}.ci-sec-b{display:none;padding:10px 12px;font-size:11px}.ci-sec-b.open{display:block}.ci-kw-row{display:grid;grid-template-columns:1fr 55px 35px 35px 55px;gap:2px 6px;padding:2px 0;border-bottom:1px solid var(--b1);font-size:10px;align-items:center}</style>';
 
     // ════════════════════════════════════════════
     // PANEL 1: PROJECT INTELLIGENCE OVERVIEW
@@ -830,7 +872,7 @@ function renderCompDash(){
     const cov=art.coverage||{};const dens=art.density||fr.density||{};
     // Show coverage summary
     const basicCov=fr.basic_coverage||cov.basic||{};const extCov=fr.extended_coverage||cov.extended||{};
-    p2+=`<div class="ci-kw-row" style="font-weight:700;border-bottom:2px solid var(--bd)"><div>Keyword</div><div>Type</div><div>Used</div><div>Max</div><div>Status</div></div>`;
+    p2+=`<div class="ci-kw-row" style="font-weight:700;border-bottom:2px solid var(--b1)"><div>Keyword</div><div>Type</div><div>Used</div><div>Max</div><div>Status</div></div>`;
 
     // Process coverage data if available
     const kwEntries=[];
@@ -1012,7 +1054,7 @@ function renderCompDash(){
     if(s1Data&&s1Data.ymyl_hints){
         const ym=s1Data.ymyl_hints;
         const any=ym.legal_signals||ym.medical_signals||ym.needs_citations||ym.needs_disclaimer;
-        if(any){p4+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)"><b>YMYL/E-E-A-T Signals:</b> ${ym.legal_signals?'⚖️ Prawo ':''} ${ym.medical_signals?'🏥 Zdrowie ':''} ${ym.needs_citations?'📚 Cytowania ':''} ${ym.needs_disclaimer?'⚠️ Disclaimer':''}</div>`}
+        if(any){p4+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--b1)"><b>YMYL/E-E-A-T Signals:</b> ${ym.legal_signals?'⚖️ Prawo ':''} ${ym.medical_signals?'🏥 Zdrowie ':''} ${ym.needs_citations?'📚 Cytowania ':''} ${ym.needs_disclaimer?'⚠️ Disclaimer':''}</div>`}
     }
     h+=ciSec('4️⃣','E-E-A-T & Depth Analysis',`${s1Data?(s1Data.depth_signals?Object.values(s1Data.depth_signals).filter(Boolean).length:0):0}/8`,p4);
 
@@ -1070,7 +1112,7 @@ function renderCompDash(){
             }
 
             // --- Co faktycznie trafiło do tekstu ---
-            p5y+=`<div style="font-size:13px;font-weight:700;margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--bd)">🔍 Co znaleziono w artykule</div>`;
+            p5y+=`<div style="font-size:13px;font-weight:700;margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--b1)">🔍 Co znaleziono w artykule</div>`;
 
             if(anL.acts_found&&anL.acts_found.length){
                 p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${G};margin-bottom:5px">✅ Akty prawne w tekście (${anL.acts_found.length})</div>`;
@@ -1092,7 +1134,7 @@ function renderCompDash(){
             if(anL.articles_cited&&anL.articles_cited.length){
                 p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${M};margin-bottom:5px">§ Cytowane przepisy (${anL.articles_cited.length})</div>`;
                 p5y+=`<div style="display:flex;flex-wrap:wrap;gap:5px">`;
-                anL.articles_cited.slice(0,15).forEach(a=>{p5y+=`<span style="padding:3px 8px;border-radius:6px;font-size:12px;background:var(--bd)">${esc(a)}</span>`});
+                anL.articles_cited.slice(0,15).forEach(a=>{p5y+=`<span style="padding:3px 8px;border-radius:6px;font-size:12px;background:var(--b1)">${esc(a)}</span>`});
                 p5y+=`</div></div>`;
             }
 
@@ -1148,7 +1190,7 @@ function renderCompDash(){
             }
 
             // --- Co faktycznie trafiło do tekstu ---
-            p5y+=`<div style="font-size:13px;font-weight:700;margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--bd)">🔍 Co znaleziono w artykule</div>`;
+            p5y+=`<div style="font-size:13px;font-weight:700;margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--b1)">🔍 Co znaleziono w artykule</div>`;
 
             if(anM.pmids_found&&anM.pmids_found.length){
                 p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${G};margin-bottom:5px">✅ Identyfikatory PMID w tekście (${anM.pmids_found.length})</div>`;
@@ -1170,7 +1212,7 @@ function renderCompDash(){
             if(anM.institutions_found&&anM.institutions_found.length){
                 p5y+=`<div style="margin-bottom:10px"><div style="font-size:12px;font-weight:600;color:${M};margin-bottom:5px">🏛️ Instytucje wymienione w tekście (${anM.institutions_found.length})</div>`;
                 p5y+=`<div style="display:flex;flex-wrap:wrap;gap:5px">`;
-                anM.institutions_found.forEach(i=>{p5y+=`<span style="padding:3px 10px;border-radius:6px;font-size:12px;background:var(--bd)">${esc(i)}</span>`});
+                anM.institutions_found.forEach(i=>{p5y+=`<span style="padding:3px 10px;border-radius:6px;font-size:12px;background:var(--b1)">${esc(i)}</span>`});
                 p5y+=`</div></div>`;
             }
 
@@ -1230,13 +1272,13 @@ function renderCompDash(){
     }
     // 5B: Article Memory
     if(memoryData){
-        p5+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)"><div style="font-weight:700;margin-bottom:6px">🧠 Article Memory</div>`;
+        p5+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--b1)"><div style="font-weight:700;margin-bottom:6px">🧠 Article Memory</div>`;
         if(memoryData.thesis)p5+=`<div style="margin:4px 0"><b>Teza:</b> ${esc(memoryData.thesis)}</div>`;
         if(memoryData.tone)p5+=`<div style="margin:4px 0"><b>Ton:</b> ${esc(memoryData.tone)}</div>`;
         if(memoryData.open_threads&&memoryData.open_threads.length)p5+=`<div style="margin:4px 0"><b style="color:${W}">Open threads (${memoryData.open_threads.length}):</b> ${memoryData.open_threads.map(t=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;background:rgba(245,158,11,.12);color:${W};margin:2px">${esc(typeof t==='string'?t:t.thread||t.topic||'')}</span>`).join('')}</div>`;
         if(memoryData.entities_introduced&&memoryData.entities_introduced.length)p5+=`<div style="margin:4px 0"><b>Entities introduced:</b> ${memoryData.entities_introduced.slice(0,10).map(e=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;border:1px solid ${G};color:${G};margin:2px">${esc(typeof e==='string'?e:e.name||e.entity||'')}</span>`).join('')}</div>`;
         if(memoryData.defined_terms&&memoryData.defined_terms.length)p5+=`<div style="margin:4px 0"><b>Defined terms:</b> ${memoryData.defined_terms.slice(0,10).map(t=>`<span style="padding:1px 5px;border-radius:8px;font-size:9px;border:1px solid ${P};color:${P};margin:2px">${esc(typeof t==='string'?t:t.term||'')}</span>`).join('')}</div>`;
-        if(memoryData.topics_covered&&memoryData.topics_covered.length)p5+=`<div style="margin:4px 0"><b>Topics covered (${memoryData.topics_covered.length}):</b> ${memoryData.topics_covered.slice(0,12).map(t=>`<span style="padding:1px 5px;border-radius:8px;font-size:9px;background:var(--bd);margin:2px">${esc(typeof t==='string'?t:t.topic||t.h2||'')}</span>`).join('')}</div>`;
+        if(memoryData.topics_covered&&memoryData.topics_covered.length)p5+=`<div style="margin:4px 0"><b>Topics covered (${memoryData.topics_covered.length}):</b> ${memoryData.topics_covered.slice(0,12).map(t=>`<span style="padding:1px 5px;border-radius:8px;font-size:9px;background:var(--b1);margin:2px">${esc(typeof t==='string'?t:t.topic||t.h2||'')}</span>`).join('')}</div>`;
         p5+=`</div>`;
     }
     h+=ciSec('6️⃣','Anti-Frankenstein & Memory',styleData?`${styleData.score}/100`:'—',p5);
@@ -1307,7 +1349,7 @@ function renderCompDash(){
     const sM=s1Data?(s1Data.subtopic_missing||gaps.subtopic_missing||[]):[];
     const sh2=s1Data?s1Data.suggested_h2s||[]:[];
     if(pU.length||sh2.length){
-        p6+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)"><b>🎯 Information Gain (przewagi)</b></div>`;
+        p6+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--b1)"><b>🎯 Information Gain (przewagi)</b></div>`;
         if(pU.length){p6+=`<div style="margin:4px 0"><span style="color:${R};font-weight:700">PAA bez odpowiedzi (${pU.length}):</span><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">${pU.slice(0,5).map(g=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;background:rgba(239,68,68,.08);color:${R}">${typeof g==='string'?esc(g):esc(g.question||'')}</span>`).join('')}</div></div>`}
         if(sh2.length){p6+=`<div style="margin:4px 0"><span style="color:${G};font-weight:700">Unikalne sekcje:</span><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">${sh2.slice(0,5).map(x=>`<span style="padding:1px 6px;border-radius:8px;font-size:9px;background:rgba(34,197,94,.08);color:${G}">${typeof x==='string'?esc(x):esc(x.h2||x.heading||'')}</span>`).join('')}</div></div>`}
     }
@@ -1315,7 +1357,7 @@ function renderCompDash(){
     // Subject Position
     const sp=salienceData&&salienceData.subject_position;
     if(sp&&sp.total_sentences>0){
-        p6+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)"><b>📐 Subject Position</b></div>`;
+        p6+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--b1)"><b>📐 Subject Position</b></div>`;
         const totalPos=sp.subject_position+sp.middle_position+sp.object_position;
         if(totalPos>0){
             p6+=`<div style="display:flex;height:16px;border-radius:8px;overflow:hidden;margin:6px 0">`;
@@ -1351,7 +1393,7 @@ function renderCompDash(){
 
     // 7B: Workflow Timeline
     if(stepTimingData){
-        p7+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)"><div style="font-weight:700;margin-bottom:6px">⏱️ Workflow Timeline <span style="font-size:10px;color:${M}">${Math.round(stepTimingData.total_seconds||0)}s total</span></div>`;
+        p7+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--b1)"><div style="font-weight:700;margin-bottom:6px">⏱️ Workflow Timeline <span style="font-size:10px;color:${M}">${Math.round(stepTimingData.total_seconds||0)}s total</span></div>`;
         const stepNames=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Final Review','Editorial','Export'];
         const steps=stepTimingData.steps||{};
         p7+=ciGrid('24px 1fr 50px 1fr');
@@ -1367,7 +1409,7 @@ function renderCompDash(){
 
     // AI Competitive Summary
     if(s1Data&&s1Data.competitive_summary){
-        p7+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd)"><b>🤖 AI Summary</b><div style="margin-top:4px;font-size:10px;color:var(--lg);line-height:1.4;padding:6px;background:var(--bg2);border-radius:6px">${esc(s1Data.competitive_summary)}</div></div>`;
+        p7+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--b1)"><b>🤖 AI Summary</b><div style="margin-top:4px;font-size:10px;color:var(--lg);line-height:1.4;padding:6px;background:var(--bg2);border-radius:6px">${esc(s1Data.competitive_summary)}</div></div>`;
     }
 
     h+=ciSec('9️⃣','Batch Quality & Workflow Timeline',stepTimingData?`${Math.round(stepTimingData.total_seconds)}s`:'',p7);
