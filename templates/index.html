@@ -102,7 +102,7 @@
 
         /* ═══ STEPS ═══ */
         .steps{margin-bottom:24px}
-        .stp{display:flex;align-items:center;gap:12px;padding:9px 0}
+        .stp{display:flex;align-items:center;gap:12px;padding:8px 0;background:transparent!important;border:none!important;border-radius:0!important;box-shadow:none!important;margin:0!important}
         .steps.collapsed .stp:not(.done){display:none}
         .steps.collapsed .stp.done{padding:4px 0}
         .steps-toggle{font-size:10px;color:var(--mg);cursor:pointer;text-align:center;padding:4px 0;display:none}
@@ -368,6 +368,7 @@
                 <input type="text" id="inlineIn" placeholder="Co zmienić w zaznaczeniu?" onkeydown="if(event.key==='Enter')sendInline()">
                 <button onclick="sendInline()">OK</button>
                 <button class="bx" onclick="hideInl()">✕</button>
+            </div><!-- /inline-tb -->
 
             <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frQB" style="display:none;margin-top:10px;padding:8px 0;border-top:1px solid var(--b1)"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--fg)">Quality Breakdown</div><div id="frBars" style="display:grid;grid-template-columns:90px 1fr 32px;gap:3px 8px;font-size:11px;align-items:center"></div></div><div id="frD" style="font-size:11px;color:var(--mg);margin-top:10px;max-height:200px;overflow-y:auto"></div></div>
             <div id="pipelineSummary" style="display:none;margin:6px 0;padding:10px 16px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);font-size:11px;color:var(--mg);display:flex;align-items:center;gap:8px">
