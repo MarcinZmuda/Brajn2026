@@ -496,7 +496,7 @@ function rS1(d){
     // ─── 5️⃣ N-grams & Collocations ───
     let b5='';
     const ng=d.ngrams||[],skp=d.semantic_keyphrases||[];
-    if(ng.length)b5+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">N-gramy (${ng.length})</div>${ng.map(n=>{const l=el(n),w=typeof n==='object'?(n.weight||n.score||''):'';return`<span class="tag c">${l}${w?` <span style="opacity:.5">· ${typeof w==='number'?w.toFixed(2):w}</span>`:''}</span>`}).join('')}</div>`;
+    if(ng.length)b5+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">N-gramy (${ng.length})</div>${ng.map(n=>{const l=el(n),w=typeof n==='object'?(n.weight||n.score||''):'',fm=typeof n==='object'&&n.freq_median?` ${n.freq_min}-${n.freq_max}×`:'';return`<span class="tag c">${l}${fm?`<span style="opacity:.6;color:var(--gn)">${fm}</span>`:''}${w?` <span style="opacity:.5">· ${typeof w==='number'?w.toFixed(2):w}</span>`:''}</span>`}).join('')}</div>`;
     if(skp.length)b5+=`<div style="margin:6px 0"><div style="font-size:9px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Semantic Keyphrases (${skp.length})</div>${skp.map(k=>`<span class="tag pk">${el(k)}</span>`).join('')}</div>`;
     if(!ng.length&&!skp.length)b5+=`<div style="color:var(--mg);font-style:italic">N-gramy odfiltrowane (CSS garbage) — concept entities powyżej są wiarygodniejsze</div>`;
     h+=s1Sec(5,'N-gramy i kolokacje',`${ng.length+skp.length} fraz`,b5);
