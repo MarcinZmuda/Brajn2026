@@ -2027,40 +2027,78 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         step_done(2)
         yield emit("step", {"step": 2, "name": "YMYL Detection", "status": "done", "detail": ymyl_detail})
 
-        # ─── v51: Auto-generate BASIC phrases from S1 ngram frequency analysis ───
-        if not basic_terms and clean_ngrams:
+        # ─── v51: Auto-generate BASIC phrases from S1 entity + ngram frequency ───
+        if not basic_terms:
             auto_basic = []
-            for ng in clean_ngrams:
+            seen_texts = set()
+            
+            # === 1. ENTITIES (primary, Surfer-style) ===
+            # Topical entities have per-source frequency from competition
+            all_entity_sources = []
+            if ai_topical:
+                all_entity_sources.extend(ai_topical)
+            if clean_entities:
+                all_entity_sources.extend(clean_entities)
+            
+            for ent in all_entity_sources:
+                if not isinstance(ent, dict):
+                    continue
+                text = (ent.get("text") or ent.get("entity") or ent.get("display_text") or "").strip()
+                if not text or text.lower() in seen_texts:
+                    continue
+                
+                freq_min = ent.get("freq_min", 0)
+                freq_max = ent.get("freq_max", 0)
+                freq_median = ent.get("freq_median", 0)
+                sources_count = ent.get("sources_count", 0)
+                
+                # Entity present in 2+ sources with meaningful frequency
+                if sources_count < 2 or freq_median < 1:
+                    continue
+                
+                target_min = max(1, freq_median)
+                target_max = max(target_min + 1, (freq_median + freq_max) // 2)
+                target_min = min(target_min, 25)
+                target_max = min(target_max, 30)
+                
+                auto_basic.append(f"{text}: {target_min}-{target_max}x")
+                seen_texts.add(text.lower())
+            
+            entity_count = len(auto_basic)
+            
+            # === 2. N-GRAMS (supplementary) ===
+            for ng in (clean_ngrams or []):
                 if not isinstance(ng, dict):
                     continue
                 text = ng.get("ngram", "")
-                freq_min = ng.get("freq_min", 0)
-                freq_max = ng.get("freq_max", 0)
+                if not text or text.lower() in seen_texts:
+                    continue
+                
                 freq_median = ng.get("freq_median", 0)
+                freq_max = ng.get("freq_max", 0)
                 sites = ng.get("site_distribution", "0/0")
                 
-                # Only use ngrams present in 2+ competitor sites
                 try:
                     site_count = int(sites.split("/")[0])
                 except (ValueError, IndexError):
                     site_count = 0
                 
-                if site_count < 2 or freq_median < 2 or not text:
+                if site_count < 2 or freq_median < 2:
                     continue
                 
-                # Target range: median to ~75th percentile (between median and max)
                 target_min = max(1, freq_median)
                 target_max = max(target_min + 1, (freq_median + freq_max) // 2)
-                
-                # Cap at reasonable values
                 target_min = min(target_min, 25)
                 target_max = min(target_max, 30)
                 
                 auto_basic.append(f"{text}: {target_min}-{target_max}x")
+                seen_texts.add(text.lower())
             
             if auto_basic:
-                basic_terms = auto_basic[:20]  # Max 20 auto-generated phrases
-                yield emit("log", {"msg": f"📊 Auto-frazy z S1: {len(basic_terms)} fraz z analizy częstotliwości konkurencji"})
+                basic_terms = auto_basic[:25]
+                ngram_count = len(auto_basic) - entity_count
+                yield emit("log", {"msg": f"📊 Auto-BASIC z S1: {len(basic_terms)} fraz ({entity_count} encji + {ngram_count} n-gramów)"})
+                yield emit("auto_basic_terms", {"terms": basic_terms})
                 for term in basic_terms[:5]:
                     yield emit("log", {"msg": f"  • {term}"})
                 if len(basic_terms) > 5:
