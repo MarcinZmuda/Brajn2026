@@ -1237,17 +1237,17 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
     if engine == "openai" and OPENAI_API_KEY:
         return _generate_openai(system_prompt, user_prompt, model=openai_model, temperature=temperature)
     else:
-        # v50.8 FIX 49: Determine effort level and web search from context
+        # v50.9 FIX 53: Thinking only for YMYL. Regular content uses user temperature.
         is_ymyl = pre_batch.get("_is_ymyl", False)
         ymyl_intensity = pre_batch.get("_ymyl_intensity", "none")
         
-        # Adaptive effort: YMYL → high, INTRO → medium, rest → low
+        # Thinking (effort) only for YMYL where accuracy matters
         if ymyl_intensity == "full":
             effort = "high"
-        elif ymyl_intensity == "light" or batch_type == "INTRO":
+        elif ymyl_intensity == "light":
             effort = "medium"
         else:
-            effort = "low"
+            effort = None  # No thinking, user temperature controls output
         
         # Web search: only for YMYL content (legal/medical/finance)
         use_web_search = is_ymyl and ymyl_intensity == "full"
@@ -1377,8 +1377,8 @@ def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=No
     if engine == "openai" and OPENAI_API_KEY:
         return _generate_openai(system_prompt, user_prompt, model=openai_model, temperature=temperature)
     else:
-        # FAQ = simple Q&A, low effort is sufficient
-        return _generate_claude(system_prompt, user_prompt, effort="low", temperature=temperature)
+        # FAQ = simple Q&A, no thinking needed
+        return _generate_claude(system_prompt, user_prompt, effort=None, temperature=temperature)
 
 
 # ============================================================
@@ -2027,6 +2027,45 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         step_done(2)
         yield emit("step", {"step": 2, "name": "YMYL Detection", "status": "done", "detail": ymyl_detail})
 
+        # ─── v51: Auto-generate BASIC phrases from S1 ngram frequency analysis ───
+        if not basic_terms and clean_ngrams:
+            auto_basic = []
+            for ng in clean_ngrams:
+                if not isinstance(ng, dict):
+                    continue
+                text = ng.get("ngram", "")
+                freq_min = ng.get("freq_min", 0)
+                freq_max = ng.get("freq_max", 0)
+                freq_median = ng.get("freq_median", 0)
+                sites = ng.get("site_distribution", "0/0")
+                
+                # Only use ngrams present in 2+ competitor sites
+                try:
+                    site_count = int(sites.split("/")[0])
+                except (ValueError, IndexError):
+                    site_count = 0
+                
+                if site_count < 2 or freq_median < 2 or not text:
+                    continue
+                
+                # Target range: median to ~75th percentile (between median and max)
+                target_min = max(1, freq_median)
+                target_max = max(target_min + 1, (freq_median + freq_max) // 2)
+                
+                # Cap at reasonable values
+                target_min = min(target_min, 25)
+                target_max = min(target_max, 30)
+                
+                auto_basic.append(f"{text}: {target_min}-{target_max}x")
+            
+            if auto_basic:
+                basic_terms = auto_basic[:20]  # Max 20 auto-generated phrases
+                yield emit("log", {"msg": f"📊 Auto-frazy z S1: {len(basic_terms)} fraz z analizy częstotliwości konkurencji"})
+                for term in basic_terms[:5]:
+                    yield emit("log", {"msg": f"  • {term}"})
+                if len(basic_terms) > 5:
+                    yield emit("log", {"msg": f"  ... i {len(basic_terms) - 5} więcej"})
+
         # ─── KROK 3: H2 Planning (auto from S1 + phrase optimization) ───
         step_start(3)
         yield emit("step", {"step": 3, "name": "H2 Planning", "status": "running"})
@@ -2325,9 +2364,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # v50.8 FIX 49: Determine effort/web_search for logging
             _is_ymyl = pre_batch.get("_is_ymyl", False)
             _ymyl_int = pre_batch.get("_ymyl_intensity", "none")
-            _effort = "high" if _ymyl_int == "full" else ("medium" if _ymyl_int == "light" or batch_type == "INTRO" else "low")
+            _effort = "high" if _ymyl_int == "full" else ("medium" if _ymyl_int == "light" else None)
+            _effort_label = _effort or f"temp={temperature or 0.7}"
             _web = _is_ymyl and _ymyl_int == "full"
-            yield emit("log", {"msg": f"Generuję tekst przez {'🟢 ' + effective_openai_model if engine == 'openai' else '🟣 ' + ANTHROPIC_MODEL}... [effort={_effort} web={'✅' if _web else '—'} instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'}]"})
+            yield emit("log", {"msg": f"Generuję tekst przez {'🟢 ' + effective_openai_model if engine == 'openai' else '🟣 ' + ANTHROPIC_MODEL}... [effort={_effort_label} web={'✅' if _web else '—'} instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'}]"})
 
             if batch_type == "FAQ":
                 # FAQ batch: first analyze PAA
