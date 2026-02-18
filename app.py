@@ -2642,21 +2642,51 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 final = final["final_review"]
             final_score = final.get("quality_score", final.get("score", "?"))
             final_status = final.get("status", "?")
-            # v50.7 FIX 36: Read from correct keys (final_review returns all_issues, not issues)
-            missing_kw = (final.get("missing_keywords") or final.get("recommendations") or [])
+            
+            # v51 FIX: Read structured data from correct paths
+            validations = final.get("validations") or {}
+            kw_validation = validations.get("missing_keywords") or {}
+            
+            # Build proper missing/overuse lists from structured data
+            actual_missing = []
+            for kw in (kw_validation.get("priority_to_add", {}).get("to_add_by_claude", []) or [])[:5]:
+                actual_missing.append(f"Wpleć '{kw.get('keyword', '')}' min. {kw.get('target_min', 1)}x")
+            
+            # Overuse warnings (separate from missing)
+            overuse_warnings = []
+            for kw in (kw_validation.get("within_tolerance", []) or [])[:3]:
+                excess = kw.get("actual", 0) - kw.get("target_max", 0)
+                overuse_warnings.append(f"🟡 Rozważ usunięcie {excess}x '{kw.get('keyword', '')}' ({kw.get('actual', 0)}/{kw.get('target_max', 0)})")
+            for kw in (kw_validation.get("stuffing", []) or [])[:3]:
+                excess = kw.get("actual", 0) - kw.get("target_max", 0)
+                overuse_warnings.append(f"🔴 USUŃ {excess}x '{kw.get('keyword', '')}' ({kw.get('actual', 0)}/{kw.get('target_max', 0)})")
+            
+            # H3 length issues
+            h3_issues = []
+            for issue in (validations.get("h3_length", {}).get("issues", []) or [])[:3]:
+                h3_issues.append(f"Rozbuduj H3 '{issue.get('h3', '')}' o {issue.get('deficit', 0)} słów")
+            
+            # Combined recommendations from API (fallback)
+            all_recommendations = final.get("recommendations") or []
+            
+            # What we show in "Brakujące" = only actual missing keywords
+            missing_kw = actual_missing
+            # Issues = overuse + H3 + other issues from API
             issues = (final.get("issues") or final.get("all_issues") or [])
 
             yield emit("final_review", {
                 "score": final_score,
                 "status": final_status,
-                # v50.7 FIX 36: Read from correct keys
-                "missing_keywords_count": len(missing_kw) if isinstance(missing_kw, list) else 0,
-                "missing_keywords": missing_kw[:10] if isinstance(missing_kw, list) else [],
+                # v51: Separate missing vs overuse vs H3
+                "missing_keywords_count": len(missing_kw),
+                "missing_keywords": missing_kw[:10],
+                "overuse_warnings": overuse_warnings[:5],
+                "h3_issues": h3_issues[:5],
                 "issues_count": len(issues) if isinstance(issues, list) else 0,
                 "issues": issues[:5] if isinstance(issues, list) else [],
-                # v50.7: Add recommendations (the actual correction instructions)
-                "recommendations": (final.get("recommendations") or [])[:10],
-                "recommendations_count": len(final.get("recommendations") or []),
+                # v51: Full recommendations from API
+                "recommendations": all_recommendations[:10],
+                "recommendations_count": len(all_recommendations),
                 # v50.7: Add issues_summary for dashboard
                 "issues_summary": final.get("issues_summary") or {},
                 # v50.7: Stuffing info
