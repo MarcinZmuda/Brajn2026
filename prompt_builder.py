@@ -270,6 +270,24 @@ zero fraz AI, zero powtórzeń.
     return "\n\n".join(parts)
 
 
+# ═══════════════════════════════════════════════════════════
+# Schema guard — field validation
+# ═══════════════════════════════════════════════════════════
+
+_CRITICAL_FIELDS = [
+    "keywords",             # keyword list: without this, article has no SEO
+    "main_keyword",         # primary keyword
+    "batch_number",         # batch sequencing
+]
+_IMPORTANT_FIELDS = [
+    "gpt_instructions_v39", # backend writing instructions
+    "enhanced",             # enhanced_pre_batch AI data
+    "h2_remaining",         # H2 structure
+    "article_memory",       # context from previous batches
+    "keyword_limits",       # STOP/EXCEEDED rules
+    "coverage",             # keyword coverage state
+]
+
 def _schema_guard(pre_batch):
     """Validate pre_batch has critical fields. Log warnings for missing."""
     missing_critical = [f for f in _CRITICAL_FIELDS if f not in pre_batch or pre_batch[f] is None]
