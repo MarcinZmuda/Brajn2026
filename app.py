@@ -2763,8 +2763,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             step_done(9)
             yield emit("step", {"step": 9, "name": "Editorial Review", "status": "done", "detail": detail})
         else:
+            ed_error = editorial_result.get("error", "unknown")
+            ed_status = editorial_result.get("status", "?")
+            yield emit("log", {"msg": f"⚠️ Editorial Review → {ed_status}: {ed_error[:200]}"})
             yield emit("step", {"step": 9, "name": "Editorial Review", "status": "warning",
-                                "detail": "Nie udało się, artykuł bez recenzji"})
+                                "detail": f"Nie udało się ({ed_status}), artykuł bez recenzji"})
 
         # ─── KROK 10: Export ───
         step_start(10)
