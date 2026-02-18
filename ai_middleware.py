@@ -743,32 +743,40 @@ def synthesize_article_memory(accepted_batches: list) -> dict:
 def ai_synthesize_memory(accepted_batches: list, main_keyword: str) -> dict:
     """AI-powered article memory — Claude summarizes what's been written so far.
     v50.5 FIX 30: Enhanced to extract specific definitions, formulas, and facts
-    that must NOT be repeated in subsequent batches."""
+    that must NOT be repeated in subsequent batches.
+    v52.1 FIX: Added phrases_used tracking + explicit anti-repetition for exact phrases.
+    The key change: phrases that were overused go into phrases_used (which triggers
+    a "ogranicz" warning in the prompt), NOT into key_points (which GPT treats as
+    a recipe to repeat)."""
     if not accepted_batches or not ANTHROPIC_API_KEY:
         return synthesize_article_memory(accepted_batches)
-    
+
     batch_summaries = []
     for i, batch in enumerate(accepted_batches[-6:], 1):
         h2 = batch.get("h2", "Bez nagłówka")
-        text = batch.get("text", "")[:500]  # v50.5: increased from 300 to 500
+        text = batch.get("text", "")[:500]
         batch_summaries.append(f"Sekcja {i}: [{h2}] {text}...")
-    
+
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = client.messages.create(
-            model=MIDDLEWARE_MODEL, max_tokens=600, temperature=0,
+            model=MIDDLEWARE_MODEL, max_tokens=700, temperature=0,
             messages=[{"role": "user", "content": (
                 f'Artykuł o: "{main_keyword}"\n\n'
                 f'Dotychczas napisane sekcje:\n' + "\n".join(batch_summaries) + "\n\n"
                 f'Przeanalizuj tekst i zwróć JSON z:\n'
                 f'1. topics_covered: lista tematów/sekcji już omówionych\n'
-                f'2. key_points: KONKRETNE definicje i wzory już podane '
-                f'(np. "prawo Ohma: I=U/R", "amper = 1 kulomb/sekundę")\n'
-                f'3. avoid_repetition: co konkretnie NIE POWTARZAĆ '
-                f'(np. "definicja prądu", "wzór I=Q/t", "opis przewodnika vs izolatora")\n'
-                f'4. entities_defined: lista encji/pojęć już zdefiniowanych w tekście\n'
-                f'5. total_words: {sum(len(b.get("text","").split()) for b in accepted_batches)}\n'
-                f'6. batch_count: {len(accepted_batches)}\n\n'
+                f'2. key_points: TYLKO unikalne fakty, liczby i definicje PIERWSZEGO WYSTĄPIENIA '
+                f'(np. "mosiądz = odporny na uszkodzenia", "rozstaw: odległość między śrubami"). '
+                f'WAŻNE: NIE wpisuj tu zdań które powtarzają się wielokrotnie — te idą do phrases_used!\n'
+                f'3. avoid_repetition: konkretne ZDANIA i SFORMUŁOWANIA które pojawiły się 2+ razy '
+                f'i NIE MOGĄ być użyte ponownie dosłownie '
+                f'(np. "mosiądz gwarantuje odporność na uszkodzenia i długowieczność", '
+                f'"odświeżenie wnętrza nie zawsze wymaga gruntownych remontów")\n'
+                f'4. phrases_used: słownik {{fraza: liczba_użyć}} dla fraz które były użyte 3+ razy '
+                f'(to ostrzega kolejne batche żeby nie przesadzać)\n'
+                f'5. entities_defined: lista pojęć/encji już wprowadzonych w tekście\n'
+                f'6. total_words: {sum(len(b.get("text","").split()) for b in accepted_batches)}\n\n'
                 f'Zwróć TYLKO JSON, bez komentarzy.'
             )}]
         )
@@ -778,10 +786,8 @@ def ai_synthesize_memory(accepted_batches: list, main_keyword: str) -> dict:
             return json.loads(json_match.group())
     except Exception as e:
         logger.warning(f"[AI_MW] AI memory synthesis failed: {e}")
-    
+
     return synthesize_article_memory(accepted_batches)
-
-
 def should_use_smart_retry(result: dict, attempt: int) -> bool:
     """Decide if smart retry is worth attempting."""
     if attempt > 3:
