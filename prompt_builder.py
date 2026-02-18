@@ -547,10 +547,16 @@ def _fmt_entity_salience(pre_batch):
         parts.append(backend_placement)
     
     # 3. v47.0: Concept instruction + must-cover concepts
+    # v52.1: Dodano instrukcję fleksji — encje podawane są w mianowniku, Claude musi je odmieniać
+    FLEXION_NOTE = (
+        "\n⚠️ FLEKSJA: Pojęcia są w mianowniku — odmieniaj je przez przypadki zależnie od kontekstu. "
+        'Np. "gałka meblowa" → "gałki meblowej" (dop.), "gałkę meblową" (bier.). '
+        "Gramatyczna poprawność > dosłowne powtórzenie formy bazowej."
+    )
     concept_instr = pre_batch.get("_concept_instruction", "")
     must_concepts = pre_batch.get("_must_cover_concepts", [])
     if concept_instr:
-        parts.append(concept_instr)
+        parts.append(concept_instr + FLEXION_NOTE)
     elif must_concepts:
         # Build instruction from concept list if no agent instruction provided
         concept_names = [c.get("text", c) if isinstance(c, dict) else str(c) for c in must_concepts[:10]]
@@ -558,6 +564,7 @@ def _fmt_entity_salience(pre_batch):
             "═══ POJĘCIA TEMATYCZNE (z analizy konkurencji) ═══\n"
             f"Następujące pojęcia pojawiają się u konkurencji, wpleć naturalnie w tekst:\n"
             f"{', '.join(concept_names)}"
+            + FLEXION_NOTE
         )
     
     # 4. v50: Co-occurrence pairs: encje które MUSZĄ być blisko siebie
@@ -708,9 +715,10 @@ def _fmt_article_memory(article_memory):
                 parts.append(f'  • {f}' if isinstance(f, str) else f'  • {json.dumps(f, ensure_ascii=False)[:100]}')
 
         if avoid_rep:
-            parts.append("\n⛔ KONKRETNE TEMATY DO UNIKANIA (AI memory):")
+            parts.append("\n⛔ TE ZDANIA I FRAZY BYŁY JUŻ UŻYTE — NIE POWTARZAJ ICH DOSŁOWNIE:")
+            parts.append("   (możesz użyć tego samego SENSU, ale innymi słowami)")
             for r in avoid_rep[:8]:
-                parts.append(f'  ❌ {r}')
+                parts.append(f'  ❌ ZAKAZ: "{r}"')
 
         phrases_used = article_memory.get("phrases_used") or {}
         if phrases_used:
