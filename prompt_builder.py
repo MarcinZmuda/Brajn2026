@@ -1345,6 +1345,10 @@ def build_h2_plan_user_prompt(main_keyword, mode, s1_data, all_user_phrases, use
     content_gaps = s1_data.get("content_gaps") or {}
     causal_triplets = s1_data.get("causal_triplets") or {}
     paa = s1_data.get("paa") or s1_data.get("paa_questions") or []
+    # v52.0: Related searches - Google sugeruje te pytania/frazy użytkownikom
+    serp_analysis = s1_data.get("serp_analysis") or {}
+    related_searches = (s1_data.get("related_searches")
+                        or serp_analysis.get("related_searches") or [])
 
     sections = []
 
@@ -1399,6 +1403,23 @@ TRYB: {mode} ({mode_desc})""")
             if q_text:
                 lines.append(f"  ❓ {q_text}")
         sections.append("\n".join(lines))
+
+    # v52.0: Related searches - Google podpowiada te frazy po wpisaniu main_keyword.
+    # Zawierają intencje których często BRAK w H2 konkurencji (np. "warunkowe umorzenie",
+    # "dożywotni zakaz", "organizmie wynosi") - ważny signal dla tematycznego pokrycia H2.
+    if related_searches:
+        rs_texts = []
+        for rs in related_searches[:12]:
+            rs_t = rs if isinstance(rs, str) else (rs.get("query", "") or rs.get("text", ""))
+            if rs_t:
+                rs_texts.append(rs_t)
+        if rs_texts:
+            lines = ["═══ RELATED SEARCHES (Google podpowiada po main_keyword) ═══",
+                     "Użyj tych fraz jako wskazówek tematycznych przy tworzeniu H2.",
+                     "Wiele z nich to podtematy których BRAK u konkurencji — Twoja szansa:"]
+            for rs_t in rs_texts:
+                lines.append(f"  🔍 {rs_t}")
+            sections.append("\n".join(lines))
 
     triplet_list = (causal_triplets.get("chains") or causal_triplets.get("singles")
                     or causal_triplets.get("triplets") or [])[:8]
