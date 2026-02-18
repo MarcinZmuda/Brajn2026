@@ -506,7 +506,7 @@ Odpowiedz TYLKO w JSON (bez markdown, bez ```):
 Jeśli sekcja ma SAME śmieci, zwróć pustą listę/string."""
 
     try:
-        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), max_retries=0)
         response = client.messages.create(
             model=_AI_CLEANUP_MODEL,
             max_tokens=2000,
@@ -614,7 +614,7 @@ def _detect_ymyl_local(main_keyword: str) -> dict:
     """Local YMYL detection using Claude Haiku. ~$0.003, ~1s. v50.7 FIX 48: Auto-retry."""
     try:
         def _call():
-            client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+            client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), max_retries=0)
             return client.messages.create(
                 model=_AI_CLEANUP_MODEL,  # Haiku (cheap + fast)
                 max_tokens=500,
@@ -976,8 +976,10 @@ RETRY_DELAYS = [5, 15, 30]
 
 # v50.7 FIX 48: Auto-retry for transient LLM API errors (429 quota, 529 overloaded, 503 unavailable)
 LLM_RETRY_MAX = 3
-LLM_RETRY_DELAYS = [10, 30, 60]  # seconds between retries
+LLM_RETRY_DELAYS = [10, 30, 60]  # seconds between retries (429/503)
+LLM_RETRY_DELAYS_529 = [5, 15]   # krótkie dla 529 — fail fast, przejdź do fallback modelu
 LLM_RETRYABLE_CODES = {429, 503, 529}
+LLM_529_MAX_RETRIES = 2  # max 2 retry dla 529 zamiast 3 — szybsze przełączenie na Haiku
 
 def _llm_call_with_retry(fn, *args, **kwargs):
     """Wrap LLM API call with retry on transient errors.
@@ -1001,13 +1003,17 @@ def _llm_call_with_retry(fn, *args, **kwargs):
                         status = code
                         break
             
-            if status in LLM_RETRYABLE_CODES and attempt < LLM_RETRY_MAX:
-                delay = LLM_RETRY_DELAYS[attempt]
-                logger.warning(f"[LLM_RETRY] {status} error on attempt {attempt+1}/{LLM_RETRY_MAX+1}, retrying in {delay}s: {str(e)[:120]}")
-                time.sleep(delay)
-                continue
-            else:
-                raise  # Non-retryable or max retries exceeded
+            if status in LLM_RETRYABLE_CODES:
+                # v52.4: 529 = serwer przeciążony — fail fast i przejdź do fallback modelu
+                is_529 = (status == 529)
+                max_r = LLM_529_MAX_RETRIES if is_529 else LLM_RETRY_MAX
+                delays = LLM_RETRY_DELAYS_529 if is_529 else LLM_RETRY_DELAYS
+                if attempt < max_r:
+                    delay = delays[min(attempt, len(delays) - 1)]
+                    logger.warning(f"[LLM_RETRY] {status} attempt {attempt+1}/{max_r+1}, retry in {delay}s: {str(e)[:120]}")
+                    time.sleep(delay)
+                    continue
+            raise  # Non-retryable or max retries exceeded
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1167,19 +1173,16 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
         main_keyword, mode, s1_data, all_user_phrases, user_h2_hints
     )
 
-    def _call():
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        return client.messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=1000,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-            temperature=0.5
+    # v52.4: _generate_claude ma pełny fallback chain (Sonnet→Haiku na 529)
+    # _llm_call_with_retry bez fallback powoduje crash zamiast przełączenia modelu
+    try:
+        response_text = _generate_claude(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.5,
         )
-    
-    response = _llm_call_with_retry(_call)
-    
-    response_text = response.content[0].text.strip()
+    except Exception as e:
+        raise RuntimeError(f"H2 plan generation failed: {e}") from e
     
     # Parse JSON response
     h2_list = None
@@ -1273,7 +1276,7 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False, 
     user_temp = temperature if temperature is not None else 0.7
     
     def _call():
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, max_retries=0)
         
         kwargs = {
             "model": ANTHROPIC_MODEL,
@@ -3201,7 +3204,7 @@ def edit_article():
         )
 
     try:
-        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), max_retries=0)
         model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
         
         # v50.7 FIX 48: Auto-retry on 429/529

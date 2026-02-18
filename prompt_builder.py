@@ -23,6 +23,18 @@ import json
 # SYSTEM PROMPT BUILDER
 # ════════════════════════════════════════════════════════════
 
+def _word_trim(text, max_chars):
+    """Ucina tekst do max_chars na granicy slowa. Dodaje '...' jesli ucial."""
+    if not text or len(text) <= max_chars:
+        return text
+    trimmed = text[:max_chars]
+    nl = chr(10)
+    last_break = max(trimmed.rfind(" "), trimmed.rfind(nl), trimmed.rfind(". "))
+    if last_break > max_chars // 2:
+        trimmed = trimmed[:last_break]
+    return trimmed.rstrip(" ,;:") + "..."
+
+
 def build_system_prompt(pre_batch, batch_type):
     """
     Build system prompt = expert persona + writing rules.
@@ -544,6 +556,10 @@ def _fmt_entity_salience(pre_batch):
     backend_placement = pre_batch.get("_backend_placement_instruction", "")
     if backend_placement:
         parts.append("═══ ROZMIESZCZENIE ENCJI (z analizy konkurencji) ═══")
+        parts.append(
+            "⚠️ TO SĄ WSKAZÓWKI TECHNICZNE — NIE kopiuj ich dosłownie do tekstu!\n"
+            "Użyj jako inspirację/tło. Pisz własne zdania. Nie przepisuj fragmentów poniżej."
+        )
         parts.append(backend_placement)
     
     # 3. v47.0: Concept instruction + must-cover concepts
@@ -739,7 +755,7 @@ def _fmt_article_memory(article_memory):
                 "Powtórzenie definicji = utrata punktów jakości."
             )
     elif isinstance(article_memory, str):
-        parts.append(article_memory[:1500])
+        parts.append(_word_trim(article_memory, 1500))
 
     return "\n".join(parts) if len(parts) > 1 else ""
 
@@ -826,7 +842,7 @@ def _fmt_style(pre_batch):
         if persona:
             parts.append(f'Perspektywa: {persona}')
     elif isinstance(style, str):
-        parts.append(style[:500])
+        parts.append(_word_trim(style, 500))
 
     return "\n".join(parts) if len(parts) > 1 else ""
 
@@ -981,13 +997,13 @@ def _fmt_causal_context(pre_batch):
 
     if causal:
         parts.append("═══ KONTEKST PRZYCZYNOWO-SKUTKOWY ═══")
-        parts.append(f'{causal[:500]}')
+        parts.append(_word_trim(causal, 500))
 
     if info_gain:
         if parts:
             parts.append("")
         parts.append("═══ INFORMATION GAIN (przewaga nad konkurencją) ═══")
-        parts.append(f'{info_gain[:500]}')
+        parts.append(_word_trim(info_gain, 500))
 
     return "\n".join(parts) if parts else ""
 
