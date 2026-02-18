@@ -820,6 +820,19 @@ def analyze_subject_position(text, main_keyword):
     kw_lower = main_keyword.lower().strip()
     kw_variants = {kw_lower}
     # Add common Polish declension patterns (simplified)
+    # v57 FIX: Multi-word stem matching — generate stems for EACH word
+    kw_words = kw_lower.split()
+    kw_stems = []
+    _PL_SUFFIXES = ['ości', 'ości', 'iem', 'ami', 'ach', 'ów', 'om', 'ie', 'ę', 'ą', 'u', 'a', 'em', 'y', 'i']
+    for word in kw_words:
+        stem = word
+        if len(word) > 4:
+            for suffix in _PL_SUFFIXES:
+                if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+                    stem = word[:-len(suffix)]
+                    break
+        kw_stems.append(stem)
+    # Legacy single-keyword variant
     if len(kw_lower) > 4:
         for suffix in ['u', 'a', 'em', 'ie', 'ę', 'ą', 'om', 'ami', 'ach', 'ów']:
             if kw_lower.endswith(suffix):
@@ -829,8 +842,19 @@ def analyze_subject_position(text, main_keyword):
                 break
 
     def contains_entity(text_fragment):
+        """Check if entity is present — tries exact match first, then stem matching."""
         frag_lower = text_fragment.lower()
-        return any(v in frag_lower for v in kw_variants)
+        # Fast path: exact match of any variant
+        if any(v in frag_lower for v in kw_variants):
+            return True
+        # Stem path: all stems must appear in text (in order, allowing declension)
+        if len(kw_stems) >= 2:
+            # For multi-word: check each stem is present
+            return all(stem in frag_lower for stem in kw_stems if len(stem) >= 3)
+        elif kw_stems:
+            # Single word: stem must be present
+            return kw_stems[0] in frag_lower if len(kw_stems[0]) >= 3 else False
+        return False
 
     # Split into sentences
     sentences = re.split(r'[.!?]+', text)
@@ -839,8 +863,11 @@ def analyze_subject_position(text, main_keyword):
     # Split into paragraphs
     paragraphs = [p.strip() for p in text.split('\n') if len(p.strip()) > 20]
 
-    # Extract H2 headers
-    h2_lines = re.findall(r'^##\s+(.+)$', text, re.MULTILINE)
+    # Extract H2 headers (supports: "## Title", "h2: Title", "<h2>Title</h2>")
+    h2_lines = []
+    h2_lines.extend(re.findall(r'^##\s+(.+)$', text, re.MULTILINE))
+    h2_lines.extend(re.findall(r'^h2:\s*(.+)$', text, re.MULTILINE))
+    h2_lines.extend(re.findall(r'<h2[^>]*>(.*?)</h2>', text, re.IGNORECASE | re.DOTALL))
 
     result = {
         "total_sentences": len(sentences),
@@ -865,8 +892,10 @@ def analyze_subject_position(text, main_keyword):
     # Check H2s
     result["h2_entity_count"] = sum(1 for h in h2_lines if contains_entity(h))
 
-    # Check H1 (first line or first ## line)
+    # Check H1 (supports: "# Title", "h1: Title", "<h1>Title</h1>")
     h1_lines = re.findall(r'^#\s+(.+)$', text, re.MULTILINE)
+    h1_lines.extend(re.findall(r'^h1:\s*(.+)$', text, re.MULTILINE))
+    h1_lines.extend(re.findall(r'<h1[^>]*>(.*?)</h1>', text, re.IGNORECASE | re.DOTALL))
     if h1_lines:
         result["h1_has_entity"] = contains_entity(h1_lines[0])
 
@@ -990,6 +1019,8 @@ def analyze_ymyl_references(text, legal_context=None, medical_context=None):
         r'[Rr]ozporządzeni[eua]\s+[^.]{10,60}\d{4}',
         r'[Dd]yrektyw[aąy]\s+[^.]{5,40}\d{4}',
         r'[Kk]\.?[cp]\.?(?:\s|$)',  # k.c., k.p., kc, kp
+        r'[Kk]\.?[kw]\.?(?:\s|$)',  # k.k. (kodeks karny), k.w. (kodeks wykroczeń)
+        r'[Kk]\.?(?:s\.?h|r\.?o|p\.?a|p\.?c|p\.?k)\.?(?:\s|$)',  # k.s.h., k.r.o., k.p.a., k.p.c., k.p.k.
         r'[Oo]rdynacja\s+podatkowa',
         r'[Pp]rawo\s+(?:budowlane|zamówień|bankowe|energetyczne|telekomunikacyjne)',
     ]

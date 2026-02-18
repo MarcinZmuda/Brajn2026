@@ -2051,15 +2051,22 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 freq_max = ent.get("freq_max", 0)
                 freq_median = ent.get("freq_median", 0)
                 sources_count = ent.get("sources_count", 0)
+                is_topical = ent.get("source") == "topical_generator" or ent.get("eav") or ent.get("is_primary")
                 
-                # Entity present in 2+ sources with meaningful frequency
-                if sources_count < 2 or freq_median < 1:
+                if is_topical:
+                    # v57 FIX: Topical entities bypass freq filter — use salience-based targets
+                    if ent.get("is_primary"):
+                        target_min, target_max = 3, 8
+                    else:
+                        target_min, target_max = 2, 5
+                elif sources_count >= 2 and freq_median >= 1:
+                    # Original: entity with competition frequency data
+                    target_min = max(1, freq_median)
+                    target_max = max(target_min + 1, (freq_median + freq_max) // 2)
+                    target_min = min(target_min, 25)
+                    target_max = min(target_max, 30)
+                else:
                     continue
-                
-                target_min = max(1, freq_median)
-                target_max = max(target_min + 1, (freq_median + freq_max) // 2)
-                target_min = min(target_min, 25)
-                target_max = min(target_max, 30)
                 
                 auto_basic.append(f"{text}: {target_min}-{target_max}x")
                 seen_texts.add(text.lower())
@@ -2178,13 +2185,32 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         pass
             keywords.append({"keyword": kw, "type": "EXTENDED", "target_min": tmin, "target_max": tmax})
 
+        # ═══ v57 FIX: Add concept entities as type="ENTITY" for separate tracking ═══
+        # Concept entities from S1/topical generator get tracked like keywords
+        # but with type="ENTITY" so panel shows them separately.
+        _existing_kw_lower = {k["keyword"].lower() for k in keywords}
+        _entity_sources = must_cover_concepts or concept_entities or []
+        entity_kw_count = 0
+        for ent in _entity_sources[:12]:
+            ent_text = (_extract_text(ent) if isinstance(ent, dict) else str(ent)).strip()
+            if not ent_text or ent_text.lower() in _existing_kw_lower or ent_text.lower() == main_keyword.lower():
+                continue
+            is_primary = ent.get("is_primary", False) if isinstance(ent, dict) else False
+            tmin = 3 if is_primary else 2
+            tmax = 8 if is_primary else 5
+            keywords.append({"keyword": ent_text, "type": "ENTITY", "target_min": tmin, "target_max": tmax})
+            _existing_kw_lower.add(ent_text.lower())
+            entity_kw_count += 1
+        if entity_kw_count:
+            yield emit("log", {"msg": f"🧬 Entity keywords: {entity_kw_count} encji dodanych jako type=ENTITY"})
+
         # ═══ Keyword deduplication (word-boundary safe) ═══
         pre_dedup_count = len(keywords)
         keywords = deduplicate_keywords(keywords, main_keyword)
         if len(keywords) < pre_dedup_count:
             yield emit("log", {"msg": f"🧹 Dedup: {pre_dedup_count} → {len(keywords)} keywords (usunięto {pre_dedup_count - len(keywords)} duplikatów)"})
 
-        yield emit("log", {"msg": f"Keywords: {len(keywords)} ({sum(1 for k in keywords if k['type']=='BASIC')} BASIC, {sum(1 for k in keywords if k['type']=='EXTENDED')} EXTENDED)"})
+        yield emit("log", {"msg": f"Keywords: {len(keywords)} ({sum(1 for k in keywords if k['type']=='BASIC')} BASIC, {sum(1 for k in keywords if k['type']=='EXTENDED')} EXTENDED, {sum(1 for k in keywords if k['type']=='ENTITY')} ENTITY)"})
 
         # Filter entity_seo before sending to project (remove CSS garbage)
         filtered_entity_seo = (s1.get("entity_seo") or {}).copy()
