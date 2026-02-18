@@ -24,7 +24,7 @@ import anthropic
 
 logger = logging.getLogger(__name__)
 
-MIDDLEWARE_MODEL = os.environ.get("MIDDLEWARE_MODEL", "claude-sonnet-4-5-20250929")
+MIDDLEWARE_MODEL = os.environ.get("MIDDLEWARE_MODEL", "claude-haiku-4-5-20251001")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 
