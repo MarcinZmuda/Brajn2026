@@ -649,11 +649,13 @@ function toggleAdv(){
 // ═══ MAIN TABS ═══
 function switchTab(tab){
     document.querySelectorAll('.mtab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
-    // Show/hide tab panels
+    // Show/hide tab panels — musimy ustawić display bezpośrednio (inline style wygrywa nad klasą CSS)
     const panels={workflow:'tabWorkflow',quality:'tabQuality',s1:'tabS1',ci:'tabCI'};
     Object.entries(panels).forEach(([t,id])=>{
         const el=document.getElementById(id);
-        if(el)el.classList.toggle('on',t===tab);
+        if(!el)return;
+        el.classList.toggle('on',t===tab);
+        el.style.display = t===tab ? 'block' : 'none';
     });
     // Move s1P into tabS1 if needed
     if(tab==='s1'){
@@ -781,7 +783,22 @@ function rS1(d){
     const wc=d.word_counts||[];
     if(wc.length){const mx=Math.max(...wc.slice(0,10));b1+=`<div style="margin:10px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Rozkład długości top ${wc.length}</div><div class="s1-bar-row">${wc.slice(0,10).map(w=>{const ht=mx>0?Math.round((w/mx)*44)+4:10;return`<div class="s1-bar-col"><div class="bar" style="height:${ht}px"></div><div class="lbl">${w}</div></div>`}).join('')}</div></div>`}
     const h2p=d.competitor_h2_patterns||[];
-    if(h2p.length)b1+=`<div style="margin:10px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Dominujące wzorce H2</div>${h2p.slice(0,12).map((x,i)=>`<div style="color:var(--lg);font-size:13px;padding:2px 0"><span style="color:var(--orange);font-weight:700;width:18px;display:inline-block">${i+1}.</span>${el(x)}</div>`).join('')}</div>`;
+    if(h2p.length){
+      const maxCnt=Math.max(...h2p.map(x=>typeof x==='object'?(x.count||x.sources||1):1),1);
+      b1+=`<div style="margin:10px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Wzorce H2 konkurencji — posortowane po popularności</div>`;
+      h2p.slice(0,15).forEach((x,i)=>{
+        const txt=typeof x==='object'?(x.text||x.pattern||x.h2||JSON.stringify(x)):String(x);
+        const cnt=typeof x==='object'?(x.count||x.sources||0):0;
+        const pct=cnt?Math.round(cnt/maxCnt*100):0;
+        const clr=pct>=80?'var(--gn)':pct>=50?'var(--yl)':'var(--orange)';
+        b1+=`<div style="display:grid;grid-template-columns:18px 1fr ${cnt?'80px':'0px'};align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid var(--b1)">`;
+        b1+=`<span style="color:var(--orange);font-weight:700;font-size:11px">${i+1}.</span>`;
+        b1+=`<span style="color:var(--lg);font-size:12px">${esc(txt)}</span>`;
+        if(cnt)b1+=`<div style="display:flex;align-items:center;gap:4px"><div style="flex:1;background:var(--s3);border-radius:2px;height:6px"><div style="width:${pct}%;height:100%;background:${clr};border-radius:2px"></div></div><span style="font-size:10px;color:var(--mg);width:20px;text-align:right">${cnt}×</span></div>`;
+        b1+=`</div>`;
+      });
+      b1+=`</div>`;
+    }
     const ss2=d.serp_sources||[];
     // v47: Competitor table with titles, word counts, H2 counts
     const sc=d.serp_competitors||[];
@@ -792,7 +809,17 @@ function rS1(d){
     if(cSnippets.length>0){b1+=`<div style="margin:10px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">SERP Snippets (co Google pokazuje)</div>`;cSnippets.slice(0,5).forEach((sn,i)=>{b1+=`<div style="font-size:12px;color:var(--lg);padding:3px 0;border-bottom:1px solid var(--b1)"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(typeof sn==='string'?sn.substring(0,120):(sn.snippet||'').substring(0,120))}</div>`});b1+=`</div>`}
     const fs=d.featured_snippet,aio=d.ai_overview,rs=d.related_searches||[];
     if(fs)b1+=`<div style="margin:6px 0"><span class="tag g" style="white-space:normal;line-height:1.4">📋 Featured Snippet: ${esc((typeof fs==='string'?fs:(fs.text||JSON.stringify(fs))).substring(0,150))}</span></div>`;
-    if(aio)b1+=`<div style="margin:6px 0"><span class="tag o" style="white-space:normal;line-height:1.4">🤖 AI Overview: ${esc((typeof aio==='string'?aio:(aio.text||JSON.stringify(aio))).substring(0,150))}</span></div>`;
+    if(aio){
+      const aioText=typeof aio==='string'?aio:(aio.text||'');
+      const aioSrcs=typeof aio==='object'?(aio.sources||[]):[];
+      if(aioText){
+        b1+=`<div style="margin:8px 0;border:1px solid var(--orange);border-radius:6px;padding:8px 12px;background:rgba(255,140,0,.07)">`;
+        b1+=`<div style="font-size:10px;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🤖 Google AI Overview</div>`;
+        b1+=`<div style="font-size:12px;color:var(--lg);line-height:1.5">${esc(aioText.substring(0,600))}</div>`;
+        if(aioSrcs.length)b1+=`<div style="margin-top:6px;font-size:10px;color:var(--mg)">Źródła: ${aioSrcs.slice(0,3).map(s=>`<a href="${esc(s.link||'#')}" target="_blank" style="color:var(--mg)">${esc(s.title||s.link||'')}</a>`).join(' · ')}</div>`;
+        b1+=`</div>`;
+      }
+    }
     if(rs.length)b1+=`<div style="margin:6px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Related Searches</div>${rs.map(r=>`<span class="tag d">${ss(r)}</span>`).join('')}</div>`;
     h+=s1Sec(1,'Analiza SERP i struktury konkurencji',`${d.analyzed_urls||'?'} stron`,b1);
 
@@ -928,7 +955,21 @@ function rS1(d){
     const sgH2=d.suggested_h2s||[],topH2=d.competitor_h2_patterns||[];
     if(sgH2.length||topH2.length){
         if(sgH2.length){b12+=`<div style="margin:6px 0"><div style="font-size:11px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">✅ Sugerowane H2 (z gap analysis)</div>`;sgH2.forEach((h2,i)=>{b12+=`<div style="padding:3px 0;font-size:13px;color:var(--lg)"><span style="color:var(--gn);font-weight:700;width:22px;display:inline-block">${i+1}.</span>${esc(typeof h2==='string'?h2:(h2.h2||h2.title||h2.subtopic||''))}</div>`});b12+=`</div>`}
-        if(topH2.length){b12+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📋 Dominujące H2 u konkurencji (${topH2.length})</div>`;topH2.slice(0,10).forEach((h2,i)=>{b12+=`<div style="padding:2px 0;font-size:12px;color:var(--mg)"><span style="color:var(--orange);font-weight:700;width:18px;display:inline-block">${i+1}.</span>${el(h2)}</div>`});b12+=`</div>`}
+        if(topH2.length){
+          const mxC2=Math.max(...topH2.map(x=>typeof x==='object'?(x.count||x.sources||1):1),1);
+          b12+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--orange);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📊 Popularne H2 u konkurencji — MUST HAVE (${topH2.length})</div>`;
+          topH2.slice(0,12).forEach((h2,i)=>{
+            const txt=typeof h2==='object'?(h2.text||h2.pattern||h2.h2||''):String(h2);
+            const cnt=typeof h2==='object'?(h2.count||h2.sources||0):0;
+            const pct2=cnt?Math.round(cnt/mxC2*100):0;
+            const clr2=pct2>=80?'var(--rd)':pct2>=50?'var(--orange)':'var(--yl)';
+            b12+=`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--b1)">`;
+            if(cnt)b12+=`<span style="font-size:10px;font-weight:700;color:${clr2};min-width:22px">${cnt}×</span>`;
+            else b12+=`<span style="font-size:11px;color:var(--orange);font-weight:700;min-width:22px">${i+1}.</span>`;
+            b12+=`<span style="font-size:12px;color:var(--lg)">${esc(txt)}</span></div>`;
+          });
+          b12+=`</div>`;
+        }
         // Compute recommended length range
         const recLen=d.recommended_length||3000,medLen=d.median_length||0;
         b12+=`<div style="margin-top:8px;padding:8px;background:var(--sb);border-radius:6px"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📏 Rekomendowana struktura</div><div style="font-size:13px;color:var(--lg)">Sekcji H2: <b>${Math.max(sgH2.length, Math.min(10,Math.round(recLen/400)))}</b> | Długość: <b>${recLen}</b> słów | Mediana konkurencji: <b>${medLen}</b> słów</div></div>`;
