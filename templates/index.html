@@ -484,43 +484,11 @@
         <div id="tabWorkflow" class="main-tab-panel on">
         <div id="prog" style="display:none">
             <div class="steps" id="stC"></div>
-            <div class="steps-toggle" id="stToggle" onclick="document.getElementById('stC').classList.toggle('collapsed');this.textContent=document.getElementById('stC').classList.contains('collapsed')?'▼ pokaż kroki':'▲ zwiń kroki'">▲ zwiń kroki</div>
-            <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
+                        <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
             <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" onclick="tPnl('s1P')"><span>📊 Analiza S1 — Pełna mapa tematu</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B" style="max-height:900px"></div></div>
             <div class="pnl" id="biP" style="display:none"><div class="pnl-h" onclick="tPnl('biP')"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
             <div class="crd" id="bpC" style="display:none"><div class="pg-top"><span class="pg-lbl">Generowanie</span><span class="pg-ct" id="bCt">0/0</span></div><div class="pg-bar"><div class="pg-fill" id="bFill" style="width:0%"></div></div><div class="chips" id="bRes"></div></div>
-                        <div style="margin-top:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span class="lbl" style="margin:0;flex:1">📄 Artykuł — buduje się na żywo</span>
-              <span id="artWordCount" style="font-size:8px;color:var(--mg);font-family:'JetBrains Mono',monospace"></span>
-              <button class="tbtn" id="btnCopyArt" onclick="copyArticle()" style="background:var(--gn);color:#fff;border:none">📋 Kopiuj</button>
-              <span id="copyArtMsg" style="font-size:9px;color:var(--gn);display:none">✓ Skopiowano!</span>
-            </div>
-            <div class="art" id="artP" style="display:none"></div>
-
-            <!-- ARTICLE EDITOR -->
-            <div class="editor-wrap" id="editorWrap">
-                <div class="edit-bar">
-                    <span class="lbl" style="margin:0;flex:1;display:flex;align-items:center">✏️ Edytor artykułu</span>
-                    <button class="btn-val" id="btnValidate" onclick="validateArt()">🔍 Zwaliduj</button>
-                </div>
-                <div class="val-result" id="valResult"></div>
-                <div class="chat-box">
-                    <div class="chat-hist" id="chatHist">
-                        <div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>
-                    </div>
-                    <div class="chat-input">
-                        <input type="text" id="chatIn" placeholder="np. Zmień ton na bardziej potoczny…" onkeydown="if(event.key==='Enter')sendEdit()">
-                        <button class="chat-send" id="chatBtn" onclick="sendEdit()">Wyślij →</button>
-                    </div>
-                </div>
-            </div>
-            <div class="inline-tb" id="inlineTb">
-                <input type="text" id="inlineIn" placeholder="Co zmienić w zaznaczeniu?" onkeydown="if(event.key==='Enter')sendInline()">
-                <button onclick="sendInline()">OK</button>
-                <button class="bx" onclick="hideInl()">✕</button>
-            </div><!-- /inline-tb -->
-
-            <!-- ✍️ EDITORIAL MINI — skrót w Workflow, pełne szczegóły w zakładce Jakość -->
+                        <!-- ✍️ EDITORIAL MINI — skrót w Workflow, pełne szczegóły w zakładce Jakość -->
             <!-- ✍️ EDITORIAL RUNNING STATE — pojawia się gdy editorial się generuje -->
             <div class="ed-running-state" id="edRunning">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -535,8 +503,7 @@
               </div>
               <div style="margin-top:8px;font-size:8px;color:var(--mg)">AI przegląda i koryguje tekst — zwykle 60–120 sekund</div>
             </div>
-
-            <div id="edMini" style="display:none;margin-top:12px">
+<div id="edMini" style="display:none;margin-top:12px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                 <span class="lbl" style="margin:0">✍️ Editorial Review</span>
                 <button class="tbtn" onclick="switchTab('quality')" style="color:var(--orange)">pełne szczegóły →</button>
@@ -565,7 +532,34 @@
                 <div id="edMiniSummary" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--b1);font-size:9px;color:var(--mg)"></div>
               </div>
             </div>
-
+<div style="margin-top:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="lbl" style="margin:0;flex:1">📄 Artykuł — buduje się na żywo</span>
+              <span id="artWordCount" style="font-size:8px;color:var(--mg);font-family:'JetBrains Mono',monospace"></span>
+              <button class="tbtn" id="btnCopyArt" onclick="copyArticle()" style="background:var(--gn);color:#fff;border:none">📋 Kopiuj</button>
+              <span id="copyArtMsg" style="font-size:9px;color:var(--gn);display:none">✓ Skopiowano!</span>
+            </div>
+<div class="art" id="artP" style="display:none"></div>
+<div class="editor-wrap" id="editorWrap">
+                <div class="edit-bar">
+                    <span class="lbl" style="margin:0;flex:1;display:flex;align-items:center">✏️ Edytor artykułu</span>
+                    <button class="btn-val" id="btnValidate" onclick="validateArt()">🔍 Zwaliduj</button>
+                </div>
+                <div class="val-result" id="valResult"></div>
+                <div class="chat-box">
+                    <div class="chat-hist" id="chatHist">
+                        <div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>
+                    </div>
+                    <div class="chat-input">
+                        <input type="text" id="chatIn" placeholder="np. Zmień ton na bardziej potoczny…" onkeydown="if(event.key==='Enter')sendEdit()">
+                        <button class="chat-send" id="chatBtn" onclick="sendEdit()">Wyślij →</button>
+                    </div>
+                </div>
+            </div>
+<div class="inline-tb" id="inlineTb">
+                <input type="text" id="inlineIn" placeholder="Co zmienić w zaznaczeniu?" onkeydown="if(event.key==='Enter')sendInline()">
+                <button onclick="sendInline()">OK</button>
+                <button class="bx" onclick="hideInl()">✕</button>
+            </div>
         </div><!-- /tabWorkflow -->
         <!-- ═══ QUALITY TAB ═══ -->
         <div id="tabQuality" class="main-tab-panel" style="display:none;padding:16px 20px"><button class="mabtn" onclick="switchTab('workflow')" style="margin-bottom:12px;display:flex;align-items:center;gap:6px">← Workflow</button>
@@ -840,7 +834,7 @@ function rS1(d){
     if(eR.length)b4+=`<div style="margin:6px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Relacje SVO (${eR.length})</div>${eR.slice(0,8).map(r=>{if(typeof r==='string')return`<span class="s1-ent rel">${esc(r)}</span>`;const subj=r.from||r.subject||'?',obj=r.to||r.object||'?',verb=r.relation||r.verb||'→',rtype=r.type||'';return`<span class="s1-ent rel">${esc(subj)} <span style="opacity:.5">${esc(verb)}</span> ${esc(obj)}${rtype?` <span style="font-size:9px;opacity:.4">[${esc(rtype)}]</span>`:''}</span>`}).join('')}</div>`;
     // v47.0: Entity Salience from backend competitor analysis
     const bSal=ent.entity_salience||[];
-    if(bSal.length){b4+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--pr);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔬 SALIENCE (z analizy konkurencji)</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:end">`;bSal.slice(0,10).forEach(s=>{const ht=Math.max(14,Math.round((s.salience||0)*80));const isPrimary=bSal.indexOf(s)===0;b4+=`<div style="display:flex;flex-direction:column;align-items:center;width:55px"><div style="width:100%;height:${ht}px;background:${isPrimary?'var(--pr)':'var(--gn)'};border-radius:3px 3px 0 0;opacity:${isPrimary?1:.6}" title="${s.entity}: ${s.salience}"></div><div style="font-size:9px;margin-top:2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;font-weight:${isPrimary?'800':'400'}">${esc(s.entity||'')}</div><div style="font-size:9px;opacity:.5">${(s.salience||0).toFixed(2)}</div></div>`});b4+=`</div></div>`}
+    if(bSal.length){b4+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--pr);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔬 SALIENCE (z analizy konkurencji)</div>`;bSal.slice(0,10).forEach((s,i)=>{const pct=Math.round((s.salience||0)*100);const isPrimary=i===0;const clr=isPrimary?'var(--pr)':pct>=60?'var(--gn)':pct>=40?'var(--yl)':'var(--mg)';b4+='<div style="display:grid;grid-template-columns:140px 1fr 36px;align-items:center;gap:8px;margin-bottom:5px"><div style="font-size:10px;font-weight:'+(isPrimary?700:400)+';color:'+(isPrimary?'var(--white)':'rgba(255,255,255,.7)')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(s.entity||'')+'">'+esc(s.entity||'')+'</div><div style="background:var(--s3);border-radius:3px;height:8px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+clr+';border-radius:3px"></div></div><div style="font-size:10px;color:var(--mg);text-align:right;font-family:monospace">'+((s.salience||0).toFixed(2))+'</div></div>';});b4+=`</div>`}
     // v47.0: Co-occurrence pairs
     const bCooc=ent.entity_cooccurrence||[];
     if(bCooc.length){b4+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--orange);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔗 CO-OCCURRENCE (${bCooc.length} par)</div>`;bCooc.slice(0,6).forEach(p=>{b4+=`<div style="padding:2px 0;font-size:12px"><span style="color:var(--pr)">${esc(p.entity_a||'')}</span> + <span style="color:var(--pr)">${esc(p.entity_b||'')}</span> <span style="opacity:.4;font-size:10px">str: ${(p.strength||0).toFixed(2)} | ${p.sentence_co_occurrences||0} zdań | ${p.sources_count||0} źródeł</span></div>`});b4+=`</div>`}
