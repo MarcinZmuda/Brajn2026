@@ -109,6 +109,30 @@ Tematy praktyczne / lifestylowe:
 </tone>""")
 
     # ════════════════════════════════════════════════════════════
+    # EPISTEMOLOGIA — ZASADA ŹRÓDEŁ
+    # ════════════════════════════════════════════════════════════
+    parts.append("""<epistemology>
+SKĄD BIERZESZ WIEDZĘ — ZASADA BEZWZGLĘDNA:
+
+Twoja wiedza pochodzi WYŁĄCZNIE z:
+  1. Stron konkurencji z SERP (podane w danych) — czytasz fakty, NIE kopiujesz zdań
+  2. Przepisów prawnych i orzeczeń sądowych (podane wprost w kontekście)
+  3. Artykułów Wikipedia (podane wprost) — możesz cytować jako źródło uzupełniające
+  4. Danych liczbowych z podanych źródeł — tylko gdy potwierdzone min. na 2 stronach SERP
+
+❌ ZAKAZ BEZWZGLĘDNY — halucynacji faktograficznych:
+  • Nie wymyślaj liczb, dat, statystyk, wyroków, sygnatur, instytucji
+  • Nie wymyślaj nazw badań, raportów, publikacji naukowych
+  • Nie podawaj wartości, kwot, terminów, artykułów ustaw których nie masz w danych
+  • Nie "uzupełniaj luk" własnymi domysłami — lepiej pomiń niż zmyśl
+
+JEŚLI NIE WIESZ → OPUŚĆ zdanie:
+  • Brakuje sygnatury? → nie cytuj wyroku wcale
+  • Nie znasz artykułu ustawy? → usuń zdanie z odwołaniem do prawa
+  • Masz sprzeczne dane? → podaj zakres lub pomiń
+</epistemology>""")
+
+    # ════════════════════════════════════════════════════════════
     # TERMINOLOGIA I ENCJE
     # ════════════════════════════════════════════════════════════
     parts.append("""<entities>
@@ -240,6 +264,16 @@ KATEGORIA 6 — Placeholder-zdania (wtrącenia bez treści)
   „[Encja] jest ważnym pojęciem w tym kontekście."
   „Temat ten zasługuje na szczególną uwagę."
   Każde zdanie MUSI dodawać nową informację — nie zapowiadać jej.
+
+KATEGORIA 7 — Phantom-placeholder prawny (BEZWZGLĘDNY ZAKAZ)
+  ❌ „odpowiednich przepisów prawa" — ZAWSZE podaj konkretny artykuł: „art. 178a § 1 k.k."
+  ❌ „właściwych przepisów" / „stosownych regulacji" / „obowiązujących przepisów" bez numeru — ZAKAZ
+  ❌ „zgodnie z przepisami" bez podania jakich — ZAKAZ
+  ❌ „do 2 lat więzienia" dla art. 178a § 1 k.k. — BŁĄD: nowelizacja 2023 = do 3 lat
+  ❌ „recydywa w ciągu 2 lat" — BŁĄD: prawo karne nie definiuje recydywy terminem
+  ❌ Sygnatura „I C" lub „II C" w kontekście konfiskaty pojazdu — BŁĄD: to sprawa cywilna
+  ❌ „mg/100 ml" jako jednostka alkoholu — BŁĄD: używaj promili (‰) lub mg/dm³
+  Reguła: jeśli nie znasz konkretnego artykułu → usuń zdanie, NIE zastępuj ogólnikiem.
 
 ANTY-POWTÓRZENIA
 Zdefiniowałeś pojęcie raz — nie definiuj ponownie.
@@ -1125,6 +1159,25 @@ def _fmt_legal_medical(pre_batch):
         parts.append("  1. Cytować realne przepisy i orzeczenia — ALE TYLKO te pasujące do gałęzi prawa artykułu")
         parts.append("  2. Dodać disclaimer o konsultacji z prawnikiem")
         parts.append("  3. NIE wymyślać sygnatur ani dat orzeczeń")
+        parts.append("")
+        parts.append("🚫 BŁĘDY KRYTYCZNE — BEZWZGLĘDNY ZAKAZ:")
+        parts.append("  • JEDNOSTKI: mg/100 ml → BŁĄD. Używaj: promile (‰) lub mg/dm³")
+        parts.append("  • KARA 178a §1: do 2 lat → BŁĄD. Prawidłowo: do 3 lat (nowelizacja 2023)")
+        parts.append("  • RECYDYWA: nie definiuj terminem '2 lat' — brak takiego wymogu")
+        parts.append("  • SYGNATURA I C / II C w kontekście konfiskaty → BŁĄD: to sprawa cywilna")
+        parts.append("  • PLACEHOLDER 'odpowiednich przepisów' → zawsze podaj konkretny art.")
+        
+        # Inject Wikipedia articles if available
+        wiki_arts = pre_batch.get("legal_wiki_articles") or []
+        if wiki_arts:
+            parts.append("")
+            parts.append("WIKIPEDIA — TREŚĆ PRZEPISÓW (możesz cytować jako źródło uzupełniające):")
+            for w in wiki_arts[:4]:
+                if w.get("found"):
+                    parts.append(f"  [{w['article_ref']}] {w['title']}:")
+                    parts.append(f"  {w['extract'][:300]}")
+                    parts.append(f"  Źródło: {w['url']}")
+                    parts.append("")
         parts.append("")
         parts.append("⚠️ WERYFIKACJA ORZECZEŃ — OBOWIĄZKOWA:")
         parts.append("  Sygnatura zdradza typ sprawy:")
