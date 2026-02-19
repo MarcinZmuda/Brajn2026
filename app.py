@@ -1619,6 +1619,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         logger.info(f"[S1_DEBUG] length_analysis: rec={la.get('recommended')}, med={la.get('median')}, avg={la.get('average')}, urls={la.get('analyzed_urls')}")
         logger.info(f"[S1_DEBUG] serp_analysis keys: {sorted(sa.keys()) if sa else 'EMPTY'}")
         logger.info(f"[S1_DEBUG] recommended_length(top): {s1_raw.get('recommended_length')}, median_length(top): {s1_raw.get('median_length')}")
+        # PAA diagnostic — shows in workflow logs
+        _paa_raw = s1_raw.get("paa") or s1_raw.get("paa_questions") or sa.get("paa_questions") or []
+        yield emit("log", {"msg": f"🔍 S1 PAA debug: s1_raw.paa={len(s1_raw.get('paa') or [])}, s1_raw.paa_questions={len(s1_raw.get('paa_questions') or [])}, serp_analysis.paa_questions={len(sa.get('paa_questions') or [])}, s1_raw top keys={list(s1_raw.keys())[:8]}"})
         
         # ═══ AI MIDDLEWARE: Clean S1 data ═══
         s1 = process_s1_for_pipeline(s1_raw, main_keyword)
