@@ -486,6 +486,7 @@
             <div class="steps" id="stC"></div>
                         <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
             <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" onclick="tPnl('s1P')"><span>📊 Analiza S1 — Pełna mapa tematu</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B" style="max-height:900px"></div></div>
+            <div id="sourcesBox" style="display:none;border:1px solid var(--b1);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--s1)"></div>
             <div class="pnl" id="biP" style="display:none"><div class="pnl-h" onclick="tPnl('biP')"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
             <div class="crd" id="bpC" style="display:none"><div class="pg-top"><span class="pg-lbl">Generowanie</span><span class="pg-ct" id="bCt">0/0</span></div><div class="pg-bar"><div class="pg-fill" id="bFill" style="width:0%"></div></div><div class="chips" id="bRes"></div></div>
                         <!-- ✍️ EDITORIAL MINI — skrót w Workflow, pełne szczegóły w zakładce Jakość -->
@@ -1096,7 +1097,19 @@ async function startWorkflow(){
         es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';liveArticle=rawArticle;renderArt(rawArticle);const _ap=document.getElementById('artP');if(_ap)_ap.style.display='';document.getElementById('editorWrap').classList.add('visible');const awc=document.getElementById('artWordCount');if(awc)awc.textContent=(rawArticle.split(/\s+/).filter(Boolean).length).toLocaleString()+' słów';});
         es.addEventListener('article_memory',e=>{memoryData=JSON.parse(e.data)});
         es.addEventListener('paa_data',e=>{paaData=JSON.parse(e.data)});
-        es.addEventListener('ymyl_context',e=>{ymylCtxData=JSON.parse(e.data)});
+        es.addEventListener('ymyl_context',e=>{ymylCtxData=JSON.parse(e.data);renderSourcesBox();});
+        es.addEventListener('legal_wiki_sources',e=>{
+          const d=JSON.parse(e.data);
+          if(!window._wikiSources)window._wikiSources=[];
+          window._wikiSources=d.articles||[];
+          renderSourcesBox();
+        });
+        es.addEventListener('article_citation_pass',e=>{
+          const d=JSON.parse(e.data);
+          if(d.text){rawArticle=d.text;liveArticle=d.text;renderArt(d.text);
+            addLog('📎 Citation pass: podgląd zaktualizowany ('+d.sources_count+' źródeł)','info');
+          }
+        });
         es.addEventListener('ymyl_analysis',e=>{ymylAnalysisData=JSON.parse(e.data);renderYmylCard();updateQualityBar()});
         es.addEventListener('ymyl_validation',e=>{ymylValData=JSON.parse(e.data)});
         es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);salienceData=d;const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`}else{document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:12px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss;updateQualityBar()}const sp=d.subject_position;if(sp&&sp.total_sentences>0){document.getElementById('esSP').style.display='';document.getElementById('spSc').textContent=`${sp.score}/100`;document.getElementById('spSc').style.color=sp.score>=70?G:sp.score>=40?W:R;document.getElementById('spSR').textContent=`${Math.round(sp.subject_ratio*100)}%`;document.getElementById('spSR').style.color=sp.subject_ratio>=0.35?G:sp.subject_ratio>=0.2?W:R;document.getElementById('spH2').textContent=sp.h2_entity_count||0;document.getElementById('sp1st').textContent=sp.first_sentence_has_entity?'✅':'❌';document.getElementById('sp1st').style.color=sp.first_sentence_has_entity?G:R}});
@@ -1265,6 +1278,67 @@ function renderCompDash(){
     // v50.7 FIX 38: Check article text directly when Google NLP not available
     const artTextLow=(liveArticle||rawArticle||'').toLowerCase();
     // Polish-aware entity match: check stems (first 4+ chars of each word)
+    function renderSourcesBox(){
+      const ctx=ymylCtxData;
+      const box=document.getElementById('sourcesBox');
+      if(!box)return;
+      if(!ctx||((!ctx.legal||!ctx.legal.judgments)&&(!ctx.medical||!ctx.medical.publications)&&!window._wikiSources)){
+        box.style.display='none';return;
+      }
+      box.style.display='';
+      const G='var(--gn)',O='var(--orange)',M='var(--mg)',P='var(--pr)',B='var(--b1)';
+      let h=`<div style="font-size:11px;color:${P};font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📦 Źródła dostarczone do pisania</div>`;
+      
+      // Legal judgments
+      const jj=(ctx.legal||{}).judgments||[];
+      const jSkip=(ctx.legal||{}).judgments_skipped||[];
+      if(jj.length){
+        h+=`<div style="margin-bottom:10px"><div style="font-size:10px;color:${G};font-weight:600;margin-bottom:4px">⚖️ Orzeczenia (${jj.length})</div>`;
+        jj.forEach(j=>{
+          const sig=j.signature||'';const court=(j.court||'').split(' ').slice(-2).join(' ');
+          const art=j.matched_article?` <span style="color:${O};font-size:9px">[${esc(j.matched_article)}]</span>`:'';
+          h+=`<div style="padding:3px 6px;background:var(--s2);border-radius:4px;margin-bottom:2px;font-size:10px">
+            <span style="color:${P};font-weight:600">${esc(sig)}</span>${art}
+            <span style="color:${M};margin-left:4px">${esc(court)} ${j.date?'('+esc(j.date)+')':''}</span>
+          </div>`;
+        });
+        if(jSkip.length)h+=`<div style="font-size:9px;color:${M};margin-top:2px">⚠️ Pominięto (błędna gałąź): ${jSkip.map(s=>`<span style='color:var(--yl)'>${esc(s)}</span>`).join(', ')}</div>`;
+        h+=`</div>`;
+      }
+      
+      // Wikipedia articles
+      const wiki=window._wikiSources||[];
+      if(wiki.length){
+        h+=`<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--yl);font-weight:600;margin-bottom:4px">📖 Wikipedia — przepisy (${wiki.length})</div>`;
+        wiki.forEach(w=>{
+          h+=`<div style="padding:3px 6px;background:var(--s2);border-radius:4px;margin-bottom:2px;font-size:10px">
+            <span style="color:var(--yl);font-weight:600">${esc(w.article_ref||'')}</span>
+            <span style="color:var(--white);margin-left:4px">${esc((w.title||'').substring(0,40))}</span>
+            <a href="${esc(w.url||'#')}" target="_blank" style="color:${M};font-size:9px;margin-left:4px">↗</a>
+          </div>`;
+        });
+        h+=`</div>`;
+      }
+      
+      // Medical publications
+      const pp=(ctx.medical||{}).publications||[];
+      if(pp.length){
+        h+=`<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--yl);font-weight:600;margin-bottom:4px">🏥 Publikacje medyczne (${pp.length})</div>`;
+        pp.slice(0,6).forEach(p=>{
+          h+=`<div style="padding:3px 6px;background:var(--s2);border-radius:4px;margin-bottom:2px;font-size:10px">
+            <span style="color:#fba92c;font-weight:600">PMID:${esc(p.pmid||'—')}</span>
+            <span style="color:var(--white);margin-left:4px">${esc((p.title||'').substring(0,50))}</span>
+            <span style="color:${M};margin-left:4px">${p.year||''}</span>
+          </div>`;
+        });
+        h+=`</div>`;
+      }
+      
+      if(!jj.length&&!wiki.length&&!pp.length){box.style.display='none';return;}
+      box.innerHTML=h;
+    }
+
+
     function plMatch(entityName,text){
         if(!text||!entityName)return false;
         const eLow=entityName.toLowerCase();
