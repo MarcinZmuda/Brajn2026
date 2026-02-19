@@ -496,6 +496,36 @@
                 <button class="bx" onclick="hideInl()">✕</button>
             </div><!-- /inline-tb -->
 
+            <!-- ✍️ EDITORIAL MINI — skrót w Workflow, pełne szczegóły w zakładce Jakość -->
+            <div id="edMini" style="display:none;margin-top:12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <span class="lbl" style="margin:0">✍️ Editorial Review</span>
+                <button class="tbtn" onclick="switchTab('quality')" style="color:var(--orange)">pełne szczegóły →</button>
+              </div>
+              <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px 16px">
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
+                  <div style="font-size:28px;font-weight:800;color:var(--white)" id="edMiniScore">—<span style="font-size:13px;color:var(--mg);font-weight:400">/10</span></div>
+                  <div style="flex:1;display:flex;gap:8px">
+                    <div style="flex:1;text-align:center;background:var(--s2);border-radius:var(--rs);padding:6px 4px">
+                      <div style="font-size:16px;font-weight:800;color:var(--white)" id="edMiniCh">—</div>
+                      <div style="font-size:9px;color:var(--mg);text-transform:uppercase">Zmiany</div>
+                    </div>
+                    <div style="flex:1;text-align:center;background:var(--s2);border-radius:var(--rs);padding:6px 4px">
+                      <div style="font-size:16px;font-weight:800;color:var(--white)" id="edMiniW">—</div>
+                      <div style="font-size:9px;color:var(--mg);text-transform:uppercase">Słowa</div>
+                    </div>
+                    <div style="flex:1;text-align:center;background:var(--s2);border-radius:var(--rs);padding:6px 4px">
+                      <div style="font-size:16px;font-weight:800" id="edMiniR">—</div>
+                      <div style="font-size:9px;color:var(--mg);text-transform:uppercase">Rollback</div>
+                    </div>
+                  </div>
+                </div>
+                <div style="font-size:9px;color:var(--mg);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Zastosowane zmiany</div>
+                <div id="edMiniChanges" style="font-size:10px;color:rgba(255,255,255,.7);line-height:1.7"></div>
+                <div id="edMiniFailed" style="margin-top:6px;font-size:10px;color:var(--rd);display:none"></div>
+                <div id="edMiniSummary" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--b1);font-size:11px;color:var(--mg)"></div>
+              </div>
+            </div>
 
         </div><!-- /tabWorkflow -->
         <!-- ═══ QUALITY TAB ═══ -->
@@ -941,6 +971,7 @@ async function startWorkflow(){
     ['logC','bRes','biB','s1B','cpB'].forEach(id=>document.getElementById(id).innerHTML='');
     document.getElementById('tbQuality').textContent='—';document.getElementById('tbS1').textContent='—';document.getElementById('tbCI').textContent='—';
     document.getElementById('qualityBar').style.display='none';document.getElementById('mainTabsBar').style.display='none';
+    const _em=document.getElementById('edMini');if(_em)_em.style.display='none';
     ['bpC','edC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP'].forEach(id=>document.getElementById(id).style.display='none');
     document.getElementById('editorWrap').classList.remove('visible');
     document.getElementById('chatHist').innerHTML='<div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>';
@@ -987,7 +1018,16 @@ async function startWorkflow(){
     if(_psEd){const _ch=d.changes_applied||0,_fail=d.changes_failed||0,_rb=d.rollback;
     const _ecol=_rb?'var(--rd)':_ch>0?'var(--gn)':'var(--yl)';
     _psEd.innerHTML='<span style="color:'+_ecol+'">'+'Editorial: '+(_rb?'ROLLBACK':_ch+' zmian naprawiono')+(_fail>0?' ('+_fail+' nieznaleziono)':'')+' </span>';
-    if(_ps2)_ps2.style.display='flex';updateQualityBar();}
+    if(_ps2)_ps2.style.display='flex';updateQualityBar();
+    // ── EDITORIAL MINI (Workflow tab skrót) ──
+    const em=document.getElementById('edMini');if(em)em.style.display='';
+    const ems=document.getElementById('edMiniScore');if(ems){const sc=d.score||0;ems.innerHTML=`${sc}<span style="font-size:13px;color:var(--mg);font-weight:400">/10</span>`;ems.style.color=sc>=7?'var(--gn)':sc>=5?'var(--yl)':'var(--rd)';}
+    const emch=document.getElementById('edMiniCh');if(emch)emch.textContent=`${d.changes_applied||0}/${(d.changes_applied||0)+(d.changes_failed||0)}`;
+    const emw=document.getElementById('edMiniW');if(emw)emw.textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;
+    const emr=document.getElementById('edMiniR');if(emr){emr.textContent=d.rollback?'⚠️ TAK':'✓ NIE';emr.style.color=d.rollback?'var(--rd)':'var(--gn)';}
+    const emch2=document.getElementById('edMiniChanges');if(emch2&&d.applied_changes&&d.applied_changes.length){emch2.innerHTML=d.applied_changes.slice(0,5).map(c=>{const f=c.find||c.original||c.ZNAJDŹ||'';const r=c.replace||c.corrected||c.ZAMIEŃ||'';return f||r?`<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="color:var(--rd);text-decoration:line-through">${esc(f.substring(0,55))}${f.length>55?'…':''}</span> <span style="color:var(--mg)">→</span> <span style="color:var(--gn)">${esc(r.substring(0,55))}${r.length>55?'…':''}</span></div>`:''}).join('')+(d.applied_changes.length>5?`<div style="color:var(--mg);padding-top:4px">…i ${d.applied_changes.length-5} więcej → zakładka Jakość</div>`:'')}
+    const emf=document.getElementById('edMiniFailed');if(emf&&d.failed_changes&&d.failed_changes.length){emf.style.display='';emf.textContent=`❌ Nieznalezione: ${d.failed_changes.slice(0,3).map(c=>'"'+(c.find||c.original||c.ZNAJDŹ||'').substring(0,40)+'"').join(', ')}${d.failed_changes.length>3?` (+${d.failed_changes.length-3})`:''}`;}
+    const emsum=document.getElementById('edMiniSummary');if(emsum&&d.summary)emsum.textContent=typeof d.summary==='string'?d.summary:(d.summary.summary||'');
   });
         es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
