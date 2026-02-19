@@ -32,7 +32,7 @@
         .hd-r a:hover{color:var(--orange)}
 
         /* ═══ LAYOUT ═══ */
-        .layout{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 52px)}
+        .layout{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 90px);transition:grid-template-columns .25s}
         @media(max-width:960px){.layout{grid-template-columns:1fr}}
 
         /* ═══ SIDEBAR ═══ */
@@ -88,7 +88,7 @@
         .tbtn:hover{color:var(--orange)}
 
         /* ═══ MAIN ═══ */
-        .main{padding:24px 28px;overflow-y:auto;background:var(--bg)}
+        .main{padding:0;overflow-y:auto;background:var(--bg)}.main-tab-panel{padding:16px 20px}
 
         .welcome{text-align:center;padding:80px 20px}
         .w-icon{
@@ -285,6 +285,56 @@
         .inline-tb .bx{background:none;color:var(--mg);padding:6px;font-size:14px}
         .val-result{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:14px;margin:10px 0;font-size:11px;display:none}
         .val-result.vis{display:block}
+
+        /* ═══ MINI STEPPER ═══ */
+        .stepper{display:flex;align-items:center;gap:0;background:var(--s1);border-bottom:1px solid var(--b1);padding:0 20px;height:38px;flex-shrink:0;overflow:hidden;z-index:90}
+        .step-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:99px;font-size:10px;font-weight:600;white-space:nowrap;cursor:default}
+        .step-pill.spdone{color:var(--gn)}
+        .step-pill.sprun{color:var(--orange);background:var(--og);animation:blink 1.5s ease-in-out infinite}
+        .step-pill.sppend{color:var(--mg)}
+        .step-pill.spwarn{color:var(--yl)}
+        .step-pill.sperr{color:var(--rd)}
+        .sp-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+        .sp-dot.run{width:8px;height:8px}
+        .sp-sep{color:var(--b3);font-size:11px;margin:0 2px;flex-shrink:0}
+        .sp-timer{font-size:10px;color:var(--mg);font-family:'JetBrains Mono',monospace;margin-left:auto}
+
+        /* ═══ SIDEBAR COLLAPSE ═══ */
+        .sidebar{position:relative;transition:width .25s,padding .25s;min-width:0}
+        .sidebar.collapsed{width:0!important;padding:0!important;overflow:hidden;border-right:none}
+        .sb-toggle{position:absolute;top:14px;right:-14px;z-index:20;width:28px;height:28px;border-radius:50%;background:var(--b2);border:1px solid var(--b3);color:var(--lg);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+        .sb-toggle:hover{background:var(--b3);color:var(--white)}
+        .sb-toggle.out{right:-30px}
+
+        /* ═══ ADVANCED TOGGLE ═══ */
+        .adv-toggle{font-size:10px;color:var(--mg);cursor:pointer;padding:5px 0;display:flex;align-items:center;gap:4px;margin-top:8px;user-select:none}
+        .adv-toggle:hover{color:var(--orange)}
+        .adv-section{overflow:hidden;max-height:0;transition:max-height .3s ease}
+        .adv-section.open{max-height:600px}
+
+        /* ═══ MAIN TABS ═══ */
+        .main-tabs-bar{display:flex;align-items:center;background:var(--s1);border-bottom:1px solid var(--b1);padding:0 20px;height:38px;flex-shrink:0;position:sticky;top:0;z-index:10}
+        .mtab{padding:0 14px;height:38px;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--mg);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+        .mtab:hover{color:var(--white)}
+        .mtab.on{color:var(--white);border-bottom-color:var(--orange)}
+        .mtab-badge{font-size:9px;padding:1px 6px;border-radius:99px;background:var(--b2);font-weight:600}
+        .mtab.on .mtab-badge{background:var(--og);color:var(--orange)}
+        .mtab-spacer{flex:1}
+        .mtab-actions{display:flex;align-items:center;gap:6px;padding-left:12px;border-left:1px solid var(--b1)}
+        .mabtn{font-size:11px;color:var(--mg);cursor:pointer;padding:5px 10px;border-radius:var(--rs);border:1px solid var(--b1);background:none;font-family:inherit;transition:all .15s}
+        .mabtn:hover{color:var(--white);border-color:var(--b3)}
+        .mabtn.pri{background:var(--og);color:var(--orange);border-color:rgba(251,169,44,.3)}
+        .main-tab-panel{display:none}.main-tab-panel.on{display:block}
+
+        /* ═══ QUALITY BAR ═══ */
+        .quality-bar{display:flex;align-items:stretch;gap:1px;background:var(--b1);border-bottom:1px solid var(--b1);flex-shrink:0}
+        .qb-item{flex:1;padding:8px 14px;background:var(--s1);display:flex;flex-direction:column;gap:2px;cursor:default;transition:background .12s}
+        .qb-item:hover{background:var(--s2)}
+        .qb-val{font-size:16px;font-weight:800;line-height:1}
+        .qb-val.gn{color:var(--gn)}.qb-val.yl{color:var(--yl)}.qb-val.or{color:var(--orange)}.qb-val.rd{color:var(--rd)}
+        .qb-lbl{font-size:9px;color:var(--mg);text-transform:uppercase;letter-spacing:.5px}
+        .qb-bar{height:2px;background:var(--b2);border-radius:1px;margin-top:3px;overflow:hidden}
+        .qb-fill{height:100%;border-radius:1px}
     </style>
 </head>
 <body>
@@ -292,8 +342,32 @@
     <div class="hd-l"><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge">V45.3</span></div>
     <div class="hd-r"><span>{{ username }}</span><a href="/logout">Wyloguj</a></div>
 </div>
+
+<div class="stepper" id="miniStepper">
+  <div class="step-pill sppend" id="sp1"><div class="sp-dot"></div>S1</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp2"><div class="sp-dot"></div>YMYL</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp3"><div class="sp-dot"></div>H2</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp4"><div class="sp-dot"></div>Projekt</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp5"><div class="sp-dot"></div>Frazy</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp6"><div class="sp-dot"></div>Batche</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp7"><div class="sp-dot"></div>PAA</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp8"><div class="sp-dot"></div>Final</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp9"><div class="sp-dot"></div>Editorial</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp10"><div class="sp-dot"></div>Export</div>
+  <div class="sp-timer" id="spTimer" style="display:none">0:00</div>
+</div>
 <div class="layout">
-    <div class="sidebar">
+    <div class="sidebar" id="sidebarArea">
+        <button class="sb-toggle" id="sbToggle" onclick="toggleSidebar()" title="Zwiń panel">‹</button>
         <div class="lbl">Keyword</div>
         <input type="text" id="mainKeyword" placeholder="np. od czego zacząć przeprowadzkę">
         <div class="lbl">Tryb</div>
@@ -315,6 +389,10 @@
             </select>
             <div class="hint" style="margin-top:2px">Zmienia model na jedną sesję. Env var OPENAI_MODEL = domyślny.</div>
         </div>
+        <div class="adv-toggle" onclick="toggleAdv()" id="advToggle">
+            <span id="advArr">▸</span> Zaawansowane (temp, H2, frazy, instrukcje)
+        </div>
+        <div class="adv-section" id="advSection">
         <div class="lbl">Temperatura <span id="tempVal" style="opacity:.6;font-weight:400">0.7</span></div>
         <input type="range" id="tempSlider" min="0" max="10" value="7" style="width:100%;accent-color:var(--orange)" oninput="setTemp(this.value)">
         <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--mg);margin-top:-2px;margin-bottom:8px"><span>0.0 formalny</span><span>1.0 swobodny</span></div>
@@ -327,11 +405,59 @@
         <div id="ext" style="display:none"><textarea id="extendedTerms" rows="3" placeholder="fraza: min-maxx"></textarea></div>
         <div class="lbl">Instrukcje dla modelu <button class="tbtn" onclick="tog('ciBox')">pokaż</button></div>
         <div id="ciBox" style="display:none"><textarea id="customInstr" rows="4" placeholder="np. Pisz potocznym tonem&#10;Dodaj przykłady z życia&#10;Używaj list numerowanych&#10;Grupa docelowa: studenci"></textarea><div class="hint">Dodatkowe wytyczne przekazywane do Claude przy każdym batchu i edycji.</div></div>
+        </div><!-- /adv-section -->
         <button class="btn-go" id="btnStart" onclick="startWorkflow()">Uruchom workflow →</button>
         <button class="btn-stop" id="btnStop" onclick="stopWF()">Zatrzymaj</button>
     </div>
-    <div class="main">
+    <div class="main" id="mainArea">
+        <!-- TABS BAR (shown during workflow) -->
+        <div id="mainTabsBar" class="main-tabs-bar" style="display:none">
+            <div class="mtab on" data-tab="workflow" onclick="switchTab('workflow')">✍️ Workflow <span class="mtab-badge" id="tbWorkflow">Live</span></div>
+            <div class="mtab" data-tab="quality" onclick="switchTab('quality')">📊 Jakość <span class="mtab-badge" id="tbQuality">—</span></div>
+            <div class="mtab" data-tab="s1" onclick="switchTab('s1')">🔬 Analiza S1 <span class="mtab-badge" id="tbS1">—</span></div>
+            <div class="mtab" data-tab="ci" onclick="switchTab('ci')">🏆 Competitive <span class="mtab-badge" id="tbCI">—</span></div>
+            <div class="mtab-spacer"></div>
+            <div class="mtab-actions">
+                <button class="mabtn" onclick="copyArticle()">📋 Kopiuj</button>
+                <button class="mabtn" onclick="validateArt()">🔍 Waliduj</button>
+                <a class="mabtn pri" id="exH2" style="display:none">⬇ HTML</a>
+            </div>
+        </div>
+        <!-- QUALITY BAR (always visible during workflow) -->
+        <div id="qualityBar" class="quality-bar" style="display:none">
+            <div class="qb-item" title="Final Review Score">
+                <div class="qb-lbl">Quality</div>
+                <div class="qb-val" id="qbQuality" style="color:var(--mg)">—</div>
+                <div class="qb-bar"><div class="qb-fill" id="qbQualityBar" style="width:0%;background:var(--gn)"></div></div>
+            </div>
+            <div class="qb-item" title="Editorial Score">
+                <div class="qb-lbl">Editorial</div>
+                <div class="qb-val" id="qbEditorial" style="color:var(--mg)">—</div>
+                <div class="qb-bar"><div class="qb-fill" id="qbEditorialBar" style="width:0%;background:var(--orange)"></div></div>
+            </div>
+            <div class="qb-item" title="Entity Salience">
+                <div class="qb-lbl">Salience</div>
+                <div class="qb-val" id="qbSalience" style="color:var(--mg)">—</div>
+                <div class="qb-bar"><div class="qb-fill" id="qbSalienceBar" style="width:0%;background:var(--gn)"></div></div>
+            </div>
+            <div class="qb-item" title="Anti-Frankenstein Style">
+                <div class="qb-lbl">Style</div>
+                <div class="qb-val" id="qbStyle" style="color:var(--mg)">—</div>
+                <div class="qb-bar"><div class="qb-fill" id="qbStyleBar" style="width:0%;background:var(--yl)"></div></div>
+            </div>
+            <div class="qb-item" title="YMYL status">
+                <div class="qb-lbl">YMYL</div>
+                <div class="qb-val" id="qbYmyl" style="color:var(--mg)">—</div>
+                <div class="qb-bar"><div class="qb-fill" id="qbYmylBar" style="width:0%;background:var(--gn)"></div></div>
+            </div>
+            <div class="qb-item" title="Liczba słów vs rekomendacja">
+                <div class="qb-lbl">Słowa</div>
+                <div class="qb-val" id="qbWords" style="color:var(--mg)">—</div>
+                <div class="qb-bar"><div class="qb-fill" id="qbWordsBar" style="width:0%;background:var(--yl)"></div></div>
+            </div>
+        </div>
         <div id="wel" class="welcome"><div class="w-icon">⚡</div><h2>BRAJEN SEO Engine</h2><p>Wpisz keyword i uruchom workflow</p></div>
+        <div id="tabWorkflow" class="main-tab-panel on">
         <div id="prog" style="display:none">
             <div class="steps" id="stC"></div>
             <div class="steps-toggle" id="stToggle" onclick="document.getElementById('stC').classList.toggle('collapsed');this.textContent=document.getElementById('stC').classList.contains('collapsed')?'▼ pokaż kroki':'▲ zwiń kroki'">▲ zwiń kroki</div>
@@ -339,10 +465,10 @@
             <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" onclick="tPnl('s1P')"><span>📊 Analiza S1 — Pełna mapa tematu</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B" style="max-height:900px"></div></div>
             <div class="pnl" id="biP" style="display:none"><div class="pnl-h" onclick="tPnl('biP')"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
             <div class="crd" id="bpC" style="display:none"><div class="pg-top"><span class="pg-lbl">Generowanie</span><span class="pg-ct" id="bCt">0/0</span></div><div class="pg-bar"><div class="pg-fill" id="bFill" style="width:0%"></div></div><div class="chips" id="bRes"></div></div>
-                        <div style="margin-top:20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span class="lbl" style="margin:0">📄 Podgląd artykułu (buduje się na żywo)</span>
-              <button class="tbtn" onclick="tog('artP')">pokaż/ukryj</button>
-              <button class="tbtn" id="btnCopyArt" onclick="copyArticle()" style="background:var(--gn);color:#fff;border:none">📋 Kopiuj tekst</button>
+                        <div style="margin-top:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="lbl" style="margin:0;flex:1">📄 Artykuł — buduje się na żywo</span>
+              <span id="artWordCount" style="font-size:10px;color:var(--mg);font-family:'JetBrains Mono',monospace"></span>
+              <button class="tbtn" id="btnCopyArt" onclick="copyArticle()" style="background:var(--gn);color:#fff;border:none">📋 Kopiuj</button>
               <span id="copyArtMsg" style="font-size:11px;color:var(--gn);display:none">✓ Skopiowano!</span>
             </div>
             <div class="art" id="artP" style="display:none"></div>
@@ -370,6 +496,10 @@
                 <button class="bx" onclick="hideInl()">✕</button>
             </div><!-- /inline-tb -->
 
+
+        </div><!-- /tabWorkflow -->
+        <!-- ═══ QUALITY TAB ═══ -->
+        <div id="tabQuality" class="main-tab-panel" style="display:none;padding:16px 20px">
             <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frQB" style="display:none;margin-top:10px;padding:8px 0;border-top:1px solid var(--b1)"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--fg)">Quality Breakdown</div><div id="frBars" style="display:grid;grid-template-columns:90px 1fr 32px;gap:3px 8px;font-size:11px;align-items:center"></div></div><div id="frD" style="font-size:11px;color:var(--mg);margin-top:10px;max-height:200px;overflow-y:auto"></div></div>
             <div id="pipelineSummary" style="display:none;margin:6px 0;padding:10px 16px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);font-size:11px;color:var(--mg);display:flex;align-items:center;gap:8px">
               <span id="psSEOStatus" style="font-weight:600"></span>
@@ -397,7 +527,15 @@
             <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Analiza wiarygodności</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Prawo</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medycyna</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Źródła</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Zastrzeżenie</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:12px;color:var(--mg)"></div></div>
             <div class="pnl" id="schP" style="display:none"><div class="pnl-h" onclick="tPnl('schP')"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:10px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
             <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" onclick="tPnl('tmP')"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
+        </div><!-- /tabQuality -->
+        <!-- ═══ S1 TAB ═══ -->
+        <div id="tabS1" class="main-tab-panel" style="display:none;padding:16px 20px">
+            <!-- s1P moved here via JS on tab switch - actually rendered in place -->
+        </div>
+        <!-- ═══ CI TAB ═══ -->
+        <div id="tabCI" class="main-tab-panel" style="display:none;padding:16px 20px">
             <div class="pnl" id="ciP" style="display:none"><div class="pnl-h" onclick="tPnl('ciP')"><span>📊 Competitive Intelligence Dashboard</span><span class="arr">▼</span></div><div class="pnl-b open" id="ciB"></div></div>
+        </div><!-- /tabCI -->
             <div class="done" id="doneB" style="display:none"><h2>✓ Artykuł gotowy</h2><p id="doneD"></p></div>
             <div class="exp" id="expB" style="display:none"><a class="btn-e pri" id="exH">HTML</a><a class="btn-e" id="exD">DOCX</a></div>
             </div>
@@ -428,9 +566,92 @@ if(eng.claude&&!eng.claude.available){document.querySelector('.ebtn[data-engine=
 }}catch(e){}})()
 function tog(id){const e=document.getElementById(id);e.style.display=e.style.display==='none'?'':'none'}
 function log(m){const c=document.getElementById('logC');c.innerHTML+=`<div class="log-line"><span class="ts">${new Date().toLocaleTimeString('pl-PL')}</span> ${esc(m)}</div>`;c.scrollTop=c.scrollHeight}
+
+// ═══ SIDEBAR COLLAPSE ═══
+function toggleSidebar(){
+    const sb=document.getElementById('sidebarArea'),btn=document.getElementById('sbToggle');
+    sb.classList.toggle('collapsed');
+    btn.textContent=sb.classList.contains('collapsed')?'›':'‹';
+    btn.classList.toggle('out',sb.classList.contains('collapsed'));
+}
+
+// ═══ ADVANCED TOGGLE ═══
+function toggleAdv(){
+    const s=document.getElementById('advSection'),a=document.getElementById('advArr');
+    s.classList.toggle('open');
+    a.textContent=s.classList.contains('open')?'▾':'▸';
+}
+
+// ═══ MAIN TABS ═══
+function switchTab(tab){
+    document.querySelectorAll('.mtab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+    // Show/hide tab panels
+    const panels={workflow:'tabWorkflow',quality:'tabQuality',s1:'tabS1',ci:'tabCI'};
+    Object.entries(panels).forEach(([t,id])=>{
+        const el=document.getElementById(id);
+        if(el)el.classList.toggle('on',t===tab);
+    });
+    // Move s1P into tabS1 if needed
+    if(tab==='s1'){
+        const s1=document.getElementById('s1P'),s1tab=document.getElementById('tabS1');
+        if(s1&&s1tab&&!s1tab.contains(s1)){s1tab.appendChild(s1);if(s1.style.display==='none'&&s1Data)s1.style.display=''}
+    }
+}
+
+// ═══ QUALITY BAR UPDATE ═══
+function updateQualityBar(){
+    const qb=document.getElementById('qualityBar');
+    if(qb)qb.style.display='';
+    const clr=(v,g,w)=>v>=g?'gn':v>=w?'yl':'rd';
+    if(finalData){
+        const s=finalData.score||0;
+        const el=document.getElementById('qbQuality'),bar=document.getElementById('qbQualityBar');
+        if(el){el.textContent=s+'/100';el.className='qb-val '+clr(s,75,50);bar.style.width=s+'%;background:var(--'+clr(s,75,50)+')';}
+        // Word count
+        const wc=finalData.word_count||0;const rec=(s1Data&&s1Data.recommended_length)||3000;
+        const wpct=Math.min(100,Math.round(wc/rec*100));
+        const we=document.getElementById('qbWords'),wb=document.getElementById('qbWordsBar');
+        if(we){we.textContent=wc.toLocaleString();wb.style.width=wpct+'%;background:var(--'+(wpct>85?'gn':wpct>60?'yl':'rd')+')';}
+        // Update word count in article header too
+        const awc=document.getElementById('artWordCount');if(awc)awc.textContent=wc.toLocaleString()+' słów';
+    }
+    if(editorialData){
+        const s=editorialData.score||0;
+        const el=document.getElementById('qbEditorial'),bar=document.getElementById('qbEditorialBar');
+        if(el){el.textContent=s.toFixed(1)+'/10';el.className='qb-val '+(s>=7?'gn':s>=5?'or':'rd');bar.style.width=(s*10)+'%;background:var(--'+(s>=7?'gn':'orange')+')'}
+        document.getElementById('tbQuality').textContent='✓';
+    }
+    if(salienceData&&salienceData.enabled){
+        const sal=salienceData.main_salience||0;
+        const el=document.getElementById('qbSalience'),bar=document.getElementById('qbSalienceBar');
+        if(el){el.textContent=sal.toFixed(2);el.className='qb-val '+(sal>=0.25?'gn':sal>=0.1?'yl':'rd');bar.style.width=Math.min(100,sal*200)+'%;background:var(--'+(sal>=0.25?'gn':'yl')+')'}
+    }
+    if(styleData){
+        const s=styleData.score||0;
+        const el=document.getElementById('qbStyle'),bar=document.getElementById('qbStyleBar');
+        if(el){el.textContent=s+'/100';el.className='qb-val '+(s>=75?'gn':s>=50?'yl':'rd');bar.style.width=s+'%'}
+    }
+    if(ymylAnalysisData){
+        const lr=ymylAnalysisData.legal||{},mr=ymylAnalysisData.medical||{};
+        const s=lr.score||mr.score||0;
+        const el=document.getElementById('qbYmyl'),bar=document.getElementById('qbYmylBar');
+        if(el){el.textContent=s>0?s+'/100':'✓ OK';el.className='qb-val '+(s>=70||s===0?'gn':'yl');bar.style.width=Math.max(s,80)+'%;background:var(--gn)'}
+    }
+}
+
+// ═══ MINI STEPPER UPDATE ═══
+function updateMiniStepper(step,status){
+    const pill=document.getElementById('sp'+step);
+    if(!pill)return;
+    const dotEl=pill.querySelector('.sp-dot');
+    pill.className='step-pill sp'+{'pending':'pend','running':'run','done':'done','warning':'warn','error':'err'}[status];
+    if(dotEl)dotEl.className='sp-dot'+(status==='running'?' run':'');
+}
+
 function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);if(!i)return;
   // Dodaj klasę done do .stp elementu (dla CSS collapsed)
   const stpEl=i.closest('.stp');if(stpEl&&st==='done')stpEl.classList.add('done');
+  updateMiniStepper(s,st);
   i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d;
   // FIX 7: Po kroku 10 (Export done) — zwiń kroki automatycznie
   if(s===10&&st==='done'){
@@ -710,9 +931,16 @@ async function startWorkflow(){
     document.getElementById('btnStart').disabled=true;document.getElementById('btnStart').textContent='Workflow w toku…';
     document.getElementById('btnStop').style.display='';
     document.getElementById('wel').style.display='none';document.getElementById('prog').style.display='';
+    document.getElementById('mainTabsBar').style.display='';
+    document.getElementById('qualityBar').style.display='';
+    document.getElementById('spTimer').style.display='';
+    switchTab('workflow');
+    const _tstart=Date.now();const _tInterval=setInterval(()=>{const e=document.getElementById('spTimer');if(!e){clearInterval(_tInterval);return;}const s=Math.round((Date.now()-_tstart)/1000);e.textContent=Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');},1000);
 
     for(let i=1;i<=10;i++)uStep(i,'pending','—');
     ['logC','bRes','biB','s1B','cpB'].forEach(id=>document.getElementById(id).innerHTML='');
+    document.getElementById('tbQuality').textContent='—';document.getElementById('tbS1').textContent='—';document.getElementById('tbCI').textContent='—';
+    document.getElementById('qualityBar').style.display='none';document.getElementById('mainTabsBar').style.display='none';
     ['bpC','edC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP'].forEach(id=>document.getElementById(id).style.display='none');
     document.getElementById('editorWrap').classList.remove('visible');
     document.getElementById('chatHist').innerHTML='<div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>';
@@ -734,7 +962,7 @@ async function startWorkflow(){
         es.addEventListener('project',e=>{const d=JSON.parse(e.data);tb=d.total_batches;log(`Project: ${d.project_id}`);const r=document.getElementById('bRes');r.innerHTML='';for(let i=1;i<=tb;i++)r.innerHTML+=`<div class="bchip pend" id="bc${i}">B${i}</div>`});
         es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:13px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(h)}</div>`).join('')});
         es.addEventListener('auto_basic_terms',e=>{const d=JSON.parse(e.data);if(d.terms&&d.terms.length){const ta=document.getElementById('basicTerms');ta.value=d.terms.join('\n');ta.rows=Math.min(12,d.terms.length+1);document.getElementById('bsc').style.display=''}});
-        es.addEventListener('s1_data',e=>{s1Data=JSON.parse(e.data);rS1(s1Data);const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}});
+        es.addEventListener('s1_data',e=>{s1Data=JSON.parse(e.data);rS1(s1Data);document.getElementById('tbS1').textContent='✓';const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}});
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
         es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
         es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);batchLog.push(d);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}if(d.accepted&&d.text_preview){liveArticle+=(liveArticle?'\n\n':'')+d.text_preview;renderArt(liveArticle)}});
@@ -759,21 +987,21 @@ async function startWorkflow(){
     if(_psEd){const _ch=d.changes_applied||0,_fail=d.changes_failed||0,_rb=d.rollback;
     const _ecol=_rb?'var(--rd)':_ch>0?'var(--gn)':'var(--yl)';
     _psEd.innerHTML='<span style="color:'+_ecol+'">'+'Editorial: '+(_rb?'ROLLBACK':_ch+' zmian naprawiono')+(_fail>0?' ('+_fail+' nieznaleziono)':'')+' </span>';
-    if(_ps2)_ps2.style.display='flex';}
+    if(_ps2)_ps2.style.display='flex';updateQualityBar();}
   });
-        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}});
+        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
-        es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';liveArticle=rawArticle;renderArt(rawArticle);document.getElementById('editorWrap').classList.add('visible')});
+        es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';liveArticle=rawArticle;renderArt(rawArticle);const _ap=document.getElementById('artP');if(_ap)_ap.style.display='';document.getElementById('editorWrap').classList.add('visible');const awc=document.getElementById('artWordCount');if(awc)awc.textContent=(rawArticle.split(/\s+/).filter(Boolean).length).toLocaleString()+' słów';});
         es.addEventListener('article_memory',e=>{memoryData=JSON.parse(e.data)});
         es.addEventListener('paa_data',e=>{paaData=JSON.parse(e.data)});
         es.addEventListener('ymyl_context',e=>{ymylCtxData=JSON.parse(e.data)});
-        es.addEventListener('ymyl_analysis',e=>{ymylAnalysisData=JSON.parse(e.data);renderYmylCard()});
+        es.addEventListener('ymyl_analysis',e=>{ymylAnalysisData=JSON.parse(e.data);renderYmylCard();updateQualityBar()});
         es.addEventListener('ymyl_validation',e=>{ymylValData=JSON.parse(e.data)});
-        es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);salienceData=d;const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`}else{document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:10px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss}const sp=d.subject_position;if(sp&&sp.total_sentences>0){document.getElementById('esSP').style.display='';document.getElementById('spSc').textContent=`${sp.score}/100`;document.getElementById('spSc').style.color=sp.score>=70?G:sp.score>=40?W:R;document.getElementById('spSR').textContent=`${Math.round(sp.subject_ratio*100)}%`;document.getElementById('spSR').style.color=sp.subject_ratio>=0.35?G:sp.subject_ratio>=0.2?W:R;document.getElementById('spH2').textContent=sp.h2_entity_count||0;document.getElementById('sp1st').textContent=sp.first_sentence_has_entity?'✅':'❌';document.getElementById('sp1st').style.color=sp.first_sentence_has_entity?G:R}});
-        es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss});
+        es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);salienceData=d;const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`}else{document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:10px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss;updateQualityBar()}const sp=d.subject_position;if(sp&&sp.total_sentences>0){document.getElementById('esSP').style.display='';document.getElementById('spSc').textContent=`${sp.score}/100`;document.getElementById('spSc').style.color=sp.score>=70?G:sp.score>=40?W:R;document.getElementById('spSR').textContent=`${Math.round(sp.subject_ratio*100)}%`;document.getElementById('spSR').style.color=sp.subject_ratio>=0.35?G:sp.subject_ratio>=0.2?W:R;document.getElementById('spH2').textContent=sp.h2_entity_count||0;document.getElementById('sp1st').textContent=sp.first_sentence_has_entity?'✅':'❌';document.getElementById('sp1st').style.color=sp.first_sentence_has_entity?G:R}});
+        es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss;updateQualityBar()});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:11px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:10px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:10px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
-        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html)document.getElementById('exH').href=`/api/export/${jid}/html`;if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
+        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
 
         let rr=0;
