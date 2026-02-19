@@ -587,6 +587,21 @@ def _fmt_intro_guidance(pre_batch, batch_type):
         else:
             parts.append(f"\n{guidance}")
 
+    # AI Overview — tylko we wstępie, żeby intro odpowiadało na to co Google już pokazuje
+    serp = pre_batch.get("serp_enrichment") or {}
+    ai_ov = serp.get("ai_overview") or {}
+    if isinstance(ai_ov, dict):
+        ai_ov_text = ai_ov.get("text", "") or ""
+    elif isinstance(ai_ov, str):
+        ai_ov_text = ai_ov
+    else:
+        ai_ov_text = ""
+    if ai_ov_text and len(ai_ov_text) > 50:
+        parts.append("\n═══ GOOGLE AI OVERVIEW ═══")
+        parts.append("Google wyświetla użytkownikom ten tekst ZANIM klikną w artykuł.")
+        parts.append("Wstęp MUSI nawiązywać do tego kontekstu i obiecywać głębszą odpowiedź:")
+        parts.append(f"  {ai_ov_text[:500]}")
+
     return "\n".join(parts)
 
 
