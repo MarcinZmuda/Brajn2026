@@ -1901,6 +1901,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             clean_ngrams = ai_cleanup["ngrams"]
             clean_causal_chains = ai_cleanup["causal_chains"]
             clean_causal_singles = ai_cleanup["causal_singles"]
+            total_causal = len(clean_causal_chains) + len(clean_causal_singles)
+            if not total_causal:
+                yield emit("log", {"msg": f"⚠️ Causal triplets: brak danych (raw chains={len(raw_causal_chains)}, singles={len(raw_causal_singles)})"})
             backend_placement_instruction = ai_cleanup["placement_instruction"]
             backend_entity_salience = ai_cleanup["entity_salience"]
             clean_entities = ai_cleanup["entities"]
@@ -1925,6 +1928,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🧠 Concept entities: {len(concept_entities)} (z topical_entity_extractor)"})
         if len(clean_ngrams) < len(raw_ngrams) * 0.5:
             yield emit("log", {"msg": f"⚠️ N-gramy: {len(raw_ngrams) - len(clean_ngrams)}/{len(raw_ngrams)} odfiltrowane jako CSS garbage"})
+        # PAA diagnostics
+        paa_debug = s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or []
+        if not paa_debug:
+            yield emit("log", {"msg": f"⚠️ PAA: brak pytań w s1.paa={len(s1.get('paa') or [])}, s1.paa_questions={len(s1.get('paa_questions') or [])}, serp.paa_questions={len(serp_analysis.get('paa_questions') or [])}"})
+        else:
+            yield emit("log", {"msg": f"✅ PAA: {len(paa_debug)} pytań z SERP"})
         yield emit("s1_data", {
             # Stats for top bar, backend nests these in length_analysis{}
             "recommended_length": s1.get("recommended_length") or (s1.get("length_analysis") or {}).get("recommended"),
@@ -1946,7 +1955,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview"),
             "related_searches": s1.get("related_searches") or serp_analysis.get("related_searches") or [],
             # PAA: check multiple locations
-            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or [])[:10],
+            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or (s1_raw.get("serp_analysis") or {}).get("paa_questions") or s1_raw.get("paa") or [])[:10],
             # Causal triplets
             "causal_triplets_count": len(clean_causal_chains) + len(clean_causal_singles),
             "causal_count_chains": len(clean_causal_chains),
@@ -2452,6 +2461,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             hier = hier_result["data"]
             phrase_hierarchy_data = hier  # Store for injection into pre_batch
             strategy = (hier.get("strategies") or {})
+            # Emit phrase hierarchy preview to frontend
+            hier_preview = hier.get("strategies") or hier.get("phrase_hierarchy") or hier
+            if isinstance(hier_preview, dict):
+                yield emit("log", {"msg": f"🔤 Phrase Hierarchy: {len(hier_preview)} strategii ({', '.join(list(hier_preview.keys())[:3])})"})
+                yield emit("phrase_hierarchy", {"phrase_hierarchy_preview": hier_preview})
             step_done(5)
             yield emit("step", {"step": 5, "name": "Phrase Hierarchy", "status": "done",
                                 "detail": json.dumps(strategy, ensure_ascii=False)[:200]})
