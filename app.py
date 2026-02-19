@@ -1193,6 +1193,65 @@ def logout():
 
 
 # ============================================================
+
+# ─────────────────────────────────────────────────────────
+# Wikipedia fetch for YMYL legal enrichment
+# ─────────────────────────────────────────────────────────
+import urllib.request as _urllib_req, urllib.parse as _urllib_parse, json as _json_mod
+
+def _fetch_wikipedia_legal_article(article_ref):
+    """Fetch Wikipedia summary for a legal article ref like 'art. 178a k.k.'"""
+    import re as _re
+    q = article_ref.strip()
+    q = _re.sub(r'art\.\s*', 'Art. ', q, flags=_re.IGNORECASE)
+    q = q.replace('k.k.', 'Kodeks karny').replace('k.w.', 'Kodeks wykroczen')
+    q = q.replace('k.c.', 'Kodeks cywilny').replace('k.p.', 'Kodeks postepowania cywilnego')
+    try:
+        search_url = "https://pl.wikipedia.org/w/api.php?" + _urllib_parse.urlencode({
+            "action": "query", "list": "search", "srsearch": q,
+            "format": "json", "srlimit": 3, "srprop": "snippet"
+        })
+        req = _urllib_req.Request(search_url, headers={"User-Agent": "Brajn2026/1.0"})
+        with _urllib_req.urlopen(req, timeout=8) as r:
+            data = _json_mod.loads(r.read())
+        results = data.get("query", {}).get("search", [])
+        if not results:
+            return {"found": False, "article_ref": article_ref}
+        page_title = results[0]["pageid"]
+        extract_url = "https://pl.wikipedia.org/w/api.php?" + _urllib_parse.urlencode({
+            "action": "query", "pageids": page_title, "prop": "extracts|info",
+            "exintro": True, "explaintext": True, "inprop": "url", "format": "json"
+        })
+        req2 = _urllib_req.Request(extract_url, headers={"User-Agent": "Brajn2026/1.0"})
+        with _urllib_req.urlopen(req2, timeout=8) as r2:
+            data2 = _json_mod.loads(r2.read())
+        pages = data2.get("query", {}).get("pages", {})
+        page = next(iter(pages.values()), {})
+        extract = (page.get("extract") or "").strip()[:600]
+        url = page.get("fullurl", "https://pl.wikipedia.org")
+        title = page.get("title", results[0].get("title", ""))
+        if extract:
+            return {"found": True, "article_ref": article_ref, "title": title, "url": url, "extract": extract, "source": "Wikipedia (pl)"}
+        return {"found": False, "article_ref": article_ref}
+    except Exception as e:
+        return {"found": False, "article_ref": article_ref, "error": str(e)[:60]}
+
+
+def _enrich_legal_with_wikipedia(articles):
+    """Fetch Wikipedia for up to 4 legal article references."""
+    results = []
+    seen = set()
+    for art in articles[:6]:
+        r = _fetch_wikipedia_legal_article(art)
+        if r.get("found") and r.get("title") not in seen:
+            seen.add(r["title"])
+            results.append(r)
+        if len(results) >= 4:
+            break
+    return results
+
+
+
 # BRAJEN API CLIENT
 # ============================================================
 def brajen_call(method, endpoint, json_data=None, timeout=None):
@@ -2073,7 +2132,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if lc["ok"]:
                 legal_context = lc["data"]
             
+            # Wikipedia enrichment for legal articles
+            _wiki_articles = []
+            if articles:
+                yield emit("log", {"msg": f"📖 Wikipedia: szukam {len(articles[:4])} przepisów..."})
+                _wiki_articles = _enrich_legal_with_wikipedia(articles)
+                if _wiki_articles:
+                    yield emit("log", {"msg": f"✅ Wikipedia: {len(_wiki_articles)} artykułów ({', '.join(w['title'][:25] for w in _wiki_articles)})"})
+                    yield emit("legal_wiki_sources", {"articles": _wiki_articles})
+                else:
+                    yield emit("log", {"msg": "⚠️ Wikipedia: brak wyników"})
+            
             ymyl_enrichment["legal"] = legal_hints
+            ymyl_enrichment["_wiki_articles"] = _wiki_articles
 
         if is_medical:
             medical_hints = ymyl_data.get("medical", {})
@@ -2122,16 +2193,32 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if legal_context:
             judgments_raw = legal_context.get("top_judgments") or []
             judgments_clean = []
+            _legal_enrich_hints = ymyl_enrichment.get("legal", {})
+            _articles_hints = _legal_enrich_hints.get("articles", [])
+            _arts_str = " ".join(_articles_hints).lower()
+            _is_criminal = any(x in _arts_str for x in ["k.k.", "kk", "k.w.", "kw", "kodeks karny"])
+            _is_civil = any(x in _arts_str for x in ["k.c.", "kc", "k.r.o.", "kodeks cywilny"])
+            _CRIM_SIG = ("ii k", "iii k", "iv k", "aka", "ako", "akz", "ii ka", "iii ka", "iv ka")
+            _CIV_SIG = (" i c ", " ii c ", " iii c ", " aca ", " aco ")
+            _skipped_sigs = []
             for j in judgments_raw[:10]:
-                if isinstance(j, dict):
-                    judgments_clean.append({
-                        "signature": j.get("signature", j.get("caseNumber", "")),
-                        "court": j.get("court", j.get("courtName", "")),
-                        "date": j.get("date", j.get("judgmentDate", "")),
-                        "summary": (j.get("summary", j.get("excerpt", "")))[:150],
-                        "type": j.get("type", j.get("judgmentType", "")),
-                        "matched_article": j.get("matched_article", ""),  # v47.2: which article this matches
-                    })
+                if not isinstance(j, dict): continue
+                sig = (j.get("signature", j.get("caseNumber", "")) or "").lower()
+                sig_p = " " + sig + " "
+                if _is_criminal and not _is_civil and any(p in sig_p for p in _CIV_SIG):
+                    _skipped_sigs.append(sig); continue
+                if _is_civil and not _is_criminal and any(p in sig_p for p in _CRIM_SIG):
+                    _skipped_sigs.append(sig); continue
+                judgments_clean.append({
+                    "signature": j.get("signature", j.get("caseNumber", "")),
+                    "court": j.get("court", j.get("courtName", "")),
+                    "date": j.get("date", j.get("judgmentDate", "")),
+                    "summary": (j.get("summary", j.get("excerpt", "")))[:150],
+                    "type": j.get("type", j.get("judgmentType", "")),
+                    "matched_article": j.get("matched_article", ""),
+                })
+            if _skipped_sigs:
+                yield emit("log", {"msg": f"⚠️ Pominięto {len(_skipped_sigs)} orzeczeń (błędna gałąź): {', '.join(_skipped_sigs[:3])}"})
             # v47.2: Use Claude's article hints as primary source for legal acts
             legal_enrich = ymyl_enrichment.get("legal", {})
             legal_acts = legal_enrich.get("acts", [])
@@ -2158,9 +2245,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "instruction_preview": (legal_context.get("legal_instruction", ""))[:300],
                 "judgments": judgments_clean,
                 "judgments_count": len(judgments_raw),
+                "judgments_skipped": _skipped_sigs[:5],
                 "legal_acts": legal_acts[:8] if isinstance(legal_acts, list) else [],
-                "legal_articles": legal_articles[:6],  # v47.2: art. 178a k.k. etc.
+                "legal_articles": legal_articles[:6],
                 "citation_hint": legal_context.get("citation_hint", ""),
+                "wiki_articles": ymyl_enrichment.get("_wiki_articles", []),
             }
 
         if medical_context:
@@ -2430,6 +2519,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "ymyl_intensity": ymyl_intensity,
             "light_ymyl_note": light_ymyl_note,
             "legal_context": legal_context,
+            "legal_wiki_articles": ymyl_enrichment.get("_wiki_articles", []),
             "medical_context": medical_context,
             # v47.2: Claude's YMYL enrichment (articles, MeSH, evidence notes)
             "ymyl_enrichment": ymyl_enrichment,
@@ -2768,6 +2858,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 if accepted:
                     batch_accepted = True
                     yield emit("log", {"msg": f"✅ Batch {batch_num} accepted! Score: {quality.get('score')}/100"})
+                    # Content integrity check
+                    if text:
+                        _ci = []; tl = text.lower()
+                        if "mg/100 ml" in tl or "mg/100ml" in tl:
+                            _ci.append("❌ JEDNOSTKI: 'mg/100 ml' → promile lub mg/dm³")
+                        if "odpowiednich przepisów" in tl or "właściwych przepisów" in tl:
+                            _ci.append("❌ PLACEHOLDER: wstaw konkretny artykuł (art. X k.k.)")
+                        if ("do 2 lat" in tl or "2 lata więzienia" in tl) and "alkohol" in tl:
+                            _ci.append("❌ KARA: 'do 2 lat' → art. 178a §1 = do 3 lat (2023)")
+                        if "ciągu 2 lat" in tl and "recydyw" in tl:
+                            _ci.append("❌ RECYDYWA: brak limitu czasowego w art. 178a §4")
+                        for w in _ci:
+                            yield emit("log", {"msg": w})
                     # ── Sentence length post-check ──
                     sl = check_sentence_length(text)
                     if sl["needs_retry"] and attempt < max_attempts - 1:
@@ -3070,6 +3173,52 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         else:
             yield emit("step", {"step": 8, "name": "Final Review", "status": "warning",
                                 "detail": "Nie udało się, kontynuuję"})
+
+        # ─── CITATION PASS (YMYL only) ───
+        _wiki_arts_for_cit = ymyl_enrichment.get("_wiki_articles", [])
+        if is_legal and (judgments_clean or _wiki_arts_for_cit):
+            yield emit("log", {"msg": "📎 Citation pass — dopasowuję cytaty do tekstu..."})
+            try:
+                _cit_art = brajen_call("get", f"/api/project/{project_id}/full_article")
+                if _cit_art["ok"] and _cit_art["data"].get("full_article"):
+                    _art_text = _cit_art["data"]["full_article"]
+                    _cit_sources = []
+                    for j in judgments_clean[:5]:
+                        sig = j.get("signature", "")
+                        if not sig: continue
+                        _cit_sources.append(
+                            "ORZECZENIE [" + (j.get("matched_article") or "prawo karne") + "]: "
+                            + sig + ", " + j.get("court","") + " (" + j.get("date","") + ")"
+                            + (" — " + j.get("summary","")[:100] if j.get("summary") else "")
+                        )
+                    for w in _wiki_arts_for_cit[:3]:
+                        _cit_sources.append(
+                            "WIKIPEDIA [" + w.get("article_ref","") + "]: "
+                            + w.get("title","") + " — " + w.get("extract","")[:150]
+                            + " (" + w.get("url","") + ")"
+                        )
+                    if _cit_sources:
+                        _cit_sys = (
+                            "Jesteś redaktorem prawnym. Wstaw cytaty do artykułu TYLKO tam gdzie "
+                            "akapit merytorycznie pokrywa się z danym orzeczeniem lub przepisem.\n\n"
+                            "ZASADY:\n"
+                            "1. Cytuj orzeczenie TYLKO gdy akapit dotyczy dokładnie tego zagadnienia\n"
+                            "2. Wikipedia: wstaw '(zob. Wikipedia: [tytuł])' tylko przy pierwszym użyciu przepisu\n"
+                            "3. NIE zmieniaj treści — tylko dopisz cytat w nawiasie na końcu zdania\n"
+                            "4. Jeśli akapit nie pasuje — zostaw bez zmian\n"
+                            "5. Zwróć TYLKO artykuł, bez komentarzy\n"
+                            "6. Orzeczenia karne (II K, AKa) → tylko akapity o sankcjach karnych"
+                        )
+                        _sep = chr(10)
+                        _cit_usr = ("ARTYKUL:" + _sep + _art_text + _sep + _sep + "---" + _sep + "DOSTEPNE CYTATY:" + _sep + _sep.join(_cit_sources) + _sep + _sep + "Zwroc artykul z wstawionymi cytatami.")
+                        _cit_res = _generate_claude(_cit_sys, _cit_usr, effort="low", web_search=False, temperature=0.1)
+                        if _cit_res and len(_cit_res) > len(_art_text) * 0.8:
+                            yield emit("article_citation_pass", {"text": _cit_res, "sources_count": len(_cit_sources)})
+                            yield emit("log", {"msg": f"✅ Citation pass: {len(_cit_sources)} źródeł wstawionych"})
+                        else:
+                            yield emit("log", {"msg": "⚠️ Citation pass: wynik zbyt krótki, pomijam"})
+            except Exception as _ce:
+                yield emit("log", {"msg": f"⚠️ Citation pass błąd: {str(_ce)[:80]}"})
 
         # ─── KROK 10: Editorial Review ───
         step_start(10)
