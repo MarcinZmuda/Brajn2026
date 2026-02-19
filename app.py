@@ -2667,9 +2667,39 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "warning",
                                 "detail": "Błąd FAQ, pominięto"})
 
-        # ─── KROK 8: Final Review ───
+        # ─── KROK 8: Content Editorial (merytoryczny) ───
         step_start(8)
-        yield emit("step", {"step": 8, "name": "Final Review", "status": "running"})
+        yield emit("step", {"step": 8, "name": "Content Editorial", "status": "running"})
+        yield emit("log", {"msg": "POST /content_editorial..."})
+        content_editorial_result = brajen_call("post", f"/api/project/{project_id}/content_editorial", timeout=HEAVY_REQUEST_TIMEOUT)
+        if content_editorial_result["ok"]:
+            ced = content_editorial_result["data"]
+            ced_status = ced.get("status", "OK")
+            ced_score = ced.get("score", 100)
+            ced_critical = ced.get("critical_count", 0)
+            ced_warnings = ced.get("warning_count", 0)
+            detail = f"Status: {ced_status} | Score: {ced_score}/100 | Krytyczne: {ced_critical} | Ostrzeżenia: {ced_warnings}"
+            yield emit("content_editorial", {
+                "status": ced_status,
+                "score": ced_score,
+                "critical_count": ced_critical,
+                "warning_count": ced_warnings,
+                "issues": ced.get("issues", [])[:5],
+                "summary": ced.get("summary", ""),
+                "blocked": ced.get("blocked", False),
+            })
+            if ced.get("blocked"):
+                yield emit("log", {"msg": f"⚠️ Content Editorial: BLOCKED — {ced.get('blocked_reason', '')}. Artykuł wymaga poprawy merytorycznej."})
+                yield emit("step", {"step": 8, "name": "Content Editorial", "status": "warning", "detail": f"BLOCKED: {ced.get('blocked_reason', '')[:80]}"})
+            else:
+                step_done(8)
+                yield emit("step", {"step": 8, "name": "Content Editorial", "status": "done", "detail": detail})
+        else:
+            yield emit("step", {"step": 8, "name": "Content Editorial", "status": "warning", "detail": "Nie udało się, kontynuuję"})
+
+        # ─── KROK 9: Final Review ───
+        step_start(9)
+        yield emit("step", {"step": 9, "name": "Final Review", "status": "running"})
         yield emit("log", {"msg": "GET /final_review..."})
         final_result = brajen_call("get", f"/api/project/{project_id}/final_review", timeout=HEAVY_REQUEST_TIMEOUT)
         if final_result["ok"]:
@@ -2777,9 +2807,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("step", {"step": 8, "name": "Final Review", "status": "warning",
                                 "detail": "Nie udało się, kontynuuję"})
 
-        # ─── KROK 9: Editorial Review ───
-        step_start(9)
-        yield emit("step", {"step": 9, "name": "Editorial Review", "status": "running"})
+        # ─── KROK 10: Editorial Review ───
+        step_start(10)
+        yield emit("step", {"step": 10, "name": "Editorial Review", "status": "running"})
         yield emit("log", {"msg": "POST /editorial_review, to może chwilę potrwać..."})
 
         editorial_result = {"ok": False}  # v50.7: safety init for FIX 41
@@ -2828,17 +2858,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     })
                     yield emit("log", {"msg": f"📝 Podgląd zaktualizowany po editorial ({corrected_wc} słów)"})
             step_done(9)
-            yield emit("step", {"step": 9, "name": "Editorial Review", "status": "done", "detail": detail})
+            yield emit("step", {"step": 10, "name": "Editorial Review", "status": "done", "detail": detail})
         else:
             ed_error = editorial_result.get("error", "unknown")
             ed_status = editorial_result.get("status", "?")
             yield emit("log", {"msg": f"⚠️ Editorial Review → {ed_status}: {ed_error[:200]}"})
-            yield emit("step", {"step": 9, "name": "Editorial Review", "status": "warning",
+            yield emit("step", {"step": 10, "name": "Editorial Review", "status": "warning",
                                 "detail": f"Nie udało się ({ed_status}), artykuł bez recenzji"})
 
-        # ─── KROK 10: Export ───
-        step_start(10)
-        yield emit("step", {"step": 10, "name": "Export", "status": "running"})
+        # ─── KROK 11: Export ───
+        step_start(11)
+        yield emit("step", {"step": 11, "name": "Export", "status": "running"})
 
         # Get full article
         full_result = brajen_call("get", f"/api/project/{project_id}/full_article", timeout=HEAVY_REQUEST_TIMEOUT)
@@ -3139,7 +3169,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             job["export_docx"] = export_path
 
         step_done(10)
-        yield emit("step", {"step": 10, "name": "Export", "status": "done",
+        yield emit("step", {"step": 11, "name": "Export", "status": "done",
                             "detail": "HTML + DOCX gotowe"})
 
         # ─── DONE ───
