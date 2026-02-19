@@ -375,29 +375,52 @@ h2:/h3: dla nagłówków. Zero markdown, HTML, gwiazdek.
         section_lead = main_kw
 
     if section_lead:
-        sp_note = "" if section_lead == main_kw else f"\n  (Encja główna \"{main_kw}\" może się pojawiać, ale nie musi otwierać akapitu — tę rolę przejmuje sekcyjna encja wiodąca.)"
-        parts.append(f"""<subject_position_rule>
-PODMIOT TEJ SEKCJI: „{section_lead}"
-Ta encja jest WIODĄCĄ ENCJĄ PODMIOTOWĄ dla aktualnej sekcji H2.
-Każdy akapit OTWÓRZ zdaniem, gdzie „{section_lead}" (lub jej forma odmienna) jest podmiotem gramatycznym (kto? co?).{sp_note}
+        # Build rotation list: lead entity first, then other MUST entities from pre_batch
+        must_ents_raw = pre_batch.get("_must_cover_concepts") or pre_batch.get("enhanced", {}).get("must_cover_entities") or []
+        must_names = []
+        for e in must_ents_raw:
+            name = (e.get("text", e.get("entity", "")) if isinstance(e, dict) else str(e)).strip()
+            if name and name != section_lead and name not in must_names:
+                must_names.append(name)
 
-✅ Poprawne otwarcia akapitu (rotuj — nie powtarzaj schematu):
-  • „{section_lead} [orzeczenie]..." — encja jako podmiot (MAX w 2 akapitach na sekcję)
-  • „Gdy/Jeśli/Przy [warunek]..." — otwarcie warunkowe
-  • Liczba/data na początku: „3 lata — tyle wynosi minimalny zakaz..."
-  • „[Odmiana encji] {section_lead}..." — forma fleksyjna jako otwarcie
-  • Skutek jako podmiot: „Konsekwencją jest...", „Wynikiem takiej sytuacji..."
+        # Build rotation instruction
+        rotation_entities = [section_lead] + must_names[:3]
+        if len(rotation_entities) == 1:
+            rotation_str = '"' + section_lead + '"'
+        else:
+            rotation_str = " | ".join(
+                f"akapit {i+1}: \"{e}\"" for i, e in enumerate(rotation_entities)
+            )
 
-❌ Zakaz:
-  • Każdy akapit w sekcji z IDENTYCZNĄ strukturą otwarcia
-  • „Istotnym aspektem jest {section_lead}..." (orzecznik-placeholder)
-  • „Zgodnie z przepisami o {section_lead}..." (puste dopełnienie)
-
-KLUCZOWE: encja wiodąca sekcji „{section_lead}" musi być TEMATEM sekcji,
-ale NIE musi otwierać każdego zdania — Google liczy obecność encji w całym akapicie,
-nie tylko w pierwszej pozycji.
-Google salience: podmiot × pozycja = 3–6× wyższy wynik niż encja w dopełnieniu.
-</subject_position_rule>""")
+        fallback_ent = must_names[0] if must_names else "Sad/Sprawca"
+        sp_note = "" if section_lead == main_kw else (
+            f"\n  (Encja glowna \"{main_kw}\" moze sie pojawiac, ale nie jest podmiotem tej sekcji.)"
+        )
+        rule_body = (
+            "<subject_position_rule>\n"
+            f"TEMAT TEJ SEKCJI: \"{section_lead}\"\n"
+            f"W tej sekcji H2 kazdy akapit musi miec INNA encje jako podmiot otwierajacy.{sp_note}\n"
+            "\n"
+            f"ROTACJA PODMIOTOW - kolejnosc akapitow:\n"
+            f"  {rotation_str}\n"
+            "\n"
+            "ZASADA: kazdy kolejny akapit otwiera INNA encja z powyzszej listy jako podmiot gramatyczny.\n"
+            "Jesli sekcja ma 4 akapity -> 4 rozne encje jako podmiot pierwszego zdania.\n"
+            "\n"
+            "Przyklad rotacji (3 akapity):\n"
+            f"  Akapit 1: \"{section_lead} [orzeczenie]...\"\n"
+            f"  Akapit 2: \"{fallback_ent} [orzeczenie]...\"\n"
+            "  Akapit 3: Liczba/fakt na poczatku lub kolejna encja MUST\n"
+            "\n"
+            "ZAKAZ: dwa akapity z rzedu otwarte ta sama encja.\n"
+            "ZAKAZ: 'Istotnym aspektem jest [encja]...' - to orzecznik, nie podmiot.\n"
+            "ZAKAZ: 'Zgodnie z przepisami o [encja]...' - to dopelnienie, nie podmiot.\n"
+            "\n"
+            "Google salience: podmiot x pozycja = 3-6x wyzszy wynik niz encja w dopelnieniu.\n"
+            "Rotacja podmiotow = naturalne pokrycie wszystkich kluczowych encji tematu.\n"
+            "</subject_position_rule>"
+        )
+        parts.append(rule_body)
 
     # ════════════════════════════════════════════════════════════
     # FEW-SHOT EXAMPLES
