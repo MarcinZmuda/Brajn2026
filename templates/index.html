@@ -386,6 +386,8 @@
   <span class="sp-sep">›</span>
   <div class="step-pill sppend" id="sp10"><div class="sp-dot"></div>Export</div>
   <div class="sp-timer" id="spTimer" style="display:none">0:00</div>
+  <div style="flex:1"></div>
+  <button class="btn-stop" id="btnStop2" onclick="stopWF()" style="display:none;padding:3px 12px;font-size:10px;height:24px;margin-right:4px">⛔ Stop</button>
 </div>
 <div class="layout">
     <div class="sidebar" id="sidebarArea">
@@ -443,6 +445,7 @@
                 <button class="mabtn" onclick="copyArticle()">📋 Kopiuj</button>
                 <button class="mabtn" onclick="validateArt()">🔍 Waliduj</button>
                 <a class="mabtn pri" id="exH2" style="display:none">⬇ HTML</a>
+                <button class="mabtn" id="btnStop3" onclick="stopWF()" style="display:none;color:var(--rd);border-color:rgba(248,113,113,.3)">⛔ Stop</button>
             </div>
         </div>
         <!-- QUALITY BAR (always visible during workflow) -->
@@ -1010,7 +1013,7 @@ function rCP(d){
 }
 
 // ═══ WORKFLOW ═══
-function stopWF(){if(es){es.close();es=null}log('⛔ Zatrzymano');document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}
+function _setStopBtn(v){const d=v?'':'none';['btnStop','btnStop2','btnStop3'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=d;});}function stopWF(){if(es){es.close();es=null}log('⛔ Zatrzymano');document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false)}
 function pt(t){return t.split('\n').map(l=>l.trim()).filter(l=>l.length>0)}
 
 async function startWorkflow(){
@@ -1022,7 +1025,7 @@ async function startWorkflow(){
     const ci=document.getElementById('customInstr').value.trim();
 
     document.getElementById('btnStart').disabled=true;document.getElementById('btnStart').textContent='Workflow w toku…';
-    document.getElementById('btnStop').style.display='';
+    _setStopBtn(true);
     document.getElementById('wel').style.display='none';document.getElementById('prog').style.display='';
     document.getElementById('mainTabsBar').style.display='';
     document.getElementById('qualityBar').style.display='';
@@ -1104,13 +1107,13 @@ async function startWorkflow(){
         es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss;updateQualityBar()});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:11px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:10px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:10px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
-        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
-        es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none';es.close()});
+        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
+        es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
 
         let rr=0;
-        es.onerror=()=>{rr++;if(rr>2||es.readyState===EventSource.CLOSED){log(`❌ SSE lost (${rr}x) — workflow continues server-side`);es.close();es=null;document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}else{log(`⚠️ Reconnect ${rr}/2`)}};
+        es.onerror=()=>{rr++;if(rr>2||es.readyState===EventSource.CLOSED){log(`❌ SSE lost (${rr}x) — workflow continues server-side`);es.close();es=null;document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false)}else{log(`⚠️ Reconnect ${rr}/2`)}};
         es.onopen=()=>{if(rr>0){log('✅ Reconnected');rr=0}};
-    }catch(err){log(`❌ ${err.message}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';document.getElementById('btnStop').style.display='none'}
+    }catch(err){log(`❌ ${err.message}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false)}
 }
 
 // ═══ ARTICLE EDITOR ═══
