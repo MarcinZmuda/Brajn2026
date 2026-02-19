@@ -148,16 +148,39 @@ Wzorce: powoduje, skutkuje, prowadzi do, zapobiega, w wyniku, ponieważ
 ✅ "Wzrost temperatury powyżej 100°C powoduje wrzenie, co prowadzi do parowania."
 ❌ "Temperatura wynosi X°C." (suche stwierdzenie bez funkcji)
 
-BURSTINESS (cel: CV zdań 0.35–0.45)
-  20% zdań krótkich (do 8 słów) — TYLKO jako fakty i definicje
-  55% zdań średnich (9–18 słów) — rdzeń
-  25% zdań długich (19–28 słów) — głębia
-  Mieszaj nieregularnie.
+BURSTINESS — rytm zdań (cel: CV zdań 0.35–0.45, śr. 12–18 słów)
+
+Rozkład długości zdań w każdym akapicie:
+  • 20% krótkich (do 8 słów) — TYLKO fakty i definicje
+  • 60% średnich (9–18 słów) — rdzeń tekstu
+  • 20% długich (19–28 słów) — MAX 1 długie na akapit
+
+TWARDE LIMITY:
+  • ŻADNE zdanie nie może przekroczyć 30 słów — jeśli tak jest, ROZBIJ je.
+  • Średnia w całym batchu: cel ≤ 18 słów/zdanie.
+
+Technika rozbijania długich zdań:
+  ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
+     (zamiast: „Zakaz prowadzenia, obligatoryjnie orzekany przez sąd, trwa od 3 do 15 lat i nie podlega zawieszeniu.")
+  ✅ „Mandat wynosi 2500–30 000 zł. Dolicza się do tego cofnięcie prawa jazdy."
+     (zamiast: „Kierowca może otrzymać mandat w wysokości od 2500 do 30 000 zł, a sąd dodatkowo cofa prawo jazdy.")
+  ✅ Długa wyliczanka → zdanie wprowadzające + lista HTML (ul/li)
+
+Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
   ✅ Krótkie zdanie niesie konkret: "Zakaz trwa od 3 do 15 lat."
   ❌ ZAKAZ zdań-dramatyzatorów (krótkie zdanie jako "myśl" lub "pointa"):
     "Granice są sztywne." / "Sąd patrzy. I słucha." / "I protokół."
     "To nie jest sprawa na skróty." / "Liczy się uzasadnienie."
     "W tle zostaje pytanie." — tania publicystyka, nie tekst ekspercki.
+
+SUBJECT POSITION — (reguła rotacji encji wstrzykiwana dynamicznie per batch poniżej)
+
+SENTENCE LENGTH — długość zdań (KRYTYCZNE dla czytelności)
+  Maksimum bezwzględne: ŻADNE zdanie nie może przekroczyć 35 słów.
+  Cel średniej: 12–18 słów na zdanie.
+  Jeśli zdanie liczy >25 słów → rozbij je na dwa.
+  ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
+  ❌ „Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka na mocy art. 178a Kodeksu karnego, obowiązuje przez okres od 3 do nawet 15 lat i nie podlega warunkowemu zawieszeniu."
 
 SPACING
 Minimalna odległość między powtórzeniami frazy:
@@ -169,11 +192,54 @@ Odmiana frazy = jedno użycie.
   "zakaz prowadzenia" = "zakazu prowadzenia" = "zakazem prowadzenia"
   Pisz naturalnie, używaj różnych przypadków gramatycznych.
 
-ANTY-AI — zakaz fraz-klisz
-  "warto zauważyć", "należy podkreślić", "co istotne",
-  "kluczowe jest", "nie ulega wątpliwości", "warto pamiętać",
-  "kluczowym aspektem", "w kontekście", "w dzisiejszych czasach"
-  ✅ Podawaj fakty bezpośrednio zamiast zapowiadać ich wagę.
+ANTY-AI — zakaz fraz-klisz (BEZWZGLĘDNY ZAKAZ — wszystkie tematy, zawsze)
+
+KATEGORIA 1 — Zapowiadacze wagi (zamiast nich: podaj fakt wprost)
+  „warto zauważyć / podkreślić / pamiętać / wiedzieć / mieć na uwadze"
+  „należy podkreślić / zaznaczyć / mieć świadomość / wspomnieć"
+  „co istotne / co ważne / co kluczowe / co warte uwagi"
+  „kluczowe jest / kluczowym aspektem / kluczową kwestią"
+  „nie ulega wątpliwości / nie można zapomnieć / nie można pominąć"
+  „istotnym elementem jest / ważnym elementem jest / istotną kwestią"
+  ✅ Zamiast: „Warto zauważyć, że zakaz trwa 3 lata." → „Zakaz trwa 3 lata."
+
+KATEGORIA 2 — Puste przejścia i zapowiedzi
+  „w tym kontekście / w kontekście powyższego / w tym miejscu"
+  „przejdźmy teraz do / przyjrzyjmy się / skupmy się na"
+  „kolejnym ważnym aspektem jest / następnym krokiem jest"
+  „w dalszej części artykułu / jak wspomniano wcześniej (bez ref.)"
+  „to prowadzi do kolejnego aspektu / to rodzi pytanie"
+  ✅ Zamiast: „Przyjrzyjmy się karom." → H2: „Kary" + pierwsze zdanie z danymi.
+
+KATEGORIA 3 — Fałszywe podsumowania i wnioski
+  „podsumowując / podsumowując powyższe / reasumując"
+  „w świetle powyższego / w związku z powyższym / jak widać"
+  „można zatem stwierdzić / należy zatem podkreślić"
+  „z powyższego wynika / wniosek jest następujący"
+  „to kluczowa różnica / to najważniejsza kwestia"
+  ✅ Zamiast: „Podsumowując, sankcje są surowe." → Zakończ sekcję konkretnym faktem.
+
+KATEGORIA 4 — Nadmierny formalizm AI
+  „każdorazowo należy / każdorazowo warto / każdorazowo wymaga"
+  „rekomendowana jest konsultacja / zalecana jest konsultacja"
+  „ze względu na złożoność / ze względu na specyfikę tematu"
+  „ze względu na powyższe okoliczności / mając na uwadze powyższe"
+  „w praktyce oznacza to / w praktyce wygląda to następująco"
+  „należy zwrócić szczególną uwagę / wymaga szczególnej uwagi"
+  ✅ Zamiast: „Ze względu na złożoność zagadnienia..." → Podaj konkret.
+
+KATEGORIA 5 — Dramatyzatory i teatr
+  „Granice są sztywne." / „Sąd patrzy. I słucha." / „I protokół."
+  „To nie jest sprawa na skróty." / „Liczy się uzasadnienie."
+  „W tle zostaje pytanie." / „Prawo nie wybacza."
+  Krótkie zdanie jako dramatyczna pointa — ZAKAZ.
+  ✅ Krótkie zdanie = TYLKO twarda liczba lub definicja.
+
+KATEGORIA 6 — Placeholder-zdania (wtrącenia bez treści)
+  „Istotnym elementem jest [powtórzenie frazy MUST bez treści]."
+  „[Encja] jest ważnym pojęciem w tym kontekście."
+  „Temat ten zasługuje na szczególną uwagę."
+  Każde zdanie MUSI dodawać nową informację — nie zapowiadać jej.
 
 ANTY-POWTÓRZENIA
 Zdefiniowałeś pojęcie raz — nie definiuj ponownie.
@@ -237,6 +303,38 @@ FORMAT
 h2:/h3: dla nagłówków. Zero markdown, HTML, gwiazdek.
 
 </rules>""")
+
+    # ════════════════════════════════════════════════════════════
+    # DYNAMIC: SUBJECT POSITION — per-batch entity rotation
+    # Injected HERE (not in static <rules>) so encja rotates per H2
+    # ════════════════════════════════════════════════════════════
+    section_lead = pre_batch.get("_section_lead_entity", "")
+    main_kw = (pre_batch.get("main_keyword") or {}).get("keyword", "") if isinstance(pre_batch.get("main_keyword"), dict) else str(pre_batch.get("main_keyword") or "")
+    if not section_lead:
+        section_lead = main_kw
+
+    if section_lead:
+        sp_note = "" if section_lead == main_kw else f"\n  (Encja główna \"{main_kw}\" może się pojawiać, ale nie musi otwierać akapitu — tę rolę przejmuje sekcyjna encja wiodąca.)"
+        parts.append(f"""<subject_position_rule>
+PODMIOT TEJ SEKCJI: „{section_lead}"
+Ta encja jest WIODĄCĄ ENCJĄ PODMIOTOWĄ dla aktualnej sekcji H2.
+Każdy akapit OTWÓRZ zdaniem, gdzie „{section_lead}" (lub jej forma odmienna) jest podmiotem gramatycznym (kto? co?).{sp_note}
+
+✅ Poprawne otwarcia:
+  • „{section_lead} [orzeczenie]..." — encja jako podmiot
+  • „[Odmiana encji, np. dopełniacz/narzędnik] {section_lead}..." — jeśli gram. wymaga
+  • Zaimek „on/ona/ono/to" jako podmiot TYLKO gdy encja była podmiotem w poprzednim zdaniu
+
+❌ Zakaz:
+  • „W przypadku {section_lead}..." (okolicznik, nie podmiot)
+  • „Istotnym aspektem jest {section_lead}..." (orzecznik)
+  • „Zgodnie z przepisami o {section_lead}..." (dopełnienie)
+  • Każdy akapit z INNĄ encją jako podmiotem (brak spójności sekcji)
+
+ROTACJA: Poszczególne akapity w sekcji mogą otwierać encje wtórne z MUST-listy,
+ale co najmniej 2 pierwsze zdania każdego akapitu muszą odnosić się do „{section_lead}".
+Google salience: podmiot × pozycja = 3–6× wyższy wynik niż encja w dopełnieniu.
+</subject_position_rule>""")
 
     # ════════════════════════════════════════════════════════════
     # FEW-SHOT EXAMPLES

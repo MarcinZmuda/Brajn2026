@@ -828,3 +828,79 @@ def ai_validate_entities(raw_entities: list, main_keyword: str) -> list:
 # Expose for app.py display filters
 def is_garbage_regex(text: str) -> bool:
     return _is_garbage_regex(text)
+
+
+# ================================================================
+# SENTENCE LENGTH RETRY — rozbija za długie zdania po akceptacji
+# ================================================================
+
+def check_sentence_length(text: str, max_avg: float = 20.0, max_hard: int = 35) -> dict:
+    """
+    Check if text has too-long sentences.
+    Returns dict: {needs_retry, avg_len, long_count, long_sentences}
+    """
+    import re
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 5]
+    if not sentences:
+        return {"needs_retry": False, "avg_len": 0, "long_count": 0}
+    lengths = [len(s.split()) for s in sentences]
+    avg = sum(lengths) / len(lengths)
+    long_sents = [(s, l) for s, l in zip(sentences, lengths) if l > max_hard]
+    needs_retry = avg > max_avg or len(long_sents) > 2
+    return {
+        "needs_retry": needs_retry,
+        "avg_len": round(avg, 1),
+        "long_count": len(long_sents),
+        "long_sentences": [s for s, _ in long_sents[:5]],
+    }
+
+
+def sentence_length_retry(text: str, h2: str = "", avg_len: float = 0, long_count: int = 0) -> str:
+    """
+    Use Haiku to split overly long sentences in accepted batch text.
+    Preserves HTML structure, only splits sentences > 30 words.
+    """
+    if not ANTHROPIC_API_KEY:
+        return text
+
+    problem_desc = f"Średnia długość zdania: {avg_len:.0f} słów (cel: ≤18). Zdań powyżej 35 słów: {long_count}."
+
+    prompt = f"""Skróć zdania w poniższym fragmencie artykułu SEO.
+
+PROBLEM: {problem_desc}
+SEKCJA: {h2}
+
+ZASADY:
+1. Rozbij TYLKO zdania dłuższe niż 25 słów — podziel je na 2 krótsze.
+2. Zachowaj CAŁĄ treść merytoryczną — zero usuwania informacji.
+3. Zachowaj strukturę HTML (tagi p, ul, li, h2, h3 itp.) bez zmian.
+4. Nie zmieniaj zdań krótszych niż 20 słów — zostaw je identycznie.
+5. Cel po edycji: średnia długość zdania 12–18 słów.
+6. Odpowiedz TYLKO przepisanym HTML, bez żadnych komentarzy.
+
+Technika rozbijania:
+- „X, który/która/które Y, skutkuje Z" → „X skutkuje Z. [Nowe zdanie:] Dzieje się tak, ponieważ Y."
+- „Zgodnie z art. X, sąd może A i B oraz C w przypadku D" → „Zgodnie z art. X, sąd może A i B. Dotyczy to również C w przypadku D."
+- Długa wyliczanka → rozbij na zdanie + listę.
+
+TEKST DO SKRÓCENIA:
+{text}"""
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        response = client.messages.create(
+            model=MIDDLEWARE_MODEL,
+            max_tokens=4000,
+            temperature=0.2,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        result = response.content[0].text.strip()
+        # Safety: if model returned much shorter text, something went wrong
+        original_words = len(text.split())
+        new_words = len(result.split())
+        if new_words < original_words * 0.7:
+            return text  # too much was removed, reject
+        return result
+    except Exception:
+        return text

@@ -47,7 +47,9 @@ from ai_middleware import (
     smart_retry_batch,
     should_use_smart_retry,
     synthesize_article_memory,
-    ai_synthesize_memory
+    ai_synthesize_memory,
+    check_sentence_length,
+    sentence_length_retry,
 )
 from keyword_dedup import deduplicate_keywords
 from entity_salience import (
@@ -2300,7 +2302,67 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # ═══ AI MIDDLEWARE: Track accepted batches for memory ═══
         accepted_batches_log = []
 
-        for batch_num in range(1, total_batches + 1):
+        # ═══ ENTITY CONTENT PLAN — assign lead entity per batch/H2 ═══
+        # Each H2 section gets ONE lead entity as "paragraph subject opener".
+        # Prevents every akapit from starting with the same main keyword.
+        #
+        # Algorithm:
+        # - Batch 1 (INTRO): always main keyword
+        # - Batch N (H2): pick secondary entity whose text overlaps most with H2 title
+        # - Fallback: cycle through secondary entities in order (1, 2, 3…)
+        def _build_entity_content_plan(h2_list, main_kw, secondary_entities):
+            """Returns list[str]: lead entity name per batch (index 0 = batch 1)."""
+            plan = []
+            used_indices = set()
+
+            def _best_entity_for_h2(h2_title, exclude=None):
+                """Find secondary entity most relevant to given H2 title."""
+                h2_words = set(h2_title.lower().split())
+                best_idx, best_score = None, 0
+                for i, ent in enumerate(secondary_entities):
+                    if exclude and i in exclude:
+                        continue
+                    name = (_extract_text(ent) if isinstance(ent, dict) else str(ent)).lower()
+                    ent_words = set(name.split())
+                    overlap = len(h2_words & ent_words)
+                    # Partial match — check if any ent word is substring of h2
+                    partial = sum(1 for w in ent_words if any(w in hw or hw in w for hw in h2_words))
+                    score = overlap * 2 + partial
+                    if score > best_score and i not in used_indices:
+                        best_idx, best_score = i, score
+                return best_idx
+
+            for i, h2 in enumerate(h2_list):
+                batch_num_local = i + 1
+                if batch_num_local == 1:
+                    # INTRO always uses main keyword
+                    plan.append(main_kw)
+                else:
+                    idx = _best_entity_for_h2(h2)
+                    if idx is not None:
+                        ent = secondary_entities[idx]
+                        plan.append(_extract_text(ent) if isinstance(ent, dict) else str(ent))
+                        used_indices.add(idx)
+                    else:
+                        # Fallback: cycle unused secondary entities
+                        cycle_idx = (batch_num_local - 2) % max(1, len(secondary_entities))
+                        ent = secondary_entities[cycle_idx]
+                        plan.append(_extract_text(ent) if isinstance(ent, dict) else str(ent))
+
+            return plan
+
+        _secondary_for_plan = [e for e in (must_cover_concepts or []) if
+                               (_extract_text(e) if isinstance(e, dict) else str(e)) != main_keyword]
+        _entity_content_plan = _build_entity_content_plan(
+            h2_structure, main_keyword, _secondary_for_plan
+        )
+        if _entity_content_plan:
+            plan_preview = " | ".join(
+                f"B{i+1}:{n}" for i, n in enumerate(_entity_content_plan)
+            )
+            yield emit("log", {"msg": f"🗂️ Entity content plan: {plan_preview}"})
+
+
             yield emit("batch_start", {"batch": batch_num, "total": total_batches})
             yield emit("log", {"msg": f"── BATCH {batch_num}/{total_batches} ──"})
 
@@ -2362,6 +2424,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 pre_batch["_concept_instruction"] = concept_instruction
             if must_cover_concepts:
                 pre_batch["_must_cover_concepts"] = must_cover_concepts
+
+            # ═══ ENTITY CONTENT PLAN — inject lead entity for this batch/H2 ═══
+            if _entity_content_plan and batch_num <= len(_entity_content_plan):
+                pre_batch["_section_lead_entity"] = _entity_content_plan[batch_num - 1]
+            elif main_keyword:
+                pre_batch["_section_lead_entity"] = main_keyword
 
             # Get current H2 from API (most reliable) or fallback to our plan
             h2_remaining = (pre_batch.get("h2_remaining") or [])
@@ -2515,6 +2583,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 if accepted:
                     batch_accepted = True
                     yield emit("log", {"msg": f"✅ Batch {batch_num} accepted! Score: {quality.get('score')}/100"})
+                    # ── Sentence length post-check ──
+                    sl = check_sentence_length(text)
+                    if sl["needs_retry"] and attempt < max_attempts - 1:
+                        yield emit("log", {"msg": f"✂️ Zdania za długie (śr. {sl['avg_len']} słów, {sl['long_count']} ponad limit) — skracam..."})
+                        text_shortened = sentence_length_retry(text, h2=current_h2, avg_len=sl["avg_len"], long_count=sl["long_count"])
+                        sl_after = check_sentence_length(text_shortened)
+                        if sl_after["avg_len"] < sl["avg_len"]:
+                            text = text_shortened
+                            yield emit("log", {"msg": f"✅ Po skróceniu: śr. {sl_after['avg_len']} słów/zdanie"})
+                        else:
+                            yield emit("log", {"msg": f"⚠️ Skracanie nie poprawiło wyniku, zostawiam oryginał"})
                     # Track for memory
                     accepted_batches_log.append({
                         "text": text, "h2": current_h2, "batch_num": batch_num,

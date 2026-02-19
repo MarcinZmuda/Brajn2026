@@ -575,9 +575,12 @@ ZASADA 1 — POZYCJA: Umieszczaj "{main_keyword}" NA POCZĄTKU:
   Początek > koniec > środek — pod względem wpływu na salience.
 
 ZASADA 2 — ROLA GRAMATYCZNA: "{main_keyword}" = PODMIOT, nie dopełnienie:
-  ✅ „{main_keyword} wymaga..." / „{main_keyword} polega na..."
+  ✅ „{main_keyword} wymaga..." / „{main_keyword} polega na..." / „{main_keyword} skutkuje..."
   ❌ „Ważnym aspektem jest {main_keyword}" / „Do {main_keyword} należy..."
+  ❌ „W przypadku {main_keyword}..." / „Konsekwencją jest {main_keyword}..."
   Podmiot (kto/co?) daje 3-6× wyższą salience niż dopełnienie.
+  WYMÓG: min. 30% zdań zawierających encję główną musi zaczynać się od niej jako podmiotu.
+  PRAKTYKA: Każdy akapit OTWÓRZ zdaniem z encją jako podmiotem.
 
 ZASADA 3 — SPÓJNE NAZEWNICTWO: Używaj konsekwentnie jednej formy nazwy.
   NIE przeskakuj między akronimem a pełną nazwą — to rozmywa salience.
