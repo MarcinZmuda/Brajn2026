@@ -50,6 +50,8 @@ from ai_middleware import (
     ai_synthesize_memory,
     check_sentence_length,
     sentence_length_retry,
+    validate_batch_domain,
+    fix_batch_domain_errors,
 )
 from keyword_dedup import deduplicate_keywords
 from entity_salience import (
@@ -2885,6 +2887,26 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             yield emit("log", {"msg": f"✅ Po skróceniu: śr. {sl_after['avg_len']} słów/zdanie"})
                         else:
                             yield emit("log", {"msg": f"⚠️ Skracanie nie poprawiło wyniku, zostawiam oryginał"})
+                    # ═══ DOMAIN VALIDATOR (Warstwa 2) ═══
+                    _dv_category = "prawo" if is_legal else ("medycyna" if is_medical else ("finanse" if is_finance else ""))
+                    if _dv_category and text:
+                        _dv = validate_batch_domain(text, _dv_category, batch_num)
+                        if not _dv.get("skipped"):
+                            if not _dv.get("clean"):
+                                _dv_errors = _dv.get("errors", [])
+                                _dv_quick = _dv.get("quick_hits", [])
+                                _dv_log = [e.get("found", e.get("type", "?")) for e in _dv_errors[:3]]
+                                if _dv_quick:
+                                    _dv_log = _dv_quick[:3]
+                                yield emit("log", {"msg": f"🔴 DOMAIN VALIDATOR: {len(_dv_errors or _dv_quick)} błędów terminologicznych — naprawiam... ({', '.join(_dv_log)})"})
+                                if attempt < max_attempts - 1:
+                                    text = fix_batch_domain_errors(text, _dv, _dv_category, h2=current_h2)
+                                    yield emit("log", {"msg": f"✅ Domain fix: tekst poprawiony ({len(text.split())} słów)"})
+                                else:
+                                    yield emit("log", {"msg": "⚠️ Domain errors — forced mode, pomijam auto-fix"})
+                            else:
+                                yield emit("log", {"msg": f"✅ Domain validator: czysto [{_dv_category}]"})
+
                     # Track for memory
                     accepted_batches_log.append({
                         "text": text, "h2": current_h2, "batch_num": batch_num,
