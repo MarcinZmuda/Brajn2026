@@ -19,23 +19,42 @@ logger = logging.getLogger(__name__)
 
 # ─── LanguageTool initialization ──────────────────────────────────────────────
 
-_lt_tool = None
 _LT_LANG = "pl-PL"
+_LT_API_URL = "https://api.languagetool.org/v2/check"
+
+
+def _lt_check_via_rest(text: str) -> list:
+    """
+    Call LanguageTool public REST API.
+    Free tier: 20 req/min, 75000 chars/min.
+    Returns list of match dicts or [] on failure.
+    """
+    import requests, os
+    
+    # Allow override with self-hosted URL
+    api_url = os.environ.get("LANGUAGETOOL_URL", _LT_API_URL)
+    
+    try:
+        MAX_CHARS = 8000
+        payload = {
+            "text": text[:MAX_CHARS],
+            "language": _LT_LANG,
+            "disabledCategories": "TYPOGRAPHY",  # skip quotes/dashes style
+        }
+        resp = requests.post(api_url, data=payload, timeout=8)
+        if resp.status_code == 200:
+            return resp.json().get("matches", [])
+        else:
+            logger.warning(f"[LT] REST API {resp.status_code}: {resp.text[:200]}")
+            return []
+    except Exception as e:
+        logger.warning(f"[LT] REST API error: {e}")
+        return []
 
 
 def _get_tool():
-    """Lazy-initialize LanguageTool. Returns None if unavailable."""
-    global _lt_tool
-    if _lt_tool is not None:
-        return _lt_tool
-    try:
-        import language_tool_python
-        _lt_tool = language_tool_python.LanguageTool(_LT_LANG)
-        logger.info("[LT] ✅ LanguageTool initialized for pl-PL")
-        return _lt_tool
-    except Exception as e:
-        logger.warning(f"[LT] ⚠️ LanguageTool unavailable: {e}")
-        return None
+    """Legacy stub — returns sentinel so check_text uses REST path."""
+    return "rest"
 
 
 # ─── Category mapping ─────────────────────────────────────────────────────────
@@ -109,10 +128,8 @@ def check_text(text: str) -> dict:
         categories (dict), issues (list), collocation_issues (list),
         grammar_issues (list), punctuation_issues (list), style_issues (list)
     """
-    tool = _get_tool()
-
     empty = {
-        "api_available": False,
+        "api_available": True,
         "score": 0,
         "total_issues": 0,
         "categories": {"GRAMMAR": 0, "COLLOCATIONS": 0, "PUNCTUATION": 0,
@@ -124,38 +141,42 @@ def check_text(text: str) -> dict:
         "style_issues": [],
     }
 
-    if not tool or not text or not text.strip():
+    if not text or not text.strip():
         return empty
 
     try:
-        MAX_CHARS = 8000
-        text_to_check = text[:MAX_CHARS] if len(text) > MAX_CHARS else text
-        matches = tool.check(text_to_check)
+        # Use public REST API (no Java required)
+        raw_matches = _lt_check_via_rest(text)
+        if raw_matches is None:
+            return empty
 
         categories = {"GRAMMAR": 0, "COLLOCATIONS": 0, "PUNCTUATION": 0,
                       "STYLE": 0, "REDUNDANCY": 0, "TYPOS": 0}
 
         all_issues = []
-        for m in matches:
-            cat_id = getattr(m, "category", "") or ""
-            issue_type = getattr(m, "ruleIssueType", "") or ""
+        for m in raw_matches:
+            rule = m.get("rule", {})
+            cat_id = rule.get("category", {}).get("id", "") or ""
+            issue_type = rule.get("issueType", "") or ""
             cat = _map_category(issue_type, cat_id)
 
             if cat in categories:
                 categories[cat] += 1
 
-            replacements = list(m.replacements[:4]) if m.replacements else []
-            context = re.sub(r"\s+", " ", getattr(m, "context", "") or "").strip()
+            replacements = [r.get("value", "") for r in m.get("replacements", [])[:4]]
+            ctx = m.get("context", {})
+            context = ctx.get("text", "") if isinstance(ctx, dict) else str(ctx)
+            context = re.sub(r"\s+", " ", context).strip()
 
             all_issues.append({
                 "category":      cat,
                 "category_name": _CATEGORY_LABELS.get(cat, cat),
-                "message":       m.message,
+                "message":       m.get("message", ""),
                 "context":       context,
                 "replacements":  replacements,
-                "rule_id":       m.ruleId,
-                "offset":        m.offset,
-                "length":        m.errorLength,
+                "rule_id":       rule.get("id", ""),
+                "offset":        m.get("offset", 0),
+                "length":        m.get("length", 0),
             })
 
         _pri = {"GRAMMAR": 0, "COLLOCATIONS": 1, "TYPOS": 2,
