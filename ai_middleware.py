@@ -904,3 +904,239 @@ TEKST DO SKRÓCENIA:
         return result
     except Exception:
         return text
+
+
+# ═══════════════════════════════════════════════════════════════
+# DOMAIN VALIDATOR v1.0 — Warstwa 2 ochrony terminologicznej
+# Szybki Haiku call po każdym accepted batchu.
+# Wykrywa halucynacje terminologiczne PRZED merge artykułu.
+# ═══════════════════════════════════════════════════════════════
+
+# Domenowe reguły per kategoria — szybka pre-check regex
+# (jeśli nic nie pasuje, pomijamy kosztowny call LLM)
+_DOMAIN_QUICK_PATTERNS = {
+    "prawo": [
+        (r"alkohol\s+[zw]\s+natury", "alkohol z/w natury → stężenie alkoholu we krwi"),
+        (r"alkohol\s+z\s+urodzenia", "alkohol z urodzenia → stężenie alkoholu we krwi"),
+        (r"promile\s+[zw]\s+natury", "promile z/w natury → stan nietrzeźwości"),
+        (r"promile\s+z\s+urodzenia", "promile z urodzenia → stan nietrzeźwości"),
+        (r"\bopilstwo\b", "opilstwo → stan nietrzeźwości (archaizm)"),
+        (r"\bpijaństwo\b", "pijaństwo → stan nietrzeźwości (w kontekście prawnym)"),
+        (r"obsług[iu]\w*\s+pojazd", "obsługiwał pojazd → prowadził pojazd"),
+        (r"zakaz\s+obsługi\s+pojazd", "zakaz obsługi → zakaz prowadzenia"),
+        (r"odpowiednich\s+przepisów\s+prawa", "placeholder → konkretny artykuł ustawy"),
+        (r"właściwych\s+regulacji\s+prawnych", "placeholder → konkretny artykuł ustawy"),
+        (r"stosownych\s+przepisów", "placeholder → konkretny artykuł ustawy"),
+        (r"bezwzględn\w+\s+aresztowan", "aresztowanie → pozbawienie wolności"),
+        (r"\baresztowan\w+", "aresztowanie → pozbawienie wolności (terminologia)"),
+        (r"do\s+2\s+lat\b.{0,30}alkohol", "do 2 lat → art. 178a §1 = do 3 lat (2023)"),
+        (r"mg/100\s*ml", "mg/100ml → promile (‰) lub mg/dm³"),
+    ],
+    "medycyna": [
+        (r"badanie\s+wykazało\s+\d+%\s+skuteczn", "podejrzana statystyka — zweryfikuj"),
+        (r"według\s+badań\s+z\s+\d{4}\s+roku.*?%", "podejrzana statystyka z rokiem — zweryfikuj"),
+        (r"lek\s+\w+\s+dzia[łl]a\s+w\s+\d+%", "podejrzana dawka — zweryfikuj"),
+    ],
+    "finanse": [
+        (r"stopa\s+procentowa\s+wynosi\s+\d+[,\.]\d+%", "podejrzana stopa procentowa — zweryfikuj aktualność"),
+        (r"podatek\s+\w+\s+wynosi\s+\d+%", "stawka podatkowa — zweryfikuj aktualność"),
+    ],
+}
+
+_DOMAIN_LLM_PROMPT = {
+    "prawo": """Jesteś walidatorem terminologii prawnej.
+
+Przejrzyj poniższy tekst i wykryj TYLKO te błędy:
+1. Błędna terminologia karna: "opilstwo", "pijaństwo" zamiast "stan nietrzeźwości"
+2. Halucynacje alkohol: "alkohol z natury", "alkohol z urodzenia", "promile z natury", "promile z urodzenia"
+3. Błędne jednostki: "mg/100 ml" (poprawne: promile ‰ lub mg/dm³)
+4. Phantom przepisy: "odpowiednich przepisów prawa", "właściwych regulacji" bez numeru artykułu
+5. Błędne kary: "do 2 lat" dla art. 178a §1 KK (poprawne: do 3 lat od 2023)
+6. Błędna terminologia: "obsługiwał pojazd" zamiast "prowadził pojazd"
+7. Podejrzane sygnatury wyroków (I C / II C w sprawach karnych)
+
+Odpowiedz TYLKO w JSON:
+{"errors": [{"type": "TERMINOLOGIA|HALUCYNACJA|JEDNOSTKI|PHANTOM|KARA|SYGNATURA", "found": "cytat z tekstu", "fix": "poprawka"}], "clean": true/false}
+
+Jeśli brak błędów: {"errors": [], "clean": true}
+
+TEKST:
+{text}""",
+
+    "medycyna": """Jesteś walidatorem terminologii medycznej.
+
+Wykryj TYLKO:
+1. Wymyślone statystyki (konkretne % lub liczby bez źródła)
+2. Nieistniejące leki lub dawki
+3. Niebezpieczne porady zdrowotne bez zastrzeżenia
+4. Błędna terminologia medyczna (potoczna zamiast naukowej)
+
+Odpowiedz TYLKO w JSON:
+{"errors": [{"type": "HALUCYNACJA|NIEBEZPIECZNE|TERMINOLOGIA", "found": "cytat", "fix": "poprawka"}], "clean": true/false}
+
+Jeśli brak błędów: {"errors": [], "clean": true}
+
+TEKST:
+{text}""",
+
+    "finanse": """Jesteś walidatorem terminologii finansowej.
+
+Wykryj TYLKO:
+1. Nieaktualne lub podejrzane stopy procentowe / stawki podatkowe
+2. Porady inwestycyjne bez zastrzeżenia "nie stanowi porady finansowej"
+3. Wymyślone dane rynkowe
+
+Odpowiedz TYLKO w JSON:
+{"errors": [{"type": "NIEAKTUALNE|NIEBEZPIECZNE|HALUCYNACJA", "found": "cytat", "fix": "poprawka"}], "clean": true/false}
+
+Jeśli brak błędów: {"errors": [], "clean": true}""",
+}
+
+
+def _quick_domain_check(text: str, category: str) -> list[str]:
+    """
+    Szybka regex pre-check — O(n) bez kosztów API.
+    Zwraca listę opisów znalezionych problemów.
+    """
+    patterns = _DOMAIN_QUICK_PATTERNS.get(category, [])
+    found = []
+    tl = text.lower()
+    for pat, desc in patterns:
+        if re.search(pat, tl):
+            found.append(desc)
+    return found
+
+
+def validate_batch_domain(text: str, category: str, batch_num: int = 0) -> dict:
+    """
+    Warstwa 2: Walidacja domenowa po każdym accepted batchu.
+
+    Zwraca:
+        {
+            "clean": bool,
+            "errors": list[dict],    # [{type, found, fix}]
+            "quick_hits": list[str], # regex pre-check hits
+            "skipped": bool,         # True if category nie ma walidatora
+        }
+    """
+    result = {"clean": True, "errors": [], "quick_hits": [], "skipped": False}
+
+    if not text or not category or category not in _DOMAIN_QUICK_PATTERNS:
+        result["skipped"] = True
+        return result
+
+    # 1. Szybka regex pre-check
+    quick = _quick_domain_check(text, category)
+    result["quick_hits"] = quick
+
+    # Jeśli regex nie znalazł nic → oszczędzamy call LLM
+    if not quick:
+        return result
+
+    # 2. LLM validation (Haiku — tani, szybki)
+    if not ANTHROPIC_API_KEY:
+        # Tylko regex wyniki bez LLM
+        if quick:
+            result["clean"] = False
+            result["errors"] = [{"type": "REGEX", "found": q, "fix": ""} for q in quick]
+        return result
+
+    prompt_template = _DOMAIN_LLM_PROMPT.get(category)
+    if not prompt_template:
+        result["skipped"] = True
+        return result
+
+    # Truncate text for cost control (~2000 tokens max)
+    text_for_llm = text[:4000] if len(text) > 4000 else text
+    prompt = prompt_template.replace("{text}", text_for_llm)
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=600,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = resp.content[0].text.strip()
+
+        # Parse JSON
+        first = raw.find("{")
+        last = raw.rfind("}")
+        if first != -1 and last > first:
+            data = json.loads(raw[first:last+1])
+            errors = data.get("errors", [])
+            result["clean"] = len(errors) == 0
+            result["errors"] = errors
+        else:
+            # Fallback do regex
+            result["clean"] = False
+            result["errors"] = [{"type": "REGEX", "found": q, "fix": ""} for q in quick]
+
+    except Exception as e:
+        logger.warning(f"[DOMAIN_VALIDATOR] batch {batch_num} error: {e}")
+        # Regex only
+        result["clean"] = False
+        result["errors"] = [{"type": "REGEX", "found": q, "fix": ""} for q in quick]
+
+    return result
+
+
+def fix_batch_domain_errors(text: str, validation: dict, category: str, h2: str = "") -> str:
+    """
+    Warstwa 1 rozszerzona: Smart retry z domain errors (nie tylko keyword overflow).
+    Używa Haiku do poprawy znalezionych błędów domenowych.
+    """
+    if validation.get("clean") or not validation.get("errors"):
+        return text
+
+    errors = validation["errors"]
+    if not ANTHROPIC_API_KEY:
+        return text
+
+    # Buduj listę poprawek
+    fix_lines = []
+    for e in errors:
+        found = e.get("found", "")
+        fix = e.get("fix", "")
+        typ = e.get("type", "BŁĄD")
+        if found:
+            if fix:
+                fix_lines.append(f'  [{typ}] Znajdź: "{found}" → Zamień na: "{fix}"')
+            else:
+                fix_lines.append(f'  [{typ}] Usuń lub przepisz fragment: "{found}"')
+
+    if not fix_lines:
+        return text
+
+    fix_text = "\n".join(fix_lines)
+
+    prompt = f"""Popraw poniższy fragment artykułu. Zmień TYLKO błędne wyrażenia z listy poniżej.
+Zachowaj dokładnie tę samą strukturę HTML, długość i styl tekstu.
+Odpowiedz TYLKO poprawionym HTML bez żadnych komentarzy.
+
+SEKCJA: {h2}
+
+BŁĘDY DO POPRAWY:
+{fix_text}
+
+TEKST:
+{text}"""
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4000,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        fixed = resp.content[0].text.strip()
+        # Safety: reject if too short
+        if len(fixed) < len(text) * 0.7:
+            logger.warning("[DOMAIN_VALIDATOR] fix too short, rejecting")
+            return text
+        return fixed
+    except Exception as e:
+        logger.warning(f"[DOMAIN_VALIDATOR] fix error: {e}")
+        return text
