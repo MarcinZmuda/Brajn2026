@@ -2527,7 +2527,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             )
             yield emit("log", {"msg": f"🗂️ Entity content plan: {plan_preview}"})
 
-
+        for batch_num in range(1, total_batches + 1):
             yield emit("batch_start", {"batch": batch_num, "total": total_batches})
             yield emit("log", {"msg": f"── BATCH {batch_num}/{total_batches} ──"})
 
