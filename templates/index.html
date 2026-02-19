@@ -102,7 +102,17 @@
 
         /* ═══ STEPS ═══ */
         .steps{margin-bottom:24px}
-        .stp{display:flex;align-items:center;gap:12px;padding:8px 0;background:transparent!important;border:none!important;border-radius:0!important;box-shadow:none!important;margin:0!important}
+        .stp{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
         .steps.collapsed .stp:not(.done){display:none}
         .steps.collapsed .stp.done{padding:4px 0}
         .steps-toggle{font-size:10px;color:var(--mg);cursor:pointer;text-align:center;padding:4px 0;display:none}
@@ -140,6 +150,18 @@
         .pg-ct{font-size:12px;font-weight:700;color:var(--orange);font-family:'JetBrains Mono',monospace}
         .pg-bar{width:100%;height:3px;background:var(--s3);border-radius:2px;overflow:hidden}
         .pg-fill{height:100%;background:linear-gradient(90deg,var(--orange),#fcd34d);border-radius:2px;transition:width .5s ease;box-shadow:0 0 8px rgba(251,169,44,.3)}
+        /* Long-step progress bars */
+        @keyframes indeterminate{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}
+        .long-step-bar{margin-top:8px;display:none}
+        .long-step-bar.active{display:block}
+        .long-step-bar .lsb-track{width:100%;height:2px;background:var(--s3);border-radius:2px;overflow:hidden;position:relative}
+        .long-step-bar .lsb-fill{position:absolute;top:0;left:0;height:100%;width:25%;background:linear-gradient(90deg,transparent,var(--orange),#fcd34d,transparent);border-radius:2px;animation:indeterminate 1.8s ease-in-out infinite}
+        .long-step-bar .lsb-label{font-size:10px;color:var(--mg);margin-bottom:4px;display:flex;justify-content:space-between}
+        .long-step-bar .lsb-elapsed{font-family:'JetBrains Mono',monospace;color:var(--orange)}
+        /* Editorial running state in edMini */
+        .ed-running-state{display:none;margin-top:12px;padding:12px 16px;background:var(--s1);border:1px solid var(--og);border-radius:var(--rl)}
+        .ed-running-state.active{display:block}
+        .ed-running-pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--orange);animation:blink 1.2s ease-in-out infinite;margin-right:6px}
         .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:12px}
         .bchip{padding:4px 12px;border-radius:99px;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;letter-spacing:.3px}
         .bchip.pend{background:var(--s3);color:var(--mg);border:1px solid var(--b1)}
@@ -497,6 +519,21 @@
             </div><!-- /inline-tb -->
 
             <!-- ✍️ EDITORIAL MINI — skrót w Workflow, pełne szczegóły w zakładce Jakość -->
+            <!-- ✍️ EDITORIAL RUNNING STATE — pojawia się gdy editorial się generuje -->
+            <div class="ed-running-state" id="edRunning">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <div style="display:flex;align-items:center">
+                  <span class="ed-running-pulse"></span>
+                  <span style="font-size:12px;font-weight:600;color:var(--white)">✍️ Editorial Review w toku...</span>
+                </div>
+                <span style="font-size:10px;color:var(--mg)" id="edRunningElapsed">0s</span>
+              </div>
+              <div class="long-step-bar active">
+                <div class="lsb-track"><div class="lsb-fill"></div></div>
+              </div>
+              <div style="margin-top:8px;font-size:10px;color:var(--mg)">AI przegląda i koryguje tekst — zwykle 60–120 sekund</div>
+            </div>
+
             <div id="edMini" style="display:none;margin-top:12px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                 <span class="lbl" style="margin:0">✍️ Editorial Review</span>
@@ -683,12 +720,38 @@ function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.get
   const stpEl=i.closest('.stp');if(stpEl&&st==='done')stpEl.classList.add('done');
   updateMiniStepper(s,st);
   i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d;
-  // FIX 7: Po kroku 10 (Export done) — zwiń kroki automatycznie
-  if(s===10&&st==='done'){
-    setTimeout(()=>{
-      const stC=document.getElementById('stC'),tog=document.getElementById('stToggle');
-      if(stC){stC.classList.add('collapsed');if(tog){tog.style.display='block';tog.textContent='▼ pokaż kroki (wszystkie ukończone)';}}
-    },1200);
+  // Long-step progress bar (steps 8-11 are slow: Editorial, Final Review, Editorial Review, Export)
+  const LONG={8:'Content Editorial',9:'Final Review',10:'Editorial Review',11:'Export'};
+  if(LONG[s]&&stpEl){
+    let bar=document.getElementById('lsb'+s);
+    if(!bar){
+      bar=document.createElement('div');bar.id='lsb'+s;bar.className='long-step-bar';
+      bar.innerHTML='<div class="lsb-label"><span>'+LONG[s]+'</span><span class="lsb-elapsed" id="lse'+s+'">0s</span></div><div class="lsb-track"><div class="lsb-fill"></div></div>';
+      stpEl.appendChild(bar);
+    }
+    if(st==='running'){
+      bar.classList.add('active');
+      if(!bar._timer){bar._start=Date.now();bar._timer=setInterval(function(){const el=document.getElementById('lse'+s);if(el)el.textContent=Math.round((Date.now()-bar._start)/1000)+'s';},1000);}
+    } else {
+      bar.classList.remove('active');
+      if(bar._timer){clearInterval(bar._timer);bar._timer=null;}
+      const el=document.getElementById('lse'+s);if(el&&bar._start)el.textContent=Math.round((Date.now()-bar._start)/1000)+'s ✓';
+    }
+  }
+  // Editorial running state in workflow tab
+  if(s===10){
+    const edRun=document.getElementById('edRunning');
+    if(edRun){
+      if(st==='running'){
+        edRun.classList.add('active');
+        if(!edRun._timer){edRun._start=Date.now();edRun._timer=setInterval(function(){const el=document.getElementById('edRunningElapsed');if(el)el.textContent=Math.round((Date.now()-edRun._start)/1000)+'s';},1000);}
+        // Auto-switch to Workflow tab so user sees the running state
+        if(typeof switchTab==='function')switchTab('workflow');
+      } else {
+        edRun.classList.remove('active');
+        if(edRun._timer){clearInterval(edRun._timer);edRun._timer=null;}
+      }
+    }
   }
 }
 function tPnl(id){const p=document.getElementById(id),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');b.classList.toggle('open');h.classList.toggle('open')}

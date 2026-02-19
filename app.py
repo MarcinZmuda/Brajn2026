@@ -447,7 +447,7 @@ def _ai_cleanup_all_s1_data(main_keyword: str, ngrams: list, causal_chains: list
     """
     # Build concise input for AI
     ng_texts = []
-    for ng in ngrams[:20]:
+    for ng in ngrams[:40]:
         text = ng.get("ngram", ng) if isinstance(ng, dict) else str(ng)
         ng_texts.append(text)
     
@@ -458,14 +458,14 @@ def _ai_cleanup_all_s1_data(main_keyword: str, ngrams: list, causal_chains: list
         causal_texts.append(f"{cause} → {effect}")
     
     sal_texts = []
-    for s in entity_salience[:15]:
+    for s in entity_salience[:25]:
         ent = s.get("entity", s.get("text", "")) if isinstance(s, dict) else str(s)
         sal = s.get("salience", 0) if isinstance(s, dict) else 0
         typ = s.get("type", "") if isinstance(s, dict) else ""
         sal_texts.append(f"{ent} ({typ}, {sal:.2f})")
     
     ent_texts = []
-    for e in entities[:15]:
+    for e in entities[:25]:
         text = e.get("text", e.get("entity", "")) if isinstance(e, dict) else str(e)
         ent_texts.append(text)
 
@@ -667,29 +667,43 @@ def _detect_ymyl_local(main_keyword: str) -> dict:
 #   that define and contextualize a topic in Knowledge Graph
 # ============================================================
 
-_TOPICAL_ENTITY_PROMPT = """Jesteś ekspertem semantic SEO. Dla podanego tematu wygeneruj topical entities, czyli koncepty, osoby, jednostki, prawa, urządzenia i pojęcia, które definiują ten temat w Knowledge Graph Google.
+_TOPICAL_ENTITY_PROMPT = """Jesteś ekspertem semantic SEO. Dla podanego tematu wygeneruj topical entities oraz N-gramy frazowe — koncepty, osoby, jednostki, prawa, urządzenia i pojęcia, które definiują ten temat w Knowledge Graph Google, PLUS frazy kluczowe które realnie pojawią się w tekście u konkurencji.
 
 ZASADY:
 1. Encje MUSZĄ być tematyczne, bezpośrednio powiązane z tematem, nie z komercyjnymi stronami w SERP
 2. Encja główna = sam temat (lub jego najbardziej precyzyjna forma)
-3. Encje wtórne = 10-12 kluczowych konceptów powiązanych (osoby historyczne, jednostki, prawa, urządzenia, podtypy)
+3. Encje wtórne = 16-20 kluczowych konceptów powiązanych (podtypy, pojęcia prawne/medyczne/techniczne, procesy, konsekwencje, wyjątki, edge cases)
 4. Dla każdej encji: 1 trójka E-A-V (Encja → Atrybut → Wartość)
-5. 3-5 par co-occurrence (encje które powinny występować blisko siebie w tekście)
-6. NIE dodawaj firm komercyjnych (TAURON, PGE itp.), to nie są topical entities
-7. NIE dodawaj dat, cen, taryf, to nie są koncepty tematyczne
+5. 5-8 par co-occurrence (encje które powinny występować blisko siebie w tekście)
+6. 10-15 semantic_ngrams — 2-4 wyrazowe frazy które MUSZĄ się pojawić w dobrym artykule o tym temacie (nie encje, ale konkretne wyrażenia jak „warunkowe umorzenie postępowania", „kara pozbawienia wolności", „stan po użyciu alkoholu")
+7. NIE dodawaj firm komercyjnych, dat, cen, taryf
 8. Odpowiedź TYLKO w JSON, bez markdown, bez komentarzy
 
 FORMAT JSON:
 {
   "primary_entity": {"text": "...", "type": "CONCEPT"},
   "secondary_entities": [
-    {"text": "...", "type": "PERSON|CONCEPT|UNIT|LAW|DEVICE|EVENT", "eav": "encja → atrybut → wartość"}
+    {"text": "...", "type": "PERSON|CONCEPT|UNIT|LAW|DEVICE|EVENT|PROCESS", "eav": "encja → atrybut → wartość"}
+  ],
+  "semantic_ngrams": [
+    {"phrase": "...", "importance": "HIGH|MEDIUM", "reason": "dlaczego ważne"}
+  ],
+  "svo_triples": [
+    {"subject": "encja", "verb": "czasownik/relacja", "object": "wartość/encja", "context": "opcjonalny kontekst"}
   ],
   "cooccurrence_pairs": [
     {"entity1": "...", "entity2": "...", "reason": "dlaczego blisko"}
   ],
   "placement_instruction": "Krótka instrukcja rozmieszczenia encji w tekście (2-3 zdania)"
-}"""
+}
+
+Dla svo_triples: wygeneruj 10-15 trójek Subject→Verb→Object które MODEL MUSI wyrazić w tekście.
+Przykłady dla "jazda po alkoholu":
+  {"subject": "jazda po alkoholu", "verb": "skutkuje", "object": "zakazem prowadzenia pojazdów 3-15 lat"}
+  {"subject": "sąd", "verb": "orzeka obligatoryjnie", "object": "zakaz prowadzenia przy art. 178a §1"}
+  {"subject": "stężenie alkoholu", "verb": "decyduje o kwalifikacji", "object": "przestępstwo vs wykroczenie (próg 0,5 promila)"}
+  {"subject": "blokada alkoholowa", "verb": "umożliwia skrócenie", "object": "zakazu prowadzenia pojazdów"}
+To są FAKTY MERYTORYCZNE które MUSZĄ znaleźć się w artykule — nie styl, nie encje ogólne."""
 
 
 def _generate_topical_entities(main_keyword: str, h2_plan: list = None) -> dict:
@@ -768,8 +782,8 @@ def _topical_to_entity_list(topical_result: dict) -> list:
             "is_primary": True
         })
     
-    # Secondary entities
-    for ent in topical_result.get("secondary_entities", [])[:12]:
+    # Secondary entities — expanded to 20
+    for ent in topical_result.get("secondary_entities", [])[:20]:
         if ent and ent.get("text"):
             entities.append({
                 "text": ent["text"],
@@ -781,6 +795,107 @@ def _topical_to_entity_list(topical_result: dict) -> list:
             })
     
     return entities
+
+
+def _topical_to_ngrams(topical_result: dict) -> list:
+    """Extract semantic_ngrams from topical entity result.
+    
+    Returns list of dicts in clean_ngrams format:
+    [{"ngram": "...", "freq_median": 1, "freq_max": 3, "site_distribution": "1/5", "source": "topical_generator"}]
+    """
+    if not topical_result:
+        return []
+    
+    ngrams = []
+    for ng in topical_result.get("semantic_ngrams", [])[:15]:
+        if not ng:
+            continue
+        phrase = ng.get("phrase", "") if isinstance(ng, dict) else str(ng)
+        if not phrase or len(phrase) < 4:
+            continue
+        importance = (ng.get("importance", "MEDIUM") if isinstance(ng, dict) else "MEDIUM").upper()
+        # Map importance to frequency targets
+        freq_median = 3 if importance == "HIGH" else 1
+        freq_max = 6 if importance == "HIGH" else 3
+        ngrams.append({
+            "ngram": phrase,
+            "freq_median": freq_median,
+            "freq_max": freq_max,
+            "site_distribution": "2/5",  # treat as present in 2 competitors
+            "source": "topical_generator",
+            "importance": importance,
+        })
+    return ngrams
+
+
+
+def _topical_to_eav(topical_result: dict) -> list:
+    """Extract EAV triples from topical entity result for batch prompt injection.
+    
+    Returns list of dicts:
+    [{"entity": "kodeks karny", "attribute": "penalizuje", "value": "jazdę po alkoholu art. 178a", "type": "CONCEPT"}]
+    """
+    if not topical_result:
+        return []
+    
+    eav_list = []
+    
+    # Primary entity EAV
+    primary = topical_result.get("primary_entity", {})
+    if primary and primary.get("eav"):
+        eav_raw = primary["eav"]
+        parts = [p.strip() for p in eav_raw.split("→")]
+        if len(parts) >= 3:
+            eav_list.append({
+                "entity": primary.get("text", parts[0]),
+                "attribute": parts[1],
+                "value": parts[2],
+                "type": primary.get("type", "CONCEPT"),
+                "is_primary": True,
+            })
+    
+    # Secondary entities EAV
+    for ent in topical_result.get("secondary_entities", [])[:18]:
+        if not ent or not ent.get("eav"):
+            continue
+        eav_raw = ent["eav"]
+        parts = [p.strip() for p in eav_raw.split("→")]
+        if len(parts) >= 3:
+            eav_list.append({
+                "entity": ent.get("text", parts[0]),
+                "attribute": parts[1],
+                "value": parts[2],
+                "type": ent.get("type", "CONCEPT"),
+                "is_primary": False,
+            })
+    
+    return eav_list
+
+
+def _topical_to_svo(topical_result: dict) -> list:
+    """Extract SVO triples from topical entity result.
+    
+    Returns list of dicts:
+    [{"subject": "sąd", "verb": "orzeka obligatoryjnie", "object": "zakaz prowadzenia", "context": "przy art. 178a §1"}]
+    """
+    if not topical_result:
+        return []
+    
+    svo_list = []
+    for triple in topical_result.get("svo_triples", [])[:15]:
+        if not isinstance(triple, dict):
+            continue
+        subj = triple.get("subject", "")
+        verb = triple.get("verb", "")
+        obj = triple.get("object", "")
+        if subj and verb and obj:
+            svo_list.append({
+                "subject": subj,
+                "verb": verb,
+                "object": obj,
+                "context": triple.get("context", ""),
+            })
+    return svo_list
 
 
 def _topical_to_placement_instruction(topical_result: dict, main_keyword: str) -> str:
@@ -1467,16 +1582,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         
         # S1 data for UI, already cleaned by Claude Sonnet middleware
         entity_seo = s1.get("entity_seo") or {}
-        raw_entities = entity_seo.get("top_entities", entity_seo.get("entities", []))[:20]
-        raw_must_mention = entity_seo.get("must_mention_entities", [])[:10]
-        raw_ngrams = (s1.get("ngrams") or s1.get("hybrid_ngrams") or [])[:30]
+        raw_entities = entity_seo.get("top_entities", entity_seo.get("entities", []))[:35]
+        raw_must_mention = entity_seo.get("must_mention_entities", [])[:15]
+        raw_ngrams = (s1.get("ngrams") or s1.get("hybrid_ngrams") or [])[:60]
         serp_analysis = s1.get("serp_analysis") or {}
         raw_h2_patterns = (s1.get("competitor_h2_patterns") or serp_analysis.get("competitor_h2_patterns") or [])[:30]
 
         # v48.0: Claude already cleaned, lightweight safety net only
-        clean_entities = _filter_entities(raw_entities)[:10]
-        clean_must_mention = _filter_entities(raw_must_mention)[:5]
-        clean_ngrams = _filter_ngrams(raw_ngrams)[:15]
+        clean_entities = _filter_entities(raw_entities)[:18]
+        clean_must_mention = _filter_entities(raw_must_mention)[:8]
+        clean_ngrams = _filter_ngrams(raw_ngrams)[:30]
         clean_h2_patterns = _filter_h2_patterns(raw_h2_patterns)[:20]
 
         # v48.0: Read Claude's topical/named entity split
@@ -1493,6 +1608,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         topical_gen_entities = []
         topical_gen_placement = ""
         topical_gen_cooc = []
+        topical_gen_eav = []   # EAV triples: entity → attribute → value
+        topical_gen_svo = []   # SVO triples: subject → verb → object
 
         if not ai_topical:
             # Check if scraper entities are mostly garbage
@@ -1511,22 +1628,60 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     topical_gen_entities = _topical_to_entity_list(topical_gen_result)
                     topical_gen_placement = _topical_to_placement_instruction(topical_gen_result, main_keyword)
                     topical_gen_cooc = _topical_to_cooccurrence(topical_gen_result)
-                    
+                    topical_gen_ngrams = _topical_to_ngrams(topical_gen_result)
+                    topical_gen_eav = _topical_to_eav(topical_gen_result)
+                    topical_gen_svo = _topical_to_svo(topical_gen_result)
+
                     # Override: use topical entities as primary
                     ai_topical = topical_gen_entities
-                    clean_entities = topical_gen_entities[:10]
-                    
+                    clean_entities = topical_gen_entities[:18]
+
+                    # Merge semantic ngrams from topical generator into clean_ngrams
+                    existing_ng_texts = set(
+                        (ng.get("ngram", "") if isinstance(ng, dict) else str(ng)).lower()
+                        for ng in clean_ngrams
+                    )
+                    new_tg_ngrams = [
+                        ng for ng in topical_gen_ngrams
+                        if ng.get("ngram", "").lower() not in existing_ng_texts
+                    ]
+                    clean_ngrams = clean_ngrams + new_tg_ngrams
+                    if new_tg_ngrams:
+                        yield emit("log", {"msg": f"📐 +{len(new_tg_ngrams)} semantic n-gramów z topical generatora → łącznie {len(clean_ngrams)}"})
+                    if topical_gen_eav:
+                        yield emit("log", {"msg": f"🔺 EAV trójki: {len(topical_gen_eav)} (encja→atrybut→wartość)"})
+                    if topical_gen_svo:
+                        yield emit("log", {"msg": f"🔗 SVO trójki: {len(topical_gen_svo)} (podmiot→relacja→obiekt)"})
+
                     _ent_names = [_extract_text(e) for e in topical_gen_entities[:5]]
-                    yield emit("log", {"msg": f"🧬 Topical entities wygenerowane: {', '.join(_ent_names)}"})
+                    yield emit("log", {"msg": f"🧬 Topical entities ({len(topical_gen_entities)}): {', '.join(_ent_names)}"})
                 else:
                     yield emit("log", {"msg": "⚠️ Topical entity generation failed, używam przefiltrowanych encji ze scrapera"})
             else:
-                yield emit("log", {"msg": f"✅ Encje ze scrapera OK ({_clean_count} clean), bez dodatkowej generacji"})
+                # Scraper entities OK — still run topical gen for semantic ngrams
+                yield emit("log", {"msg": f"✅ Encje ze scrapera OK ({_clean_count} clean) — generuję semantic n-gramy..."})
+                topical_gen_result = _generate_topical_entities(main_keyword)
+                if topical_gen_result:
+                    topical_gen_ngrams = _topical_to_ngrams(topical_gen_result)
+                    topical_gen_entities = _topical_to_entity_list(topical_gen_result)
+                    topical_gen_placement = _topical_to_placement_instruction(topical_gen_result, main_keyword)
+                    topical_gen_cooc = _topical_to_cooccurrence(topical_gen_result)
+                    topical_gen_eav = _topical_to_eav(topical_gen_result)
+                    topical_gen_svo = _topical_to_svo(topical_gen_result)
+                    existing_ng_texts = set(
+                        (ng.get("ngram", "") if isinstance(ng, dict) else str(ng)).lower()
+                        for ng in clean_ngrams
+                    )
+                    new_tg_ngrams = [ng for ng in topical_gen_ngrams if ng.get("ngram", "").lower() not in existing_ng_texts]
+                    clean_ngrams = clean_ngrams + new_tg_ngrams
+                    yield emit("log", {"msg": f"📐 +{len(new_tg_ngrams)} semantic n-gramów → łącznie {len(clean_ngrams)}"})
+                    if topical_gen_eav:
+                        yield emit("log", {"msg": f"🔺 EAV: {len(topical_gen_eav)} | SVO: {len(topical_gen_svo)} trójek semantycznych"})
 
         # If Claude/N-gram API produced topical entities, use them as primary
         if ai_topical:
-            clean_entities = ai_topical[:10]
-            yield emit("log", {"msg": f"🧠 Topical entities: {', '.join(_extract_text(e) for e in ai_topical[:5])}"})
+            clean_entities = ai_topical[:18]
+            yield emit("log", {"msg": f"🧠 Topical entities: {', '.join(_extract_text(e) for e in ai_topical[:6])}"})
         if ai_named:
             yield emit("log", {"msg": f"🏷️ Named entities (AI, filtered): {', '.join(_extract_text(e) for e in ai_named[:5])}"})
 
@@ -1612,7 +1767,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🧬 Co-occurrence: {len(topical_gen_cooc)} par z topical generator"})
         if (topical_gen_entities or ai_topical) and not must_cover_concepts:
             # Use clean topical entities as must_cover_concepts
-            must_cover_concepts = (topical_gen_entities or ai_topical)[:8]
+            must_cover_concepts = (topical_gen_entities or ai_topical)[:14]
 
         # ═══ v50.4 FIX 21 + v50.7 FIX 44: Override ALL contamination paths ═══
         # Override with clean topical entities regardless of source:
@@ -1816,12 +1971,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "relations": (s1.get("entity_seo") or {}).get("relations", [])[:10],
                 "topical_coverage": (s1.get("entity_seo") or {}).get("topical_coverage", [])[:10],
                 # v48.0: Topical (primary) vs Named (secondary) from Claude
-                "topical_entities": ai_topical[:12] if ai_topical else concept_entities[:12],
+                "topical_entities": ai_topical[:18] if ai_topical else concept_entities[:18],
                 "named_entities": ai_named[:8] if ai_named else [],
                 "concept_entities": concept_entities,
                 "topical_summary": topical_summary,
                 # v47.0: Salience, co-occurrence, placement from backend
-                "entity_salience": backend_entity_salience[:15],
+                "entity_salience": backend_entity_salience[:25],
                 "entity_cooccurrence": backend_entity_cooccurrence[:10],
                 "entity_placement": backend_entity_placement if isinstance(backend_entity_placement, dict) else {},
                 # v48.0: Cleanup info
@@ -1830,7 +1985,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # v47.0: Placement instruction (top-level for easy access)
             "placement_instruction": backend_placement_instruction,
             # v47.0: Concept coverage fields
-            "must_cover_concepts": must_cover_concepts[:10],
+            "must_cover_concepts": must_cover_concepts[:14],
             "concept_instruction": concept_instruction,
             # N-grams
             "ngrams": clean_ngrams,
@@ -2100,14 +2255,24 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 
                 try:
                     site_count = int(sites.split("/")[0])
+                    site_total = int(sites.split("/")[1]) if "/" in sites else 1
                 except (ValueError, IndexError):
                     site_count = 0
+                    site_total = 1
                 
-                if site_count < 2 or freq_median < 2:
+                # v58: Relaxed filter — include rare but topically valid n-grams
+                # OLD: site_count < 2 or freq_median < 2 (missed ~70% of Surfer-comparable phrases)
+                # NEW: include if present in ≥1 competitor OR if freq_median ≥ 1
+                if site_count < 1 and freq_median < 1:
                     continue
                 
-                target_min = max(1, freq_median)
-                target_max = max(target_min + 1, (freq_median + freq_max) // 2)
+                # Rare phrases (in 1 competitor or low freq) → suggest low target
+                if site_count <= 1 or freq_median <= 1:
+                    target_min = 1
+                    target_max = max(2, freq_max or 2)
+                else:
+                    target_min = max(1, freq_median)
+                    target_max = max(target_min + 1, (freq_median + freq_max) // 2)
                 target_min = min(target_min, 25)
                 target_max = min(target_max, 30)
                 
@@ -2115,7 +2280,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 seen_texts.add(text.lower())
             
             if auto_basic:
-                basic_terms = auto_basic[:25]
+                basic_terms = auto_basic[:40]
                 ngram_count = len(auto_basic) - entity_count
                 yield emit("log", {"msg": f"📊 Auto-BASIC z S1: {len(basic_terms)} fraz ({entity_count} encji + {ngram_count} n-gramów)"})
                 yield emit("auto_basic_terms", {"terms": basic_terms})
@@ -2424,6 +2589,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 pre_batch["_concept_instruction"] = concept_instruction
             if must_cover_concepts:
                 pre_batch["_must_cover_concepts"] = must_cover_concepts
+
+            # ═══ Inject EAV + SVO semantic triples ═══
+            if topical_gen_eav:
+                pre_batch["_eav_triples"] = topical_gen_eav
+            if topical_gen_svo:
+                pre_batch["_svo_triples"] = topical_gen_svo
 
             # ═══ ENTITY CONTENT PLAN — inject lead entity for this batch/H2 ═══
             if _entity_content_plan and batch_num <= len(_entity_content_plan):

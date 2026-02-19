@@ -846,7 +846,45 @@ def _fmt_entity_salience(pre_batch):
                 f"Rozłóż w tekście: {', '.join(h2_names)}.\n"
                 "⚠️ To POJĘCIA do opisania, NIE źródła. Nie pisz '[encja] podaje...'."
             )
-    
+
+    # 7. EAV triples: encja → atrybut → wartość
+    # Mówią modelowi CO NAPISAĆ o każdej encji — konkretny fakt, nie tylko nazwa
+    eav_triples = pre_batch.get("_eav_triples") or []
+    if eav_triples:
+        eav_lines = ["═══ CECHY ENCJI — Entity Attribute Value (NAPISZ TE FAKTY) ═══",
+                     "Dla każdej poniższej encji MUSISZ wyrazić podany fakt w tekście.",
+                     "Nie kopiuj dosłownie — zbuduj naturalne zdanie zawierające tę relację.",
+                     ""]
+        primary_eav = [e for e in eav_triples if e.get("is_primary")]
+        secondary_eav = [e for e in eav_triples if not e.get("is_primary")]
+        if primary_eav:
+            e = primary_eav[0]
+            eav_lines.append(f'🎯 GŁÓWNA: "{e["entity"]}" → {e["attribute"]} → {e["value"]}')
+        for e in secondary_eav[:10]:
+            eav_lines.append(f'   • "{e["entity"]}" ({e.get("type","")}) → {e["attribute"]} → {e["value"]}')
+        eav_lines.append("")
+        eav_lines.append("✅ Przykład zamiany EAV na zdanie:")
+        eav_lines.append('   EAV: "kodeks karny → penalizuje → jazdę po alkoholu art. 178a"')
+        eav_lines.append('   ZDANIE: "Art. 178a Kodeksu karnego penalizuje prowadzenie pojazdu w stanie"')
+        eav_lines.append('          "nietrzeźwości — przewiduje karę do 3 lat pozbawienia wolności."')
+        parts.append("\n".join(eav_lines))
+
+    # 8. SVO triples: podmiot → relacja → obiekt  
+    # Gotowe fakty do wbudowania w tekst — rdzeń knowledge graph artykułu
+    svo_triples = pre_batch.get("_svo_triples") or []
+    if svo_triples:
+        svo_lines = ["═══ TRÓJKI SEMANTYCZNE SVO — fakty OBOWIĄZKOWE w artykule ═══",
+                     "Każda trójka to fakt który MUSI znaleźć się gdzieś w artykule.",
+                     "Możesz rozłożyć je na różne sekcje — ważne żeby były obecne.",
+                     ""]
+        for i, t in enumerate(svo_triples[:12], 1):
+            ctx = f' [{t["context"]}]' if t.get("context") else ""
+            svo_lines.append(f'  {i}. {t["subject"]} → {t["verb"]} → {t["object"]}{ctx}')
+        svo_lines.append("")
+        svo_lines.append("Google Knowledge Graph indeksuje te relacje. Im więcej z nich pojawi")
+        svo_lines.append("się jako wyraźne zdania (nie wtrącenia), tym wyższy topic authority.")
+        parts.append("\n".join(svo_lines))
+
     return "\n\n".join(parts) if parts else ""
 
 
