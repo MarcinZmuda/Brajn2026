@@ -155,12 +155,39 @@ Nie stosuj przypadkowych wypełniaczy encyjnych.
     # ════════════════════════════════════════════════════════════
     parts.append("""<rules>
 
-PASSAGE-FIRST
-Pod każdym H2 i w intro stosuj wzorzec:
-  → Zdanie 1: bezpośrednia odpowiedź/definicja (passage-ready dla Google)
-  → Zdanie 2: konkret (liczba, data, przykład, dane)
-  → Zdanie 3: doprecyzowanie lub wyjątek
-  Dopiero potem rozwijaj temat.
+PASSAGE-FIRST + RÓŻNORODNOŚĆ OTWARĆ (KRYTYCZNE)
+Pod każdym H2 pierwsze zdanie musi być passage-ready (Google Featured Snippet).
+JEDNAK: każda sekcja H2 MUSI zaczynać się INNYM wzorcem składniowym.
+
+ZAKAZ: dwie sąsiednie sekcje o identycznej strukturze pierwszego zdania.
+
+Dostępne wzorce otwarcia sekcji — rotuj między nimi:
+
+  A) LICZBA / FAKT (zaczyna od konkretu):
+     „Mandaty za jazdę po alkoholu wahają się od 2500 do 30 000 zł..."
+     „Trzy lata pozbawienia wolności — tyle grozi za pierwsze wykroczenie..."
+
+  B) WARUNEK / PRÓG (zaczyna od „jeśli/gdy/przy"):
+     „Gdy stężenie alkoholu przekracza 0,5 promila, czyn staje się przestępstwem..."
+     „Przy pozytywnym wyniku testu policja zatrzymuje prawo jazdy na miejscu..."
+
+  C) SKUTEK WPROST (zaczyna od konsekwencji):
+     „Konfiskata pojazdu grozi każdemu, kto zostanie skazany po raz drugi..."
+     „Zakaz prowadzenia trwa od 3 do 15 lat — sąd nie może go skrócić..."
+
+  D) KONTRAST / ROZRÓŻNIENIE (zaczyna od różnicy):
+     „Wykroczenie i przestępstwo — granica przebiega dokładnie przy 0,2 promila..."
+     „Recydywista i osoba karana po raz pierwszy odpowiadają inaczej..."
+
+  E) PODMIOT + ORZECZENIE (klasyczne, ale nie zawsze pierwsze):
+     „Stan po użyciu alkoholu to poziom 0,2–0,5 promila we krwi..."
+     „Przepadek pojazdu obowiązuje automatycznie od nowelizacji z 2023 roku..."
+
+  F) PYTANIE + NATYCHMIASTOWA ODPOWIEDŹ (pytanie retoryczne tylko jako opener):
+     „Czy można ubiegać się o warunkowe umorzenie? Tak — ale tylko przy pierwszym wykroczeniu..."
+
+REGUŁA: batch 1=wzorzec A lub B, batch 2=inny, batch 3=inny itd.
+W obrębie jednego batcha każda sekcja H3 też musi startować innym wzorcem.
 
 SEARCH INTENT COVERAGE
 Pokryj: pytania jawne, pytania domyślne, konsekwencje praktyczne,
@@ -354,19 +381,21 @@ PODMIOT TEJ SEKCJI: „{section_lead}"
 Ta encja jest WIODĄCĄ ENCJĄ PODMIOTOWĄ dla aktualnej sekcji H2.
 Każdy akapit OTWÓRZ zdaniem, gdzie „{section_lead}" (lub jej forma odmienna) jest podmiotem gramatycznym (kto? co?).{sp_note}
 
-✅ Poprawne otwarcia:
-  • „{section_lead} [orzeczenie]..." — encja jako podmiot
-  • „[Odmiana encji, np. dopełniacz/narzędnik] {section_lead}..." — jeśli gram. wymaga
-  • Zaimek „on/ona/ono/to" jako podmiot TYLKO gdy encja była podmiotem w poprzednim zdaniu
+✅ Poprawne otwarcia akapitu (rotuj — nie powtarzaj schematu):
+  • „{section_lead} [orzeczenie]..." — encja jako podmiot (MAX w 2 akapitach na sekcję)
+  • „Gdy/Jeśli/Przy [warunek]..." — otwarcie warunkowe
+  • Liczba/data na początku: „3 lata — tyle wynosi minimalny zakaz..."
+  • „[Odmiana encji] {section_lead}..." — forma fleksyjna jako otwarcie
+  • Skutek jako podmiot: „Konsekwencją jest...", „Wynikiem takiej sytuacji..."
 
 ❌ Zakaz:
-  • „W przypadku {section_lead}..." (okolicznik, nie podmiot)
-  • „Istotnym aspektem jest {section_lead}..." (orzecznik)
-  • „Zgodnie z przepisami o {section_lead}..." (dopełnienie)
-  • Każdy akapit z INNĄ encją jako podmiotem (brak spójności sekcji)
+  • Każdy akapit w sekcji z IDENTYCZNĄ strukturą otwarcia
+  • „Istotnym aspektem jest {section_lead}..." (orzecznik-placeholder)
+  • „Zgodnie z przepisami o {section_lead}..." (puste dopełnienie)
 
-ROTACJA: Poszczególne akapity w sekcji mogą otwierać encje wtórne z MUST-listy,
-ale co najmniej 2 pierwsze zdania każdego akapitu muszą odnosić się do „{section_lead}".
+KLUCZOWE: encja wiodąca sekcji „{section_lead}" musi być TEMATEM sekcji,
+ale NIE musi otwierać każdego zdania — Google liczy obecność encji w całym akapicie,
+nie tylko w pierwszej pozycji.
 Google salience: podmiot × pozycja = 3–6× wyższy wynik niż encja w dopełnieniu.
 </subject_position_rule>""")
 
@@ -479,6 +508,33 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
             "Piszesz jako redaktor naczelny — rzeczowo, bez frywolności. "
             "Szczegółowe zasady w system prompcie."
         )
+
+    # ── OPENING PATTERN — per-batch rotation (zapobiega identycznym otwarciom sekcji) ──
+    _OPENING_PATTERNS = [
+        ("A", "LICZBA/FAKT",
+         "Zacznij sekcje od konkretnej liczby, daty lub wartosci. Np: '3 lata - tyle wynosi...', 'Od 2500 do 30 000 zl...'"),
+        ("B", "WARUNEK",
+         "Zacznij sekcje od warunku lub progu. Np: 'Gdy stezenie przekracza...', 'Jesli kierowca...', 'Przy kazdym kolejnym...'"),
+        ("C", "SKUTEK WPROST",
+         "Zacznij sekcje od konsekwencji. Np: 'Konfiskata grozi kazdemu...', 'Zakaz trwa od 3 do 15 lat - sad nie moze...'"),
+        ("D", "KONTRAST",
+         "Zacznij sekcje od rozroznienia. Np: 'Wykroczenie i przestepstwo - granica przebiega...', 'Recydywista odpowiada inaczej...'"),
+        ("E", "PODMIOT+ORZECZENIE",
+         "Zacznij sekcje klasycznie: podmiot + orzeczenie z konkretem. Np: 'Stan po uzyciu alkoholu to poziom 0,2-0,5 promila...'"),
+        ("F", "PYTANIE+ODPOWIEDZ",
+         "Zacznij sekcje pytaniem z natychmiastowa odpowiedzia. Np: 'Czy mozna unikac zakazu? Tak, ale tylko gdy...'"),
+    ]
+    batch_num = pre_batch.get("batch_number", 1) or 1
+    if batch_type in ("INTRO", "intro"):
+        pattern_idx = 0  # INTRO: zawsze liczba/fakt dla silnego otwarcia
+    else:
+        pattern_idx = (batch_num - 1) % len(_OPENING_PATTERNS)
+    p_letter, p_name, p_desc = _OPENING_PATTERNS[pattern_idx]
+    sections.append(
+        f"OTWARCIE TEJ SEKCJI — wzorzec {p_letter} ({p_name}):\n"
+        f"{p_desc}\n"
+        f"ZAKAZ: nie zaczynaj od encji jako podmiotu w stylu '[X] jest/to/oznacza' — to wzorzec już użyty w poprzednich sekcjach."
+    )
 
     # ── SCHEMA GUARD: validate critical fields from backend ──
     _schema_guard(pre_batch)
@@ -1711,14 +1767,25 @@ def build_h2_plan_user_prompt(main_keyword, mode, s1_data, all_user_phrases, use
 TRYB: {mode} ({mode_desc})""")
 
     if competitor_h2:
-        lines = ["═══ WZORCE H2 KONKURENCJI (najczęstsze tematy sekcji) ═══"]
-        for i, h in enumerate(competitor_h2[:20], 1):
+        # Sort by count descending if available
+        def _h2_count(h):
             if isinstance(h, dict):
-                pattern = h.get("pattern", h.get("h2", str(h)))
-                count = h.get("count", "")
-                lines.append(f"  {i}. {pattern}" + (f" ({count}×)" if count else ""))
+                return h.get("count", h.get("sources", 0))
+            return 0
+        sorted_h2 = sorted(competitor_h2[:30], key=_h2_count, reverse=True)
+        total_sources = max((_h2_count(sorted_h2[0]) for _ in [1]), default=1) or 1
+
+        lines = ["═══ WZORCE H2 KONKURENCJI — posortowane po popularności ═══",
+                 "Liczba przy H2 = ilu konkurentów używa tego tematu.",
+                 "H2 z wysoką liczbą = MUST HAVE w Twoim artykule (użytkownicy tego szukają)."]
+        for i, h in enumerate(sorted_h2[:20], 1):
+            if isinstance(h, dict):
+                pattern = h.get("text", h.get("pattern", h.get("h2", str(h))))
+                count = _h2_count(h)
+                bar = "█" * min(count, 8)
+                lines.append(f"  {i:2}. [{bar:<8}] {count}× — {pattern}")
             elif isinstance(h, str):
-                lines.append(f"  {i}. {h}")
+                lines.append(f"  {i:2}. {h}")
         sections.append("\n".join(lines))
 
     if suggested_h2s:
