@@ -302,6 +302,15 @@ KATEGORIA 7 — Phantom-placeholder prawny (BEZWZGLĘDNY ZAKAZ)
   ❌ „mg/100 ml" jako jednostka alkoholu — BŁĄD: używaj promili (‰) lub mg/dm³
   Reguła: jeśli nie znasz konkretnego artykułu → usuń zdanie, NIE zastępuj ogólnikiem.
 
+KATEGORIA 8 — Halucynacje terminologiczne w prawie o alkoholu (BEZWZGLĘDNY ZAKAZ)
+  ❌ „alkohol z natury" / „alkohol z urodzenia" — NONSENS, nie istnieje takie pojęcie
+  ❌ „stężenie alkoholu z natury" / „promile z natury" / „promile z urodzenia" — NONSENS
+  ❌ „opilstwo" — archaizm, nie używany w aktualnym prawie karnym
+  ❌ „pijaństwo" w kontekście prawnym — używaj: „stan nietrzeźwości"
+  ❌ „obsługiwał pojazd" / „zakaz obsługi pojazdu" — BŁĄD: używaj „prowadził pojazd" / „zakaz prowadzenia pojazdu"
+  ✅ Poprawna terminologia: „stan po użyciu alkoholu" (0,2–0,5‰) | „stan nietrzeźwości" (powyżej 0,5‰)
+  ✅ Jednostki: promile (‰) | mg/dm³ w wydychanym powietrzu (NIE: mg/100ml)
+
 ANTY-POWTÓRZENIA
 Zdefiniowałeś pojęcie raz — nie definiuj ponownie.
 Odwołuj się: "wspomniany wcześniej X".
