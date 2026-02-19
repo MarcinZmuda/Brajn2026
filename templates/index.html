@@ -660,7 +660,8 @@ function switchTab(tab){
     Object.entries(panels).forEach(([t,id])=>{
         const el=document.getElementById(id);
         if(el)el.classList.toggle('on',t===tab);
-    });
+    }
+  });
     // Move s1P into tabS1 if needed
     if(tab==='s1'){
         const s1=document.getElementById('s1P'),s1tab=document.getElementById('tabS1');
@@ -1013,7 +1014,7 @@ function rCP(d){
 }
 
 // ═══ WORKFLOW ═══
-function _setStopBtn(v){const d=v?'':'none';['btnStop','btnStop2','btnStop3'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=d;});}function stopWF(){if(es){es.close();es=null}log('⛔ Zatrzymano');document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false)}
+function _setStopBtn(v){const d=v?'block':'none';['btnStop','btnStop2','btnStop3'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=d;});}function stopWF(){if(es){es.close();es=null}log('⛔ Zatrzymano');document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false)}
 function pt(t){return t.split('\n').map(l=>l.trim()).filter(l=>l.length>0)}
 
 async function startWorkflow(){
