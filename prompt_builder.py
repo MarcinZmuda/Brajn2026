@@ -19,20 +19,22 @@ Architecture:
 import json
 import logging
 
-# Fix #9 v4.2: import shared sentence-length constants
+# Fix #9 v4.2 + Fix #34: import shared sentence-length constants (zaostrzenie)
 try:
     from shared_constants import (
         SENTENCE_AVG_TARGET, SENTENCE_AVG_TARGET_MIN, SENTENCE_AVG_TARGET_MAX,
-        SENTENCE_SOFT_MAX, SENTENCE_HARD_MAX, SENTENCE_AVG_MAX_ALLOWED
+        SENTENCE_SOFT_MAX, SENTENCE_HARD_MAX, SENTENCE_AVG_MAX_ALLOWED,
+        SENTENCE_MAX_COMMAS
     )
 except ImportError:
-    # Fallback defaults if shared_constants unavailable
-    SENTENCE_AVG_TARGET = 15
-    SENTENCE_AVG_TARGET_MIN = 12
-    SENTENCE_AVG_TARGET_MAX = 18
-    SENTENCE_SOFT_MAX = 30
-    SENTENCE_HARD_MAX = 35
-    SENTENCE_AVG_MAX_ALLOWED = 20
+    # Fallback defaults — Fix #34: zaostrzenie
+    SENTENCE_AVG_TARGET = 12
+    SENTENCE_AVG_TARGET_MIN = 8
+    SENTENCE_AVG_TARGET_MAX = 15
+    SENTENCE_SOFT_MAX = 20
+    SENTENCE_HARD_MAX = 25
+    SENTENCE_AVG_MAX_ALLOWED = 16
+    SENTENCE_MAX_COMMAS = 1
 
 _pb_logger = logging.getLogger(__name__)
 
@@ -217,21 +219,28 @@ Wzorce: powoduje, skutkuje, prowadzi do, zapobiega, w wyniku, ponieważ
 BURSTINESS — rytm zdań (cel: CV zdań 0.35–0.45, śr. 12–18 słów)
 
 Rozkład długości zdań w każdym akapicie:
-  • 20% krótkich (do 8 słów) — TYLKO fakty i definicje
-  • 60% średnich (9–18 słów) — rdzeń tekstu
-  • 20% długich (19–28 słów) — MAX 1 długie na akapit
+  • 30% krótkich (do 8 słów) — fakty, definicje, konkrety
+  • 50% średnich (9–15 słów) — rdzeń tekstu
+  • 20% dłuższych (16–20 słów) — MAX 1 na akapit, MAX 1 przecinek
 
 TWARDE LIMITY:
-  • ŻADNE zdanie nie może przekroczyć 35 słów — jeśli tak jest, ROZBIJ je.
-  • Rozbij proaktywnie zdania >25 słów na dwa.
-  • Średnia w całym batchu: cel 12–18 słów/zdanie (max dopuszczalna: 20).
+  • ŻADNE zdanie nie może przekroczyć 22 słów — jeśli tak jest, ROZBIJ je natychmiast.
+  • Rozbij proaktywnie zdania >16 słów na dwa.
+  • Średnia w całym batchu: cel 8–14 słów/zdanie (max dopuszczalna: 15).
+  • MAX 1 PRZECINEK na zdanie. Zdanie z 2+ przecinkami = ZA ZŁOŻONE → rozbij.
+  • ZAKAZ zdań wielokrotnie złożonych (z: „który", „ponieważ", „a także", „lecz również").
+  • NIE ZACZYNAJ wielu zdań od tej samej frazy — to spam, nie treść ekspercka.
 
-Technika rozbijania długich zdań:
+Reguła jednego przecinka:
   ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
-     (zamiast: „Zakaz prowadzenia, obligatoryjnie orzekany przez sąd, trwa od 3 do 15 lat i nie podlega zawieszeniu.")
-  ✅ „Mandat wynosi 2500–30 000 zł. Dolicza się do tego cofnięcie prawa jazdy."
-     (zamiast: „Kierowca może otrzymać mandat w wysokości od 2500 do 30 000 zł, a sąd dodatkowo cofa prawo jazdy.")
+  ✅ „Mandat wynosi od 2500 zł, a górna granica to 30 000 zł."
+  ❌ „Kierowca może otrzymać mandat w wysokości od 2500 do 30 000 zł, a sąd dodatkowo cofa prawo jazdy, co oznacza zakaz prowadzenia." (3 przecinki = za złożone)
+  ❌ „Zakaz prowadzenia, obligatoryjnie orzekany przez sąd, trwa od 3 do 15 lat i nie podlega zawieszeniu." (2 wtrącenia = za złożone)
+
+Technika rozbijania:
+  ✅ Jedno zdanie = jedna myśl. Kropka. Następne zdanie = następna myśl.
   ✅ Długa wyliczanka → zdanie wprowadzające + lista HTML (ul/li)
+  ✅ Zamiast „bo", „ponieważ", „gdyż" → nowe zdanie z „Powód:" lub „Dlatego".
 
 Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
   ✅ Krótkie zdanie niesie konkret: "Zakaz trwa od 3 do 15 lat."
@@ -243,15 +252,21 @@ Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
 SUBJECT POSITION — (reguła rotacji encji wstrzykiwana dynamicznie per batch poniżej)
 
 SENTENCE LENGTH — długość zdań (KRYTYCZNE dla czytelności)
-  Maksimum bezwzględne: 35 słów (HARD_MAX). Rozbij proaktywnie >25 słów.
-  Cel średniej: 12–18 słów na zdanie (target: 15, max dopuszczalna: 20).
+  Maksimum bezwzględne: 22 słów (HARD_MAX). Rozbij proaktywnie >16 słów.
+  Cel średniej: 8–14 słów na zdanie (target: 12, max dopuszczalna: 15).
+  MAX 1 przecinek na zdanie. Zdania wielokrotnie złożone = ZAKAZ.
   ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
   ❌ „Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka na mocy art. 178a Kodeksu karnego, obowiązuje przez okres od 3 do nawet 15 lat i nie podlega warunkowemu zawieszeniu."
 
-SPACING
+SPACING — ANTYSPAM
 Minimalna odległość między powtórzeniami frazy:
-  MAIN: ~60 słów | BASIC: ~80 słów | EXTENDED: ~120 słów
+  MAIN: ~80 słów | BASIC: ~100 słów | EXTENDED: ~120 słów
   Nie klasteruj kilku fraz w jednym zdaniu.
+  ABSOLUTNY ZAKAZ: nie powtarzaj głównej frazy w każdym akapicie.
+  ABSOLUTNY ZAKAZ: nie zaczynaj 2+ zdań w jednym batchu od tej samej frazy kluczowej.
+  Używaj synonimów, zaimków, omówień. Powtórzenie = spam.
+  ❌ "Jazda po alkoholu... Jazda po alkoholu... Jazda po alkoholu..."
+  ✅ "Prowadzenie pod wpływem... To zachowanie... Taki czyn..."
 
 FLEKSJA
 Odmiana frazy = jedno użycie.
@@ -1916,6 +1931,44 @@ TRYB: {mode} ({mode_desc})""")
                 lines.append(f"  • {t}")
         sections.append("\n".join(lines))
 
+    # Fix #48: Entity-driven H2 generation — top entities should influence H2 names
+    entity_seo = s1_data.get("entity_seo") or {}
+    concept_ents = entity_seo.get("concept_entities") or entity_seo.get("topical_entities") or []
+    must_mention = entity_seo.get("must_mention") or []
+    top_named = entity_seo.get("top_entities") or []
+    entity_salience = entity_seo.get("entity_salience") or []
+
+    all_ents = []
+    seen_ent = set()
+    for src in [concept_ents, must_mention, top_named]:
+        for e in src[:15]:
+            name = e if isinstance(e, str) else (e.get("text") or e.get("entity") or e.get("display_text") or "")
+            name_low = name.lower().strip()
+            if name_low and name_low not in seen_ent and name_low != main_keyword.lower():
+                seen_ent.add(name_low)
+                sal = 0
+                for se in entity_salience:
+                    if isinstance(se, dict) and (se.get("entity", "")).lower() == name_low:
+                        sal = se.get("salience", 0)
+                        break
+                all_ents.append((name, sal))
+
+    if all_ents:
+        # Sort by salience descending
+        all_ents.sort(key=lambda x: x[1], reverse=True)
+        lines = ["═══ TOP ENCJE Z KONKURENCJI — UŻYJ W NAZEWNICTWIE H2 ═══",
+                 "Poniższe encje pojawiają się najczęściej u konkurencji.",
+                 "ZASADA: Każde H2 powinno zawierać 1-2 encje z tej listy.",
+                 "To daje H2 efekt typu Surfer/NeuronWriter — H2 bogate w encje.",
+                 "NIE kopiuj dosłownie, ale wplataj naturalnie w nazwy H2.",
+                 "Przykład: zamiast 'Konsekwencje' → 'Konsekwencje prawne i utrata prawa jazdy'",
+                 ""]
+        for i, (name, sal) in enumerate(all_ents[:14], 1):
+            sal_str = f" (salience: {sal:.2f})" if sal > 0 else ""
+            priority = "🔴 MUST" if i <= 5 else ("🟡 HIGH" if i <= 10 else "🟢 OPT")
+            lines.append(f"  {i:2}. [{priority}] {name}{sal_str}")
+        sections.append("\n".join(lines))
+
     if user_h2_hints:
         h2_hints_list = "\n".join(f'  • "{h}"' for h in user_h2_hints[:10])
         sections.append(f"""═══ FRAZY H2 UŻYTKOWNIKA ═══
@@ -1981,6 +2034,12 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
 5. Logiczna narracja: od ogółu do szczegółu, chronologicznie, lub problemowo
 6. NIE powtarzaj hasła głównego dosłownie w każdym H2
 7. H2 muszą brzmieć naturalnie po polsku, żadnego keyword stuffingu
+8. ENCJE W H2: Każde H2 powinno zawierać 1-2 encje z listy TOP ENCJI powyżej.
+   To poprawia topical authority i pokrycie tematyczne (jak w Surfer/NeuronWriter).
+   Nie upychaj na siłę, ale naturalnie wplataj encje w nazwy H2.
+9. Preferuj H2 konkretne i informacyjne (z liczbami, encjami, terminami) nad ogólnikowe.
+   ❌ "Kary" → ✅ "Kary za jazdę po alkoholu — grzywna, zakaz i więzienie"
+   ❌ "Procedura" → ✅ "Badanie alkomatem i procedura kontroli drogowej"
 
 ═══ FORMAT ODPOWIEDZI ═══
 

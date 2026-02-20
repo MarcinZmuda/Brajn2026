@@ -2101,10 +2101,44 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🧠 Concept entities: {len(concept_entities)} (z topical_entity_extractor)"})
         if len(clean_ngrams) < len(raw_ngrams) * 0.5:
             yield emit("log", {"msg": f"⚠️ N-gramy: {len(raw_ngrams) - len(clean_ngrams)}/{len(raw_ngrams)} odfiltrowane jako CSS garbage"})
-        # PAA diagnostics
+        # PAA diagnostics + Fix #40: Claude fallback for PAA
         paa_debug = s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or []
         if not paa_debug:
             yield emit("log", {"msg": f"⚠️ PAA: brak pytań w s1.paa={len(s1.get('paa') or [])}, s1.paa_questions={len(s1.get('paa_questions') or [])}, serp.paa_questions={len(serp_analysis.get('paa_questions') or [])}"})
+            # Fix #40: Generate PAA with Claude fallback when API returns empty
+            try:
+                import anthropic as _ant_paa
+                _paa_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
+                if _paa_key:
+                    yield emit("log", {"msg": "🔄 PAA fallback: generuję pytania z Claude..."})
+                    _paa_client = _ant_paa.Anthropic(api_key=_paa_key)
+                    _serp_ctx = []
+                    for _cs in serp_analysis.get("competitor_snippets", [])[:6]:
+                        if isinstance(_cs, str) and _cs.strip():
+                            _serp_ctx.append(_cs[:200])
+                    _related = serp_analysis.get("related_searches", [])
+                    _paa_prompt = (
+                        f'Dla frazy "{main_keyword}" wygeneruj 6 pytań które użytkownicy zadają w sekcji "Ludzie pytają też" (PAA) w Google.\n'
+                        f'Kontekst z SERP:\n{chr(10).join(_serp_ctx[:4])}\n'
+                        f'Related searches: {", ".join(_related[:5])}\n\n'
+                        'Zwróć TYLKO JSON array: [{"question": "...", "answer": "krótka odpowiedź 1-2 zdania"}]\n'
+                        'Pytania po polsku, konkretne, rzeczowe.'
+                    )
+                    _paa_resp = _paa_client.messages.create(
+                        model="claude-haiku-4-5-20251001", max_tokens=800, temperature=0,
+                        messages=[{"role": "user", "content": _paa_prompt}]
+                    )
+                    _paa_text = _paa_resp.content[0].text.strip()
+                    import re as _re_paa
+                    _paa_m = _re_paa.search(r"\[[\s\S]*\]", _paa_text)
+                    if _paa_m:
+                        _paa_gen = json.loads(_paa_m.group())
+                        paa_debug = [{"question": q.get("question",""), "answer": q.get("answer",""), "source": "claude_fallback"} for q in _paa_gen if q.get("question")]
+                        yield emit("log", {"msg": f"✅ PAA fallback: {len(paa_debug)} pytań wygenerowanych z Claude"})
+                    else:
+                        yield emit("log", {"msg": "⚠️ PAA fallback: nie udało się sparsować JSON"})
+            except Exception as _paa_err:
+                yield emit("log", {"msg": f"⚠️ PAA fallback error: {str(_paa_err)[:100]}"})
         else:
             yield emit("log", {"msg": f"✅ PAA: {len(paa_debug)} pytań z SERP"})
         yield emit("s1_data", {
@@ -2127,8 +2161,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "featured_snippet": s1.get("featured_snippet") or serp_analysis.get("featured_snippet"),
             "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview"),
             "related_searches": s1.get("related_searches") or serp_analysis.get("related_searches") or [],
-            # PAA: check multiple locations
-            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or (s1_raw.get("serp_analysis") or {}).get("paa_questions") or s1_raw.get("paa") or [])[:10],
+            # PAA: check multiple locations + Fix #40 fallback
+            "paa_questions": (paa_debug if paa_debug else (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or (s1_raw.get("serp_analysis") or {}).get("paa_questions") or s1_raw.get("paa") or []))[:10],
             # Causal triplets
             "causal_triplets_count": len(clean_causal_chains) + len(clean_causal_singles),
             "causal_count_chains": len(clean_causal_chains),
@@ -3016,6 +3050,27 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                     yield emit("log", {"msg": "⚠️ Domain errors — forced mode, pomijam auto-fix"})
                             else:
                                 yield emit("log", {"msg": f"✅ Domain validator: czysto [{_dv_category}]"})
+
+                    # Fix #44: Keyword anti-stuffing check
+                    import re as _re_stuff
+                    _main_kw_lower = main_keyword.lower()
+                    _kw_count = len(_re_stuff.findall(_re_stuff.escape(_main_kw_lower), text.lower()))
+                    _text_words = len(text.split())
+                    if _kw_count > 3 and _text_words > 0:
+                        _kw_density = _kw_count / _text_words * 100
+                        if _kw_density > 2.5 or _kw_count > 4:
+                            yield emit("log", {"msg": f"⚠️ Keyword stuffing: '{main_keyword}' x{_kw_count} ({_kw_density:.1f}%) — za dużo powtórzeń"})
+                            if attempt < max_attempts - 1:
+                                # Quick regex-based dedup: replace excess occurrences with pronoun
+                                _seen = 0
+                                def _destuff(m):
+                                    nonlocal _seen
+                                    _seen += 1
+                                    if _seen <= 2:
+                                        return m.group(0)
+                                    return "to zachowanie" if _seen % 2 == 0 else "ten czyn"
+                                text = _re_stuff.sub(_re_stuff.escape(main_keyword), _destuff, text, flags=_re_stuff.IGNORECASE)
+                                yield emit("log", {"msg": f"✅ Destuffed: zredukowano '{main_keyword}' z {_kw_count} do max 2 wystąpień"})
 
                     # Track for memory
                     accepted_batches_log.append({

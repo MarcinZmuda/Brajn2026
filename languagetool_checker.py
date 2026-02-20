@@ -183,7 +183,7 @@ def check_text(text: str) -> dict:
                 "PUNCTUATION": 3, "STYLE": 4, "REDUNDANCY": 5, "OTHER": 6}
         all_issues.sort(key=lambda x: (_pri.get(x["category"], 6), x["offset"]))
 
-        total_words = len(text_to_check.split())
+        total_words = len(text.split())
         score = _calculate_score(categories, total_words)
 
         return {
