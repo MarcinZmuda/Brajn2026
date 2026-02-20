@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BRAJEN SEO</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         :root {
             --black: #000000; --mg: #565656; --lg: #9e9e9e; --orange: #fba92c; --white: #ffffff;
@@ -258,6 +259,25 @@
         .logbox{background:var(--black);border:1px solid var(--b1);border-radius:var(--r);padding:14px 16px;max-height:260px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.8}
         .log-line{color:var(--lg);padding:1px 0;border-bottom:1px solid rgba(255,255,255,.02)}.log-line .ts{color:var(--mg);margin-right:6px;font-size:11px}
         .log-line.err{color:var(--rd)}.log-line.warn{color:var(--yl)}.log-line.ok{color:var(--gn)}
+
+        /* ═══ CHARTS & ANALYTICS ═══ */
+        .mehr-btn{display:inline-block;padding:4px 10px;font-size:11px;color:var(--mg);background:none;border:1px solid var(--b1);border-radius:99px;cursor:pointer;font-family:inherit;transition:all .15s;user-select:none}
+        .mehr-btn:hover,.mehr-btn.active{color:var(--orange);border-color:var(--orange)}
+        .mehr-panel{max-height:0;overflow:hidden;transition:max-height .4s ease;opacity:0}
+        .mehr-panel.open{max-height:1400px;opacity:1;transition:max-height .4s ease,opacity .3s ease .1s}
+        .chart-wrap{position:relative;margin:12px 0;padding:16px;background:var(--s2);border-radius:var(--r);border:1px solid var(--b1)}
+        .chart-wrap canvas{max-width:100%}
+        .chart-title{font-size:11px;font-weight:700;color:var(--lg);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+        .mehr-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin:12px 0}
+        .mehr-stat{padding:10px 6px;background:var(--s3);border:1px solid var(--b1);border-radius:var(--rs);text-align:center}
+        .mehr-stat .v{font-size:20px;font-weight:800;color:var(--white);letter-spacing:-.5px}
+        .mehr-stat .l{font-size:9px;color:var(--mg);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
+        .salience-row{display:grid;grid-template-columns:120px 1fr 40px;align-items:center;gap:8px;margin-bottom:5px;font-size:12px}
+        .salience-bar{background:var(--s3);border-radius:3px;height:8px;overflow:hidden}
+        .salience-fill{height:100%;border-radius:3px;transition:width .5s ease}
+        .heatmap-grid{display:grid;gap:2px;margin:12px 0;padding:8px;background:var(--s2);border-radius:var(--rs);border:1px solid var(--b1)}
+        .heatmap-cell{padding:6px;border-radius:3px;text-align:center;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;transition:transform .15s;cursor:default}
+        .heatmap-cell:hover{transform:scale(1.08);z-index:1}
 
         /* ═══ ARTICLE EDITOR ═══ */
         .editor-wrap{margin:14px 0;display:none}
@@ -593,6 +613,64 @@
             <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Analiza wiarygodności</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Prawo</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medycyna</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Źródła</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Zastrzeżenie</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:10px;color:var(--mg)"></div></div>
             <div class="pnl" id="schP" style="display:none"><div class="pnl-h" onclick="tPnl('schP')"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:8px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
             <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" onclick="tPnl('tmP')"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
+
+            <!-- ═══ ANALYTICS CHARTS ═══ -->
+            <div class="crd" id="radarPane" style="display:none">
+              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>📊 Quality</b> Radar</span><button class="mehr-btn" onclick="toggleMehr('radarPanel',this)">więcej ▾</button></div>
+              <div class="mehr-panel" id="radarPanel">
+                <div class="chart-wrap" style="height:320px"><canvas id="radarChart"></canvas></div>
+              </div>
+            </div>
+
+            <div class="crd" id="batchChartPane" style="display:none">
+              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>📈 Batch</b> Quality</span><button class="mehr-btn" onclick="toggleMehr('batchPanel',this)">więcej ▾</button></div>
+              <div class="mehr-panel" id="batchPanel">
+                <div class="chart-wrap" style="height:220px"><canvas id="batchQualityChart"></canvas></div>
+                <div class="mehr-stats">
+                  <div class="mehr-stat"><div class="v" id="bsAvg">—</div><div class="l">Średnia</div></div>
+                  <div class="mehr-stat"><div class="v" id="bsMax">—</div><div class="l">Najlepszy</div></div>
+                  <div class="mehr-stat"><div class="v" id="bsMin">—</div><div class="l">Najgorszy</div></div>
+                  <div class="mehr-stat"><div class="v" id="bsAcc">—</div><div class="l">Accepted</div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="crd" id="salienceChartPane" style="display:none">
+              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>🔬 Entity</b> Salience Ranking</span><button class="mehr-btn" onclick="toggleMehr('saliencePanel',this)">więcej ▾</button></div>
+              <div class="mehr-panel" id="saliencePanel">
+                <div id="salienceBarChart" style="padding:12px"></div>
+              </div>
+            </div>
+
+            <div class="crd" id="kwCoveragePane" style="display:none">
+              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>🔑 Keyword</b> Coverage</span><button class="mehr-btn" onclick="toggleMehr('kwCoveragePanel',this)">więcej ▾</button></div>
+              <div class="mehr-panel" id="kwCoveragePanel">
+                <div class="chart-wrap" style="height:260px"><canvas id="kwCoverageChart"></canvas></div>
+              </div>
+            </div>
+
+            <div class="crd" id="wordDistPane" style="display:none">
+              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>📄 Word Count</b> vs Competitors</span><button class="mehr-btn" onclick="toggleMehr('wordDistPanel',this)">więcej ▾</button></div>
+              <div class="mehr-panel" id="wordDistPanel">
+                <div class="chart-wrap" style="height:240px"><canvas id="wordDistChart"></canvas></div>
+              </div>
+            </div>
+
+            <div class="crd" id="timelinePane" style="display:none">
+              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>⏱️ Workflow</b> Timeline</span><button class="mehr-btn" onclick="toggleMehr('timelinePanel',this)">więcej ▾</button></div>
+              <div class="mehr-panel" id="timelinePanel">
+                <div class="chart-wrap" style="height:240px"><canvas id="timelineChart"></canvas></div>
+                <div class="mehr-stats" id="timelineStats"></div>
+              </div>
+            </div>
+
+            <div class="crd" id="cooccPane" style="display:none">
+              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>🔗 Entity</b> Co-occurrence</span><button class="mehr-btn" onclick="toggleMehr('cooccPanel',this)">więcej ▾</button></div>
+              <div class="mehr-panel" id="cooccPanel">
+                <div class="heatmap-grid" id="cooccGrid"></div>
+              </div>
+            </div>
+
         </div><!-- /tabQuality -->
         <!-- ═══ S1 TAB ═══ -->
         <div id="tabS1" class="main-tab-panel" style="display:none;padding:16px 20px"><button class="mabtn" onclick="switchTab('workflow')" style="margin-bottom:12px;display:flex;align-items:center;gap:6px">← Workflow</button>
@@ -1098,11 +1176,11 @@ async function startWorkflow(){
         es.addEventListener('project',e=>{const d=JSON.parse(e.data);tb=d.total_batches;log(`Project: ${d.project_id}`);const r=document.getElementById('bRes');r.innerHTML='';for(let i=1;i<=tb;i++)r.innerHTML+=`<div class="bchip pend" id="bc${i}">B${i}</div>`});
         es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:15px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(h)}</div>`).join('')});
         es.addEventListener('auto_basic_terms',e=>{const d=JSON.parse(e.data);if(d.terms&&d.terms.length){const ta=document.getElementById('basicTerms');ta.value=d.terms.join('\n');ta.rows=Math.min(12,d.terms.length+1);document.getElementById('bsc').style.display=''}});
-        es.addEventListener('s1_data',e=>{s1Data=JSON.parse(e.data);rS1(s1Data);document.getElementById('tbS1').textContent='✓';const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}});
+        es.addEventListener('s1_data',e=>{s1Data=JSON.parse(e.data);rS1(s1Data);document.getElementById('tbS1').textContent='✓';const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}try{initCooccHeatmap(s1Data)}catch(e2){console.warn('cooccHeatmap:',e2)}});
         es.addEventListener('phrase_hierarchy',e=>{const d=JSON.parse(e.data);if(s1Data&&d.phrase_hierarchy_preview){s1Data.phrase_hierarchy_preview=d.phrase_hierarchy_preview;rS1(s1Data);}});
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
         es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
-        es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);batchLog.push(d);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}if(d.accepted&&d.text_preview){liveArticle+=(liveArticle?'\n\n':'')+d.text_preview;renderArt(liveArticle)}});
+        es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);batchLog.push(d);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}if(d.accepted&&d.text_preview){liveArticle+=(liveArticle?'\n\n':'')+d.text_preview;renderArt(liveArticle)}try{initBatchChart(batchLog)}catch(e){console.warn('batchChart:',e)}});
         es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);editorialData=d;document.getElementById('edC').style.display='';
     // Fix #35: Ukryj edRunning gdy editorial się skończy (nawet z błędem)
     const _edRun=document.getElementById('edRunning');if(_edRun){_edRun.classList.remove('active');if(_edRun._timer){clearInterval(_edRun._timer);_edRun._timer=null;}}
@@ -1162,7 +1240,7 @@ async function startWorkflow(){
     const emsum=document.getElementById('edMiniSummary');if(emsum&&d.summary)emsum.textContent=typeof d.summary==='string'?d.summary:(d.summary.summary||'');
     }
   });
-        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}});
+        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}try{initRadarChart(d)}catch(e){console.warn('radarChart:',e)}try{initKwCoverageChart(d,batchLog)}catch(e){console.warn('kwCoverage:',e)}});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
         es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';liveArticle=rawArticle;renderArt(rawArticle);const _ap=document.getElementById('artP');if(_ap)_ap.style.display='';document.getElementById('editorWrap').classList.add('visible');const awc=document.getElementById('artWordCount');if(awc)awc.textContent=(rawArticle.split(/\s+/).filter(Boolean).length).toLocaleString()+' słów';});
         es.addEventListener('article_memory',e=>{memoryData=JSON.parse(e.data)});
@@ -1182,11 +1260,11 @@ async function startWorkflow(){
         });
         es.addEventListener('ymyl_analysis',e=>{ymylAnalysisData=JSON.parse(e.data);renderYmylCard();updateQualityBar()});
         es.addEventListener('ymyl_validation',e=>{ymylValData=JSON.parse(e.data)});
-        es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);salienceData=d;const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`}else{document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:12px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss;updateQualityBar()}const sp=d.subject_position;if(sp&&sp.total_sentences>0){document.getElementById('esSP').style.display='';document.getElementById('spSc').textContent=`${sp.score}/100`;document.getElementById('spSc').style.color=sp.score>=70?G:sp.score>=40?W:R;document.getElementById('spSR').textContent=`${Math.round(sp.subject_ratio*100)}%`;document.getElementById('spSR').style.color=sp.subject_ratio>=0.35?G:sp.subject_ratio>=0.2?W:R;document.getElementById('spH2').textContent=sp.h2_entity_count||0;document.getElementById('sp1st').textContent=sp.first_sentence_has_entity?'✅':'❌';document.getElementById('sp1st').style.color=sp.first_sentence_has_entity?G:R}});
+        es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);salienceData=d;const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`}else{document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:12px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss;updateQualityBar()}const sp=d.subject_position;if(sp&&sp.total_sentences>0){document.getElementById('esSP').style.display='';document.getElementById('spSc').textContent=`${sp.score}/100`;document.getElementById('spSc').style.color=sp.score>=70?G:sp.score>=40?W:R;document.getElementById('spSR').textContent=`${Math.round(sp.subject_ratio*100)}%`;document.getElementById('spSR').style.color=sp.subject_ratio>=0.35?G:sp.subject_ratio>=0.2?W:R;document.getElementById('spH2').textContent=sp.h2_entity_count||0;document.getElementById('sp1st').textContent=sp.first_sentence_has_entity?'✅':'❌';document.getElementById('sp1st').style.color=sp.first_sentence_has_entity?G:R}try{initSalienceChart(d)}catch(e){console.warn('salienceChart:',e)}});
         es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss;updateQualityBar()});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:13px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:12px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:12px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
-        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
+        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
 
         let rr=0;
@@ -2006,6 +2084,222 @@ async function validateArt(){
         log(`🔍 Walidacja: ${score} | ${status} | ${miss.length} brakujących`);
     }catch(err){vr.innerHTML=`<span style="color:var(--rd)">❌ ${err.message}</span>`;vr.classList.add('vis')}
     finally{btn.classList.remove('loading');btn.textContent='🔍 Zwaliduj'}
+}
+
+// ═══ ANALYTICS CHARTS ═══
+const _chartInstances={};
+function _destroyChart(id){if(_chartInstances[id]){_chartInstances[id].destroy();delete _chartInstances[id]}}
+
+function toggleMehr(panelId,btn){
+  const p=document.getElementById(panelId);if(!p)return;
+  p.classList.toggle('open');
+  if(btn){btn.classList.toggle('active');btn.textContent=p.classList.contains('open')?'mniej ▴':'więcej ▾'}
+}
+
+// Dark theme defaults for Chart.js
+const _chartDark={
+  color:'#9e9e9e',
+  borderColor:'#1a1a1a',
+  backgroundColor:'#111',
+};
+if(typeof Chart!=='undefined'){
+  Chart.defaults.color='#9e9e9e';
+  Chart.defaults.borderColor='#1a1a1a';
+  Chart.defaults.font.family="'Outfit',sans-serif";
+}
+
+// 1. RADAR — Quality Breakdown
+function initRadarChart(fd){
+  if(!fd||!fd.quality_breakdown)return;
+  const qb=fd.quality_breakdown;
+  const labels=['Keywords','Humanness','Grammar','Structure','Semantic','Depth','Coherence'];
+  const data=labels.map(l=>qb[l.toLowerCase()]||0);
+  const avg=Math.round(data.reduce((a,b)=>a+b,0)/data.length);
+  document.getElementById('radarPane').style.display='';
+  _destroyChart('radar');
+  const ctx=document.getElementById('radarChart');if(!ctx)return;
+  _chartInstances.radar=new Chart(ctx,{
+    type:'radar',
+    data:{labels,datasets:[{
+      data,
+      borderColor:'#fba92c',backgroundColor:'rgba(251,169,44,.15)',
+      borderWidth:2,pointRadius:4,pointBackgroundColor:'#fba92c',pointBorderColor:'#050505',pointBorderWidth:2
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'/100'}}},
+      scales:{r:{min:0,max:100,
+        grid:{color:'rgba(255,255,255,.06)'},
+        angleLines:{color:'rgba(255,255,255,.06)'},
+        pointLabels:{color:'#9e9e9e',font:{size:11,weight:'600'}},
+        ticks:{display:false,stepSize:25}
+      }}
+    }
+  });
+}
+
+// 2. BAR — Batch Quality Scores
+function initBatchChart(bl){
+  if(!bl||!bl.length)return;
+  document.getElementById('batchChartPane').style.display='';
+  const labels=bl.map((b,i)=>'B'+(b.batch||i+1));
+  const scores=bl.map(b=>b.quality_score||0);
+  const colors=bl.map(b=>!b.accepted?'#f87171':b.quality_score>=80?'#34d399':b.quality_score>=60?'#fbbf24':'#9e9e9e');
+  _destroyChart('batch');
+  const ctx=document.getElementById('batchQualityChart');if(!ctx)return;
+  _chartInstances.batch=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data:scores,backgroundColor:colors,borderColor:'#1a1a1a',borderWidth:1,borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'/100'}}},
+      scales:{y:{min:0,max:100,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#565656'}},x:{grid:{display:false},ticks:{color:'#9e9e9e',font:{weight:'700'}}}}
+    }
+  });
+  // Stats
+  const accepted=bl.filter(b=>b.accepted);
+  const allScores=accepted.map(b=>b.quality_score||0);
+  if(allScores.length){
+    document.getElementById('bsAvg').textContent=Math.round(allScores.reduce((a,b)=>a+b,0)/allScores.length);
+    document.getElementById('bsMax').textContent=Math.max(...allScores);
+    document.getElementById('bsMin').textContent=Math.min(...allScores);
+  }
+  document.getElementById('bsAcc').textContent=accepted.length+'/'+bl.length;
+}
+
+// 3. HORIZONTAL BARS — Entity Salience
+function initSalienceChart(sd){
+  if(!sd||!sd.entities||!sd.entities.length)return;
+  document.getElementById('salienceChartPane').style.display='';
+  const ents=sd.entities.slice().sort((a,b)=>(b.salience||0)-(a.salience||0)).slice(0,14);
+  const mainKw=(sd.main_keyword||'').toLowerCase();
+  const container=document.getElementById('salienceBarChart');if(!container)return;
+  container.innerHTML=ents.map(e=>{
+    const name=e.name||e.text||e.entity||'?';
+    const sal=e.salience||0;
+    const pct=Math.min(100,Math.round(sal*100));
+    const isMain=name.toLowerCase().includes(mainKw)&&mainKw.length>2;
+    const clr=isMain?'#fba92c':sal>=0.3?'#34d399':sal>=0.1?'#fbbf24':'#565656';
+    const badges=(e.has_kg?'<span style="color:#a78bfa;margin-left:4px" title="Knowledge Graph">◆</span>':'')+(e.has_wikipedia?'<span style="color:#60a5fa;margin-left:2px" title="Wikipedia">W</span>':'');
+    return `<div class="salience-row"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${isMain?'var(--orange)':'rgba(255,255,255,.75)'};font-weight:${isMain?'700':'400'}">${esc(name)}${badges}</div><div class="salience-bar"><div class="salience-fill" style="width:${pct}%;background:${clr}"></div></div><div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mg)">${sal.toFixed(3)}</div></div>`;
+  }).join('');
+}
+
+// 4. DONUT — Keyword Coverage
+function initKwCoverageChart(fd,bl){
+  if(!fd)return;
+  const missing=fd.missing_keywords_count||0;
+  const overuse=(fd.overuse_warnings||[]).length;
+  const total=Math.max(1,(fd.word_count||100)/10);
+  const basicCov=fd.basic_coverage||0;
+  const extCov=fd.extended_coverage||0;
+  const basicPct=Math.round(basicCov*100);
+  const extPct=Math.round(extCov*100);
+  const missPct=100-basicPct;
+  document.getElementById('kwCoveragePane').style.display='';
+  _destroyChart('kwCov');
+  const ctx=document.getElementById('kwCoverageChart');if(!ctx)return;
+  _chartInstances.kwCov=new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels:['Basic ('+basicPct+'%)','Extended ('+extPct+'%)','Brakujące ('+missing+')','Nadużyte ('+overuse+')'],
+      datasets:[{data:[basicPct,extPct,missPct>0?missPct:0,overuse],
+        backgroundColor:['#34d399','#fbbf24','#f87171','#a78bfa'],
+        borderColor:'#0c0c0c',borderWidth:3,
+      }]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+      plugins:{legend:{position:'bottom',labels:{color:'#9e9e9e',font:{size:11},padding:12,usePointStyle:true,pointStyleWidth:8}}}
+    }
+  });
+}
+
+// 5. BAR — Word Distribution vs Competitors
+function initWordDistChart(s1,fd){
+  if(!s1||!s1.word_counts||!s1.word_counts.length)return;
+  document.getElementById('wordDistPane').style.display='';
+  const comps=s1.word_counts.slice(0,10);
+  const ours=fd?fd.word_count||0:0;
+  const rec=s1.recommended_length||0;
+  const labels=comps.map((w,i)=>'C'+(i+1));
+  if(ours)labels.push('Nasz');
+  const data=[...comps];if(ours)data.push(ours);
+  const colors=comps.map(()=>'rgba(158,158,158,.5)');if(ours)colors.push('#fba92c');
+  _destroyChart('wordDist');
+  const ctx=document.getElementById('wordDistChart');if(!ctx)return;
+  _chartInstances.wordDist=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#1a1a1a',borderWidth:1,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        annotation:rec?{annotations:{recLine:{type:'line',yMin:rec,yMax:rec,borderColor:'#fba92c',borderWidth:1,borderDash:[4,4],label:{content:'Rekomendacja: '+rec,enabled:true,position:'end'}}}}:undefined
+      },
+      scales:{y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#565656'}},x:{grid:{display:false},ticks:{color:'#9e9e9e',font:{size:10}}}}
+    }
+  });
+}
+
+// 6. BAR — Workflow Timeline
+function initTimelineChart(td){
+  if(!td||!td.steps)return;
+  document.getElementById('timelinePane').style.display='';
+  const names=['S1','YMYL','H2','Project','Phrase','Batche','PAA','Content Ed','Final','Editorial','Export'];
+  const data=[];const labels=[];
+  for(let i=1;i<=11;i++){const t=td.steps[String(i)]||td.steps[i]||0;if(t>0){data.push(Math.round(t));labels.push(names[i-1]||('K'+i))}}
+  if(!data.length)return;
+  const colors=data.map(t=>t<20?'#34d399':t<60?'#fbbf24':t<120?'#fba92c':'#f87171');
+  _destroyChart('timeline');
+  const ctx=document.getElementById('timelineChart');if(!ctx)return;
+  _chartInstances.timeline=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#1a1a1a',borderWidth:1,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw>=60?Math.round(c.raw/6)/10+'min':c.raw+'s'}}},
+      scales:{y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#565656',callback:v=>v>=60?Math.round(v/60)+'m':v+'s'}},x:{grid:{display:false},ticks:{color:'#9e9e9e',font:{size:10,weight:'600'}}}}
+    }
+  });
+  // Stats
+  const total=Math.round(td.total_seconds||data.reduce((a,b)=>a+b,0));
+  const longest=Math.max(...data);
+  const longestName=labels[data.indexOf(longest)];
+  document.getElementById('timelineStats').innerHTML=`<div class="mehr-stat"><div class="v">${total>=60?Math.round(total/6)/10+'m':total+'s'}</div><div class="l">Całkowity czas</div></div><div class="mehr-stat"><div class="v" style="color:${longest>60?'var(--rd)':'var(--yl)'}">${longest}s</div><div class="l">Najdłuższy</div></div><div class="mehr-stat"><div class="v">${longestName}</div><div class="l">Bottleneck</div></div>`;
+}
+
+// 7. HEATMAP — Entity Co-occurrence
+function initCooccHeatmap(s1){
+  if(!s1||!s1.entity_seo||!s1.entity_seo.entity_cooccurrence)return;
+  const pairs=s1.entity_seo.entity_cooccurrence;if(!pairs.length)return;
+  document.getElementById('cooccPane').style.display='';
+  const entSet=new Set();
+  pairs.forEach(p=>{entSet.add(p.entity_a||p[0]||'');entSet.add(p.entity_b||p[1]||'')});
+  const ents=Array.from(entSet).filter(Boolean).slice(0,10);
+  if(ents.length<2)return;
+  const mx={};ents.forEach(a=>{mx[a]={};ents.forEach(b=>{mx[a][b]=0})});
+  pairs.forEach(p=>{const a=p.entity_a||p[0],b=p.entity_b||p[1],s=p.strength||p.score||p[2]||0.5;if(mx[a]&&mx[a][b]!==undefined){mx[a][b]=s;mx[b][a]=s}});
+  const grid=document.getElementById('cooccGrid');if(!grid)return;
+  const n=ents.length+1;
+  grid.style.gridTemplateColumns=`80px repeat(${ents.length},1fr)`;
+  let html='<div></div>';
+  ents.forEach(e=>{html+=`<div style="font-size:8px;color:var(--mg);text-align:center;padding:4px;writing-mode:vertical-rl;overflow:hidden;max-height:80px">${esc(e.substring(0,12))}</div>`});
+  ents.forEach(a=>{
+    html+=`<div style="font-size:9px;color:var(--mg);padding:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.substring(0,12))}</div>`;
+    ents.forEach(b=>{
+      const v=mx[a][b]||0;
+      const bg=a===b?'var(--s3)':v>=0.7?'rgba(251,169,44,.6)':v>=0.4?'rgba(251,191,36,.35)':v>=0.1?'rgba(52,211,153,.2)':'var(--s3)';
+      const fg=v>=0.5?'var(--white)':'var(--mg)';
+      html+=`<div class="heatmap-cell" style="background:${bg};color:${fg}" title="${esc(a)} ↔ ${esc(b)}: ${v.toFixed(2)}">${a===b?'—':v>0?v.toFixed(1):'·'}</div>`;
+    });
+  });
+  grid.innerHTML=html;
+}
+
+// Master init — call after all data is available
+function initAllCharts(){
+  if(finalData)initRadarChart(finalData);
+  if(batchLog&&batchLog.length)initBatchChart(batchLog);
+  if(salienceData&&salienceData.entities)initSalienceChart(salienceData);
+  if(finalData)initKwCoverageChart(finalData,batchLog);
+  if(s1Data&&finalData)initWordDistChart(s1Data,finalData);
+  if(stepTimingData)initTimelineChart(stepTimingData);
+  if(s1Data)initCooccHeatmap(s1Data);
 }
 </script>
 </body>
