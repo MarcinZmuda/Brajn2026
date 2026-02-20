@@ -876,7 +876,7 @@ def sentence_length_retry(text: str, h2: str = "", avg_len: float = 0, long_coun
     if not ANTHROPIC_API_KEY:
         return text
 
-    problem_desc = f"Średnia długość zdania: {avg_len:.0f} słów (cel: ≤18). Zdań powyżej 35 słów: {long_count}."
+    problem_desc = f"Średnia długość zdania: {avg_len:.0f} słów (cel: ≤14). Zdań powyżej 22 słów: {long_count}."
 
     prompt = f"""Skróć zdania w poniższym fragmencie artykułu SEO.
 
@@ -884,12 +884,14 @@ PROBLEM: {problem_desc}
 SEKCJA: {h2}
 
 ZASADY:
-1. Rozbij TYLKO zdania dłuższe niż 25 słów — podziel je na 2 krótsze.
-2. Zachowaj CAŁĄ treść merytoryczną — zero usuwania informacji.
-3. Zachowaj strukturę HTML (tagi p, ul, li, h2, h3 itp.) bez zmian.
-4. Nie zmieniaj zdań krótszych niż 20 słów — zostaw je identycznie.
-5. Cel po edycji: średnia długość zdania 12–18 słów.
-6. Odpowiedz TYLKO przepisanym HTML, bez żadnych komentarzy.
+1. Rozbij KAŻDE zdanie dłuższe niż 22 słów — podziel na 2 krótsze.
+2. Rozbij też zdania 16-22 słów jeśli mają 2+ przecinki.
+3. Zachowaj CAŁĄ treść merytoryczną — zero usuwania informacji.
+4. Zachowaj strukturę HTML (tagi p, ul, li, h2, h3 itp.) bez zmian.
+5. Nie zmieniaj zdań krótszych niż 16 słów — zostaw je identycznie.
+6. Cel po edycji: średnia długość zdania 10–14 słów.
+7. Odpowiedz TYLKO przepisanym HTML, bez żadnych komentarzy.
+8. WAŻNE: Jeśli wiele zdań zaczyna się od tej samej frazy — zmień początek na synonim.
 
 Technika rozbijania:
 - „X, który/która/które Y, skutkuje Z" → „X skutkuje Z. [Nowe zdanie:] Dzieje się tak, ponieważ Y."
