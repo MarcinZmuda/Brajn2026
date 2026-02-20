@@ -507,6 +507,20 @@
         <div id="prog" style="display:none">
             <div class="steps" id="stC"></div>
                         <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
+            <!-- Fix #39: S1 Running state — pasek postępu jak editorial -->
+            <div class="ed-running-state" id="s1Running">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <div style="display:flex;align-items:center">
+                  <span class="ed-running-pulse"></span>
+                  <span style="font-size:10px;font-weight:600;color:var(--white)">📊 S1 Analysis w toku...</span>
+                </div>
+                <span style="font-size:8px;color:var(--mg)" id="s1RunningElapsed">0s</span>
+              </div>
+              <div class="long-step-bar active">
+                <div class="lsb-track"><div class="lsb-fill"></div></div>
+              </div>
+              <div style="margin-top:8px;font-size:8px;color:var(--mg)">Analiza SERP, n-gramów, encji i konkurencji — zwykle 30–60 sekund</div>
+            </div>
             <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" onclick="tPnl('s1P')"><span>📊 Analiza S1 — Pełna mapa tematu</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B" style="max-height:900px"></div></div>
             <div id="sourcesBox" style="display:none;border:1px solid var(--b1);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--s1)"></div>
             <div class="pnl" id="biP" style="display:none"><div class="pnl-h" onclick="tPnl('biP')"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
@@ -833,6 +847,19 @@ function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.get
       }
     }
   }
+  // Fix #39: S1 running state in workflow tab
+  if(s===1){
+    const s1Run=document.getElementById('s1Running');
+    if(s1Run){
+      if(st==='running'){
+        s1Run.classList.add('active');
+        if(!s1Run._timer){s1Run._start=Date.now();s1Run._timer=setInterval(function(){const el=document.getElementById('s1RunningElapsed');if(el)el.textContent=Math.round((Date.now()-s1Run._start)/1000)+'s';},1000);}
+      } else {
+        s1Run.classList.remove('active');
+        if(s1Run._timer){clearInterval(s1Run._timer);s1Run._timer=null;}
+      }
+    }
+  }
 }
 function tPnl(id){const p=document.getElementById(id),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');b.classList.toggle('open');h.classList.toggle('open')}
 function tBd(id){document.getElementById(id).classList.toggle('open')}
@@ -911,7 +938,7 @@ function rS1(d){
     if(cc.length){b2+=`<div style="font-size:11px;color:var(--mg);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Łańcuchy (A → B → C)</div>`;cc.slice(0,8).forEach(t=>{b2+=`<div class="s1-cause"><span class="from">${esc(t.cause||t.from||'?')}</span><span class="arrow">→</span><span class="to">${esc(t.effect||t.to||'?')}</span></div>`})}
     if(csi.length){b2+=`<div style="font-size:11px;color:var(--mg);margin:8px 0 6px;text-transform:uppercase;letter-spacing:.5px">Relacje kauzalne</div>`;csi.slice(0,8).forEach(t=>{b2+=`<div class="s1-cause"><span class="from">${esc(t.cause||t.from||'?')}</span><span class="arrow">→</span><span class="to">${esc(t.effect||t.to||'?')}</span></div>`})}
     if(d.causal_instruction)b2+=`<div style="margin-top:8px"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja</div><div class="s1-instr">${esc(d.causal_instruction)}</div></div>`;
-    if(!totalC)b2+=`<div style="color:var(--mg);font-style:italic">Brak danych kauzalnych z konkurencji</div>`;
+    if(!totalC)b2+=`<div style="color:var(--mg);font-style:italic;font-size:11px;padding:6px 0">ℹ️ Brak relacji przyczynowo-skutkowych w treści konkurencji dla tego tematu. To normalne dla niektórych zapytań (np. informacyjnych). Treść zostanie wygenerowana bez causal triplets.</div>`;
     h+=s1Sec(2,'Causal Triplets — mapa przyczynowo-skutkowa',`${totalC} relacji`,b2);
 
     // ─── 3️⃣ Gap Analysis ───
@@ -923,7 +950,7 @@ function rS1(d){
     if(dM.length){b3+=`<div style="margin:6px 0"><div style="font-size:11px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px"><span style="color:var(--yl)">🟡</span> Depth Missing (${dM.length})</div>${dM.map(g=>`<span class="tag w">${el(g)}</span>`).join('')}</div>`}
     if(sh2.length){b3+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">✨ Sugerowane nowe H2</div>${sh2.map(x=>`<span class="tag g">${ss(x)}</span>`).join('')}</div>`}
     if(d.gaps_instruction)b3+=`<div style="margin-top:8px"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja priorytetów</div><div class="s1-instr">${esc(d.gaps_instruction)}</div></div>`;
-    if(!totalGaps&&!sh2.length)b3+=`<div style="color:var(--mg);font-style:italic">Brak wykrytych luk — sprawdź logi S1 (możliwa kontaminacja scrapera)</div>`;
+    if(!totalGaps&&!sh2.length)b3+=`<div style="color:var(--mg);font-style:italic;font-size:11px;padding:6px 0">ℹ️ Analiza nie wykryła luk w pokryciu tematycznym. Konkurencja może mieć zbyt podobną strukturę treści lub scraper nie wyekstrahował wystarczających danych z krótkich stron.</div>`;
     h+=s1Sec(3,'Gap Analysis — przewagi konkurencyjne',`${totalGaps} luk`,b3);
 
     // ─── 4️⃣ Entity SEO ───
@@ -1001,7 +1028,7 @@ function rS1(d){
     let b9='';
     const paa=d.paa_questions||[];
     const paaUn=d.paa_unanswered_count||0;
-    if(paa.length){b9+=`<div class="s1-grid" style="grid-template-columns:repeat(2,1fr)"><div class="s1-stat"><div class="v">${paa.length}</div><div class="l">Pytań z SERP</div></div><div class="s1-stat"><div class="v" style="color:var(--rd)">${paaUn}</div><div class="l">Niedopowiedz.</div></div></div>`;b9+=`<div style="margin:8px 0">${paa.map((q,i)=>{const txt=el(q),isUnanswered=pU.some(u=>el(u)===txt);return`<div style="padding:3px 0;font-size:13px;color:var(--lg)"><span style="color:${isUnanswered?'var(--rd)':'var(--orange)'};font-weight:700">${isUnanswered?'✗':'•'}</span> ${txt}</div>`}).join('')}</div>`}else{b9+=`<div style="color:var(--mg);font-style:italic">Brak pytań PAA z SERP</div>`}
+    if(paa.length){b9+=`<div class="s1-grid" style="grid-template-columns:repeat(2,1fr)"><div class="s1-stat"><div class="v">${paa.length}</div><div class="l">Pytań z SERP</div></div><div class="s1-stat"><div class="v" style="color:var(--rd)">${paaUn}</div><div class="l">Niedopowiedz.</div></div></div>`;b9+=`<div style="margin:8px 0">${paa.map((q,i)=>{const txt=el(q),isUnanswered=pU.some(u=>el(u)===txt);return`<div style="padding:3px 0;font-size:13px;color:var(--lg)"><span style="color:${isUnanswered?'var(--rd)':'var(--orange)'};font-weight:700">${isUnanswered?'✗':'•'}</span> ${txt}</div>`}).join('')}</div>`}else{b9+=`<div style="color:var(--mg);font-style:italic;font-size:11px;padding:6px 0">ℹ️ SerpAPI nie zwróciło pytań PAA dla tego zapytania. Pytania FAQ zostaną wygenerowane na podstawie analizy tematu i related searches.</div>`}
     h+=s1Sec(9,'Potencjał FAQ / PAA',`${paa.length} pytań`,b9);
 
     // ─── 🔟 Agent Instructions ───
@@ -1054,7 +1081,7 @@ function rS1(d){
         // Compute recommended length range
         const recLen=d.recommended_length||3000,medLen=d.median_length||0;
         b12+=`<div style="margin-top:8px;padding:8px;background:var(--sb);border-radius:6px"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">📏 Rekomendowana struktura</div><div style="font-size:13px;color:var(--lg)">Sekcji H2: <b>${Math.max(sgH2.length, Math.min(10,Math.round(recLen/400)))}</b> | Długość: <b>${recLen}</b> słów | Mediana konkurencji: <b>${medLen}</b> słów</div></div>`;
-    }else{b12+=`<div style="color:var(--mg);font-style:italic">Brak danych o sugerowanej strukturze — sprawdź logi S1</div>`}
+    }else{b12+=`<div style="color:var(--mg);font-style:italic;font-size:11px;padding:6px 0">ℹ️ Konkurencja nie zawiera wystarczającej struktury H2 do ekstrakcji wzorców. Plan H2 zostanie wygenerowany przez AI na podstawie encji i analizy tematu.</div>`}
     h+=s1Sec(12,'Sugerowana struktura artykułu',`${sgH2.length} H2`,b12);
 
     document.getElementById('s1B').innerHTML=h;
@@ -1176,14 +1203,16 @@ async function startWorkflow(){
         es.addEventListener('project',e=>{const d=JSON.parse(e.data);tb=d.total_batches;log(`Project: ${d.project_id}`);const r=document.getElementById('bRes');r.innerHTML='';for(let i=1;i<=tb;i++)r.innerHTML+=`<div class="bchip pend" id="bc${i}">B${i}</div>`});
         es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:15px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(h)}</div>`).join('')});
         es.addEventListener('auto_basic_terms',e=>{const d=JSON.parse(e.data);if(d.terms&&d.terms.length){const ta=document.getElementById('basicTerms');ta.value=d.terms.join('\n');ta.rows=Math.min(12,d.terms.length+1);document.getElementById('bsc').style.display=''}});
-        es.addEventListener('s1_data',e=>{s1Data=JSON.parse(e.data);rS1(s1Data);document.getElementById('tbS1').textContent='✓';const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}try{initCooccHeatmap(s1Data)}catch(e2){console.warn('cooccHeatmap:',e2)}});
+        es.addEventListener('s1_data',e=>{s1Data=JSON.parse(e.data);rS1(s1Data);document.getElementById('tbS1').textContent='✓';const _s1Run=document.getElementById('s1Running');if(_s1Run){_s1Run.classList.remove('active');if(_s1Run._timer){clearInterval(_s1Run._timer);_s1Run._timer=null;}}const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}try{initCooccHeatmap(s1Data)}catch(e2){console.warn('cooccHeatmap:',e2)}});
         es.addEventListener('phrase_hierarchy',e=>{const d=JSON.parse(e.data);if(s1Data&&d.phrase_hierarchy_preview){s1Data.phrase_hierarchy_preview=d.phrase_hierarchy_preview;rS1(s1Data);}});
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
         es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
         es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);batchLog.push(d);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}if(d.accepted&&d.text_preview){liveArticle+=(liveArticle?'\n\n':'')+d.text_preview;renderArt(liveArticle)}try{initBatchChart(batchLog)}catch(e){console.warn('batchChart:',e)}});
         es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);editorialData=d;document.getElementById('edC').style.display='';
-    // Fix #35: Ukryj edRunning gdy editorial się skończy (nawet z błędem)
+    // Fix #35+#43: Ukryj edRunning i oznacz step 10 jako done
     const _edRun=document.getElementById('edRunning');if(_edRun){_edRun.classList.remove('active');if(_edRun._timer){clearInterval(_edRun._timer);_edRun._timer=null;}}
+    // Fix #43: Defensive — update step 10 pill when editorial event arrives
+    try{uStep(10,d._failed?'warning':'done',d._failed?'Błąd editorial':`Ocena: ${d.score}/10`)}catch(e2){}
     // Fix #35: Obsługa editorial failure
     if(d._failed){document.getElementById('edSc').innerHTML=`<span style="color:var(--rd)">✗</span>`;document.getElementById('edCh').textContent='—';document.getElementById('edW').textContent='—';document.getElementById('edR').textContent='—';const det=document.getElementById('edDet');det.innerHTML=`<div style="color:var(--rd);font-weight:600;margin-bottom:8px">❌ Editorial Review nie powiódł się</div><div style="color:var(--mg);font-size:12px">${esc(d._error||'Nieznany błąd')}</div><div style="margin-top:8px;color:var(--mg);font-size:11px">Artykuł został zachowany bez zmian editorial.</div>`;det.style.display='block';return;}
     document.getElementById('edSc').innerHTML=`${d.score}<span>/10</span>`;
@@ -1207,7 +1236,10 @@ async function startWorkflow(){
     if(d.brakujace_encje&&d.brakujace_encje.length){h+=`<div style="font-weight:700;margin:10px 0 4px">🎯 Brakujące encje:</div>`;d.brakujace_encje.slice(0,8).forEach(e2=>{h+=`<div style="margin:2px 0;font-size:12px"><span style="color:var(--orange);font-weight:600">${esc(e2.encja||'')}</span> <span style="color:var(--mg)">→ ${esc(e2.jak||e2.gdzie_wplesc||'')}</span></div>`})}
     // Gramatyka
     if(d.grammar_fixes>0||d.grammar_removed&&d.grammar_removed.length){h+=`<div style="margin:10px 0 4px;font-size:12px;color:var(--mg)">🔤 Gramatyka: ${d.grammar_fixes||0} poprawek`;if(d.grammar_removed&&d.grammar_removed.length)h+=` | Usunięte: ${d.grammar_removed.map(p=>'"'+esc(p)+'"').join(', ')}`;h+=`</div>`}
-    if(!h)h='<div style="color:var(--mg);padding:12px;text-align:center">Recenzja nie zawiera szczegółów do wyświetlenia</div>';det.innerHTML=h;det.style.display='block';
+    // Fix #43: Fallback — render raw feedback keys if nothing else matched
+    if(!h&&d.feedback&&typeof d.feedback==='object'){const fb=d.feedback;const fbKeys=Object.keys(fb);if(fbKeys.length){h+=`<div style="font-weight:700;margin-bottom:6px">📋 Dane recenzji (${fbKeys.length} sekcji):</div>`;fbKeys.forEach(k=>{const v=fb[k];if(!v)return;if(typeof v==='string'&&v.length>0){h+=`<div style="margin:4px 0;padding:6px 8px;background:var(--s2);border-radius:4px;font-size:12px"><b>${esc(k)}:</b> ${esc(v.substring(0,200))}</div>`}else if(Array.isArray(v)&&v.length){h+=`<div style="margin:4px 0"><b style="font-size:11px">${esc(k)} (${v.length}):</b></div>`;v.slice(0,5).forEach(item=>{const txt=typeof item==='string'?item:JSON.stringify(item).substring(0,150);h+=`<div style="margin:2px 0;padding:4px 6px;font-size:11px;background:var(--s2);border-radius:3px;color:var(--mg)">${esc(txt)}</div>`})}})}}
+    if(!h)h='<div style="color:var(--mg);padding:12px;text-align:center">Recenzja nie zawiera szczegółów do wyświetlenia.<br><small>console.log("editorialData", editorialData) — sprawdź strukturę w devtools</small></div>';det.innerHTML=h;det.style.display='block';
+    console.log('[EDITORIAL] data keys:', Object.keys(d), 'feedback keys:', d.feedback?Object.keys(d.feedback):[], 'summary:', typeof d.summary, d.summary?d.summary.substring(0,100):'null');
     // FIX: Aktualizuj podgląd artykułu po poprawkach editorial
     if(d.corrected_article && d.corrected_article.length > 100){
       rawArticle = d.corrected_article;
@@ -1264,7 +1296,9 @@ async function startWorkflow(){
         es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss;updateQualityBar()});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:13px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:12px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:12px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
-        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
+        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
+        // Fix #47: Ukryj frazy BASIC z panelu po zakończeniu workflow
+        try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
 
         let rr=0;
@@ -1430,50 +1464,105 @@ function renderCompDash(){
       const ctx=ymylCtxData;
       const box=document.getElementById('sourcesBox');
       if(!box)return;
-      if(!ctx||((!ctx.legal||!ctx.legal.judgments)&&(!ctx.medical||!ctx.medical.publications)&&!window._wikiSources)){
+      // Fix #46: Show panel when ANY YMYL data exists (legal, medical, classification)
+      const hasLegal=ctx&&ctx.legal&&(ctx.legal.judgments||ctx.legal.legal_acts||ctx.legal.legal_articles||ctx.legal.instruction_preview);
+      const hasMedical=ctx&&ctx.medical&&(ctx.medical.publications||ctx.medical.guidelines||ctx.medical.instruction_preview);
+      const hasWiki=window._wikiSources&&window._wikiSources.length;
+      const hasClassification=ctx&&ctx.classification&&ctx.classification.category&&ctx.classification.category!=='general';
+      if(!hasLegal&&!hasMedical&&!hasWiki&&!hasClassification){
         box.style.display='none';return;
       }
       box.style.display='';
       const G='var(--gn)',O='var(--orange)',M='var(--mg)',P='var(--pr)',B='var(--b1)';
-      let h=`<div style="font-size:11px;color:${P};font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📦 Źródła dostarczone do pisania</div>`;
-      
-      // Legal judgments
+      let h=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:13px;font-weight:800;color:var(--white);text-transform:uppercase;letter-spacing:.5px">📦 Zebrane informacje prawne / medyczne</div>`;
+      // Fix #46: Classification badge
+      if(ctx&&ctx.classification){
+        const cat=ctx.classification.category||'';
+        const conf=ctx.classification.confidence||0;
+        const int=ctx.ymyl_intensity||'none';
+        const intClr=int==='full'?'var(--rd)':int==='light'?'var(--yl)':'var(--mg)';
+        h+=`<span style="font-size:9px;padding:2px 8px;border-radius:10px;background:${intClr};color:#000;font-weight:700">${esc(cat.toUpperCase())} · ${int} · ${Math.round(conf*100)}%</span>`;
+      }
+      h+=`</div>`;
+
+      // Fix #46: Legal acts (ustawy, kodeksy)
+      const lActs=(ctx.legal||{}).legal_acts||[];
+      if(lActs.length){
+        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">📜 Akty prawne (${lActs.length})</div>`;
+        lActs.forEach(a=>{
+          const name=typeof a==='string'?a:(a.name||a.title||JSON.stringify(a));
+          h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:12px;color:var(--lg);border-left:3px solid var(--yl)">
+            <span style="font-weight:600">${esc(name)}</span>
+          </div>`;
+        });
+        h+=`</div>`;
+      }
+
+      // Fix #46: Legal articles (art. 178a k.k. etc.)
+      const lArts=(ctx.legal||{}).legal_articles||[];
+      if(lArts.length){
+        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:${O};font-weight:700;margin-bottom:6px">📋 Przepisy (artykuły)</div>`;
+        h+=`<div style="display:flex;flex-wrap:wrap;gap:4px">`;
+        lArts.forEach(a=>{
+          const txt=typeof a==='string'?a:(a.article||a.text||JSON.stringify(a));
+          h+=`<span style="padding:3px 8px;background:rgba(251,169,44,.15);border:1px solid rgba(251,169,44,.3);border-radius:4px;font-size:11px;color:${O};font-weight:600">${esc(txt)}</span>`;
+        });
+        h+=`</div></div>`;
+      }
+
+      // Legal judgments (orzeczenia)
       const jj=(ctx.legal||{}).judgments||[];
       const jSkip=(ctx.legal||{}).judgments_skipped||[];
       if(jj.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:10px;color:${G};font-weight:600;margin-bottom:4px">⚖️ Orzeczenia (${jj.length})</div>`;
+        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:${G};font-weight:700;margin-bottom:6px">⚖️ Orzeczenia sądowe (${jj.length})</div>`;
         jj.forEach(j=>{
           const sig=j.signature||'';const court=(j.court||'').split(' ').slice(-2).join(' ');
           const art=j.matched_article?` <span style="color:${O};font-size:9px">[${esc(j.matched_article)}]</span>`:'';
-          h+=`<div style="padding:3px 6px;background:var(--s2);border-radius:4px;margin-bottom:2px;font-size:10px">
-            <span style="color:${P};font-weight:600">${esc(sig)}</span>${art}
+          const summ=j.summary?`<div style="color:var(--mg);font-size:10px;margin-top:2px;line-height:1.3">${esc(j.summary.substring(0,120))}</div>`:'';
+          h+=`<div style="padding:5px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;border-left:3px solid ${G}">
+            <div style="font-size:11px"><span style="color:${P};font-weight:700">${esc(sig)}</span>${art}
             <span style="color:${M};margin-left:4px">${esc(court)} ${j.date?'('+esc(j.date)+')':''}</span>
+            ${j.type?`<span style="color:var(--mg);font-size:9px;margin-left:4px">${esc(j.type)}</span>`:''}</div>
+            ${summ}
           </div>`;
         });
         if(jSkip.length)h+=`<div style="font-size:9px;color:${M};margin-top:2px">⚠️ Pominięto (błędna gałąź): ${jSkip.map(s=>`<span style='color:var(--yl)'>${esc(s)}</span>`).join(', ')}</div>`;
         h+=`</div>`;
       }
-      
+
+      // Fix #46: Legal instruction preview
+      const lInstr=(ctx.legal||{}).instruction_preview||'';
+      if(lInstr){
+        h+=`<div style="margin-bottom:10px;padding:6px 10px;background:rgba(52,211,153,.05);border-radius:4px;border-left:3px solid ${G}"><div style="font-size:9px;color:${G};font-weight:700;text-transform:uppercase;margin-bottom:3px">Instrukcja prawna dla modelu</div><div style="font-size:11px;color:var(--lg);line-height:1.4">${esc(lInstr)}</div></div>`;
+      }
+
+      // Fix #46: Citation hint
+      const citHint=(ctx.legal||{}).citation_hint||'';
+      if(citHint){
+        h+=`<div style="margin-bottom:10px;font-size:11px;color:var(--mg);padding:4px 8px;background:var(--s2);border-radius:4px">💡 ${esc(citHint)}</div>`;
+      }
+
       // Wikipedia articles
       const wiki=window._wikiSources||[];
       if(wiki.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--yl);font-weight:600;margin-bottom:4px">📖 Wikipedia — przepisy (${wiki.length})</div>`;
+        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">📖 Wikipedia — przepisy (${wiki.length})</div>`;
         wiki.forEach(w=>{
-          h+=`<div style="padding:3px 6px;background:var(--s2);border-radius:4px;margin-bottom:2px;font-size:10px">
+          h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid var(--yl)">
             <span style="color:var(--yl);font-weight:600">${esc(w.article_ref||'')}</span>
-            <span style="color:var(--white);margin-left:4px">${esc((w.title||'').substring(0,40))}</span>
+            <span style="color:var(--white);margin-left:4px">${esc((w.title||'').substring(0,50))}</span>
             <a href="${esc(w.url||'#')}" target="_blank" style="color:${M};font-size:9px;margin-left:4px">↗</a>
+            ${w.summary?`<div style="color:var(--mg);font-size:10px;margin-top:2px">${esc((w.summary||'').substring(0,100))}</div>`:''}
           </div>`;
         });
         h+=`</div>`;
       }
-      
+
       // Medical publications
       const pp=(ctx.medical||{}).publications||[];
       if(pp.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--yl);font-weight:600;margin-bottom:4px">🏥 Publikacje medyczne (${pp.length})</div>`;
+        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">🏥 Publikacje medyczne (${pp.length})</div>`;
         pp.slice(0,6).forEach(p=>{
-          h+=`<div style="padding:3px 6px;background:var(--s2);border-radius:4px;margin-bottom:2px;font-size:10px">
+          h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid var(--yl)">
             <span style="color:#fba92c;font-weight:600">PMID:${esc(p.pmid||'—')}</span>
             <span style="color:var(--white);margin-left:4px">${esc((p.title||'').substring(0,50))}</span>
             <span style="color:${M};margin-left:4px">${p.year||''}</span>
@@ -1482,7 +1571,46 @@ function renderCompDash(){
         h+=`</div>`;
       }
       
-      if(!jj.length&&!wiki.length&&!pp.length){box.style.display='none';return;}
+      // Fix #46: Medical guidelines
+      const mGuidelines=(ctx.medical||{}).guidelines||[];
+      if(mGuidelines.length){
+        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:${G};font-weight:700;margin-bottom:6px">📋 Wytyczne medyczne (${mGuidelines.length})</div>`;
+        mGuidelines.slice(0,5).forEach(g=>{
+          const txt=typeof g==='string'?g:(g.title||g.name||JSON.stringify(g));
+          h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid ${G}">${esc(txt)}</div>`;
+        });
+        h+=`</div>`;
+      }
+
+      // Fix #46: Medical instruction
+      const mInstr=(ctx.medical||{}).instruction_preview||'';
+      if(mInstr){
+        h+=`<div style="margin-bottom:10px;padding:6px 10px;background:rgba(52,211,153,.05);border-radius:4px;border-left:3px solid ${G}"><div style="font-size:9px;color:${G};font-weight:700;text-transform:uppercase;margin-bottom:3px">Instrukcja medyczna dla modelu</div><div style="font-size:11px;color:var(--lg);line-height:1.4">${esc(mInstr)}</div></div>`;
+      }
+
+      // Fix #46: Enrichment info from Claude classification
+      const enrich=ctx&&ctx.enrichment||{};
+      const legalE=enrich.legal||{};
+      const medE=enrich.medical||{};
+      // Legal definitions from Claude
+      if(legalE.definitions&&legalE.definitions.length){
+        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--pr);font-weight:700;margin-bottom:6px">📖 Definicje prawne</div>`;
+        legalE.definitions.forEach(def=>{
+          const txt=typeof def==='string'?def:(def.term||def.text||JSON.stringify(def));
+          h+=`<div style="padding:3px 8px;font-size:11px;color:var(--lg);border-left:2px solid var(--pr);margin-bottom:2px">${esc(txt)}</div>`;
+        });
+        h+=`</div>`;
+      }
+      // Medical MeSH terms
+      if(medE.mesh_terms&&medE.mesh_terms.length){
+        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--pr);font-weight:700;margin-bottom:6px">🔬 MeSH Terms</div>`;
+        h+=`<div style="display:flex;flex-wrap:wrap;gap:4px">${medE.mesh_terms.map(t=>`<span style="padding:2px 6px;background:var(--s2);border-radius:3px;font-size:10px;color:var(--lg)">${esc(t)}</span>`).join('')}</div></div>`;
+      }
+      // Medical specialization
+      if(medE.specialization){
+        h+=`<div style="margin-bottom:10px;font-size:11px;color:var(--mg)">🏥 Specjalizacja: <b style="color:var(--lg)">${esc(medE.specialization)}</b></div>`;
+      }
+
       box.innerHTML=h;
     }
 
