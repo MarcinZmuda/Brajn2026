@@ -3310,9 +3310,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                 "detail": "Nie udało się, kontynuuję"})
 
         # ─── CITATION PASS (YMYL only) ───
-        _wiki_arts_for_cit = ymyl_enrichment.get("_wiki_articles", [])
-        if is_legal and (judgments_clean or _wiki_arts_for_cit):
-            yield emit("log", {"msg": "📎 Citation pass — dopasowuję cytaty do tekstu..."})
+        # Fix #38: Citation pass — TYLKO orzeczenia i ISAP, BEZ Wikipedii
+        # Wikipedia służy do opisu encji, nie jako źródło cytowań
+        if is_legal and judgments_clean:
+            yield emit("log", {"msg": "📎 Citation pass — dopasowuję orzeczenia do tekstu..."})
             try:
                 _cit_art = brajen_call("get", f"/api/project/{project_id}/full_article")
                 if _cit_art["ok"] and _cit_art["data"].get("full_article"):
@@ -3326,23 +3327,20 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             + sig + ", " + j.get("court","") + " (" + j.get("date","") + ")"
                             + (" — " + j.get("summary","")[:100] if j.get("summary") else "")
                         )
-                    for w in _wiki_arts_for_cit[:3]:
-                        _cit_sources.append(
-                            "WIKIPEDIA [" + w.get("article_ref","") + "]: "
-                            + w.get("title","") + " — " + w.get("extract","")[:150]
-                            + " (" + w.get("url","") + ")"
-                        )
+                    # Fix #38: NIE dodajemy Wikipedii jako źródła cytatów
+                    # Wikipedia jest używana tylko do wzbogacania opisu encji w prompt_builder
                     if _cit_sources:
                         _cit_sys = (
                             "Jesteś redaktorem prawnym. Wstaw cytaty do artykułu TYLKO tam gdzie "
                             "akapit merytorycznie pokrywa się z danym orzeczeniem lub przepisem.\n\n"
                             "ZASADY:\n"
                             "1. Cytuj orzeczenie TYLKO gdy akapit dotyczy dokładnie tego zagadnienia\n"
-                            "2. Wikipedia: wstaw '(zob. Wikipedia: [tytuł])' tylko przy pierwszym użyciu przepisu\n"
+                            "2. NIE cytuj Wikipedii — nigdy nie pisz 'zob. Wikipedia', 'Wikipedia podaje' itp.\n"
                             "3. NIE zmieniaj treści — tylko dopisz cytat w nawiasie na końcu zdania\n"
                             "4. Jeśli akapit nie pasuje — zostaw bez zmian\n"
                             "5. Zwróć TYLKO artykuł, bez komentarzy\n"
-                            "6. Orzeczenia karne (II K, AKa) → tylko akapity o sankcjach karnych"
+                            "6. Orzeczenia karne (II K, AKa) → tylko akapity o sankcjach karnych\n"
+                            "7. Dopuszczalne źródła cytatów: orzeczenia sądowe (sygn. akt), ISAP, Dz.U."
                         )
                         _sep = chr(10)
                         _cit_usr = ("ARTYKUL:" + _sep + _art_text + _sep + _sep + "---" + _sep + "DOSTEPNE CYTATY:" + _sep + _sep.join(_cit_sources) + _sep + _sep + "Zwroc artykul z wstawionymi cytatami.")
@@ -3373,6 +3371,25 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if word_guard:
                 detail += f" | Słowa: {word_guard.get('original', '?')}→{word_guard.get('corrected', '?')}"
 
+            # Fix #37: Pełne dane editorial dla UI
+            _ef = ed.get("editorial_feedback") or {}
+            _summary = (
+                _ef.get("summary")
+                or _ef.get("recenzja_ogolna")
+                or ed.get("summary")
+                or ""
+            )
+            # Zbierz WSZYSTKIE styl_i_jezyk + merytoryka + struktura do errors_found
+            _errors_found = []
+            for err in (_ef.get("errors_to_fix") or ed.get("errors_to_fix") or [])[:10]:
+                _errors_found.append(err)
+            for item in (_ef.get("styl_i_jezyk") or [])[:5]:
+                _errors_found.append({"type": item.get("problem", "STYL"), "description": item.get("sugestia", ""), "original": item.get("cytat", "")})
+            for item in (_ef.get("merytoryka") or [])[:5]:
+                _errors_found.append({"type": "MERYTORYKA", "description": item.get("uwaga", ""), "original": item.get("cytat", ""), "sekcja": item.get("sekcja", "")})
+            for item in (_ef.get("halucynacje") or [])[:3]:
+                _errors_found.append({"type": "HALUCYNACJA", "description": item.get("dlaczego_falsz", ""), "original": item.get("cytat", "")})
+
             yield emit("editorial", {
                 "score": score,
                 "changes_applied": diff.get("applied", 0),
@@ -3381,14 +3398,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "word_count_after": word_guard.get("corrected"),
                 "rollback": rollback.get("triggered", False),
                 "rollback_reason": rollback.get("reason", ""),
-                "feedback": (ed.get("editorial_feedback") or {}),
+                "feedback": _ef,
                 # v50.7 FIX 41: Add change details for expanded panel
-                "applied_changes": (ed.get("applied_changes") or diff.get("applied_changes") or [])[:15],
-                "failed_changes": (ed.get("failed_changes") or diff.get("failed_changes") or [])[:10],
-                "summary": (ed.get("editorial_feedback") or {}).get("summary", ed.get("summary", "")),
-                "errors_found": (ed.get("editorial_feedback") or {}).get("errors_to_fix", [])[:10],
+                "applied_changes": (diff.get("applied_changes") or ed.get("applied_changes") or [])[:15],
+                "failed_changes": (diff.get("failed_changes") or ed.get("failed_changes") or [])[:10],
+                "summary": _summary,
+                "errors_found": _errors_found[:15],
                 "grammar_fixes": (ed.get("grammar_correction") or {}).get("fixes", 0),
                 "grammar_removed": (ed.get("grammar_correction") or {}).get("removed", [])[:5],
+                # Fix #37: Dodatkowe dane recenzji
+                "scores": ed.get("scores") or {},
+                "luki_tresciowe": (_ef.get("luki_tresciowe") or [])[:5],
+                "brakujace_encje": (_ef.get("brakujace_encje") or [])[:8],
+                "struktura_i_narracja": (_ef.get("struktura_i_narracja") or [])[:5],
             })
 
             if rollback.get("triggered"):
