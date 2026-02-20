@@ -147,7 +147,9 @@
 </head>
 <body>
     <div class="login-card">
-        <div class="logo-mark"><span>⚡</span></div>
+        <div class="logo-mark">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="BRAJEN" width="42" height="42" style="border-radius:10px">
+        </div>
         <h1><b>BRAJEN</b> SEO</h1>
         <div class="subtitle">Autonomous Content Engine</div>
         {% if error %}
