@@ -834,7 +834,19 @@ def is_garbage_regex(text: str) -> bool:
 # SENTENCE LENGTH RETRY — rozbija za długie zdania po akceptacji
 # ================================================================
 
-def check_sentence_length(text: str, max_avg: float = 20.0, max_hard: int = 35) -> dict:
+def check_sentence_length(text: str, max_avg: float = None, max_hard: int = None) -> dict:
+    # Fix #9: Import z shared_constants
+    try:
+        from shared_constants import SENTENCE_AVG_MAX_ALLOWED, SENTENCE_HARD_MAX
+        if max_avg is None:
+            max_avg = float(SENTENCE_AVG_MAX_ALLOWED)  # 20.0
+        if max_hard is None:
+            max_hard = SENTENCE_HARD_MAX  # 35
+    except ImportError:
+        if max_avg is None:
+            max_avg = 20.0
+        if max_hard is None:
+            max_hard = 35
     """
     Check if text has too-long sentences.
     Returns dict: {needs_retry, avg_len, long_count, long_sentences}

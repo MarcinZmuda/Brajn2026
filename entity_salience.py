@@ -790,7 +790,173 @@ def _style_issues(cv_sent, passive, transitions, repetition, cv_para, avg_len):
     return issues
 
 
-def analyze_subject_position(text, main_keyword):
+def _analyze_single_entity(text, keyword):
+    """
+    Helper function for analyzing a single entity with Polish declension variants.
+
+    Returns a scoring dict with:
+    - subject_ratio (0-1): how often entity appears as subject (0-40 pts)
+    - first_sentence (bool): entity in first sentence (0-15 pts)
+    - h2_count (int): number of H2 headers with entity (0-15 pts)
+    - paragraph_starts (int): number of paragraphs starting with entity (0-15 pts)
+    - presence_ratio (0-1): entity / total sentences (0-15 pts)
+    - score (0-100): weighted total
+    """
+    if not text or not keyword:
+        return {
+            "subject_ratio": 0.0,
+            "first_sentence": False,
+            "h2_count": 0,
+            "paragraph_starts": 0,
+            "presence_ratio": 0.0,
+            "score": 0,
+        }
+
+    # Polish declension variants generation
+    kw_lower = keyword.lower().strip()
+    kw_variants = {kw_lower}
+    kw_words = kw_lower.split()
+    kw_stems = []
+
+    _PL_SUFFIXES = ['ości', 'iem', 'ami', 'ach', 'ów', 'om', 'ie', 'ę', 'ą', 'u', 'a', 'em', 'y', 'i']
+    for word in kw_words:
+        stem = word
+        if len(word) > 4:
+            for suffix in _PL_SUFFIXES:
+                if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+                    stem = word[:-len(suffix)]
+                    break
+        kw_stems.append(stem)
+
+    # Legacy single-keyword variant
+    if len(kw_lower) > 4:
+        for suffix in ['u', 'a', 'em', 'ie', 'ę', 'ą', 'om', 'ami', 'ach', 'ów']:
+            if kw_lower.endswith(suffix):
+                stem = kw_lower[:-len(suffix)]
+                if len(stem) >= 3:
+                    kw_variants.add(stem)
+                break
+
+    def contains_entity(text_fragment):
+        """Check if entity is present."""
+        frag_lower = text_fragment.lower()
+        if any(v in frag_lower for v in kw_variants):
+            return True
+        if len(kw_stems) >= 2:
+            return all(stem in frag_lower for stem in kw_stems if len(stem) >= 3)
+        elif kw_stems:
+            return kw_stems[0] in frag_lower if len(kw_stems[0]) >= 3 else False
+        return False
+
+    # Split sentences and paragraphs
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
+    paragraphs = [p.strip() for p in text.split('\n') if len(p.strip()) > 20]
+
+    # Extract H2 headers
+    h2_lines = []
+    h2_lines.extend(re.findall(r'^##\s+(.+)$', text, re.MULTILINE))
+    h2_lines.extend(re.findall(r'^h2:\s*(.+)$', text, re.MULTILINE))
+    h2_lines.extend(re.findall(r'<h2[^>]*>(.*?)</h2>', text, re.IGNORECASE | re.DOTALL))
+
+    # Sentence analysis
+    subject_count = 0
+    sentences_with_entity = 0
+
+    if sentences:
+        # First sentence check
+        first_sentence = contains_entity(sentences[0])
+
+        # H2 analysis
+        h2_count = sum(1 for h in h2_lines if contains_entity(h))
+
+        # Paragraph starts analysis
+        paragraph_starts = 0
+        for p in paragraphs:
+            first_words = ' '.join(p.split()[:5])
+            if contains_entity(first_words):
+                paragraph_starts += 1
+
+        # Position analysis (subject/object/middle)
+        for sent in sentences:
+            if not contains_entity(sent):
+                continue
+            sentences_with_entity += 1
+
+            words = sent.split()
+            total_words = len(words)
+            if total_words < 3:
+                subject_count += 1
+                continue
+
+            first_3 = ' '.join(words[:3]).lower()
+            last_40pct = ' '.join(words[int(total_words * 0.6):]).lower()
+
+            if any(v in first_3 for v in kw_variants):
+                subject_count += 1
+
+        # Calculate ratios
+        subject_ratio = round(subject_count / sentences_with_entity, 3) if sentences_with_entity > 0 else 0.0
+        presence_ratio = round(sentences_with_entity / len(sentences), 3) if sentences else 0.0
+
+        # Scoring (max 100: subject 40 + first_sentence 15 + h2 15 + paragraph_starts 15 + presence 15)
+        score = 0
+
+        # Subject ratio (max 40 pts)
+        if subject_ratio >= 0.5:
+            score += 40
+        elif subject_ratio >= 0.35:
+            score += 30
+        elif subject_ratio >= 0.2:
+            score += 20
+        elif subject_ratio >= 0.1:
+            score += 10
+
+        # First sentence (15 pts)
+        if first_sentence:
+            score += 15
+
+        # H2 presence (15 pts)
+        if h2_count >= 2:
+            score += 15
+        elif h2_count >= 1:
+            score += 8
+
+        # Paragraph starts (15 pts)
+        para_ratio = paragraph_starts / max(1, len(paragraphs))
+        if para_ratio >= 0.3:
+            score += 15
+        elif para_ratio >= 0.15:
+            score += 8
+
+        # Entity presence (15 pts)
+        if presence_ratio >= 0.25:
+            score += 15
+        elif presence_ratio >= 0.15:
+            score += 10
+        elif presence_ratio >= 0.08:
+            score += 5
+
+        score = min(100, score)
+    else:
+        first_sentence = False
+        h2_count = 0
+        paragraph_starts = 0
+        subject_ratio = 0.0
+        presence_ratio = 0.0
+        score = 0
+
+    return {
+        "subject_ratio": subject_ratio,
+        "first_sentence": first_sentence,
+        "h2_count": h2_count,
+        "paragraph_starts": paragraph_starts,
+        "presence_ratio": presence_ratio,
+        "score": score,
+    }
+
+
+def analyze_subject_position(text, main_keyword, secondary_keywords=None):
     """
     Measure how often main entity appears as grammatical subject vs object.
     
@@ -976,6 +1142,19 @@ def analyze_subject_position(text, main_keyword):
         score += 5
 
     result["score"] = min(100, score)
+
+    # Handle secondary keywords with weighted aggregation (70/30)
+    if secondary_keywords:
+        secondary_scores = []
+        for secondary_kw in secondary_keywords:
+            sec_analysis = _analyze_single_entity(text, secondary_kw)
+            secondary_scores.append(sec_analysis.get("score", 0))
+
+        if secondary_scores:
+            avg_secondary = sum(secondary_scores) / len(secondary_scores)
+            # Weighted blend: 70% main keyword, 30% secondary average
+            result["score"] = min(100, int(result["score"] * 0.7 + avg_secondary * 0.3))
+
     return result
 
 

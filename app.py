@@ -588,6 +588,49 @@ Jeśli sekcja ma SAME śmieci, zwróć pustą listę/string."""
             "entities": entities,
         }
 # ============================================================
+# FIX #21: YMYL Cache helpers
+# ============================================================
+def _get_cached_ymyl(project_id, db):
+    """
+    Check Firestore cache for YMYL data.
+    Returns cached dict or None if not found or expired.
+    """
+    if not db or not project_id:
+        return None
+    try:
+        doc = db.collection("ymyl_cache").document(project_id).get()
+        if doc.exists:
+            data = doc.to_dict()
+            # Check expiration (24 hours)
+            import time
+            timestamp = data.get("_cached_at", 0)
+            if time.time() - timestamp < 86400:  # 24 hours
+                return data.get("ymyl_data")
+    except Exception as e:
+        logger.debug(f"[YMYL_CACHE] Get failed: {e}")
+    return None
+
+
+def _cache_ymyl(project_id, ymyl_data, db):
+    """
+    Save YMYL data to Firestore cache.
+    Returns True if successful, False otherwise.
+    """
+    if not db or not project_id:
+        return False
+    try:
+        import time
+        db.collection("ymyl_cache").document(project_id).set({
+            "ymyl_data": ymyl_data,
+            "_cached_at": time.time(),
+        })
+        return True
+    except Exception as e:
+        logger.debug(f"[YMYL_CACHE] Set failed: {e}")
+        return False
+
+
+# ============================================================
 # v50.7 FIX 46: LOCAL YMYL DETECTION (replaces master-seo-api call)
 # Single Claude Haiku call → classifies + enriches
 # Eliminates 404 error from broken /api/ymyl/detect_and_enrich
@@ -653,6 +696,72 @@ def _detect_ymyl_local(main_keyword: str) -> dict:
             "category": "general", "is_ymyl": False, "is_legal": False,
             "is_medical": False, "is_finance": False, "confidence": 0,
             "reasoning": f"Detection failed: {e}", "detection_method": "fallback",
+            "ymyl_intensity": "none", "legal": {}, "medical": {}, "finance": {},
+        }
+
+
+def _detect_ymyl(main_keyword: str) -> dict:
+    """
+    YMYL detection with master-seo-api enrichment.
+
+    Flow:
+    1. Call _detect_ymyl_local as pre-filter
+    2. If not YMYL: add detected_category, return
+    3. If YMYL: call master-seo-api /api/ymyl/detect_and_enrich for enrichment
+    4. Return enriched data with normalized detected_category
+    """
+    try:
+        # Step 1: Pre-filter with local detection
+        local_result = _detect_ymyl_local(main_keyword)
+        detected_category = local_result.get("category", "general")
+        is_ymyl = local_result.get("is_ymyl", False)
+
+        # Step 2: If not YMYL, add category and return early
+        if not is_ymyl:
+            local_result["detected_category"] = detected_category
+            local_result["enrichment_method"] = "local_only"
+            return local_result
+
+        # Step 3: If YMYL, try to enrich via master-seo-api
+        try:
+            master_api_url = os.environ.get("MASTER_SEO_API_URL", "http://localhost:5001")
+            api_key = os.environ.get("MASTER_SEO_API_KEY", "")
+
+            headers = {}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+
+            enrich_response = http_requests.post(
+                f"{master_api_url}/api/ymyl/detect_and_enrich",
+                json={"keyword": main_keyword, "local_detection": local_result},
+                headers=headers,
+                timeout=5
+            )
+
+            if enrich_response.status_code == 200:
+                enriched = enrich_response.json()
+                # Normalize detected_category from response
+                enriched["detected_category"] = enriched.get("detected_category", detected_category)
+                enriched["enrichment_method"] = "master_api_enriched"
+                logger.info(f"[YMYL_ENRICH] {main_keyword} enriched via master-seo-api")
+                return enriched
+            else:
+                logger.warning(f"[YMYL_ENRICH] Master API returned {enrich_response.status_code}, using local result")
+        except Exception as e:
+            logger.warning(f"[YMYL_ENRICH] Master API call failed: {e}, using local result")
+
+        # Step 4: Fallback to local result with enrichment_method set
+        local_result["detected_category"] = detected_category
+        local_result["enrichment_method"] = "local_fallback"
+        return local_result
+
+    except Exception as e:
+        logger.error(f"[YMYL_ENRICH] Error in _detect_ymyl: {e}")
+        return {
+            "category": "general", "is_ymyl": False, "is_legal": False,
+            "is_medical": False, "is_finance": False, "confidence": 0,
+            "reasoning": f"YMYL detection error: {e}", "detection_method": "error",
+            "detected_category": "general", "enrichment_method": "error",
             "ymyl_intensity": "none", "legal": {}, "medical": {}, "finance": {},
         }
 
@@ -2103,7 +2212,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # v47.2: ONE Claude Sonnet call → classifies + returns search hints
         # v50.7 FIX 46: Run LOCALLY (Haiku) instead of broken brajen_call to master-seo-api
-        ymyl_data = _detect_ymyl_local(main_keyword)
+        # 🆕 Fix #13 v4.2: Use _detect_ymyl (pre-filter + master enrichment) instead of _detect_ymyl_local
+        ymyl_data = _detect_ymyl(main_keyword)
         is_legal = ymyl_data.get("is_legal", False)
         is_medical = ymyl_data.get("is_medical", False)
         is_finance = ymyl_data.get("is_finance", False)

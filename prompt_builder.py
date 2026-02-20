@@ -19,6 +19,21 @@ Architecture:
 import json
 import logging
 
+# Fix #9 v4.2: import shared sentence-length constants
+try:
+    from shared_constants import (
+        SENTENCE_AVG_TARGET, SENTENCE_AVG_TARGET_MIN, SENTENCE_AVG_TARGET_MAX,
+        SENTENCE_SOFT_MAX, SENTENCE_HARD_MAX, SENTENCE_AVG_MAX_ALLOWED
+    )
+except ImportError:
+    # Fallback defaults if shared_constants unavailable
+    SENTENCE_AVG_TARGET = 15
+    SENTENCE_AVG_TARGET_MIN = 12
+    SENTENCE_AVG_TARGET_MAX = 18
+    SENTENCE_SOFT_MAX = 30
+    SENTENCE_HARD_MAX = 35
+    SENTENCE_AVG_MAX_ALLOWED = 20
+
 _pb_logger = logging.getLogger(__name__)
 
 
@@ -207,8 +222,9 @@ Rozkład długości zdań w każdym akapicie:
   • 20% długich (19–28 słów) — MAX 1 długie na akapit
 
 TWARDE LIMITY:
-  • ŻADNE zdanie nie może przekroczyć 30 słów — jeśli tak jest, ROZBIJ je.
-  • Średnia w całym batchu: cel ≤ 18 słów/zdanie.
+  • ŻADNE zdanie nie może przekroczyć 35 słów — jeśli tak jest, ROZBIJ je.
+  • Rozbij proaktywnie zdania >25 słów na dwa.
+  • Średnia w całym batchu: cel 12–18 słów/zdanie (max dopuszczalna: 20).
 
 Technika rozbijania długich zdań:
   ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
@@ -227,9 +243,8 @@ Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
 SUBJECT POSITION — (reguła rotacji encji wstrzykiwana dynamicznie per batch poniżej)
 
 SENTENCE LENGTH — długość zdań (KRYTYCZNE dla czytelności)
-  Maksimum bezwzględne: ŻADNE zdanie nie może przekroczyć 35 słów.
-  Cel średniej: 12–18 słów na zdanie.
-  Jeśli zdanie liczy >25 słów → rozbij je na dwa.
+  Maksimum bezwzględne: 35 słów (HARD_MAX). Rozbij proaktywnie >25 słów.
+  Cel średniej: 12–18 słów na zdanie (target: 15, max dopuszczalna: 20).
   ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
   ❌ „Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka na mocy art. 178a Kodeksu karnego, obowiązuje przez okres od 3 do nawet 15 lat i nie podlega warunkowemu zawieszeniu."
 

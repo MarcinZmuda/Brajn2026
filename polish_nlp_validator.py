@@ -34,7 +34,7 @@ NKJP_TARGETS = {
     "vowel_ratio": {"target": 0.365, "tolerance": 0.025, "unit": "%"},
     "digraph_ratio": {"target": 0.03, "tolerance": 0.01, "unit": "%"},
     "comma_density": {"target": 0.015, "min": 0.01, "max": 0.025, "unit": "%"},
-    "fog_pl": {"target": 9.0, "min": 6, "max": 14, "unit": ""},
+    "fog_pl": {"target": 9.0, "min": 7, "max": 12, "unit": ""},
 }
 
 # Polish diacritics
