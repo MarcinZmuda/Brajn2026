@@ -216,31 +216,29 @@ Wzorce: powoduje, skutkuje, prowadzi do, zapobiega, w wyniku, ponieważ
 ✅ "Wzrost temperatury powyżej 100°C powoduje wrzenie, co prowadzi do parowania."
 ❌ "Temperatura wynosi X°C." (suche stwierdzenie bez funkcji)
 
-BURSTINESS — rytm zdań (cel: CV zdań 0.35–0.45, śr. 12–18 słów)
+BURSTINESS — rytm zdań (cel: CV zdań 0.30–0.45, śr. 14–18 słów)
 
 Rozkład długości zdań w każdym akapicie:
-  • 30% krótkich (do 8 słów) — fakty, definicje, konkrety
-  • 50% średnich (9–15 słów) — rdzeń tekstu
-  • 20% dłuższych (16–20 słów) — MAX 1 na akapit, MAX 1 przecinek
+  • 20% krótkich (do 10 słów) — fakty, definicje, konkrety
+  • 55% średnich (11–20 słów) — rdzeń tekstu, naturalny styl
+  • 25% dłuższych (21–26 słów) — złożone wyjaśnienia, MAX 2 przecinki
 
 TWARDE LIMITY:
-  • ŻADNE zdanie nie może przekroczyć 22 słów — jeśli tak jest, ROZBIJ je natychmiast.
-  • Rozbij proaktywnie zdania >16 słów na dwa.
-  • Średnia w całym batchu: cel 8–14 słów/zdanie (max dopuszczalna: 15).
-  • MAX 1 PRZECINEK na zdanie. Zdanie z 2+ przecinkami = ZA ZŁOŻONE → rozbij.
-  • ZAKAZ zdań wielokrotnie złożonych (z: „który", „ponieważ", „a także", „lecz również").
+  • ŻADNE zdanie nie może przekroczyć 28 słów — jeśli tak jest, ROZBIJ je.
+  • Średnia w całym batchu: cel 14–18 słów/zdanie (max dopuszczalna: 19).
+  • MAX 2 PRZECINKI na zdanie. Zdanie z 3+ przecinkami = ZA ZŁOŻONE → rozbij.
   • NIE ZACZYNAJ wielu zdań od tej samej frazy — to spam, nie treść ekspercka.
+  • WAŻNE: Unikaj URWANYCH zdań (3-6 słów bez treści). Każde zdanie musi nieść informację.
 
-Reguła jednego przecinka:
-  ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
-  ✅ „Mandat wynosi od 2500 zł, a górna granica to 30 000 zł."
-  ❌ „Kierowca może otrzymać mandat w wysokości od 2500 do 30 000 zł, a sąd dodatkowo cofa prawo jazdy, co oznacza zakaz prowadzenia." (3 przecinki = za złożone)
-  ❌ „Zakaz prowadzenia, obligatoryjnie orzekany przez sąd, trwa od 3 do 15 lat i nie podlega zawieszeniu." (2 wtrącenia = za złożone)
+Reguła przecinków:
+  ✅ „Zakaz prowadzenia pojazdów trwa od 3 do 15 lat i nie podlega zawieszeniu."
+  ✅ „Mandat wynosi od 2500 zł, a w przypadku recydywy górna granica to 30 000 zł."
+  ❌ „Kierowca może otrzymać mandat w wysokości od 2500 do 30 000 zł, a sąd dodatkowo cofa prawo jazdy, co oznacza zakaz prowadzenia, który trwa minimum 3 lata." (4 przecinki = za złożone)
 
 Technika rozbijania:
-  ✅ Jedno zdanie = jedna myśl. Kropka. Następne zdanie = następna myśl.
+  ✅ Jedno zdanie = jedna główna myśl. Dopuszczalne jedno rozwinięcie po przecinku.
   ✅ Długa wyliczanka → zdanie wprowadzające + lista HTML (ul/li)
-  ✅ Zamiast „bo", „ponieważ", „gdyż" → nowe zdanie z „Powód:" lub „Dlatego".
+  ✅ Zamiast łańcucha „bo… ponieważ… gdyż…" → nowe zdanie.
 
 Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
   ✅ Krótkie zdanie niesie konkret: "Zakaz trwa od 3 do 15 lat."
@@ -252,9 +250,9 @@ Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
 SUBJECT POSITION — (reguła rotacji encji wstrzykiwana dynamicznie per batch poniżej)
 
 SENTENCE LENGTH — długość zdań (KRYTYCZNE dla czytelności)
-  Maksimum bezwzględne: 22 słów (HARD_MAX). Rozbij proaktywnie >16 słów.
-  Cel średniej: 8–14 słów na zdanie (target: 12, max dopuszczalna: 15).
-  MAX 1 przecinek na zdanie. Zdania wielokrotnie złożone = ZAKAZ.
+  Maksimum bezwzględne: 28 słów (HARD_MAX). Rozbij zdania >28 słów.
+  Cel średniej: 14–18 słów na zdanie (target: 14, max dopuszczalna: 19).
+  MAX 2 przecinki na zdanie. Unikaj URWANYCH mini-zdań (3-6 słów).
   ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
   ❌ „Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka na mocy art. 178a Kodeksu karnego, obowiązuje przez okres od 3 do nawet 15 lat i nie podlega warunkowemu zawieszeniu."
 

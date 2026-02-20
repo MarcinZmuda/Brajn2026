@@ -739,12 +739,17 @@ def _detect_ymyl(main_keyword: str) -> dict:
             )
 
             if enrich_response.status_code == 200:
-                enriched = enrich_response.json()
-                # Normalize detected_category from response
-                enriched["detected_category"] = enriched.get("detected_category", detected_category)
-                enriched["enrichment_method"] = "master_api_enriched"
-                logger.info(f"[YMYL_ENRICH] {main_keyword} enriched via master-seo-api")
-                return enriched
+                # Fix #55: Guard against empty/non-JSON responses
+                _resp_text = enrich_response.text.strip()
+                if not _resp_text or not _resp_text.startswith('{'):
+                    logger.warning(f"[YMYL_ENRICH] Master API returned empty/non-JSON: {_resp_text[:100]}, using local result")
+                else:
+                    enriched = enrich_response.json()
+                    # Normalize detected_category from response
+                    enriched["detected_category"] = enriched.get("detected_category", detected_category)
+                    enriched["enrichment_method"] = "master_api_enriched"
+                    logger.info(f"[YMYL_ENRICH] {main_keyword} enriched via master-seo-api")
+                    return enriched
             else:
                 logger.warning(f"[YMYL_ENRICH] Master API returned {enrich_response.status_code}, using local result")
         except Exception as e:
@@ -3051,7 +3056,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             else:
                                 yield emit("log", {"msg": f"✅ Domain validator: czysto [{_dv_category}]"})
 
-                    # Fix #44: Keyword anti-stuffing check
+                    # Fix #44 + Fix #54: Keyword anti-stuffing with context-aware replacements
                     import re as _re_stuff
                     _main_kw_lower = main_keyword.lower()
                     _kw_count = len(_re_stuff.findall(_re_stuff.escape(_main_kw_lower), text.lower()))
@@ -3061,14 +3066,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         if _kw_density > 2.5 or _kw_count > 4:
                             yield emit("log", {"msg": f"⚠️ Keyword stuffing: '{main_keyword}' x{_kw_count} ({_kw_density:.1f}%) — za dużo powtórzeń"})
                             if attempt < max_attempts - 1:
-                                # Quick regex-based dedup: replace excess occurrences with pronoun
+                                # Fix #54: Context-aware replacements instead of hardcoded legal terms
+                                _destuff_replacements = [
+                                    "to zagadnienie", "ten temat", "ta kwestia",
+                                    "omawiany problem", "ten aspekt", "wspomniane zjawisko",
+                                ]
                                 _seen = 0
                                 def _destuff(m):
                                     nonlocal _seen
                                     _seen += 1
                                     if _seen <= 2:
                                         return m.group(0)
-                                    return "to zachowanie" if _seen % 2 == 0 else "ten czyn"
+                                    return _destuff_replacements[(_seen - 3) % len(_destuff_replacements)]
                                 text = _re_stuff.sub(_re_stuff.escape(main_keyword), _destuff, text, flags=_re_stuff.IGNORECASE)
                                 yield emit("log", {"msg": f"✅ Destuffed: zredukowano '{main_keyword}' z {_kw_count} do max 2 wystąpień"})
 
