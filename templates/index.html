@@ -90,14 +90,15 @@
         /* ═══ MAIN ═══ */
         .main{padding:0;overflow-y:auto;background:var(--bg)}.main-tab-panel{padding:16px 20px}
 
-        .welcome{text-align:center;padding:80px 20px}
-        .w-icon{
-            width:56px;height:56px;border-radius:14px;
-            background:linear-gradient(135deg,var(--og2),var(--og));
-            display:inline-flex;align-items:center;justify-content:center;
-            font-size:26px;margin-bottom:18px;border:1px solid rgba(251,169,44,.12)
+        .welcome{text-align:center;padding:60px 20px}
+        .w-logo{
+            width:120px;height:120px;border-radius:24px;
+            margin:0 auto 24px;
+            display:block;
+            filter:drop-shadow(0 4px 24px rgba(251,169,44,.2));
         }
-        .welcome h2{font-size:20px;font-weight:700;margin-bottom:6px;letter-spacing:-.4px}
+        .w-icon{display:none}
+        .welcome h2{font-size:22px;font-weight:700;margin-bottom:8px;letter-spacing:-.4px}
         .welcome p{color:var(--mg);font-size:15px;line-height:1.6}
 
         /* ═══ STEPS ═══ */
@@ -362,7 +363,7 @@
 </head>
 <body>
 <div class="hd">
-    <div class="hd-l"><img src="{{ url_for('static', filename='logo.png') }}" alt="BRAJEN" width="28" height="28" style="border-radius:6px;flex-shrink:0"><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge">V45.3</span></div>
+    <div class="hd-l"><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge">V45.3</span></div>
     <div class="hd-r"><span>{{ username }}</span><a href="/logout">Wyloguj</a></div>
 </div>
 
@@ -481,7 +482,7 @@
                 <div class="qb-bar"><div class="qb-fill" id="qbWordsBar" style="width:0%;background:var(--yl)"></div></div>
             </div>
         </div>
-        <div id="wel" class="welcome"><div class="w-icon">⚡</div><h2>BRAJEN SEO Engine</h2><p>Wpisz keyword i uruchom workflow</p></div>
+        <div id="wel" class="welcome"><img src="{{ url_for('static', filename='logo_brajen.png') }}" alt="BRAJEN" class="w-logo"><h2>BRAJEN SEO Engine</h2><p>Wpisz keyword i uruchom workflow</p></div>
         <div id="tabWorkflow" class="main-tab-panel on">
         <div id="prog" style="display:none">
             <div class="steps" id="stC"></div>
@@ -1107,7 +1108,28 @@ async function startWorkflow(){
     const _edRun=document.getElementById('edRunning');if(_edRun){_edRun.classList.remove('active');if(_edRun._timer){clearInterval(_edRun._timer);_edRun._timer=null;}}
     // Fix #35: Obsługa editorial failure
     if(d._failed){document.getElementById('edSc').innerHTML=`<span style="color:var(--rd)">✗</span>`;document.getElementById('edCh').textContent='—';document.getElementById('edW').textContent='—';document.getElementById('edR').textContent='—';const det=document.getElementById('edDet');det.innerHTML=`<div style="color:var(--rd);font-weight:600;margin-bottom:8px">❌ Editorial Review nie powiódł się</div><div style="color:var(--mg);font-size:12px">${esc(d._error||'Nieznany błąd')}</div><div style="margin-top:8px;color:var(--mg);font-size:11px">Artykuł został zachowany bez zmian editorial.</div>`;det.style.display='block';return;}
-    document.getElementById('edSc').innerHTML=`${d.score}<span>/10</span>`;document.getElementById('edCh').textContent=`${d.changes_applied}/${d.changes_applied+d.changes_failed}`;document.getElementById('edW').textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;document.getElementById('edR').textContent=d.rollback?'⚠️ TAK':'✓ NIE';const det=document.getElementById('edDet');let h='';if(d.summary)h+=`<div style="margin-bottom:8px;color:var(--mg)"><b>Podsumowanie:</b> ${esc(typeof d.summary==='string'?d.summary:d.summary.summary||'')}</div>`;if(d.applied_changes&&d.applied_changes.length){h+=`<div style="font-weight:700;color:var(--gn);margin-bottom:4px">✅ Zastosowane zmiany (${d.applied_changes.length}):</div>`;d.applied_changes.slice(0,10).forEach((c,i)=>{const f=c.find||c.original||c.ZNAJDŹ||'';const r=c.replace||c.corrected||c.ZAMIEŃ||'';if(f||r)h+=`<div style="margin:4px 0;padding:4px 6px;background:var(--bg2);border-radius:4px;font-size:12px"><span style="color:var(--rd);text-decoration:line-through">${esc(f.substring(0,80))}${f.length>80?'…':''}</span> → <span style="color:var(--gn)">${esc(r.substring(0,80))}${r.length>80?'…':''}</span></div>`})}if(d.failed_changes&&d.failed_changes.length){h+=`<div style="font-weight:700;color:var(--rd);margin:8px 0 4px">❌ Nieznalezione (${d.failed_changes.length}):</div>`;d.failed_changes.slice(0,5).forEach(c=>{const f=c.find||c.original||c.ZNAJDŹ||'';if(f)h+=`<div style="margin:2px 0;padding:2px 6px;font-size:12px;color:var(--rd);opacity:.7">${esc(f.substring(0,60))}…</div>`})}if(d.errors_found&&d.errors_found.length){h+=`<div style="font-weight:700;margin:8px 0 4px">🔍 Znalezione problemy:</div>`;d.errors_found.slice(0,8).forEach(err=>{const desc=typeof err==='string'?err:(err.description||err.error||err.type||'');const tp=typeof err==='object'?(err.type||''):'';h+=`<div style="margin:2px 0;font-size:12px">${tp?`<span style="color:var(--orange);font-weight:600">[${esc(tp)}]</span> `:''}${esc(desc.substring(0,100))}</div>`})}if(d.grammar_fixes>0||d.grammar_removed&&d.grammar_removed.length){h+=`<div style="margin:8px 0 4px;font-size:12px;color:var(--mg)">🔤 Gramatyka: ${d.grammar_fixes||0} poprawek`;if(d.grammar_removed&&d.grammar_removed.length)h+=` | Usunięte frazy: ${d.grammar_removed.map(p=>'"'+esc(p)+'"').join(', ')}`;h+=`</div>`}if(!h)h='<div style="color:var(--mg)">Brak szczegółów — kliknij aby odświeżyć</div>';det.innerHTML=h;det.style.display='block';
+    document.getElementById('edSc').innerHTML=`${d.score}<span>/10</span>`;
+    document.getElementById('edSc').style.color=d.score>=7?'var(--gn)':d.score>=5?'var(--yl)':'var(--rd)';
+    document.getElementById('edCh').textContent=`${d.changes_applied}/${d.changes_applied+d.changes_failed}`;document.getElementById('edW').textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;document.getElementById('edR').textContent=d.rollback?'⚠️ TAK':'✓ NIE';
+    const det=document.getElementById('edDet');let h='';
+    // Fix #37: Podsumowanie — szukaj w wielu miejscach
+    const _sum=typeof d.summary==='string'?d.summary:(d.summary&&d.summary.summary?d.summary.summary:'');
+    if(_sum)h+=`<div style="margin-bottom:10px;padding:10px 12px;background:var(--s2);border-radius:var(--rs);color:rgba(255,255,255,.8);font-size:13px;line-height:1.6;border-left:3px solid var(--orange)">${esc(_sum)}</div>`;
+    // Fix #37: Scores breakdown
+    if(d.scores&&Object.keys(d.scores).length){const labels={merytoryka:'📚 Merytoryka',struktura:'🏗️ Struktura',styl:'✍️ Styl',seo:'🔍 SEO'};h+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px">`;for(const[k,label] of Object.entries(labels)){const v=d.scores[k];if(v!=null){const clr=v>=7?'var(--gn)':v>=5?'var(--yl)':'var(--rd)';h+=`<div style="text-align:center;padding:8px 4px;background:var(--s2);border-radius:var(--rs)"><div style="font-size:18px;font-weight:800;color:${clr}">${v}</div><div style="font-size:9px;color:var(--mg);margin-top:2px">${label}</div></div>`}}h+=`</div>`}
+    // Zastosowane zmiany
+    if(d.applied_changes&&d.applied_changes.length){h+=`<div style="font-weight:700;color:var(--gn);margin-bottom:4px">✅ Zastosowane zmiany (${d.applied_changes.length}):</div>`;d.applied_changes.slice(0,10).forEach((c,i)=>{const f=c.find||c.original||c.ZNAJDŹ||'';const r=c.replace||c.corrected||c.ZAMIEŃ||'';if(f||r)h+=`<div style="margin:4px 0;padding:6px 8px;background:var(--s2);border-radius:var(--rs);font-size:12px;line-height:1.5"><span style="color:var(--rd);text-decoration:line-through">${esc(f.substring(0,100))}${f.length>100?'…':''}</span><br>→ <span style="color:var(--gn)">${esc(r.substring(0,100))}${r.length>100?'…':''}</span>${c.reason?`<div style="color:var(--mg);font-size:10px;margin-top:2px">${esc(c.reason)}</div>`:''}</div>`})}
+    // Nieznalezione
+    if(d.failed_changes&&d.failed_changes.length){h+=`<div style="font-weight:700;color:var(--rd);margin:10px 0 4px">❌ Nieznalezione (${d.failed_changes.length}):</div>`;d.failed_changes.slice(0,5).forEach(c=>{const f=c.find||c.original||c.ZNAJDŹ||'';if(f)h+=`<div style="margin:2px 0;padding:4px 6px;font-size:12px;color:var(--rd);opacity:.8;background:var(--rdd);border-radius:4px">${esc(f.substring(0,80))}${f.length>80?'…':''}</div>`})}
+    // Znalezione problemy
+    if(d.errors_found&&d.errors_found.length){h+=`<div style="font-weight:700;margin:10px 0 4px">🔍 Znalezione problemy (${d.errors_found.length}):</div>`;d.errors_found.slice(0,12).forEach(err=>{const desc=typeof err==='string'?err:(err.description||err.error||err.sugestia||'');const tp=typeof err==='object'?(err.type||err.problem||''):'';const orig=typeof err==='object'?(err.original||err.cytat||''):'';h+=`<div style="margin:3px 0;padding:6px 8px;font-size:12px;background:var(--s2);border-radius:4px;line-height:1.5">${tp?`<span style="color:var(--orange);font-weight:700">[${esc(tp)}]</span> `:''}${esc(desc.substring(0,120))}${orig?`<div style="color:var(--mg);font-size:11px;margin-top:2px;font-style:italic">"${esc(orig.substring(0,80))}${orig.length>80?'…':''}"</div>`:''}</div>`})}
+    // Luki treściowe
+    if(d.luki_tresciowe&&d.luki_tresciowe.length){h+=`<div style="font-weight:700;margin:10px 0 4px">📝 Luki treściowe:</div>`;d.luki_tresciowe.slice(0,5).forEach(l=>{h+=`<div style="margin:3px 0;padding:6px 8px;font-size:12px;background:var(--s2);border-radius:4px"><b>${esc(l.brakujacy_temat||'')}</b>${l.gdzie_dodac?` <span style="color:var(--mg)">→ ${esc(l.gdzie_dodac)}</span>`:''}<div style="color:var(--mg);font-size:11px;margin-top:2px">${esc(l.sugestia||'')}</div></div>`})}
+    // Brakujące encje
+    if(d.brakujace_encje&&d.brakujace_encje.length){h+=`<div style="font-weight:700;margin:10px 0 4px">🎯 Brakujące encje:</div>`;d.brakujace_encje.slice(0,8).forEach(e2=>{h+=`<div style="margin:2px 0;font-size:12px"><span style="color:var(--orange);font-weight:600">${esc(e2.encja||'')}</span> <span style="color:var(--mg)">→ ${esc(e2.jak||e2.gdzie_wplesc||'')}</span></div>`})}
+    // Gramatyka
+    if(d.grammar_fixes>0||d.grammar_removed&&d.grammar_removed.length){h+=`<div style="margin:10px 0 4px;font-size:12px;color:var(--mg)">🔤 Gramatyka: ${d.grammar_fixes||0} poprawek`;if(d.grammar_removed&&d.grammar_removed.length)h+=` | Usunięte: ${d.grammar_removed.map(p=>'"'+esc(p)+'"').join(', ')}`;h+=`</div>`}
+    if(!h)h='<div style="color:var(--mg);padding:12px;text-align:center">Recenzja nie zawiera szczegółów do wyświetlenia</div>';det.innerHTML=h;det.style.display='block';
     // FIX: Aktualizuj podgląd artykułu po poprawkach editorial
     if(d.corrected_article && d.corrected_article.length > 100){
       rawArticle = d.corrected_article;
