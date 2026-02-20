@@ -3405,12 +3405,32 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         "source": "editorial_review",
                     })
                     yield emit("log", {"msg": f"📝 Podgląd zaktualizowany po editorial ({corrected_wc} słów)"})
-            step_done(9)
+            step_done(10)  # Fix #35: było step_done(9) — literówka
             yield emit("step", {"step": 10, "name": "Editorial Review", "status": "done", "detail": detail})
         else:
             ed_error = editorial_result.get("error", "unknown")
             ed_status = editorial_result.get("status", "?")
             yield emit("log", {"msg": f"⚠️ Editorial Review → {ed_status}: {ed_error[:200]}"})
+            # Fix #35: Emit editorial event even on failure so UI shows the card with error info
+            yield emit("editorial", {
+                "score": 0,
+                "changes_applied": 0,
+                "changes_failed": 0,
+                "word_count_before": None,
+                "word_count_after": None,
+                "rollback": False,
+                "rollback_reason": "",
+                "feedback": {},
+                "applied_changes": [],
+                "failed_changes": [],
+                "summary": f"Editorial Review nie powiódł się: {ed_error[:150]}",
+                "errors_found": [],
+                "grammar_fixes": 0,
+                "grammar_removed": [],
+                "_failed": True,
+                "_error": ed_error[:200],
+                "_status_code": ed_status,
+            })
             yield emit("step", {"step": 10, "name": "Editorial Review", "status": "warning",
                                 "detail": f"Nie udało się ({ed_status}), artykuł bez recenzji"})
 
