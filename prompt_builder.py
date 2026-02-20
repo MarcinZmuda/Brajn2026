@@ -460,6 +460,26 @@ h2:/h3: dla nagłówków. Zero markdown, HTML, gwiazdek.
         parts.append(rule_body)
 
     # ════════════════════════════════════════════════════════════
+    # Fix #57: SEMANTIC KEYPHRASES — natural compound phrases
+    # ════════════════════════════════════════════════════════════
+    sem_kp = pre_batch.get("_semantic_keyphrases") or []
+    if sem_kp:
+        kp_lines = []
+        for kp in sem_kp[:8]:
+            phrase = kp.get("phrase", kp) if isinstance(kp, dict) else str(kp)
+            if phrase:
+                kp_lines.append(f"  • {phrase}")
+        if kp_lines:
+            parts.append(
+                "<semantic_keyphrases>\n"
+                "FRAZY SEMANTYCZNE — użyj minimum 3 z poniższych jako KOMPLETNE FRAZY (nie rozbijaj na osobne słowa):\n"
+                + "\n".join(kp_lines) + "\n"
+                "Każda fraza powinna pojawić się jako spójny ciąg słów w jednym zdaniu.\n"
+                "Przykład: zamiast 'diagnostyka słuchu. Dziecka dotyczy...' → 'diagnostyka słuchu dziecka obejmuje...'\n"
+                "</semantic_keyphrases>"
+            )
+
+    # ════════════════════════════════════════════════════════════
     # FEW-SHOT EXAMPLES
     # (Anthropic/OpenAI: przykłady skuteczniejsze niż instrukcje)
     # ════════════════════════════════════════════════════════════
@@ -1366,9 +1386,12 @@ def _fmt_legal_medical(pre_batch):
             parts.append("")
         parts.append("═══ KONTEKST MEDYCZNY (YMYL) ═══")
         parts.append("Ten artykuł dotyczy tematyki zdrowotnej. MUSISZ:")
-        parts.append("  1. Cytować źródła naukowe (podane niżej)")
+        parts.append("  1. Cytować źródła naukowe (podane niżej lub ogólne: 'badania wskazują', 'według wytycznych')")
         parts.append("  2. NIE wymyślać statystyk ani nazw badań")
-        parts.append("  3. Dodać informację o konsultacji z lekarzem")
+        parts.append("  3. W OSTATNIM batchu: dodać disclaimer 'Artykuł ma charakter informacyjny i nie zastępuje konsultacji lekarskiej.'")
+        parts.append("  4. Powołać się na min. 1 instytucję (np. WHO, NFZ, PTOiAu, MZ, Cochrane) per batch")
+        parts.append("  5. Użyć min. 1 sformułowania opartego na dowodach per batch: 'badania wskazują...', 'według meta-analizy...'")
+        parts.append("  WAŻNE: Artykuł bez źródeł medycznych = YMYL score 0/100 = odrzucenie.")
         
         # v47.2: Claude's enrichment: specialization, evidence guidelines
         med_enrich = ymyl_enrich.get("medical", {})

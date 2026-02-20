@@ -2318,7 +2318,29 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             })
             if mc["ok"]:
                 medical_context = mc["data"]
-            
+            else:
+                # Fix #58: Fallback medical context when master API fails
+                logger.warning("[YMYL] Medical context API failed, using local fallback")
+                medical_context = {
+                    "active": True,
+                    "specialization": spec or "medycyna ogólna",
+                    "condition": medical_hints.get("condition", main_keyword),
+                    "condition_latin": medical_hints.get("condition_latin", ""),
+                    "icd10": medical_hints.get("icd10", ""),
+                    "key_drugs": medical_hints.get("key_drugs", []),
+                    "evidence_note": medical_hints.get("evidence_note", "Użyj aktualnych wytycznych klinicznych."),
+                    "medical_instruction": (
+                        "OBOWIĄZKOWE DLA ARTYKUŁU MEDYCZNEGO:\n"
+                        "1. Dodaj disclaimer: 'Artykuł ma charakter informacyjny i nie zastępuje konsultacji lekarskiej.'\n"
+                        "2. Powołaj się na min. 2 instytucje (np. WHO, PTOiAu, NFZ, MZ).\n"
+                        "3. Użyj sformułowań opartych na dowodach: 'badania wskazują', 'według wytycznych'.\n"
+                        "4. W ostatnim akapicie każdej sekcji: zachęta do wizyty u specjalisty."
+                    ),
+                    "top_publications": [],
+                    "mesh_terms": mesh,
+                }
+                yield emit("log", {"msg": "⚠️ Medical context: użyto lokalnego fallbacku (brak odpowiedzi z master API)"})
+
             ymyl_enrichment["medical"] = medical_hints
         
         if is_finance:
@@ -2724,6 +2746,27 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # ═══ AI MIDDLEWARE: Track accepted batches for memory ═══
         accepted_batches_log = []
+        # Fix #56: Global cross-batch keyword counter
+        _global_main_kw_count = 0
+        _GLOBAL_KW_MAX = 6  # max occurrences of main keyword in ENTIRE article
+
+        # Fix #59: Calculate per-batch word target from S1 recommended_length
+        _s1_rec_length = s1_data.get("recommended_length") or 0
+        if _s1_rec_length and total_batches > 0:
+            # FAQ batch is shorter (~20% of budget), rest split evenly
+            _faq_budget = int(_s1_rec_length * 0.15)
+            _content_budget = _s1_rec_length - _faq_budget
+            _words_per_batch = max(120, int(_content_budget / max(1, total_batches - 1)))
+            _batch_word_override = {
+                "min_words": max(100, _words_per_batch - 30),
+                "max_words": _words_per_batch + 40,
+                "suggested_min": _words_per_batch - 20,
+                "suggested_max": _words_per_batch + 30,
+                "target": _words_per_batch,
+            }
+            yield emit("log", {"msg": f"📏 S1 rec: {_s1_rec_length} słów → per batch: ~{_words_per_batch} słów ({total_batches} batchy)"})
+        else:
+            _batch_word_override = None
 
         # ═══ ENTITY CONTENT PLAN — assign lead entity per batch/H2 ═══
         # Each H2 section gets ONE lead entity as "paragraph subject opener".
@@ -2848,11 +2891,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if must_cover_concepts:
                 pre_batch["_must_cover_concepts"] = must_cover_concepts
 
+            # Fix #59: Override batch_length with S1-correlated target
+            if _batch_word_override:
+                pre_batch["batch_length"] = _batch_word_override
+
             # ═══ Inject EAV + SVO semantic triples ═══
             if topical_gen_eav:
                 pre_batch["_eav_triples"] = topical_gen_eav
             if topical_gen_svo:
                 pre_batch["_svo_triples"] = topical_gen_svo
+            # Fix #57: Inject semantic keyphrases for natural phrase usage
+            if clean_semantic_kp:
+                pre_batch["_semantic_keyphrases"] = clean_semantic_kp
 
             # ═══ ENTITY CONTENT PLAN — inject lead entity for this batch/H2 ═══
             if _entity_content_plan and batch_num <= len(_entity_content_plan):
@@ -3080,6 +3130,27 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                     return _destuff_replacements[(_seen - 3) % len(_destuff_replacements)]
                                 text = _re_stuff.sub(_re_stuff.escape(main_keyword), _destuff, text, flags=_re_stuff.IGNORECASE)
                                 yield emit("log", {"msg": f"✅ Destuffed: zredukowano '{main_keyword}' z {_kw_count} do max 2 wystąpień"})
+
+                    # Fix #56: Global cross-batch keyword anti-stuffing
+                    _batch_kw_count = len(_re_stuff.findall(_re_stuff.escape(_main_kw_lower), text.lower()))
+                    _remaining_budget = max(0, _GLOBAL_KW_MAX - _global_main_kw_count)
+                    if _batch_kw_count > _remaining_budget:
+                        # Reduce to fit within global budget
+                        _g_seen = 0
+                        def _global_destuff(m):
+                            nonlocal _g_seen
+                            _g_seen += 1
+                            if _g_seen <= _remaining_budget:
+                                return m.group(0)
+                            _reps = ["to zagadnienie", "ten temat", "ta kwestia",
+                                     "omawiany problem", "ten aspekt", "wspomniane zjawisko"]
+                            return _reps[(_g_seen - _remaining_budget - 1) % len(_reps)]
+                        text = _re_stuff.sub(_re_stuff.escape(main_keyword), _global_destuff, text, flags=_re_stuff.IGNORECASE)
+                        _final_count = len(_re_stuff.findall(_re_stuff.escape(_main_kw_lower), text.lower()))
+                        yield emit("log", {"msg": f"🌐 Global destuff: '{main_keyword}' budżet {_remaining_budget}, batch miał {_batch_kw_count} → {_final_count}"})
+                        _global_main_kw_count += _final_count
+                    else:
+                        _global_main_kw_count += _batch_kw_count
 
                     # Track for memory
                     accepted_batches_log.append({
