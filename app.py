@@ -1881,6 +1881,142 @@ def _extract_quality_breakdown(final):
 
 
 # ============================================================
+# SEMANTIC DISTANCE & EVALUATION HELPERS
+# ============================================================
+def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
+                                concept_entities, clean_must_mention,
+                                clean_ngrams, nlp_entities):
+    """
+    Compute semantic distance between generated article and competitor data.
+    Returns dict with 4 sub-metrics + composite score (0-100).
+    All data comes from real BRAJEN API + Google NLP — no hallucinations.
+    """
+    text_lower = full_text.lower() if full_text else ""
+
+    # 1. Keyphrase coverage: check which semantic keyphrases appear in article
+    kp_found = []
+    kp_missing = []
+    for kp in clean_semantic_kp:
+        phrase = (kp.get("phrase", kp) if isinstance(kp, dict) else str(kp)).strip()
+        if not phrase:
+            continue
+        if phrase.lower() in text_lower:
+            kp_found.append(phrase)
+        else:
+            kp_missing.append(phrase)
+    kp_total = len(kp_found) + len(kp_missing)
+    kp_coverage = len(kp_found) / kp_total if kp_total > 0 else 0.0
+
+    # 2. Entity overlap: article entities (NLP) vs competitor entities
+    # Build competitor entity name set
+    comp_entity_names = set()
+    for src in [clean_entities, concept_entities]:
+        for e in (src or []):
+            name = _extract_text(e)
+            if name and len(name) > 1:
+                comp_entity_names.add(name.lower().strip())
+
+    # Build article entity name set from Google NLP results
+    art_entity_names = set()
+    if nlp_entities:
+        for e in nlp_entities:
+            name = e.get("name", "")
+            if name and len(name) > 1:
+                art_entity_names.add(name.lower().strip())
+    else:
+        # Fallback: check which competitor entities appear as substrings
+        for name in comp_entity_names:
+            if name in text_lower:
+                art_entity_names.add(name)
+
+    shared = art_entity_names & comp_entity_names
+    only_article = art_entity_names - comp_entity_names
+    only_competitor = comp_entity_names - art_entity_names
+    ent_overlap = len(shared) / len(comp_entity_names) if comp_entity_names else 0.0
+
+    # 3. Must-mention coverage
+    mm_found = []
+    mm_missing = []
+    for e in (clean_must_mention or []):
+        name = _extract_text(e) if isinstance(e, (dict, str)) else str(e)
+        if not name:
+            continue
+        if name.lower() in text_lower:
+            mm_found.append(name)
+        else:
+            mm_missing.append(name)
+    mm_total = len(mm_found) + len(mm_missing)
+    mm_pct = len(mm_found) / mm_total if mm_total > 0 else 0.0
+
+    # 4. N-gram overlap
+    ng_found = 0
+    ng_total = 0
+    for ng in (clean_ngrams or []):
+        ngram_text = (ng.get("ngram", ng) if isinstance(ng, dict) else str(ng)).strip()
+        if not ngram_text or len(ngram_text) < 3:
+            continue
+        ng_total += 1
+        if ngram_text.lower() in text_lower:
+            ng_found += 1
+    ng_overlap = ng_found / ng_total if ng_total > 0 else 0.0
+
+    # Composite score: weighted sum
+    score = round(kp_coverage * 25 + ent_overlap * 30 + mm_pct * 25 + ng_overlap * 20)
+    score = max(0, min(100, score))
+
+    return {
+        "enabled": True,
+        "score": score,
+        "keyphrase_coverage": round(kp_coverage, 3),
+        "keyphrases_total": kp_total,
+        "keyphrases_found": len(kp_found),
+        "keyphrases_found_list": kp_found[:15],
+        "keyphrases_missing_list": kp_missing[:10],
+        "entity_overlap": round(ent_overlap, 3),
+        "entities_article": len(art_entity_names),
+        "entities_competitor": len(comp_entity_names),
+        "entities_shared_list": sorted(shared)[:15],
+        "entities_only_article": sorted(only_article)[:10],
+        "entities_only_competitor": sorted(only_competitor)[:10],
+        "must_mention_pct": round(mm_pct, 3),
+        "must_mention_found": mm_found[:10],
+        "must_mention_missing": mm_missing[:10],
+        "must_mention_total": mm_total,
+        "ngram_overlap": round(ng_overlap, 3),
+        "ngrams_found": ng_found,
+        "ngrams_total": ng_total,
+    }
+
+
+def _compute_grade(quality_score, salience_score, semantic_score, style_score=None):
+    """Compute letter grade from available scores (A+ through D)."""
+    scores = []
+    if quality_score is not None:
+        scores.append(quality_score)
+    if salience_score is not None:
+        scores.append(salience_score)
+    if semantic_score is not None:
+        scores.append(semantic_score)
+    if style_score is not None:
+        scores.append(style_score)
+    if not scores:
+        return "?"
+    avg = sum(scores) / len(scores)
+    if avg >= 90:
+        return "A+"
+    elif avg >= 80:
+        return "A"
+    elif avg >= 70:
+        return "B+"
+    elif avg >= 60:
+        return "B"
+    elif avg >= 45:
+        return "C"
+    else:
+        return "D"
+
+
+# ============================================================
 # WORKFLOW ORCHESTRATOR (SSE)
 # ============================================================
 def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None, temperature=None, content_type="article", category_data=None):
@@ -3821,6 +3957,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             salience_result = {}
             nlp_entities = []
             subject_pos = {}
+            sal_score = None
+            is_dominant = None
+            st_score = None
             
             # Subject position analysis: always runs (free, no API)
             if full_text:
@@ -4023,6 +4162,32 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     "subject_position": subject_pos,
                 })
 
+            # ═══ SEMANTIC DISTANCE: Article vs Competitor data ═══
+            semantic_dist_result = {"enabled": False, "score": 0}
+            if full_text:
+                try:
+                    yield emit("log", {"msg": "📐 Semantic Distance: porównanie artykułu z konkurencją..."})
+                    semantic_dist_result = _compute_semantic_distance(
+                        full_text=full_text,
+                        clean_semantic_kp=clean_semantic_kp,
+                        clean_entities=clean_entities,
+                        concept_entities=concept_entities,
+                        clean_must_mention=clean_must_mention,
+                        clean_ngrams=clean_ngrams,
+                        nlp_entities=nlp_entities,
+                    )
+                    sem_score = semantic_dist_result["score"]
+                    yield emit("log", {"msg": (
+                        f"📐 Semantic Distance: {sem_score}/100 | "
+                        f"KP: {semantic_dist_result['keyphrases_found']}/{semantic_dist_result['keyphrases_total']} | "
+                        f"Entity: {round(semantic_dist_result['entity_overlap']*100)}% | "
+                        f"Must-mention: {round(semantic_dist_result['must_mention_pct']*100)}%"
+                    )})
+                    yield emit("semantic_distance", semantic_dist_result)
+                except Exception as sd_err:
+                    logger.warning(f"Semantic distance calculation failed: {sd_err}")
+                    yield emit("log", {"msg": f"⚠️ Semantic distance error: {str(sd_err)[:80]}"})
+
             # ═══ SCHEMA.ORG JSON-LD: Generate from real NLP entities ═══
             try:
                 article_schema = generate_article_schema(
@@ -4063,6 +4228,33 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     yield emit("log", {"msg": f"🗺️ Topical Map: {len(clusters)} klastrów treści wokół \"{main_keyword}\""})
             except Exception as tm_err:
                 logger.warning(f"Topical map error: {tm_err}")
+
+        # ═══ EVALUATION SUMMARY: At-a-glance article assessment ═══
+        try:
+            _sem_score = semantic_dist_result.get("score", 0) if semantic_dist_result.get("enabled") else None
+            _sal_score = sal_score  # initialized to None, set if salience check ran
+            _st_score = st_score   # initialized to None, set if style analysis ran
+            _q_score = final_score if isinstance(final_score, (int, float)) else None
+            _word_count = len(full_text.split()) if full_text else 0
+            _rec_length = s1.get("recommended_length", 3000) if s1 else 3000
+
+            grade = _compute_grade(_q_score, _sal_score, _sem_score, _st_score)
+            yield emit("evaluation_summary", {
+                "quality_score": _q_score,
+                "salience_score": _sal_score,
+                "salience_dominant": is_dominant,
+                "semantic_distance_score": _sem_score,
+                "style_score": _st_score,
+                "word_count": _word_count,
+                "recommended_length": _rec_length,
+                "keyphrase_coverage_pct": round(semantic_dist_result.get("keyphrase_coverage", 0) * 100) if semantic_dist_result.get("enabled") else None,
+                "must_mention_coverage_pct": round(semantic_dist_result.get("must_mention_pct", 0) * 100) if semantic_dist_result.get("enabled") else None,
+                "entity_coverage_pct": round(semantic_dist_result.get("entity_overlap", 0) * 100) if semantic_dist_result.get("enabled") else None,
+                "grade": grade,
+            })
+            yield emit("log", {"msg": f"🎯 Ocena: {grade} | Quality: {_q_score} | Salience: {_sal_score} | Semantic: {_sem_score} | Style: {_st_score}"})
+        except Exception as eval_err:
+            logger.warning(f"Evaluation summary failed: {eval_err}")
 
         # Export HTML
         export_result = brajen_call("get", f"/api/project/{project_id}/export/html")
