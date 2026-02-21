@@ -859,45 +859,66 @@ def check_sentence_length(text: str, max_avg: float = None, max_hard: int = None
     lengths = [len(s.split()) for s in sentences]
     avg = sum(lengths) / len(lengths)
     long_sents = [(s, l) for s, l in zip(sentences, lengths) if l > max_hard]
-    needs_retry = avg > max_avg or len(long_sents) > 2
+
+    # Comma check — Fix #53: SENTENCE_MAX_COMMAS = 2
+    try:
+        from shared_constants import SENTENCE_MAX_COMMAS
+        _max_commas = SENTENCE_MAX_COMMAS
+    except ImportError:
+        _max_commas = 2
+    comma_heavy = [(s, s.count(",")) for s in sentences if s.count(",") > _max_commas]
+
+    needs_retry = avg > max_avg or len(long_sents) > 2 or len(comma_heavy) > 2
     return {
         "needs_retry": needs_retry,
         "avg_len": round(avg, 1),
         "long_count": len(long_sents),
         "long_sentences": [s for s, _ in long_sents[:5]],
+        "comma_count": len(comma_heavy),
+        "comma_examples": [s[:80] for s, _ in comma_heavy[:3]],
     }
 
 
-def sentence_length_retry(text: str, h2: str = "", avg_len: float = 0, long_count: int = 0) -> str:
+def sentence_length_retry(text: str, h2: str = "", avg_len: float = 0, long_count: int = 0, comma_count: int = 0) -> str:
     """
-    Use Haiku to split overly long sentences in accepted batch text.
-    Preserves HTML structure, only splits sentences > 30 words.
+    Use Haiku to split overly long sentences and reduce commas in accepted batch text.
     """
     if not ANTHROPIC_API_KEY:
         return text
 
-    problem_desc = f"Średnia długość zdania: {avg_len:.0f} słów (cel: 14–18). Zdań powyżej 28 słów: {long_count}."
+    try:
+        from shared_constants import SENTENCE_MAX_COMMAS
+        max_commas = SENTENCE_MAX_COMMAS  # 2
+    except ImportError:
+        max_commas = 2
 
-    prompt = f"""Skróć zdania w poniższym fragmencie artykułu SEO.
+    comma_note = ""
+    if comma_count > 0:
+        comma_note = f" Zdań z 3+ przecinkami: {comma_count} (limit: max {max_commas} przecinki/zdanie)."
+
+    problem_desc = f"Srednia dlugos zdania: {avg_len:.0f} slow (cel: 14-18). Zdan powyzej 28 slow: {long_count}.{comma_note}"
+
+    prompt = f"""Skroc i uprosz zdania w ponizszym fragmencie artykulu SEO po polsku.
 
 PROBLEM: {problem_desc}
 SEKCJA: {h2}
 
 ZASADY:
-1. Rozbij TYLKO zdania dłuższe niż 25 słów — podziel je na 2 krótsze.
-2. Zachowaj CAŁĄ treść merytoryczną — zero usuwania informacji.
-3. Zachowaj strukturę HTML (tagi p, ul, li, h2, h3 itp.) bez zmian.
-4. Nie zmieniaj zdań krótszych niż 20 słów — zostaw je identycznie.
-5. Cel po edycji: średnia długość zdania 14–18 słów.
-6. Odpowiedz TYLKO przepisanym HTML, bez żadnych komentarzy.
+1. Rozbij zdania dluzsze niz 25 slow — podziel na 2 krotsze zdania.
+2. Zdania z 3 lub wiecej przecinkami — rozbij na osobne zdania lub uprosz.
+3. ZAKAZ: zdania wielokrotnie zlozone (wiele klauzul polaczonych "ktory", "poniewaz", "chociaz", "i tym", "a takze").
+4. Zachowaj CALA tresc merytoryczna — zero usuwania informacji.
+5. Zachowaj strukture HTML (tagi p, ul, li, h2, h3) bez zmian.
+6. Cel: srednia 14-18 slow/zdanie, max 2 przecinki w zdaniu.
+7. Odpowiedz TYLKO przepisanym HTML, bez komentarzy.
 
 Technika rozbijania:
-- „X, który/która/które Y, skutkuje Z" → „X skutkuje Z. [Nowe zdanie:] Dzieje się tak, ponieważ Y."
-- „Zgodnie z art. X, sąd może A i B oraz C w przypadku D" → „Zgodnie z art. X, sąd może A i B. Dotyczy to również C w przypadku D."
-- Długa wyliczanka → rozbij na zdanie + listę.
+- "X, ktory Y, skutkuje Z" -> "X skutkuje Z. Dzieje sie tak, poniewaz Y."
+- "A i B, a takze C w przypadku D" -> "A i B. Dotyczy to rowniez C w przypadku D."
+- Dlugie wyliczanki -> zdanie + lista punktowa.
 
-TEKST DO SKRÓCENIA:
-{text}"""
+TEKST DO SKROCENIA:
+{text[:4000]}"""
 
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -908,14 +929,103 @@ TEKST DO SKRÓCENIA:
             messages=[{"role": "user", "content": prompt}]
         )
         result = response.content[0].text.strip()
-        # Safety: if model returned much shorter text, something went wrong
         original_words = len(text.split())
         new_words = len(result.split())
         if new_words < original_words * 0.7:
-            return text  # too much was removed, reject
+            return text  # too much removed, reject
         return result
     except Exception:
         return text
+
+
+def check_anaphora(text: str, main_entity: str = "") -> dict:
+    """
+    Fix #64: Wykrywa anaphoryczny keyword stuffing.
+    Sprawdza czy ta sama fraza otwiera 3+ kolejnych zdań w akapicie.
+    Zwraca: {needs_fix, anaphora_count, examples}
+    """
+    import re
+    if not text or not main_entity:
+        return {"needs_fix": False, "anaphora_count": 0, "examples": []}
+
+    entity_lower = main_entity.lower().strip()
+    # Podziel na akapity (po znaczniku blokowym lub podwójnym newline)
+    paragraphs = re.split(r'\n\n+|(?<=</p>)|(?<=</li>)', text)
+
+    total_runs = 0
+    examples = []
+
+    for para in paragraphs:
+        # Wyciagnij zdania z akapitu
+        sents = re.split(r'(?<=[.!?])\s+', para.strip())
+        sents = [s.strip() for s in sents if len(s.strip()) > 10]
+
+        run = 0
+        for sent in sents:
+            if sent.lower().startswith(entity_lower):
+                run += 1
+                if run >= 3:
+                    total_runs += 1
+                    if len(examples) < 3:
+                        examples.append(sent[:80])
+            else:
+                run = 0
+
+    return {
+        "needs_fix": total_runs > 0,
+        "anaphora_count": total_runs,
+        "examples": examples,
+    }
+
+
+def anaphora_retry(text: str, main_entity: str, h2: str = "") -> str:
+    """
+    Fix #64: Użyj Haiku do rozbicia anaphorycznych serii zdań.
+    Zastępuje 3. i dalsze zdania otwierane tą samą frazą synonimami/zaimkami.
+    """
+    if not ANTHROPIC_API_KEY or not main_entity:
+        return text
+
+    prompt = f"""Masz do poprawienia fragment artykułu SEO po polsku.
+
+PROBLEM: fraza "{main_entity}" otwiera 3 lub więcej kolejnych zdań w jednym akapicie.
+To jest anaphoryczny keyword stuffing — Google to wykrywa jako sztuczny tekst.
+
+SEKCJA: {h2}
+
+ZASADY NAPRAWY:
+1. W każdym akapicie fraza główna może otwierać MAKSYMALNIE 2 zdania z rzędu.
+2. Przy 3. i każdym kolejnym zdaniu — zastąp otwierającą frazę jednym z:
+   • zaimkiem: „on", „ona", „to", „ten system", „ta baza"
+   • synonimem: „system", „baza", „narzędzie", „wyszukiwarka", „rejestr", „wpis"
+   • innym podmiotem: „użytkownik", „wnioskodawca", „organ", „kancelaria"
+   • przeformułowaniem z innym podmiotem: „W systemie widnieje...", „Wpis zawiera..."
+3. NIE zmieniaj treści merytorycznej — tylko podmiot otwierający zdanie.
+4. Zachowaj pełną strukturę HTML (tagi p, ul, li, h2, h3 itp.).
+5. Odpowiedz TYLKO poprawionym HTML, bez żadnych komentarzy.
+
+TEKST DO POPRAWY:
+{text[:4000]}"""
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        result = resp.content[0].text.strip()
+        # Sanity check — wynik musi byc dluzszy niz 50 znaków
+        if len(result) > 50:
+            return result
+        return text
+    except Exception as e:
+        logger.warning(f"[ANAPHORA_RETRY] Haiku call failed: {e}")
+        return text
+
+
+
 
 
 # ═══════════════════════════════════════════════════════════════
