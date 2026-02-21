@@ -1,0 +1,367 @@
+diff --git a/requirements.txt b/requirements.txt
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -0,0 +1,3 @@
++# spaCy NLP fallback for Google Cloud NLP API
++spacy>=3.6.0,<4.0.0
++# After install run: python -m spacy download pl_core_news_md
+diff --git a/nlp_spacy.py b/nlp_spacy.py
+new file mode 100644
+--- /dev/null
++++ b/nlp_spacy.py
+@@ -0,0 +1,218 @@
++"""
++═══════════════════════════════════════════════════════════
++spaCy Entity Analysis — fallback for Google Cloud NLP API
++═══════════════════════════════════════════════════════════
++POST /api/nlp/analyze_entities
++
++Uses spaCy pl_core_news_md to extract entities with pseudo-salience
++scores compatible with the Google NLP API response format expected
++by Brajn2026/entity_salience.py.
++
++Response format (per entity):
++  {
++    "name": str,
++    "type": "PERSON|LOCATION|ORGANIZATION|OTHER",
++    "schema_type": "Person|Place|Organization|Thing",
++    "salience": float (0.0-1.0),
++    "wikipedia_url": "",
++    "mid": "",
++    "mentions": int
++  }
++
++Install:
++  pip install spacy
++  python -m spacy download pl_core_news_md
++═══════════════════════════════════════════════════════════
++"""
++
++import logging
++import math
++import re
++from collections import Counter, defaultdict
++
++logger = logging.getLogger(__name__)
++
++# ── Lazy-loaded spaCy model ──────────────────────────────
++_nlp = None
++
++
++def _get_nlp():
++    """Load spaCy model once (lazy singleton)."""
++    global _nlp
++    if _nlp is None:
++        import spacy
++        try:
++            _nlp = spacy.load("pl_core_news_md")
++            logger.info("spaCy model pl_core_news_md loaded")
++        except OSError:
++            logger.error(
++                "spaCy model pl_core_news_md not found. "
++                "Run: python -m spacy download pl_core_news_md"
++            )
++            raise
++    return _nlp
++
++
++# ── spaCy label → Google NLP type mapping ────────────────
++SPACY_TO_GOOGLE_TYPE = {
++    "persName":    "PERSON",
++    "PER":         "PERSON",
++    "PERSON":      "PERSON",
++    "placeName":   "LOCATION",
++    "LOC":         "LOCATION",
++    "LOCATION":    "LOCATION",
++    "geogName":    "LOCATION",
++    "orgName":     "ORGANIZATION",
++    "ORG":         "ORGANIZATION",
++    "ORGANIZATION":"ORGANIZATION",
++    "date":        "DATE",
++    "DATE":        "DATE",
++    "time":        "DATE",
++    "TIME":        "DATE",
++    "MISC":        "OTHER",
++    "PRODUCT":     "CONSUMER_GOOD",
++    "EVENT":       "EVENT",
++    "WORK_OF_ART": "WORK_OF_ART",
++    "FAC":         "LOCATION",
++    "GPE":         "LOCATION",
++    "NORP":        "ORGANIZATION",
++    "CARDINAL":    "NUMBER",
++    "ORDINAL":     "NUMBER",
++    "MONEY":       "PRICE",
++    "QUANTITY":    "NUMBER",
++    "PERCENT":     "NUMBER",
++}
++
++GOOGLE_TYPE_TO_SCHEMA = {
++    "PERSON":       "Person",
++    "LOCATION":     "Place",
++    "ORGANIZATION": "Organization",
++    "EVENT":        "Event",
++    "WORK_OF_ART":  "CreativeWork",
++    "CONSUMER_GOOD":"Product",
++    "OTHER":        "Thing",
++    "UNKNOWN":      "Thing",
++    "ADDRESS":      "Place",
++}
++
++# Types to skip (same as entity_salience.py ENTITY_TYPE_MAP)
++SKIP_TYPES = {"NUMBER", "DATE", "PRICE", "PHONE_NUMBER"}
++
++# ── CSS / scraper garbage filter (subset of app.py) ─────
++_GARBAGE_RE = re.compile(
++    r'(?:webkit|moz-|\.uk-|\.et_pb|@font-face|display:|padding:|'
++    r'margin:|transform:|font-family|\.woff|\.ttf|\.eot|\.svg|'
++    r'placeholder\{|relative;|serif;|^[0-9a-fA-F]{3,8}$)',
++    re.IGNORECASE,
++)
++
++
++def _is_garbage(text: str) -> bool:
++    """Quick filter for CSS/scraper artifacts."""
++    if not text or len(text) < 2 or len(text) > 120:
++        return True
++    if _GARBAGE_RE.search(text):
++        return True
++    # Single lowercase ASCII word — never a Polish entity
++    if re.match(r'^[a-z]+$', text) and len(text) < 15:
++        return True
++    return False
++
++
++# ── Pseudo-salience calculation ──────────────────────────
++
++def _compute_salience(entities_raw, doc_len):
++    """
++    Compute pseudo-salience scores mimicking Google NLP API.
++
++    Factors (based on Dunietz & Gillick 2014):
++      1. Frequency — how many times entity appears
++      2. First mention position — earlier = more salient
++      3. Grammatical role — subject (nsubj) > object (obj)
++      4. Headline presence — entity in first sentence bonus
++
++    Returns dict: normalized_name → {salience, mentions, type, ...}
++    """
++    if not entities_raw:
++        return {}
++
++    # Group by normalized text
++    groups = defaultdict(lambda: {
++        "mentions": 0,
++        "first_char": doc_len,
++        "label": "OTHER",
++        "is_subject": False,
++        "raw_texts": [],
++    })
++
++    for ent in entities_raw:
++        key = ent.text.strip().lower()
++        if _is_garbage(ent.text.strip()):
++            continue
++        g = groups[key]
++        g["mentions"] += 1
++        g["first_char"] = min(g["first_char"], ent.start_char)
++        g["label"] = SPACY_TO_GOOGLE_TYPE.get(ent.label_, "OTHER")
++        g["raw_texts"].append(ent.text.strip())
++        # Check if entity is grammatical subject
++        if ent.root.dep_ in ("nsubj", "nsubj:pass"):
++            g["is_subject"] = True
++
++    if not groups:
++        return {}
++
++    # Raw score per entity
++    max_mentions = max(g["mentions"] for g in groups.values())
++    scores = {}
++
++    for key, g in groups.items():
++        if g["label"] in SKIP_TYPES:
++            continue
++
++        # Frequency component (0.0 – 0.4)
++        freq_score = 0.4 * (g["mentions"] / max(1, max_mentions))
++
++        # Position component (0.0 – 0.3) — earlier = higher
++        pos_ratio = 1.0 - (g["first_char"] / max(1, doc_len))
++        pos_score = 0.3 * pos_ratio
++
++        # Subject bonus (0.0 – 0.2)
++        subj_score = 0.2 if g["is_subject"] else 0.0
++
++        # First-sentence bonus (0.0 – 0.1)
++        first_sent_score = 0.1 if g["first_char"] < 200 else 0.0
++
++        raw = freq_score + pos_score + subj_score + first_sent_score
++        scores[key] = {
++            "raw": raw,
++            "mentions": g["mentions"],
++            "label": g["label"],
++            "canonical": Counter(g["raw_texts"]).most_common(1)[0][0],
++        }
++
++    # Normalize to sum ≤ 1.0 (like Google NLP)
++    total = sum(s["raw"] for s in scores.values()) or 1.0
++    for s in scores.values():
++        s["salience"] = round(s["raw"] / total, 4)
++
++    return scores
++
++
++# ── Public API ───────────────────────────────────────────
++
++def analyze_entities_spacy(text: str, language: str = "pl") -> list:
++    """
++    Analyze entities using spaCy pl_core_news_md.
++
++    Returns list in Google NLP API-compatible format:
++      [{"name", "type", "schema_type", "salience", "wikipedia_url", "mid", "mentions"}, ...]
++
++    Sorted by salience descending.
++    """
++    if not text or len(text.strip()) < 10:
++        return []
++
++    nlp = _get_nlp()
++
++    # spaCy has a max length; truncate gracefully
++    max_chars = min(len(text), nlp.max_length - 1)
++    doc = nlp(text[:max_chars])
++
++    scores = _compute_salience(doc.ents, len(doc.text))
++
++    results = []
++    for key, s in scores.items():
++        google_type = s["label"]
++        schema_type = GOOGLE_TYPE_TO_SCHEMA.get(google_type, "Thing")
++        results.append({
++            "name": s["canonical"],
++            "type": google_type,
++            "schema_type": schema_type,
++            "salience": s["salience"],
++            "wikipedia_url": "",   # spaCy doesn't provide this
++            "mid": "",             # spaCy doesn't provide Knowledge Graph IDs
++            "mentions": s["mentions"],
++        })
++
++    results.sort(key=lambda e: e["salience"], reverse=True)
++    return results
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -0,0 +0,0 @@ # Add after existing imports and before route definitions
++import os
++import logging
++from flask import Blueprint, request, jsonify
++
++logger = logging.getLogger(__name__)
++
++nlp_bp = Blueprint("nlp", __name__, url_prefix="/api/nlp")
++
++
++@nlp_bp.route("/analyze_entities", methods=["POST"])
++def analyze_entities():
++    """
++    POST /api/nlp/analyze_entities
++
++    spaCy-based entity analysis — fallback for Google Cloud NLP API.
++    Returns entities in the same format as Google NLP analyzeEntities.
++
++    Request JSON:
++      {
++        "text": "Article text to analyze...",
++        "language": "pl"           // optional, default "pl"
++      }
++
++    Response JSON:
++      {
++        "entities": [
++          {
++            "name": "Kodeks cywilny",
++            "type": "OTHER",
++            "schema_type": "Thing",
++            "salience": 0.1823,
++            "wikipedia_url": "",
++            "mid": "",
++            "mentions": 7
++          },
++          ...
++        ],
++        "engine": "spacy",
++        "model": "pl_core_news_md",
++        "entity_count": 15
++      }
++
++    Error response (400):
++      {"error": "text field is required"}
++
++    Error response (503):
++      {"error": "spaCy model not available", "detail": "..."}
++    """
++    data = request.get_json(force=True, silent=True) or {}
++    text = data.get("text", "")
++    language = data.get("language", "pl")
++
++    if not text or not text.strip():
++        return jsonify({"error": "text field is required"}), 400
++
++    # Enforce reasonable size limit (500KB, same as Google NLP)
++    if len(text) > 500_000:
++        text = text[:500_000]
++
++    try:
++        from nlp_spacy import analyze_entities_spacy
++        entities = analyze_entities_spacy(text, language=language)
++    except OSError as e:
++        logger.error(f"spaCy model load failed: {e}")
++        return jsonify({
++            "error": "spaCy model not available",
++            "detail": str(e),
++            "fix": "python -m spacy download pl_core_news_md",
++        }), 503
++    except Exception as e:
++        logger.error(f"Entity analysis failed: {e}")
++        return jsonify({"error": "analysis failed", "detail": str(e)}), 500
++
++    return jsonify({
++        "entities": entities,
++        "engine": "spacy",
++        "model": "pl_core_news_md",
++        "entity_count": len(entities),
++    })
++
++
++@nlp_bp.route("/health", methods=["GET"])
++def nlp_health():
++    """
++    GET /api/nlp/health
++    Check if spaCy model is loaded and ready.
++    """
++    try:
++        from nlp_spacy import _get_nlp
++        nlp = _get_nlp()
++        return jsonify({
++            "status": "ok",
++            "model": nlp.meta.get("name", "unknown"),
++            "version": nlp.meta.get("version", "unknown"),
++            "lang": nlp.meta.get("lang", "unknown"),
++            "vectors": {
++                "width": nlp.vocab.vectors.shape[1] if nlp.vocab.vectors.shape else 0,
++                "keys": nlp.vocab.vectors.shape[0] if nlp.vocab.vectors.shape else 0,
++            },
++            "pipeline": nlp.pipe_names,
++        })
++    except Exception as e:
++        return jsonify({"status": "error", "detail": str(e)}), 503
++
++
++# ── Registration ─────────────────────────────────────────
++# In your Flask app factory or main app.py, add:
++#
++#   from nlp_routes import nlp_bp
++#   app.register_blueprint(nlp_bp)
++#
++# Or if using a flat app.py without blueprints, paste the
++# route functions directly and change url prefix to match.
