@@ -2774,6 +2774,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         _GLOBAL_KW_MAX = 6  # max 6 wystąpień main keyword w całym artykule
         _global_main_kw_count = 0
 
+        # Bug A Fix: Lokalny tracker zuzycia H2
+        # Gdy backend (brajen_api) utknął na tym samym h2_remaining[0] (tryb FINAL),
+        # app.py sam awansuje wskaznik i wybiera kolejny H2 z lokalnego planu.
+        _h2_local_done = []   # lista H2 juz wygenerowanych (string, lowercase)
+        _h2_local_idx = 0     # nastepny wolny index w h2_structure
+
         for batch_num in range(1, total_batches + 1):
             yield emit("batch_start", {"batch": batch_num, "total": total_batches})
             yield emit("log", {"msg": f"── BATCH {batch_num}/{total_batches} ──"})
@@ -2856,7 +2862,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             h2_remaining = (pre_batch.get("h2_remaining") or [])
             semantic_plan = pre_batch.get("semantic_batch_plan") or {}
             if h2_remaining:
-                current_h2 = h2_remaining[0]
+                api_h2 = h2_remaining[0]
+                # Bug A Fix: Sprawdz czy backend nie utknał na tym samym H2
+                # (objaw: api_h2 jest już w _h2_local_done I dostepne są inne H2 z planu)
+                api_h2_key = api_h2.strip().lower()
+                if api_h2_key in _h2_local_done and _h2_local_idx < len(h2_structure):
+                    # Backend wraca ten sam H2 — wybierz nastepny z lokalnego planu
+                    current_h2 = h2_structure[_h2_local_idx]
+                    yield emit("log", {"msg": f"⚠️ Bug A: h2_remaining powtarza '{api_h2[:40]}' — lokalny awans → '{current_h2[:40]}'"})
+                else:
+                    current_h2 = api_h2
             elif semantic_plan.get("h2"):
                 current_h2 = semantic_plan["h2"]
             else:
@@ -3056,6 +3071,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         _global_main_kw_count += _kw_count_batch
                         _kw_remaining = max(0, _GLOBAL_KW_MAX - _global_main_kw_count)
                         yield emit("log", {"msg": f"📊 KW global: {_global_main_kw_count}/{_GLOBAL_KW_MAX} wystąpień '{main_keyword}' (pozostało: {_kw_remaining})"})
+
+                    # Bug A Fix: Zaktualizuj lokalny tracker H2 po zaakceptowanym batchu
+                    _h2_key = current_h2.strip().lower()
+                    if _h2_key not in _h2_local_done:
+                        _h2_local_done.append(_h2_key)
+                    # Znajdz nastepny H2 z planu ktory nie byl jeszcze uzyty
+                    while _h2_local_idx < len(h2_structure) and \
+                          h2_structure[_h2_local_idx].strip().lower() in _h2_local_done:
+                        _h2_local_idx += 1
 
                     # Track for memory
                     accepted_batches_log.append({
@@ -3474,6 +3498,26 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     if not ed_rollback:
                         article_text = ed_corrected
                         yield emit("log", {"msg": f"📝 Export: użyto tekst po editorial review ({len(ed_corrected.split())} słów)"})
+
+                        # Bug D Fix: Sentence check PO editorial — editorial moze cofnac retry
+                        try:
+                            sl_post = check_sentence_length(article_text)
+                            if sl_post["needs_retry"]:
+                                yield emit("log", {"msg": f"✂️ Post-editorial: zdania za długie (śr. {sl_post['avg_len']} słów) — skracam..."})
+                                # Uzyjemy generic h2 jako kontekstu
+                                article_text_fixed = sentence_length_retry(
+                                    article_text, h2="cały artykuł",
+                                    avg_len=sl_post["avg_len"],
+                                    long_count=sl_post["long_count"]
+                                )
+                                sl_verify = check_sentence_length(article_text_fixed)
+                                if sl_verify["avg_len"] < sl_post["avg_len"]:
+                                    article_text = article_text_fixed
+                                    yield emit("log", {"msg": f"✅ Post-editorial retry: śr. {sl_verify['avg_len']} słów/zdanie"})
+                                else:
+                                    yield emit("log", {"msg": "⚠️ Post-editorial retry nie poprawił — zostawiam po editorial"})
+                        except Exception as _sl_err:
+                            yield emit("log", {"msg": f"⚠️ Post-editorial sentence check error: {str(_sl_err)[:60]}"})
 
             yield emit("article", {
                 "text": article_text,
