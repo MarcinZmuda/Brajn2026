@@ -739,10 +739,10 @@ def _detect_ymyl(main_keyword: str) -> dict:
             )
 
             if enrich_response.status_code == 200:
-                # Fix #55: Guard against empty/non-JSON responses
-                _resp_text = enrich_response.text.strip()
-                if not _resp_text or not _resp_text.startswith('{'):
-                    logger.warning(f"[YMYL_ENRICH] Master API returned empty/non-JSON: {_resp_text[:100]}, using local result")
+                # Fix #55: Guard against HTML error page (cold start / 502 z Render)
+                raw_text = enrich_response.text.strip()
+                if not raw_text.startswith("{"):
+                    logger.warning(f"[YMYL_ENRICH] Response not valid JSON (starts with: {raw_text[:40]!r}), using local result")
                 else:
                     enriched = enrich_response.json()
                     # Normalize detected_category from response
@@ -2106,44 +2106,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🧠 Concept entities: {len(concept_entities)} (z topical_entity_extractor)"})
         if len(clean_ngrams) < len(raw_ngrams) * 0.5:
             yield emit("log", {"msg": f"⚠️ N-gramy: {len(raw_ngrams) - len(clean_ngrams)}/{len(raw_ngrams)} odfiltrowane jako CSS garbage"})
-        # PAA diagnostics + Fix #40: Claude fallback for PAA
+        # PAA diagnostics
         paa_debug = s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or []
         if not paa_debug:
             yield emit("log", {"msg": f"⚠️ PAA: brak pytań w s1.paa={len(s1.get('paa') or [])}, s1.paa_questions={len(s1.get('paa_questions') or [])}, serp.paa_questions={len(serp_analysis.get('paa_questions') or [])}"})
-            # Fix #40: Generate PAA with Claude fallback when API returns empty
-            try:
-                import anthropic as _ant_paa
-                _paa_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
-                if _paa_key:
-                    yield emit("log", {"msg": "🔄 PAA fallback: generuję pytania z Claude..."})
-                    _paa_client = _ant_paa.Anthropic(api_key=_paa_key)
-                    _serp_ctx = []
-                    for _cs in serp_analysis.get("competitor_snippets", [])[:6]:
-                        if isinstance(_cs, str) and _cs.strip():
-                            _serp_ctx.append(_cs[:200])
-                    _related = serp_analysis.get("related_searches", [])
-                    _paa_prompt = (
-                        f'Dla frazy "{main_keyword}" wygeneruj 6 pytań które użytkownicy zadają w sekcji "Ludzie pytają też" (PAA) w Google.\n'
-                        f'Kontekst z SERP:\n{chr(10).join(_serp_ctx[:4])}\n'
-                        f'Related searches: {", ".join(_related[:5])}\n\n'
-                        'Zwróć TYLKO JSON array: [{"question": "...", "answer": "krótka odpowiedź 1-2 zdania"}]\n'
-                        'Pytania po polsku, konkretne, rzeczowe.'
-                    )
-                    _paa_resp = _paa_client.messages.create(
-                        model="claude-haiku-4-5-20251001", max_tokens=800, temperature=0,
-                        messages=[{"role": "user", "content": _paa_prompt}]
-                    )
-                    _paa_text = _paa_resp.content[0].text.strip()
-                    import re as _re_paa
-                    _paa_m = _re_paa.search(r"\[[\s\S]*\]", _paa_text)
-                    if _paa_m:
-                        _paa_gen = json.loads(_paa_m.group())
-                        paa_debug = [{"question": q.get("question",""), "answer": q.get("answer",""), "source": "claude_fallback"} for q in _paa_gen if q.get("question")]
-                        yield emit("log", {"msg": f"✅ PAA fallback: {len(paa_debug)} pytań wygenerowanych z Claude"})
-                    else:
-                        yield emit("log", {"msg": "⚠️ PAA fallback: nie udało się sparsować JSON"})
-            except Exception as _paa_err:
-                yield emit("log", {"msg": f"⚠️ PAA fallback error: {str(_paa_err)[:100]}"})
         else:
             yield emit("log", {"msg": f"✅ PAA: {len(paa_debug)} pytań z SERP"})
         yield emit("s1_data", {
@@ -2166,8 +2132,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "featured_snippet": s1.get("featured_snippet") or serp_analysis.get("featured_snippet"),
             "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview"),
             "related_searches": s1.get("related_searches") or serp_analysis.get("related_searches") or [],
-            # PAA: check multiple locations + Fix #40 fallback
-            "paa_questions": (paa_debug if paa_debug else (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or (s1_raw.get("serp_analysis") or {}).get("paa_questions") or s1_raw.get("paa") or []))[:10],
+            # PAA: check multiple locations
+            "paa_questions": (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or (s1_raw.get("serp_analysis") or {}).get("paa_questions") or s1_raw.get("paa") or [])[:10],
             # Causal triplets
             "causal_triplets_count": len(clean_causal_chains) + len(clean_causal_singles),
             "causal_count_chains": len(clean_causal_chains),
@@ -2318,29 +2284,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             })
             if mc["ok"]:
                 medical_context = mc["data"]
-            else:
-                # Fix #58: Fallback medical context when master API fails
-                logger.warning("[YMYL] Medical context API failed, using local fallback")
+            
+            # Fix #58: Fallback medical_context gdy master API niedostępny → YMYL score 0 bez tego
+            if medical_context is None:
+                logger.warning("[MEDICAL] master API niedostępny — używam fallback medical_context")
                 medical_context = {
-                    "active": True,
-                    "specialization": spec or "medycyna ogólna",
-                    "condition": medical_hints.get("condition", main_keyword),
-                    "condition_latin": medical_hints.get("condition_latin", ""),
-                    "icd10": medical_hints.get("icd10", ""),
-                    "key_drugs": medical_hints.get("key_drugs", []),
-                    "evidence_note": medical_hints.get("evidence_note", "Użyj aktualnych wytycznych klinicznych."),
-                    "medical_instruction": (
-                        "OBOWIĄZKOWE DLA ARTYKUŁU MEDYCZNEGO:\n"
-                        "1. Dodaj disclaimer: 'Artykuł ma charakter informacyjny i nie zastępuje konsultacji lekarskiej.'\n"
-                        "2. Powołaj się na min. 2 instytucje (np. WHO, PTOiAu, NFZ, MZ).\n"
-                        "3. Użyj sformułowań opartych na dowodach: 'badania wskazują', 'według wytycznych'.\n"
-                        "4. W ostatnim akapicie każdej sekcji: zachęta do wizyty u specjalisty."
-                    ),
-                    "top_publications": [],
+                    "fallback": True,
+                    "disclaimer": "Informacje zawarte w artykule mają charakter wyłącznie edukacyjny i informacyjny. Nie zastępują porady lekarskiej ani diagnozy. W razie wątpliwości skonsultuj się z lekarzem.",
+                    "institutions": ["WHO", "NFZ", "PTOiAu"],
+                    "evidence_note": "Treść oparta na aktualnych wytycznych medycznych.",
                     "mesh_terms": mesh,
+                    "specialization": spec,
                 }
-                yield emit("log", {"msg": "⚠️ Medical context: użyto lokalnego fallbacku (brak odpowiedzi z master API)"})
-
+            
             ymyl_enrichment["medical"] = medical_hints
         
         if is_finance:
@@ -2673,6 +2629,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if "must_mention_entities" in filtered_entity_seo:
             filtered_entity_seo["must_mention_entities"] = _filter_entities(filtered_entity_seo["must_mention_entities"])
 
+        # Fix #59: Oblicz target_length z recommended_length S1 zamiast hardcode 3500/2000
+        _s1_recommended = s1.get("recommended_length") or (s1.get("length_analysis") or {}).get("recommended")
+        if _s1_recommended and int(_s1_recommended) > 200:
+            _target_length = int(_s1_recommended * 1.05)  # 5% margines na intro/outro
+        else:
+            _target_length = 3500 if mode == "standard" else 2000
+
         project_payload = {
             "main_keyword": main_keyword,
             "mode": mode,
@@ -2686,7 +2649,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "ngrams": _filter_ngrams((s1.get("ngrams") or [])[:30]),
                 "competitor_h2_patterns": _filter_h2_patterns((s1.get("competitor_h2_patterns") or [])[:30])
             },
-            "target_length": 3500 if mode == "standard" else 2000,
+            "target_length": _target_length,
             "is_legal": is_legal,
             "is_medical": is_medical,
             "is_finance": is_finance,
@@ -2746,31 +2709,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # ═══ AI MIDDLEWARE: Track accepted batches for memory ═══
         accepted_batches_log = []
-        # Fix #56: Global cross-batch keyword counter
-        _global_main_kw_count = 0
-        _GLOBAL_KW_MAX = 6  # max occurrences of main keyword in ENTIRE article
-
-        # Fix #60: Featured Snippet tracking — lists and tables across article
-        _global_list_count = 0  # count of <ul>/<ol> across all batches
-        _global_table_count = 0  # count of <table> across all batches
-
-        # Fix #59: Calculate per-batch word target from S1 recommended_length
-        _s1_rec_length = (s1.get("recommended_length") if s1 else 0) or 0
-        if _s1_rec_length and total_batches > 0:
-            # FAQ batch is shorter (~20% of budget), rest split evenly
-            _faq_budget = int(_s1_rec_length * 0.15)
-            _content_budget = _s1_rec_length - _faq_budget
-            _words_per_batch = max(120, int(_content_budget / max(1, total_batches - 1)))
-            _batch_word_override = {
-                "min_words": max(100, _words_per_batch - 30),
-                "max_words": _words_per_batch + 40,
-                "suggested_min": _words_per_batch - 20,
-                "suggested_max": _words_per_batch + 30,
-                "target": _words_per_batch,
-            }
-            yield emit("log", {"msg": f"📏 S1 rec: {_s1_rec_length} słów → per batch: ~{_words_per_batch} słów ({total_batches} batchy)"})
-        else:
-            _batch_word_override = None
 
         # ═══ ENTITY CONTENT PLAN — assign lead entity per batch/H2 ═══
         # Each H2 section gets ONE lead entity as "paragraph subject opener".
@@ -2832,6 +2770,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             )
             yield emit("log", {"msg": f"🗂️ Entity content plan: {plan_preview}"})
 
+        # Fix #56: Globalny licznik głównego keywordu przez wszystkie batche
+        _GLOBAL_KW_MAX = 6  # max 6 wystąpień main keyword w całym artykule
+        _global_main_kw_count = 0
+
         for batch_num in range(1, total_batches + 1):
             yield emit("batch_start", {"batch": batch_num, "total": total_batches})
             yield emit("log", {"msg": f"── BATCH {batch_num}/{total_batches} ──"})
@@ -2861,6 +2803,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             # ═══ Inject YMYL flags for depth signals ═══
             pre_batch["_is_ymyl"] = is_legal or is_medical or is_finance
+            # Fix #56: Przekaż budżet keywordu do prompt_buildera
+            pre_batch["_kw_global_used"] = _global_main_kw_count
+            pre_batch["_kw_global_remaining"] = max(0, _GLOBAL_KW_MAX - _global_main_kw_count)
             # v50: Pass intensity to prompt_builder for conditional legal/medical injection
             pre_batch["_ymyl_intensity"] = ymyl_intensity
             if light_ymyl_note:
@@ -2895,18 +2840,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if must_cover_concepts:
                 pre_batch["_must_cover_concepts"] = must_cover_concepts
 
-            # Fix #59: Override batch_length with S1-correlated target
-            if _batch_word_override:
-                pre_batch["batch_length"] = _batch_word_override
-
             # ═══ Inject EAV + SVO semantic triples ═══
             if topical_gen_eav:
                 pre_batch["_eav_triples"] = topical_gen_eav
             if topical_gen_svo:
                 pre_batch["_svo_triples"] = topical_gen_svo
-            # Fix #57: Inject semantic keyphrases for natural phrase usage
-            if clean_semantic_kp:
-                pre_batch["_semantic_keyphrases"] = clean_semantic_kp
 
             # ═══ ENTITY CONTENT PLAN — inject lead entity for this batch/H2 ═══
             if _entity_content_plan and batch_num <= len(_entity_content_plan):
@@ -3110,70 +3048,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             else:
                                 yield emit("log", {"msg": f"✅ Domain validator: czysto [{_dv_category}]"})
 
-                    # Fix #44 + Fix #54: Keyword anti-stuffing with context-aware replacements
-                    import re as _re_stuff
-                    _main_kw_lower = main_keyword.lower()
-                    _kw_count = len(_re_stuff.findall(_re_stuff.escape(_main_kw_lower), text.lower()))
-                    _text_words = len(text.split())
-                    if _kw_count > 3 and _text_words > 0:
-                        _kw_density = _kw_count / _text_words * 100
-                        if _kw_density > 2.5 or _kw_count > 4:
-                            yield emit("log", {"msg": f"⚠️ Keyword stuffing: '{main_keyword}' x{_kw_count} ({_kw_density:.1f}%) — za dużo powtórzeń"})
-                            if attempt < max_attempts - 1:
-                                # Fix #54: Context-aware replacements instead of hardcoded legal terms
-                                _destuff_replacements = [
-                                    "to zagadnienie", "ten temat", "ta kwestia",
-                                    "omawiany problem", "ten aspekt", "wspomniane zjawisko",
-                                ]
-                                _seen = 0
-                                def _destuff(m):
-                                    nonlocal _seen
-                                    _seen += 1
-                                    if _seen <= 2:
-                                        return m.group(0)
-                                    return _destuff_replacements[(_seen - 3) % len(_destuff_replacements)]
-                                text = _re_stuff.sub(_re_stuff.escape(main_keyword), _destuff, text, flags=_re_stuff.IGNORECASE)
-                                yield emit("log", {"msg": f"✅ Destuffed: zredukowano '{main_keyword}' z {_kw_count} do max 2 wystąpień"})
-
-                    # Fix #56: Global cross-batch keyword anti-stuffing
-                    _batch_kw_count = len(_re_stuff.findall(_re_stuff.escape(_main_kw_lower), text.lower()))
-                    _remaining_budget = max(0, _GLOBAL_KW_MAX - _global_main_kw_count)
-                    if _batch_kw_count > _remaining_budget:
-                        # Reduce to fit within global budget
-                        _g_seen = 0
-                        def _global_destuff(m):
-                            nonlocal _g_seen
-                            _g_seen += 1
-                            if _g_seen <= _remaining_budget:
-                                return m.group(0)
-                            _reps = ["to zagadnienie", "ten temat", "ta kwestia",
-                                     "omawiany problem", "ten aspekt", "wspomniane zjawisko"]
-                            return _reps[(_g_seen - _remaining_budget - 1) % len(_reps)]
-                        text = _re_stuff.sub(_re_stuff.escape(main_keyword), _global_destuff, text, flags=_re_stuff.IGNORECASE)
-                        _final_count = len(_re_stuff.findall(_re_stuff.escape(_main_kw_lower), text.lower()))
-                        yield emit("log", {"msg": f"🌐 Global destuff: '{main_keyword}' budżet {_remaining_budget}, batch miał {_batch_kw_count} → {_final_count}"})
-                        _global_main_kw_count += _final_count
-                    else:
-                        _global_main_kw_count += _batch_kw_count
-
-                    # Fix #60: Track snippet elements (lists, tables, answer-first)
-                    import re as _re_snippet
-                    _batch_lists = len(_re_snippet.findall(r'<(?:ul|ol)\b', text, _re_snippet.IGNORECASE))
-                    _batch_tables = len(_re_snippet.findall(r'<table\b', text, _re_snippet.IGNORECASE))
-                    _global_list_count += _batch_lists
-                    _global_table_count += _batch_tables
-                    if _batch_lists or _batch_tables:
-                        yield emit("log", {"msg": f"📋 Snippet elements: {_batch_lists} list(y), {_batch_tables} tabel(a) [global: {_global_list_count} list, {_global_table_count} table]"})
-
-                    # Check answer-first: first paragraph under H2 should be 40-58 words
-                    _first_p_match = _re_snippet.search(r'<p[^>]*>(.*?)</p>', text, _re_snippet.DOTALL)
-                    if _first_p_match:
-                        _first_p_text = _re_snippet.sub(r'<[^>]+>', '', _first_p_match.group(1)).strip()
-                        _first_p_words = len(_first_p_text.split())
-                        if _first_p_words < 35:
-                            yield emit("log", {"msg": f"⚠️ Snippet: pierwszy akapit za krótki ({_first_p_words} słów, cel: 40-58)"})
-                        elif _first_p_words > 65:
-                            yield emit("log", {"msg": f"⚠️ Snippet: pierwszy akapit za długi ({_first_p_words} słów, cel: 40-58)"})
+                    # Fix #56: Update globalny licznik głównego keywordu
+                    if text and main_keyword:
+                        import re as _re_kw
+                        _kw_lower = main_keyword.lower()
+                        _kw_count_batch = len(_re_kw.findall(r'\b' + _re_kw.escape(_kw_lower) + r'\b', text.lower()))
+                        _global_main_kw_count += _kw_count_batch
+                        _kw_remaining = max(0, _GLOBAL_KW_MAX - _global_main_kw_count)
+                        yield emit("log", {"msg": f"📊 KW global: {_global_main_kw_count}/{_GLOBAL_KW_MAX} wystąpień '{main_keyword}' (pozostało: {_kw_remaining})"})
 
                     # Track for memory
                     accepted_batches_log.append({
@@ -3258,13 +3140,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "tone": mem.get("tone", ""),
                 "batch_count": len(accepted_batches_log),
             })
-
-        # Fix #60: Post-loop snippet element check
-        _snippet_total = _global_list_count + _global_table_count
-        if _snippet_total < 2:
-            yield emit("log", {"msg": f"⚠️ SNIPPET WARNING: artykuł ma tylko {_global_list_count} list i {_global_table_count} tabel (wymóg: min 2 elementy łącznie). Dodaj listy <ul>/<ol> w kolejnych sekcjach."})
-        else:
-            yield emit("log", {"msg": f"✅ Snippet elements OK: {_global_list_count} list, {_global_table_count} tabel"})
 
         # ─── KROK 7: PAA Check ───
         step_start(7)
@@ -3475,10 +3350,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                 "detail": "Nie udało się, kontynuuję"})
 
         # ─── CITATION PASS (YMYL only) ───
-        # Fix #38: Citation pass — TYLKO orzeczenia i ISAP, BEZ Wikipedii
-        # Wikipedia służy do opisu encji, nie jako źródło cytowań
-        if is_legal and judgments_clean:
-            yield emit("log", {"msg": "📎 Citation pass — dopasowuję orzeczenia do tekstu..."})
+        _wiki_arts_for_cit = ymyl_enrichment.get("_wiki_articles", [])
+        if is_legal and (judgments_clean or _wiki_arts_for_cit):
+            yield emit("log", {"msg": "📎 Citation pass — dopasowuję cytaty do tekstu..."})
             try:
                 _cit_art = brajen_call("get", f"/api/project/{project_id}/full_article")
                 if _cit_art["ok"] and _cit_art["data"].get("full_article"):
@@ -3492,20 +3366,23 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             + sig + ", " + j.get("court","") + " (" + j.get("date","") + ")"
                             + (" — " + j.get("summary","")[:100] if j.get("summary") else "")
                         )
-                    # Fix #38: NIE dodajemy Wikipedii jako źródła cytatów
-                    # Wikipedia jest używana tylko do wzbogacania opisu encji w prompt_builder
+                    for w in _wiki_arts_for_cit[:3]:
+                        _cit_sources.append(
+                            "WIKIPEDIA [" + w.get("article_ref","") + "]: "
+                            + w.get("title","") + " — " + w.get("extract","")[:150]
+                            + " (" + w.get("url","") + ")"
+                        )
                     if _cit_sources:
                         _cit_sys = (
                             "Jesteś redaktorem prawnym. Wstaw cytaty do artykułu TYLKO tam gdzie "
                             "akapit merytorycznie pokrywa się z danym orzeczeniem lub przepisem.\n\n"
                             "ZASADY:\n"
                             "1. Cytuj orzeczenie TYLKO gdy akapit dotyczy dokładnie tego zagadnienia\n"
-                            "2. NIE cytuj Wikipedii — nigdy nie pisz 'zob. Wikipedia', 'Wikipedia podaje' itp.\n"
+                            "2. Wikipedia: wstaw '(zob. Wikipedia: [tytuł])' tylko przy pierwszym użyciu przepisu\n"
                             "3. NIE zmieniaj treści — tylko dopisz cytat w nawiasie na końcu zdania\n"
                             "4. Jeśli akapit nie pasuje — zostaw bez zmian\n"
                             "5. Zwróć TYLKO artykuł, bez komentarzy\n"
-                            "6. Orzeczenia karne (II K, AKa) → tylko akapity o sankcjach karnych\n"
-                            "7. Dopuszczalne źródła cytatów: orzeczenia sądowe (sygn. akt), ISAP, Dz.U."
+                            "6. Orzeczenia karne (II K, AKa) → tylko akapity o sankcjach karnych"
                         )
                         _sep = chr(10)
                         _cit_usr = ("ARTYKUL:" + _sep + _art_text + _sep + _sep + "---" + _sep + "DOSTEPNE CYTATY:" + _sep + _sep.join(_cit_sources) + _sep + _sep + "Zwroc artykul z wstawionymi cytatami.")
@@ -3536,25 +3413,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if word_guard:
                 detail += f" | Słowa: {word_guard.get('original', '?')}→{word_guard.get('corrected', '?')}"
 
-            # Fix #37: Pełne dane editorial dla UI
-            _ef = ed.get("editorial_feedback") or {}
-            _summary = (
-                _ef.get("summary")
-                or _ef.get("recenzja_ogolna")
-                or ed.get("summary")
-                or ""
-            )
-            # Zbierz WSZYSTKIE styl_i_jezyk + merytoryka + struktura do errors_found
-            _errors_found = []
-            for err in (_ef.get("errors_to_fix") or ed.get("errors_to_fix") or [])[:10]:
-                _errors_found.append(err)
-            for item in (_ef.get("styl_i_jezyk") or [])[:5]:
-                _errors_found.append({"type": item.get("problem", "STYL"), "description": item.get("sugestia", ""), "original": item.get("cytat", "")})
-            for item in (_ef.get("merytoryka") or [])[:5]:
-                _errors_found.append({"type": "MERYTORYKA", "description": item.get("uwaga", ""), "original": item.get("cytat", ""), "sekcja": item.get("sekcja", "")})
-            for item in (_ef.get("halucynacje") or [])[:3]:
-                _errors_found.append({"type": "HALUCYNACJA", "description": item.get("dlaczego_falsz", ""), "original": item.get("cytat", "")})
-
             yield emit("editorial", {
                 "score": score,
                 "changes_applied": diff.get("applied", 0),
@@ -3563,19 +3421,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "word_count_after": word_guard.get("corrected"),
                 "rollback": rollback.get("triggered", False),
                 "rollback_reason": rollback.get("reason", ""),
-                "feedback": _ef,
+                "feedback": (ed.get("editorial_feedback") or {}),
                 # v50.7 FIX 41: Add change details for expanded panel
-                "applied_changes": (diff.get("applied_changes") or ed.get("applied_changes") or [])[:15],
-                "failed_changes": (diff.get("failed_changes") or ed.get("failed_changes") or [])[:10],
-                "summary": _summary,
-                "errors_found": _errors_found[:15],
+                "applied_changes": (ed.get("applied_changes") or diff.get("applied_changes") or [])[:15],
+                "failed_changes": (ed.get("failed_changes") or diff.get("failed_changes") or [])[:10],
+                "summary": (ed.get("editorial_feedback") or {}).get("summary", ed.get("summary", "")),
+                "errors_found": (ed.get("editorial_feedback") or {}).get("errors_to_fix", [])[:10],
                 "grammar_fixes": (ed.get("grammar_correction") or {}).get("fixes", 0),
                 "grammar_removed": (ed.get("grammar_correction") or {}).get("removed", [])[:5],
-                # Fix #37: Dodatkowe dane recenzji
-                "scores": ed.get("scores") or {},
-                "luki_tresciowe": (_ef.get("luki_tresciowe") or [])[:5],
-                "brakujace_encje": (_ef.get("brakujace_encje") or [])[:8],
-                "struktura_i_narracja": (_ef.get("struktura_i_narracja") or [])[:5],
             })
 
             if rollback.get("triggered"):
@@ -3592,32 +3445,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         "source": "editorial_review",
                     })
                     yield emit("log", {"msg": f"📝 Podgląd zaktualizowany po editorial ({corrected_wc} słów)"})
-            step_done(10)  # Fix #35: było step_done(9) — literówka
+            step_done(9)
             yield emit("step", {"step": 10, "name": "Editorial Review", "status": "done", "detail": detail})
         else:
             ed_error = editorial_result.get("error", "unknown")
             ed_status = editorial_result.get("status", "?")
             yield emit("log", {"msg": f"⚠️ Editorial Review → {ed_status}: {ed_error[:200]}"})
-            # Fix #35: Emit editorial event even on failure so UI shows the card with error info
-            yield emit("editorial", {
-                "score": 0,
-                "changes_applied": 0,
-                "changes_failed": 0,
-                "word_count_before": None,
-                "word_count_after": None,
-                "rollback": False,
-                "rollback_reason": "",
-                "feedback": {},
-                "applied_changes": [],
-                "failed_changes": [],
-                "summary": f"Editorial Review nie powiódł się: {ed_error[:150]}",
-                "errors_found": [],
-                "grammar_fixes": 0,
-                "grammar_removed": [],
-                "_failed": True,
-                "_error": ed_error[:200],
-                "_status_code": ed_status,
-            })
             yield emit("step", {"step": 10, "name": "Editorial Review", "status": "warning",
                                 "detail": f"Nie udało się ({ed_status}), artykuł bez recenzji"})
 
@@ -3699,62 +3532,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     })
                 except Exception as style_err:
                     logger.warning(f"Style analysis failed: {style_err}")
-
-            # ═══ FIX #61: COHERENCE / TOPIC DRIFT DETECTION ═══
-            coherence_result = {}
-            if full_text:
-                try:
-                    _master_url = os.environ.get("MASTER_SEO_API_URL", "http://localhost:5001")
-                    _master_key = os.environ.get("MASTER_SEO_API_KEY", "")
-                    _coh_headers = {}
-                    if _master_key:
-                        _coh_headers["Authorization"] = f"Bearer {_master_key}"
-
-                    yield emit("log", {"msg": "🔗 Coherence: analiza spójności sekcji H2..."})
-                    _coh_resp = http_requests.post(
-                        f"{_master_url}/api/coherence",
-                        json={"text": full_text, "drift_threshold": 0.6},
-                        headers=_coh_headers,
-                        timeout=30
-                    )
-                    if _coh_resp.status_code == 200:
-                        coherence_result = _coh_resp.json()
-                        coh_score = coherence_result.get("score", 0)
-                        coh_avg = coherence_result.get("avg_coherence", 0)
-                        coh_min = coherence_result.get("min_coherence", 0)
-                        drift_count = coherence_result.get("drift_count", 0)
-                        sections = coherence_result.get("section_count", 0)
-
-                        yield emit("log", {"msg": (
-                            f"🔗 Coherence: score {coh_score}/100 | "
-                            f"avg: {coh_avg:.3f} | min: {coh_min:.3f} | "
-                            f"sekcje: {sections} | drifts: {drift_count}"
-                        )})
-
-                        # Log drift alerts
-                        for alert in coherence_result.get("drift_alerts", [])[:3]:
-                            yield emit("log", {"msg": (
-                                f"   ⚠️ Topic drift: \"{alert['from']}\" → \"{alert['to']}\" "
-                                f"(similarity: {alert['similarity']:.3f} < 0.6)"
-                            )})
-
-                        yield emit("coherence", {
-                            "enabled": True,
-                            "score": coh_score,
-                            "avg_coherence": coh_avg,
-                            "min_coherence": coh_min,
-                            "section_count": sections,
-                            "drift_count": drift_count,
-                            "drift_alerts": coherence_result.get("drift_alerts", []),
-                            "pairwise_scores": coherence_result.get("pairwise_scores", []),
-                            "global_coherence": coherence_result.get("global_coherence", 0),
-                            "sections": coherence_result.get("sections", []),
-                        })
-                    else:
-                        yield emit("log", {"msg": f"⚠️ Coherence: master API returned {_coh_resp.status_code}"})
-                except Exception as coh_err:
-                    logger.warning(f"Coherence analysis failed: {coh_err}")
-                    yield emit("log", {"msg": f"⚠️ Coherence error: {str(coh_err)[:80]}"})
 
             # ═══ POLISH NLP VALIDATOR: NKJP corpus norms check (free, always runs) ═══
             polish_nlp = {}
