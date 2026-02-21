@@ -50,6 +50,8 @@ from ai_middleware import (
     ai_synthesize_memory,
     check_sentence_length,
     sentence_length_retry,
+    check_anaphora,
+    anaphora_retry,
     validate_batch_domain,
     fix_batch_domain_errors,
 )
@@ -820,6 +822,53 @@ Przykłady dla "jazda po alkoholu":
   {"subject": "stężenie alkoholu", "verb": "decyduje o kwalifikacji", "object": "przestępstwo vs wykroczenie (próg 0,5 promila)"}
   {"subject": "blokada alkoholowa", "verb": "umożliwia skrócenie", "object": "zakazu prowadzenia pojazdów"}
 To są FAKTY MERYTORYCZNE które MUSZĄ znaleźć się w artykule — nie styl, nie encje ogólne."""
+
+
+def _derive_entity_synonyms(main_keyword: str, secondary_entities: list = None, clean_ngrams: list = None) -> list:
+    """
+    Fix #64: Generuj podmiotowe zamienniki encji głównej przez mały Haiku call.
+    Pytanie: czym JEST ta encja — jakie słowa nadrzędne (hiperonimy) mogą ją zastąpić jako podmiot.
+    Koszt: ~0.001 USD per call (100-150 tokenów input + output).
+    Fallback: lista zaimków gdy brak klucza API.
+    """
+    if not ANTHROPIC_API_KEY or not main_keyword:
+        return []
+
+    prompt = (
+        f"Fraza: \"{main_keyword}\"\n\n"
+        f"Podaj dokładnie 5 krótkich polskich słów lub wyrażeń (max 3 słowa każde), "
+        f"którymi można zastąpić tę frazę jako PODMIOT zdania — czyli hiperonimy opisujące czym ona JEST.\n\n"
+        f"Zasady:\n"
+        f"- Nie powtarzaj frazy ani jej części\n"
+        f"- Tylko naturalne polskie określenia używane w tej dziedzinie\n"
+        f"- Każde określenie w osobnej linii, bez numerów ani myślników\n"
+        f"- Zero komentarzy, tylko lista\n\n"
+        f"Przykład dla 'jazda po alkoholu': przestępstwo, czyn, wykroczenie, delikt, naruszenie\n"
+        f"Przykład dla 'rak piersi': choroba, nowotwór, schorzenie, diagnoza, guz\n"
+        f"Przykład dla 'rejestr spadkowy': system, baza danych, narzędzie, serwis, wyszukiwarka"
+    )
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=80,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = resp.content[0].text.strip()
+        # Parse: jedna linia = jeden zamiennik
+        synonyms = [
+            line.strip().strip("-•·").strip()
+            for line in raw.splitlines()
+            if line.strip() and len(line.strip()) > 2
+        ]
+        # Odfiltruj puste i zbyt długie (>4 słowa)
+        synonyms = [s for s in synonyms if 1 <= len(s.split()) <= 4][:6]
+        return synonyms
+    except Exception as e:
+        logger.warning(f"[ENTITY_SYNONYMS] Haiku call failed: {e}")
+        return []
 
 
 def _generate_topical_entities(main_keyword: str, h2_plan: list = None) -> dict:
@@ -2168,6 +2217,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "entity_placement": backend_entity_placement if isinstance(backend_entity_placement, dict) else {},
                 # v48.0: Cleanup info
                 "cleanup_method": cleanup_stats.get("method", "unknown"),
+                # Podmiotowe zamienniki encji głównej — Haiku call (Fix #64 anty-anaphora)
+                "entity_synonyms": _derive_entity_synonyms(main_keyword),
             },
             # v47.0: Placement instruction (top-level for easy access)
             "placement_instruction": backend_placement_instruction,
@@ -2629,6 +2680,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if "must_mention_entities" in filtered_entity_seo:
             filtered_entity_seo["must_mention_entities"] = _filter_entities(filtered_entity_seo["must_mention_entities"])
 
+        # Wyciagnij synonimy encji głównej z entity_seo (zapisane z topical entity generator)
+        _entity_synonyms = filtered_entity_seo.get("entity_synonyms", [])
+        if _entity_synonyms:
+            yield emit("log", {"msg": f"🔄 Synonimy encji: {', '.join(str(s) for s in _entity_synonyms[:5])}"})
+
         # Fix #59: Oblicz target_length z recommended_length S1 zamiast hardcode 3500/2000
         _s1_recommended = s1.get("recommended_length") or (s1.get("length_analysis") or {}).get("recommended")
         if _s1_recommended and int(_s1_recommended) > 200:
@@ -3035,14 +3091,29 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     # ── Sentence length post-check ──
                     sl = check_sentence_length(text)
                     if sl["needs_retry"] and attempt < max_attempts - 1:
-                        yield emit("log", {"msg": f"✂️ Zdania za długie (śr. {sl['avg_len']} słów, {sl['long_count']} ponad limit) — skracam..."})
-                        text_shortened = sentence_length_retry(text, h2=current_h2, avg_len=sl["avg_len"], long_count=sl["long_count"])
+                        comma_info = f", {sl.get('comma_count', 0)} zdań z 3+ przecinkami" if sl.get("comma_count", 0) > 0 else ""
+                        yield emit("log", {"msg": f"✂️ Zdania za długie/złożone (śr. {sl['avg_len']} słów, {sl['long_count']} ponad limit{comma_info}) — skracam..."})
+                        text_shortened = sentence_length_retry(text, h2=current_h2, avg_len=sl["avg_len"], long_count=sl["long_count"], comma_count=sl.get("comma_count", 0))
                         sl_after = check_sentence_length(text_shortened)
                         if sl_after["avg_len"] < sl["avg_len"]:
                             text = text_shortened
                             yield emit("log", {"msg": f"✅ Po skróceniu: śr. {sl_after['avg_len']} słów/zdanie"})
                         else:
                             yield emit("log", {"msg": f"⚠️ Skracanie nie poprawiło wyniku, zostawiam oryginał"})
+
+                    # ── Fix #64: Anaphora check — zakaz 3+ zdań z tym samym otwarciem ──
+                    if main_keyword and text:
+                        _an = check_anaphora(text, main_entity=main_keyword)
+                        if _an["needs_fix"]:
+                            yield emit("log", {"msg": f"🔁 ANAPHORA: {_an['anaphora_count']}× seria '{main_keyword[:30]}...' — naprawiam podmiot..."})
+                            text_fixed = anaphora_retry(text, main_entity=main_keyword, h2=current_h2)
+                            _an_after = check_anaphora(text_fixed, main_entity=main_keyword)
+                            if not _an_after["needs_fix"]:
+                                text = text_fixed
+                                yield emit("log", {"msg": f"✅ Anaphora naprawiona"})
+                            else:
+                                yield emit("log", {"msg": f"⚠️ Anaphora częściowo naprawiona ({_an_after['anaphora_count']}× pozostało)"})
+                                text = text_fixed  # weź poprawiony nawet jeśli nie idealny
                     # ═══ DOMAIN VALIDATOR (Warstwa 2) ═══
                     _dv_category = "prawo" if is_legal else ("medycyna" if is_medical else ("finanse" if is_finance else ""))
                     if _dv_category and text:
@@ -3518,6 +3589,23 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                     yield emit("log", {"msg": "⚠️ Post-editorial retry nie poprawił — zostawiam po editorial"})
                         except Exception as _sl_err:
                             yield emit("log", {"msg": f"⚠️ Post-editorial sentence check error: {str(_sl_err)[:60]}"})
+
+                        # Fix #64: Post-editorial anaphora check na całym artykule
+                        try:
+                            _an_final = check_anaphora(article_text, main_entity=main_keyword)
+                            if _an_final["needs_fix"]:
+                                yield emit("log", {"msg": f"🔁 Post-editorial anaphora: {_an_final['anaphora_count']}× seria — naprawiam..."})
+                                article_text_an = anaphora_retry(article_text, main_entity=main_keyword, h2="cały artykuł")
+                                _an_check = check_anaphora(article_text_an, main_entity=main_keyword)
+                                if len(article_text_an) > 100:
+                                    article_text = article_text_an
+                                    remaining_runs = _an_check["anaphora_count"]
+                                    if remaining_runs == 0:
+                                        yield emit("log", {"msg": "✅ Post-editorial anaphora — pełna korekta"})
+                                    else:
+                                        yield emit("log", {"msg": f"✅ Post-editorial anaphora — {remaining_runs}× pozostało (czyszczenie częściowe)"})
+                        except Exception as _an_err:
+                            yield emit("log", {"msg": f"⚠️ Post-editorial anaphora error: {str(_an_err)[:60]}"})
 
             yield emit("article", {
                 "text": article_text,
