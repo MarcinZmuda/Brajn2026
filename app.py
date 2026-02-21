@@ -1424,13 +1424,31 @@ def _fetch_wikipedia_legal_article(article_ref):
     """Fetch Wikipedia summary for a legal article ref like 'art. 178a k.k.'"""
     import re as _re
     q = article_ref.strip()
-    q = _re.sub(r'art\.\s*', 'Art. ', q, flags=_re.IGNORECASE)
-    q = q.replace('k.k.', 'Kodeks karny').replace('k.w.', 'Kodeks wykroczen')
-    q = q.replace('k.c.', 'Kodeks cywilny').replace('k.p.', 'Kodeks postepowania cywilnego')
+    # Build expanded query for Wikipedia search
+    q_expanded = _re.sub(r'art\.\s*', 'Art. ', q, flags=_re.IGNORECASE)
+    # Map abbreviations to full act names for better search
+    _act_map = {
+        'k.k.': 'Kodeks karny', 'k.w.': 'Kodeks wykroczeń',
+        'k.c.': 'Kodeks cywilny', 'k.p.c.': 'Kodeks postępowania cywilnego',
+        'k.p.': 'Kodeks pracy', 'k.r.o.': 'Kodeks rodzinny i opiekuńczy',
+        'k.p.a.': 'Kodeks postępowania administracyjnego',
+        'k.s.h.': 'Kodeks spółek handlowych',
+    }
+    for abbr, full in _act_map.items():
+        q_expanded = q_expanded.replace(abbr, full)
+    # Extract article number and act name for relevance filtering
+    _art_match = _re.search(r'Art\.?\s*(\d+\w*)', q_expanded, _re.IGNORECASE)
+    _art_num = _art_match.group(1) if _art_match else ""
+    # Extract act name (everything after the article number)
+    _act_name = ""
+    for full_name in _act_map.values():
+        if full_name.lower() in q_expanded.lower():
+            _act_name = full_name.lower()
+            break
     try:
         search_url = "https://pl.wikipedia.org/w/api.php?" + _urllib_parse.urlencode({
-            "action": "query", "list": "search", "srsearch": q,
-            "format": "json", "srlimit": 3, "srprop": "snippet"
+            "action": "query", "list": "search", "srsearch": q_expanded,
+            "format": "json", "srlimit": 5, "srprop": "snippet"
         })
         req = _urllib_req.Request(search_url, headers={"User-Agent": "Brajn2026/1.0"})
         with _urllib_req.urlopen(req, timeout=8) as r:
@@ -1438,9 +1456,33 @@ def _fetch_wikipedia_legal_article(article_ref):
         results = data.get("query", {}).get("search", [])
         if not results:
             return {"found": False, "article_ref": article_ref}
-        page_title = results[0]["pageid"]
+        # v51: Filter results for relevance — pick the best matching page
+        # Prefer pages whose title contains the article number or act name
+        best_result = None
+        for res in results:
+            title_low = res.get("title", "").lower()
+            snippet_low = (res.get("snippet") or "").lower()
+            combined = title_low + " " + snippet_low
+            # Strong match: title contains "art." + number or the act name
+            if _art_num and _art_num.lower() in combined:
+                best_result = res
+                break
+            if _act_name and _act_name in combined:
+                best_result = res
+                break
+        # Fallback: skip results about elections, politicians, sports etc.
+        _irrelevant_patterns = ['wybory', 'kadencj', 'parlamentarn', 'prezydent', 'olimp', 'mistrz', 'piłk']
+        if not best_result:
+            for res in results:
+                title_low = res.get("title", "").lower()
+                if not any(pat in title_low for pat in _irrelevant_patterns):
+                    best_result = res
+                    break
+        if not best_result:
+            best_result = results[0]
+        page_id = best_result["pageid"]
         extract_url = "https://pl.wikipedia.org/w/api.php?" + _urllib_parse.urlencode({
-            "action": "query", "pageids": page_title, "prop": "extracts|info",
+            "action": "query", "pageids": page_id, "prop": "extracts|info",
             "exintro": True, "explaintext": True, "inprop": "url", "format": "json"
         })
         req2 = _urllib_req.Request(extract_url, headers={"User-Agent": "Brajn2026/1.0"})
@@ -1450,7 +1492,7 @@ def _fetch_wikipedia_legal_article(article_ref):
         page = next(iter(pages.values()), {})
         extract = (page.get("extract") or "").strip()[:600]
         url = page.get("fullurl", "https://pl.wikipedia.org")
-        title = page.get("title", results[0].get("title", ""))
+        title = page.get("title", best_result.get("title", ""))
         if extract:
             return {"found": True, "article_ref": article_ref, "title": title, "url": url, "extract": extract, "source": "Wikipedia (pl)"}
         return {"found": False, "article_ref": article_ref}
