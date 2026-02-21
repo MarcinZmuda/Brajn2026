@@ -2750,8 +2750,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         _global_main_kw_count = 0
         _GLOBAL_KW_MAX = 6  # max occurrences of main keyword in ENTIRE article
 
+        # Fix #60: Featured Snippet tracking — lists and tables across article
+        _global_list_count = 0  # count of <ul>/<ol> across all batches
+        _global_table_count = 0  # count of <table> across all batches
+
         # Fix #59: Calculate per-batch word target from S1 recommended_length
-        _s1_rec_length = s1_data.get("recommended_length") or 0
+        _s1_rec_length = (s1.get("recommended_length") if s1 else 0) or 0
         if _s1_rec_length and total_batches > 0:
             # FAQ batch is shorter (~20% of budget), rest split evenly
             _faq_budget = int(_s1_rec_length * 0.15)
@@ -3152,6 +3156,25 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     else:
                         _global_main_kw_count += _batch_kw_count
 
+                    # Fix #60: Track snippet elements (lists, tables, answer-first)
+                    import re as _re_snippet
+                    _batch_lists = len(_re_snippet.findall(r'<(?:ul|ol)\b', text, _re_snippet.IGNORECASE))
+                    _batch_tables = len(_re_snippet.findall(r'<table\b', text, _re_snippet.IGNORECASE))
+                    _global_list_count += _batch_lists
+                    _global_table_count += _batch_tables
+                    if _batch_lists or _batch_tables:
+                        yield emit("log", {"msg": f"📋 Snippet elements: {_batch_lists} list(y), {_batch_tables} tabel(a) [global: {_global_list_count} list, {_global_table_count} table]"})
+
+                    # Check answer-first: first paragraph under H2 should be 40-58 words
+                    _first_p_match = _re_snippet.search(r'<p[^>]*>(.*?)</p>', text, _re_snippet.DOTALL)
+                    if _first_p_match:
+                        _first_p_text = _re_snippet.sub(r'<[^>]+>', '', _first_p_match.group(1)).strip()
+                        _first_p_words = len(_first_p_text.split())
+                        if _first_p_words < 35:
+                            yield emit("log", {"msg": f"⚠️ Snippet: pierwszy akapit za krótki ({_first_p_words} słów, cel: 40-58)"})
+                        elif _first_p_words > 65:
+                            yield emit("log", {"msg": f"⚠️ Snippet: pierwszy akapit za długi ({_first_p_words} słów, cel: 40-58)"})
+
                     # Track for memory
                     accepted_batches_log.append({
                         "text": text, "h2": current_h2, "batch_num": batch_num,
@@ -3235,6 +3258,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "tone": mem.get("tone", ""),
                 "batch_count": len(accepted_batches_log),
             })
+
+        # Fix #60: Post-loop snippet element check
+        _snippet_total = _global_list_count + _global_table_count
+        if _snippet_total < 2:
+            yield emit("log", {"msg": f"⚠️ SNIPPET WARNING: artykuł ma tylko {_global_list_count} list i {_global_table_count} tabel (wymóg: min 2 elementy łącznie). Dodaj listy <ul>/<ol> w kolejnych sekcjach."})
+        else:
+            yield emit("log", {"msg": f"✅ Snippet elements OK: {_global_list_count} list, {_global_table_count} tabel"})
 
         # ─── KROK 7: PAA Check ───
         step_start(7)
@@ -3669,6 +3699,62 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     })
                 except Exception as style_err:
                     logger.warning(f"Style analysis failed: {style_err}")
+
+            # ═══ FIX #61: COHERENCE / TOPIC DRIFT DETECTION ═══
+            coherence_result = {}
+            if full_text:
+                try:
+                    _master_url = os.environ.get("MASTER_SEO_API_URL", "http://localhost:5001")
+                    _master_key = os.environ.get("MASTER_SEO_API_KEY", "")
+                    _coh_headers = {}
+                    if _master_key:
+                        _coh_headers["Authorization"] = f"Bearer {_master_key}"
+
+                    yield emit("log", {"msg": "🔗 Coherence: analiza spójności sekcji H2..."})
+                    _coh_resp = http_requests.post(
+                        f"{_master_url}/api/coherence",
+                        json={"text": full_text, "drift_threshold": 0.6},
+                        headers=_coh_headers,
+                        timeout=30
+                    )
+                    if _coh_resp.status_code == 200:
+                        coherence_result = _coh_resp.json()
+                        coh_score = coherence_result.get("score", 0)
+                        coh_avg = coherence_result.get("avg_coherence", 0)
+                        coh_min = coherence_result.get("min_coherence", 0)
+                        drift_count = coherence_result.get("drift_count", 0)
+                        sections = coherence_result.get("section_count", 0)
+
+                        yield emit("log", {"msg": (
+                            f"🔗 Coherence: score {coh_score}/100 | "
+                            f"avg: {coh_avg:.3f} | min: {coh_min:.3f} | "
+                            f"sekcje: {sections} | drifts: {drift_count}"
+                        )})
+
+                        # Log drift alerts
+                        for alert in coherence_result.get("drift_alerts", [])[:3]:
+                            yield emit("log", {"msg": (
+                                f"   ⚠️ Topic drift: \"{alert['from']}\" → \"{alert['to']}\" "
+                                f"(similarity: {alert['similarity']:.3f} < 0.6)"
+                            )})
+
+                        yield emit("coherence", {
+                            "enabled": True,
+                            "score": coh_score,
+                            "avg_coherence": coh_avg,
+                            "min_coherence": coh_min,
+                            "section_count": sections,
+                            "drift_count": drift_count,
+                            "drift_alerts": coherence_result.get("drift_alerts", []),
+                            "pairwise_scores": coherence_result.get("pairwise_scores", []),
+                            "global_coherence": coherence_result.get("global_coherence", 0),
+                            "sections": coherence_result.get("sections", []),
+                        })
+                    else:
+                        yield emit("log", {"msg": f"⚠️ Coherence: master API returned {_coh_resp.status_code}"})
+                except Exception as coh_err:
+                    logger.warning(f"Coherence analysis failed: {coh_err}")
+                    yield emit("log", {"msg": f"⚠️ Coherence error: {str(coh_err)[:80]}"})
 
             # ═══ POLISH NLP VALIDATOR: NKJP corpus norms check (free, always runs) ═══
             polish_nlp = {}

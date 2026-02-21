@@ -172,10 +172,27 @@ Nie stosuj przypadkowych wypełniaczy encyjnych.
     # ════════════════════════════════════════════════════════════
     parts.append("""<rules>
 
-PASSAGE-FIRST + RÓŻNORODNOŚĆ OTWARĆ (KRYTYCZNE)
-Pod każdym H2 pierwsze zdanie musi być passage-ready (Google Featured Snippet).
-JEDNAK: każda sekcja H2 MUSI zaczynać się INNYM wzorcem składniowym.
+FEATURED SNIPPET OPTIMIZATION (KRYTYCZNE dla pozycji 0)
 
+ANSWER-FIRST: Pod każdym H2 MUSISZ zacząć od bezpośredniej odpowiedzi 40-58 słów.
+Te 40-58 słów to "snippet-ready passage" — Google może je wyciąć jako Featured Snippet.
+Odpowiedź musi być SAMODZIELNA (bez "jak wspomniano", "dlatego właśnie").
+Po snippet-ready passage rozwijasz temat w kolejnych akapitach.
+
+LISTY HTML: W CAŁYM artykule MUSISZ użyć DOKŁADNIE 2 wypunktowań:
+  • Użyj <ul> dla kolekcji (objawy, cechy, typy) lub <ol> dla kroków/procesu
+  • Każda lista: 5-8 elementów, każdy <li> to 1 konkretne zdanie (nie samo słowo)
+  • Lista MUSI być poprzedzona zdaniem wprowadzającym kończącym się dwukropkiem
+  • Rozmieść listy w RÓŻNYCH sekcjach H2 (nie obie w jednej)
+
+TABELA HTML (opcjonalnie, max 1 na artykuł):
+  • Użyj <table> (NIE CSS grid) do porównań, danych liczbowych, typów
+  • Max 4-5 kolumn, 3-6 wierszy + nagłówek <thead>
+  • Komórki krótkie (≤25 znaków)
+  • Tabela ZAMIAST jednego z wypunktowań (czyli: 2 listy LUB 1 lista + 1 tabela)
+
+PASSAGE-FIRST + RÓŻNORODNOŚĆ OTWARĆ
+Każda sekcja H2 MUSI zaczynać się INNYM wzorcem składniowym.
 ZAKAZ: dwie sąsiednie sekcje o identycznej strukturze pierwszego zdania.
 
 Dostępne wzorce otwarcia sekcji — rotuj między nimi:
