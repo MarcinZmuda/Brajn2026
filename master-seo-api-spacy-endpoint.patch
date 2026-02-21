@@ -1,0 +1,161 @@
+diff --git a/entity_routes.py b/entity_routes.py
+index 873ba81..e698412 100644
+--- a/entity_routes.py
++++ b/entity_routes.py
+@@ -556,6 +556,156 @@ def get_synonym_database():
+     }), 200
+ 
+ 
++# ================================================================
++# 🔬 SPACY NLP ENTITY ANALYSIS (for Brajn2026 salience fallback)
++# ================================================================
++
++@entity_routes.post("/api/nlp/analyze_entities")
++def nlp_analyze_entities():
++    """
++    Analyze text with spaCy NER and return entities with salience-like scores.
++
++    Fallback for Google Cloud NLP API which doesn't support Polish.
++    Uses spaCy pl_core_news_md for NER + frequency-based salience estimation.
++
++    Request:
++        {
++            "text": "Article text...",
++            "main_keyword": "optional main keyword",
++            "language": "pl"
++        }
++
++    Response:
++        {
++            "entities": [
++                {"name": "...", "type": "PERSON", "salience": 0.35,
++                 "mentions": 5, "schema_type": "Person"},
++            ],
++            "source": "spacy_pl_core_news_md"
++        }
++    """
++    try:
++        from entity_ngram_analyzer import extract_entities
++
++        data = request.get_json(force=True)
++        text = data.get("text", "")
++        main_keyword = data.get("main_keyword", "")
++
++        if not text:
++            return jsonify({"error": "No text provided"}), 400
++
++        if len(text) < 50:
++            return jsonify({"entities": [], "source": "spacy", "error": "Text too short"}), 200
++
++        # Extract entities via spaCy NER
++        raw_entities = extract_entities(text[:50000])
++
++        if not raw_entities:
++            return jsonify({"entities": [], "source": "spacy"}), 200
++
++        # Deduplicate: group by lowercased entity name
++        entity_groups = {}
++        for ent in raw_entities:
++            key = ent.text.lower().strip()
++            if len(key) < 2:
++                continue
++            if key not in entity_groups:
++                entity_groups[key] = {
++                    "name": ent.text,
++                    "label": ent.label,
++                    "normalized_label": ent.normalized_label,
++                    "mentions": 0,
++                    "importance_score": ent.importance_score,
++                    "positions": [],
++                }
++            entity_groups[key]["mentions"] += 1
++            entity_groups[key]["positions"].append(ent.start_char)
++            # Keep the most common capitalization
++            if ent.importance_score > entity_groups[key]["importance_score"]:
++                entity_groups[key]["importance_score"] = ent.importance_score
++                entity_groups[key]["name"] = ent.text
++
++        # Calculate salience-like score based on:
++        # 1. Frequency (mentions) — normalized
++        # 2. Position (earlier = higher salience)
++        # 3. Entity type weight
++        # 4. Importance score from spaCy analysis
++        total_mentions = sum(g["mentions"] for g in entity_groups.values())
++        text_len = len(text)
++
++        # spaCy label → Google NLP-compatible type mapping
++        LABEL_TO_TYPE = {
++            "persName": "PERSON", "PER": "PERSON", "PERSON": "PERSON",
++            "orgName": "ORGANIZATION", "ORG": "ORGANIZATION", "ORGANIZATION": "ORGANIZATION",
++            "placeName": "LOCATION", "LOC": "LOCATION", "GPE": "LOCATION", "LOCATION": "LOCATION",
++            "geogName": "LOCATION",
++            "date": "DATE", "DATE": "DATE", "TIME": "DATE",
++            "money": "NUMBER", "MONEY": "NUMBER",
++            "percent": "NUMBER", "PERCENT": "NUMBER",
++        }
++
++        TYPE_TO_SCHEMA = {
++            "PERSON": "Person",
++            "ORGANIZATION": "Organization",
++            "LOCATION": "Place",
++            "DATE": None,
++            "NUMBER": None,
++        }
++
++        entities_scored = []
++        for key, group in entity_groups.items():
++            # Frequency component (0-0.5)
++            freq_score = min(0.5, group["mentions"] / max(total_mentions, 1))
++
++            # Position component (0-0.3) — earlier positions = higher salience
++            avg_position = sum(group["positions"]) / len(group["positions"])
++            position_score = 0.3 * (1 - avg_position / max(text_len, 1))
++
++            # Type weight (0-0.1)
++            type_weight = 0.1 if group["normalized_label"] in ("persName", "orgName", "placeName") else 0.05
++
++            # Importance from spaCy (0-0.1)
++            imp_score = 0.1 * group["importance_score"]
++
++            salience = round(freq_score + position_score + type_weight + imp_score, 4)
++
++            entity_type = LABEL_TO_TYPE.get(group["label"], LABEL_TO_TYPE.get(group["normalized_label"], "OTHER"))
++            schema_type = TYPE_TO_SCHEMA.get(entity_type, "Thing")
++
++            if schema_type is None:
++                continue  # Skip dates, numbers
++
++            entities_scored.append({
++                "name": group["name"],
++                "type": entity_type,
++                "schema_type": schema_type,
++                "salience": salience,
++                "mentions": group["mentions"],
++                "wikipedia_url": "",
++                "mid": "",
++            })
++
++        # Sort by salience descending
++        entities_scored.sort(key=lambda e: e["salience"], reverse=True)
++
++        # Normalize salience so top entity ≈ values comparable to Google NLP
++        if entities_scored:
++            max_sal = entities_scored[0]["salience"]
++            if max_sal > 0:
++                for e in entities_scored:
++                    e["salience"] = round(e["salience"] / max_sal * 0.6, 4)
++
++        return jsonify({
++            "entities": entities_scored[:30],
++            "source": "spacy_pl_core_news_md",
++        }), 200
++
++    except Exception as e:
++        import traceback
++        traceback.print_exc()
++        return jsonify({"error": str(e), "entities": []}), 500
++
++
+ # ================================================================
+ # 🧪 TEST
+ # ================================================================
