@@ -1650,6 +1650,20 @@ def _fmt_natural_polish(pre_batch):
         "  • Podmiot → dopełnienie → synonim → kolejny akapit → ponownie fraza"
     )
 
+    # Fix #64 Layer 3 — dodatkowe reguły anafory globalnej (FAQ + zero-subject + zaimek 'To')
+    parts.append(
+        "🔄 ANTY-ANAPHORA GLOBALNA:\n"
+        "  • FAQ/sekcja pytań: każde pytanie MUSI zaczynać się INNYM słowem.\n"
+        "    Rotuj: 'Czy', 'Kiedy', 'Jak', 'Co zrobić gdy', 'Ile', 'Dlaczego', 'W jakich', 'Od kiedy'.\n"
+        "    NIE pisz 4+ pytań z rzędu zaczynających się od tego samego słowa.\n"
+        "  • NIE zaczynaj zdania od imiesłowu bez podmiotu:\n"
+        "    ŹLE: 'Zlekceważone prowadzą do...' / 'Nieleczone skutkują...'\n"
+        "    DOBRZE: 'Nieleczone objawy prowadzą do...' / 'Zlekceważone symptomy skutkują...'\n"
+        "  • NIE używaj 'To' jako podmiotu zdania:\n"
+        "    ŹLE: 'To klucz do...' / 'To podstawa...' / 'To pierwszy krok...'\n"
+        "    DOBRZE: 'Badanie słuchu stanowi klucz do...' / 'Właściwa diagnoza to podstawa...'"
+    )
+
     return "\n".join(parts)
 
 
