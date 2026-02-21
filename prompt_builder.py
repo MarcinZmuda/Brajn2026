@@ -2114,3 +2114,293 @@ Odpowiedz TYLKO JSON array, bez markdown, bez komentarzy:
 ["H2 pierwszy", "H2 drugi", ..., "Najczęściej zadawane pytania"]""")
 
     return "\n\n".join(sections)
+
+
+# ════════════════════════════════════════════════════════════════════════
+# CATEGORY DESCRIPTION PROMPT BUILDERS
+# ════════════════════════════════════════════════════════════════════════
+# Separate prompt system for e-commerce category page descriptions.
+# Key differences vs article: commercial intent, 200-1200 words,
+# keyword density 1.0-2.0%, entity salience >0.30, 3-block structure
+# (intro above products + SEO content below + FAQ).
+# ════════════════════════════════════════════════════════════════════════
+
+
+def build_category_system_prompt(pre_batch, batch_type, category_data=None):
+    """
+    System prompt for e-commerce category descriptions.
+    Different role, goal, audience, tone and rules vs article prompt.
+    """
+    pre_batch = pre_batch or {}
+    category_data = category_data or {}
+
+    parts = []
+
+    store_name = category_data.get("store_name") or "sklep"
+    store_desc = category_data.get("store_description") or ""
+    brand_voice = category_data.get("brand_voice") or ""
+
+    # ── ROLA ──
+    store_ctx = f" dla {store_name}" if store_name != "sklep" else ""
+    store_desc_line = f"\n{store_desc}" if store_desc else ""
+    parts.append(f"""<role>
+Jesteś doświadczonym copywriterem e-commerce{store_ctx}{store_desc_line}.
+Specjalizujesz się w opisach kategorii sklepów internetowych,
+które łączą SEO z konwersją zakupową.
+
+Nie jesteś blogerem — piszesz tekst sprzedażowy, nie edukacyjny.
+Nie jesteś chatbotem — piszesz jak ekspert produktowy.
+Twój tekst ma wspierać decyzję zakupową, nie edukować encyklopedycznie.
+</role>""")
+
+    # ── CEL ──
+    parts.append("""<goal>
+Twoim celem jest napisanie opisu kategorii e-commerce, który:
+  • wspiera intencję komercyjną/transakcyjną użytkownika,
+  • naturalnie zawiera słowa kluczowe (gęstość 1,0–2,0%),
+  • buduje entity salience >0,30 dla głównej encji,
+  • używa konkretnych nazw produktów, cen, cech — nie ogólników,
+  • pomaga kupującemu podjąć decyzję zakupową.
+
+80% elementów transakcyjnych, 20% informacyjnych.
+SEO jest narzędziem konwersji, nie celem samym w sobie.
+</goal>""")
+
+    # ── ODBIORCA ──
+    target = category_data.get("target_audience") or ""
+    target_line = f"\nGrupa docelowa: {target}" if target else ""
+    parts.append(f"""<audience>
+Kupujący z intencją zakupową — szuka produktu, porównuje opcje,
+chce wiedzieć dlaczego kupić tutaj i jaki produkt wybrać.{target_line}
+Pisz jakbyś doradzał przyjacielowi, który prosi o szczerą rekomendację.
+</audience>""")
+
+    # ── TON I STYL ──
+    voice_line = f"\nBrand voice: {brand_voice}" if brand_voice else ""
+    parts.append(f"""<tone>
+Ton: autorytatywny, pomocny, zwięzły.
+Perspektywa: „my" (sklep) lub trzecia osoba — zależy od brand voice.
+Unikaj: „szeroki wybór", „coś dla każdego", „nie szukaj dalej",
+  „niezależnie czy jesteś X czy Y", „jedyne miejsce".{voice_line}
+</tone>""")
+
+    # ── EPISTEMOLOGIA ──
+    parts.append("""<epistemology>
+ŹRÓDŁA WIEDZY:
+  1. Dane wejściowe: produkty, ceny, cechy, USP — podane wprost
+  2. Konkurencja z SERP (podane w danych) — czytasz fakty, NIE kopiujesz
+  3. Wiedza produktowa z podanych danych — TYLKO to co masz
+
+❌ ZAKAZ: nie wymyślaj produktów, cen, recenzji, nagród, certyfikatów.
+❌ ZAKAZ: nie podawaj liczb/statystyk których nie masz w danych.
+JEŚLI NIE WIESZ → OPUŚĆ, nie zmyślaj.
+</epistemology>""")
+
+    # ── STRUKTURA KATEGORII ──
+    cat_type = category_data.get("category_type", "subcategory")
+    if cat_type == "parent":
+        struct_desc = """STRUKTURA — KATEGORIA NADRZĘDNA (200–500 słów):
+  Blok 1 — INTRO nad produktami (50–100 słów):
+    Keyword w pierwszym zdaniu, krótki opis asortymentu, 1–2 USP,
+    linki do podkategorii. Widoczne bez „czytaj więcej".
+  Blok 2 — TREŚĆ SEO pod produktami (100–300 słów):
+    1–2 sekcje H2: przegląd podkategorii, dlaczego warto kupić u nas.
+    Nawigacyjny charakter — kieruj do podkategorii.
+  Blok 3 — FAQ (2–3 pytania, 80–150 słów):
+    Pytania zakupowe, nie encyklopedyczne. Każde jako H3."""
+    else:
+        struct_desc = """STRUKTURA — PODKATEGORIA (500–1200 słów):
+  Blok 1 — INTRO nad produktami (50–150 słów):
+    Keyword w pierwszym zdaniu, opis asortymentu, 1–2 USP,
+    opcjonalnie linki do powiązanych kategorii. Widoczne bez „czytaj więcej".
+  Blok 2 — TREŚĆ SEO pod produktami (400–800 słów):
+    2–4 sekcje H2 z wariacjami keywordu:
+    - „Jak wybrać [kategoria]" — poradnik wyboru, kluczowe cechy
+    - „Rodzaje [kategorii] w naszej ofercie" — przegląd asortymentu
+    - „Dlaczego warto kupić u nas" — USP, przewagi
+    Każda sekcja 100–200 słów z encjami, linkami, atrybutami produktów.
+  Blok 3 — FAQ (3–6 pytań, 150–300 słów):
+    Pytania zakupowe (nie „czym jest [kategoria]").
+    Każde pytanie jako H3, odpowiedź 40–80 słów."""
+
+    parts.append(f"<category_structure>\n{struct_desc}\n</category_structure>")
+
+    # ── ZASADY PISANIA ──
+    parts.append("""<rules>
+
+KEYWORD DENSITY: 1,0–2,0% (wyższa niż w artykule blogowym).
+  Keyword główny: naturalnie w 1. akapicie, min. 1 H2, rozłożony w tekście.
+  Keywords drugorzędne: każdy min. 1× naturalnie.
+
+ENTITY SALIENCE: cel >0,30 dla głównej encji.
+  Zamiast „oferujemy kurtki" → „przeglądaj nasze parki, bomberki,
+  puchówki i trencze z wełny, skóry i zamszu".
+  Entity-rich sformułowania: typy produktów, materiały, technologie,
+  zastosowania, marki, cechy użytkownika.
+
+PASSAGE-FIRST: Intro musi samodzielnie funkcjonować jako AI-extractable summary.
+  Pierwsze 2–3 zdania = standalone odpowiedź na search intent.
+
+LISTY HTML: Przy wyliczeniach 3+ elementów — ZAWSZE lista <ul>/<ol>.
+
+DŁUGOŚĆ ZDAŃ:
+  Max bezwzględne: 35 słów. Cel średniej: 12–18 słów/zdanie.
+  20% krótkich (do 8 słów), 60% średnich (9–18), 20% długich (19–28).
+
+SPACING:
+  MAIN keyword: ~60 słów odstępu. BASIC: ~80. EXTENDED: ~120.
+
+ANTI-ANAPHORA: Ta sama fraza NIE MOŻE otwierać >2 kolejnych zdań.
+
+ANTI-AI — BEZWZGLĘDNY ZAKAZ fraz:
+  „warto zauważyć/podkreślić", „co istotne/kluczowe",
+  „przyjrzyjmy się", „w tym kontekście", „podsumowując",
+  „każdorazowo należy", „ze względu na złożoność",
+  „szeroki wybór", „coś dla każdego", „nie szukaj dalej",
+  „niezależnie czy jesteś X czy Y", „jedyne miejsce".
+
+LINKI WEWNĘTRZNE: 3–8 kontekstowych na 300–500 słów.
+  Cele: podkategorie > bestsellery > powiązane kategorie > blog.
+  Anchor text opisowy i zróżnicowany.
+
+CTA: Nad foldem w intro. Wspieraj decyzję: „Znajdź idealne [produkt]",
+  „Filtruj według [atrybut]". Nie agresywna sprzedaż.
+
+POLSZCZYZNA (NKJP):
+  Przecinki przed: że, który, ponieważ, gdyż, aby, żeby.
+  Poprawne kolokacje. Mieszaj przypadki gramatyczne.
+  Odmiana frazy = jedno użycie (fleksja).
+
+FORMAT: h2:/h3: dla nagłówków. Zero markdown, HTML, gwiazdek.
+
+SWAP TEST: Jeśli tekst mógłby działać na stronie konkurencji bez zmian,
+  jest zbyt generyczny — dodaj konkrety (produkty, ceny, USP).
+
+</rules>""")
+
+    # ── FEW-SHOT ──
+    parts.append("""<examples>
+
+PRZYKŁAD ZŁY — czego NIE pisać:
+<example_bad>
+Witaj w naszym sklepie! Oferujemy szeroki wybór butów do biegania
+dla każdego. Niezależnie czy jesteś początkującym biegaczem czy
+zaawansowanym maratończykiem, znajdziesz coś dla siebie.
+Nie szukaj dalej — to jedyne miejsce, którego potrzebujesz.
+</example_bad>
+Błędy: generyczne frazy, brak konkretów, brak produktów/cen,
+frazesy AI, przeszłoby na dowolnej stronie konkurencji.
+
+PRZYKŁAD DOBRY — tak pisz:
+<example_good>
+Damskie buty do biegania od Nike, ASICS i Brooks — od 299 do 1 199 zł.
+Bestseller sezonu: Nike Air Zoom Pegasus 41 (4,7★, 312 recenzji)
+łączy responsywną piankę React z siateczką Flyknit o przepuszczalności
+potwierdzonej testem wilgotności. Dla biegaczek szukających stabilizacji
+przy pronacji — ASICS Gel-Kayano 31 z podwójną gęstością pianki
+w śródstopiu. Darmowy zwrot 30 dni, wysyłka w 24h.
+</example_good>
+Zalety: konkretne produkty z cenami, dane z recenzji, technologie,
+USP sklepu, entity-rich, nie przejdzie u konkurencji bez zmian.
+
+</examples>""")
+
+    return "\n\n".join(parts)
+
+
+def build_category_user_prompt(pre_batch, h2, batch_type, article_memory=None, category_data=None):
+    """
+    User prompt for e-commerce category descriptions.
+    Injects category-specific data: store info, products, hierarchy, USP.
+    """
+    pre_batch = pre_batch or {}
+    category_data = category_data or {}
+    sections = []
+
+    # ── RE-ANCHOR ──
+    sections.append(
+        "Piszesz opis kategorii e-commerce — ton pomocny, "
+        "konkretny, wspierający decyzję zakupową. "
+        "Zasady w system prompcie."
+    )
+
+    # ── OPENING PATTERN (rotacja jak w artykule, ale z komercyjnym nachyleniem) ──
+    _CAT_PATTERNS = [
+        ("A", "KONKRET PRODUKTOWY",
+         "Zacznij od konkretnego produktu, ceny lub cechy. "
+         "Np: 'Nike Pegasus 41 od 549 zł — bestseller z 312 recenzjami...'"),
+        ("B", "ZAKRES/STATYSTYKA",
+         "Zacznij od zakresu, liczby lub faktu. "
+         "Np: 'Ponad 200 modeli butów do biegania od 15 marek...'"),
+        ("C", "POTRZEBA KUPUJĄCEGO",
+         "Zacznij od potrzeby klienta. "
+         "Np: 'Szukasz buta na maraton z amortyzacją na twardym podłożu?'"),
+        ("D", "USP/WYRÓŻNIK",
+         "Zacznij od przewagi sklepu. "
+         "Np: 'Darmowy zwrot 30 dni i dobór rozmiaru z ekspertem...'"),
+    ]
+    batch_num = pre_batch.get("batch_number", 1) or 1
+    pattern_idx = (batch_num - 1) % len(_CAT_PATTERNS)
+    p_letter, p_name, p_desc = _CAT_PATTERNS[pattern_idx]
+    sections.append(
+        f"OTWARCIE — wzorzec {p_letter} ({p_name}):\n{p_desc}"
+    )
+
+    # ── CATEGORY CONTEXT ──
+    cat_ctx_parts = []
+    cat_name = category_data.get("category_name") or pre_batch.get("main_keyword", "")
+    if isinstance(cat_name, dict):
+        cat_name = cat_name.get("keyword", "")
+    cat_type = category_data.get("category_type", "subcategory")
+    hierarchy = category_data.get("hierarchy") or ""
+    store_name = category_data.get("store_name") or ""
+    usp = category_data.get("usp") or ""
+    products = category_data.get("products") or ""
+    bestseller = category_data.get("bestseller") or ""
+    price_range = category_data.get("price_range") or ""
+
+    cat_ctx_parts.append(f"Kategoria: {cat_name}")
+    cat_ctx_parts.append(f"Typ: {'nadrzędna' if cat_type == 'parent' else 'podkategoria'}")
+    if hierarchy:
+        cat_ctx_parts.append(f"Hierarchia: {hierarchy}")
+    if store_name:
+        cat_ctx_parts.append(f"Sklep: {store_name}")
+    if usp:
+        cat_ctx_parts.append(f"USP: {usp}")
+    if products:
+        cat_ctx_parts.append(f"Produkty:\n{products}")
+    if bestseller:
+        cat_ctx_parts.append(f"Bestseller: {bestseller}")
+    if price_range:
+        cat_ctx_parts.append(f"Zakres cenowy: {price_range}")
+
+    sections.append("═══ DANE KATEGORII ═══\n" + "\n".join(cat_ctx_parts))
+
+    # ── REUSE ARTICLE FORMATTERS where applicable ──
+    _schema_guard(pre_batch)
+
+    formatters = [
+        lambda: _fmt_batch_header(pre_batch, h2, batch_type),
+        lambda: _fmt_keywords(pre_batch),
+        lambda: _fmt_smart_instructions(pre_batch),
+        lambda: _fmt_semantic_plan(pre_batch, h2),
+        lambda: _fmt_coverage_density(pre_batch),
+        lambda: _fmt_continuation(pre_batch),
+        lambda: _fmt_article_memory(article_memory),
+        lambda: _fmt_h2_remaining(pre_batch),
+        lambda: _fmt_entity_salience(pre_batch),
+        lambda: _fmt_serp_enrichment(pre_batch),
+        lambda: _fmt_natural_polish(pre_batch),
+        lambda: _fmt_style(pre_batch),
+        lambda: _fmt_output_format(h2, batch_type),
+    ]
+
+    for fmt in formatters:
+        try:
+            result = fmt()
+            if result:
+                sections.append(result)
+        except Exception:
+            pass
+
+    return "\n\n".join(sections)
