@@ -781,9 +781,28 @@ def ai_synthesize_memory(accepted_batches: list, main_keyword: str) -> dict:
             )}]
         )
         text = response.content[0].text.strip()
+        # Try direct parse first (most reliable)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+        # Try extracting JSON object with non-greedy match to avoid grabbing too much
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text)
+        if json_match:
+            try:
+                return json.loads(json_match.group())
+            except json.JSONDecodeError:
+                pass
+        # Last resort: greedy match with cleanup
         json_match = re.search(r'\{[\s\S]*\}', text)
         if json_match:
-            return json.loads(json_match.group())
+            raw = json_match.group()
+            # Fix common JSON issues: trailing commas before } or ]
+            raw = re.sub(r',\s*([}\]])', r'\1', raw)
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                pass
     except Exception as e:
         logger.warning(f"[AI_MW] AI memory synthesis failed: {e}")
 

@@ -3000,11 +3000,22 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             else:
                 _target_length = 3500 if mode == "standard" else 2000
 
+            # Fix: Ensure target_length covers all H2 sections
+            # Each H2 needs ~200 words minimum + ~150 for intro
+            _min_length_for_h2 = len(h2_structure) * 200 + 150
+            if _target_length < _min_length_for_h2:
+                yield emit("log", {"msg": f"📏 target_length {_target_length} < min dla {len(h2_structure)} H2 ({_min_length_for_h2}) — podwyższam"})
+                _target_length = _min_length_for_h2
+
+        # Calculate total_batches: 1 INTRO + 1 per H2
+        _planned_total_batches = len(h2_structure) + 1
+
         project_payload = {
             "main_keyword": main_keyword,
             "mode": mode,
             "h2_structure": h2_structure,
             "keywords": keywords,
+            "total_batches": _planned_total_batches,
             "s1_data": {
                 "causal_triplets": (s1.get("causal_triplets") or {}),
                 "content_gaps": (s1.get("content_gaps") or {}),
@@ -3406,7 +3417,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
                 if accepted:
                     batch_accepted = True
-                    yield emit("log", {"msg": f"✅ Batch {batch_num} accepted! Score: {quality.get('score')}/100"})
+                    _score = quality.get('score')
+                    if _score is None:
+                        yield emit("log", {"msg": f"⚠️ Batch {batch_num} accepted ale quality=null — backend mógł nie zapisać tekstu"})
+                    else:
+                        yield emit("log", {"msg": f"✅ Batch {batch_num} accepted! Score: {_score}/100"})
                     # Content integrity check
                     if text:
                         _ci = []; tl = text.lower()
