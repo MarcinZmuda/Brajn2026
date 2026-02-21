@@ -3284,13 +3284,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         yield emit("log", {"msg": f"📊 KW global: {_global_main_kw_count}/{_GLOBAL_KW_MAX} wystąpień '{main_keyword}' (pozostało: {_kw_remaining})"})
 
                     # Bug A Fix: Zaktualizuj lokalny tracker H2 po zaakceptowanym batchu
-                    _h2_key = current_h2.strip().lower()
-                    if _h2_key not in _h2_local_done:
-                        _h2_local_done.append(_h2_key)
-                    # Znajdz nastepny H2 z planu ktory nie byl jeszcze uzyty
-                    while _h2_local_idx < len(h2_structure) and \
-                          h2_structure[_h2_local_idx].strip().lower() in _h2_local_done:
-                        _h2_local_idx += 1
+                    # INTRO nie pisze treści H2 — nie oznaczaj H2 jako zużytego
+                    if batch_type not in ("INTRO", "intro"):
+                        _h2_key = current_h2.strip().lower()
+                        if _h2_key not in _h2_local_done:
+                            _h2_local_done.append(_h2_key)
+                        # Znajdz nastepny H2 z planu ktory nie byl jeszcze uzyty
+                        while _h2_local_idx < len(h2_structure) and \
+                              h2_structure[_h2_local_idx].strip().lower() in _h2_local_done:
+                            _h2_local_idx += 1
 
                     # Track for memory
                     accepted_batches_log.append({
@@ -3302,6 +3304,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 # Not accepted, decide retry strategy
                 if forced:
                     yield emit("log", {"msg": f"⚠️ Batch {batch_num} w forced mode, kontynuuję"})
+                    # Bug A Fix: update H2 tracker also in forced mode (INTRO excluded)
+                    if batch_type not in ("INTRO", "intro"):
+                        _h2_key_f = current_h2.strip().lower()
+                        if _h2_key_f not in _h2_local_done:
+                            _h2_local_done.append(_h2_key_f)
+                        while _h2_local_idx < len(h2_structure) and \
+                              h2_structure[_h2_local_idx].strip().lower() in _h2_local_done:
+                            _h2_local_idx += 1
                     accepted_batches_log.append({
                         "text": text, "h2": current_h2, "batch_num": batch_num,
                         "depth_score": depth
