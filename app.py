@@ -1828,6 +1828,59 @@ def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=No
 
 
 # ============================================================
+# QUALITY BREAKDOWN EXTRACTION
+# ============================================================
+def _extract_quality_breakdown(final):
+    """Extract quality radar scores from final_review response.
+
+    Backend may return scores at top level, nested in quality_breakdown,
+    or inside validations. Scores may be 0-10 or 0-100.
+    """
+    # Try pre-built quality_breakdown from backend first
+    qb = final.get("quality_breakdown") or {}
+
+    # Define field name variants for each dimension
+    _FIELDS = {
+        "keywords":  ["keyword_score", "keywords_score", "keywords"],
+        "humanness": ["humanness_score", "ai_score", "humanness", "human_score"],
+        "grammar":   ["grammar_score", "grammar"],
+        "structure": ["structure_score", "structure"],
+        "semantic":  ["semantic_score", "semantic", "semantic_relevance"],
+        "depth":     ["depth_score", "depth", "content_depth"],
+        "coherence": ["coherence_score", "coherence"],
+    }
+
+    result = {}
+    for dim, candidates in _FIELDS.items():
+        val = qb.get(dim)  # first try pre-built breakdown
+        if val is None:
+            for key in candidates:
+                val = final.get(key)
+                if val is not None:
+                    break
+        # Still None? Try nested in validations.quality or scores
+        if val is None:
+            scores_obj = final.get("scores") or final.get("quality") or {}
+            for key in [dim] + candidates:
+                val = scores_obj.get(key)
+                if val is not None:
+                    break
+        # Normalize: if all scores <= 10, assume 0-10 scale
+        result[dim] = val
+
+    # Auto-detect scale: if all non-None values are <= 10, multiply by 10
+    non_none = [v for v in result.values() if v is not None and isinstance(v, (int, float))]
+    if non_none and all(v <= 10 for v in non_none):
+        result = {k: (round(v * 10) if isinstance(v, (int, float)) else v)
+                  for k, v in result.items()}
+
+    # Log for debug
+    logger.info(f"[RADAR_DEBUG] extracted: {result} | final keys: {sorted(final.keys())[:15]}")
+
+    return result
+
+
+# ============================================================
 # WORKFLOW ORCHESTRATOR (SSE)
 # ============================================================
 def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None, temperature=None, content_type="article", category_data=None):
@@ -2847,10 +2900,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         project = create_result["data"]
         project_id = project.get("project_id")
         total_batches = project.get("total_planned_batches", len(h2_structure))
+        # +1 for INTRO batch which doesn't write any H2 content
+        if total_batches <= len(h2_structure):
+            total_batches = len(h2_structure) + 1
 
         step_done(4)
         yield emit("step", {"step": 4, "name": "Create Project", "status": "done",
-                            "detail": f"ID: {project_id} | Mode: {mode} | Batche: {total_batches}"})
+                            "detail": f"ID: {project_id} | Mode: {mode} | Batche: {total_batches} (w tym INTRO)"})
         yield emit("project", {"project_id": project_id, "total_batches": total_batches})
 
         # Store project_id in job
@@ -3546,16 +3602,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 # v50.7: Stuffing info
                 "stuffing": (final.get("validations") or {}).get("missing_keywords", {}).get("stuffing", [])[:5],
                 "priority_to_add": (final.get("validations") or {}).get("missing_keywords", {}).get("priority_to_add", {}).get("to_add_by_claude", [])[:5],
-                # P5: Quality breakdown
-                "quality_breakdown": {
-                    "keywords": final.get("keyword_score", final.get("keywords_score")),
-                    "humanness": final.get("humanness_score", final.get("ai_score")),
-                    "grammar": final.get("grammar_score"),
-                    "structure": final.get("structure_score"),
-                    "semantic": final.get("semantic_score"),
-                    "depth": final.get("depth_score"),
-                    "coherence": final.get("coherence_score"),
-                },
+                # P5: Quality breakdown — multi-path extraction
+                "quality_breakdown": _extract_quality_breakdown(final),
                 "density": final.get("density") or final.get("keyword_density"),
                 "word_count": final.get("word_count") or final.get("total_words"),
                 "basic_coverage": final.get("basic_coverage"),
@@ -3591,6 +3639,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if ymyl_validation["legal"] or ymyl_validation["medical"]:
                 yield emit("ymyl_validation", ymyl_validation)
         else:
+            fr_error = final_result.get("error", "unknown")
+            yield emit("log", {"msg": f"⚠️ Final Review failed: {fr_error[:150]}"})
             yield emit("step", {"step": 8, "name": "Final Review", "status": "warning",
                                 "detail": "Nie udało się, kontynuuję"})
 
