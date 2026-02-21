@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 GOOGLE_NLP_API_KEY = os.environ.get("GOOGLE_NLP_API_KEY", "")
 GOOGLE_NLP_ENDPOINT = "https://language.googleapis.com/v1/documents:analyzeEntities"
+BRAJEN_API_URL = os.environ.get("BRAJEN_API_URL", "https://master-seo-api.onrender.com")
 
 # Entity types from Google NLP API
 ENTITY_TYPE_MAP = {
@@ -52,19 +53,54 @@ ENTITY_TYPE_MAP = {
 # 1. GOOGLE NLP API — REAL SALIENCE MEASUREMENT
 # ════════════════════════════════════════════════════════════
 
-def analyze_entities_google_nlp(text, language="pl"):
+def _analyze_entities_spacy_fallback(text, main_keyword=""):
+    """
+    Fallback: call master-seo-api spaCy endpoint for languages not supported by Google NLP.
+    Uses spaCy pl_core_news_md on the backend for Polish NER + salience estimation.
+
+    Returns list of entities in the same format as Google NLP API.
+    """
+    try:
+        import requests
+        response = requests.post(
+            f"{BRAJEN_API_URL}/api/nlp/analyze_entities",
+            json={
+                "text": text[:50000],
+                "main_keyword": main_keyword,
+                "language": "pl"
+            },
+            timeout=60
+        )
+
+        if response.status_code != 200:
+            logger.warning(f"spaCy fallback error {response.status_code}: {response.text[:200]}")
+            return []
+
+        data = response.json()
+        entities = data.get("entities", [])
+        if entities:
+            logger.info(f"spaCy fallback returned {len(entities)} entities (source: {data.get('source', '?')})")
+        return entities
+
+    except Exception as e:
+        logger.warning(f"spaCy fallback call failed: {e}")
+        return []
+
+
+def analyze_entities_google_nlp(text, language="pl", main_keyword=""):
     """
     Call Google Cloud Natural Language API to extract entities with salience.
-    
+    Falls back to master-seo-api spaCy for unsupported languages (e.g. Polish).
+
     Returns list of entities:
-      [{"name": "...", "type": "PERSON", "salience": 0.73, 
+      [{"name": "...", "type": "PERSON", "salience": 0.73,
         "wikipedia_url": "...", "mid": "/m/...", "mentions": 5}, ...]
-    
+
     Returns empty list if API key missing or call fails.
     """
     if not GOOGLE_NLP_API_KEY:
-        logger.warning("GOOGLE_NLP_API_KEY not set — salience analysis skipped")
-        return []
+        logger.warning("GOOGLE_NLP_API_KEY not set — trying spaCy fallback")
+        return _analyze_entities_spacy_fallback(text, main_keyword)
 
     # Google NLP API has 1MB limit; truncate if needed
     max_chars = 500_000
@@ -87,17 +123,22 @@ def analyze_entities_google_nlp(text, language="pl"):
         )
 
         if response.status_code != 200:
-            logger.warning(f"Google NLP API error {response.status_code}: {response.text[:200]}")
+            error_text = response.text[:300]
+            logger.warning(f"Google NLP API error {response.status_code}: {error_text}")
+            # Fallback to spaCy for unsupported languages (400 with "not supported")
+            if response.status_code == 400 and "not supported" in error_text.lower():
+                logger.info(f"Language '{language}' not supported by Google NLP — using spaCy fallback")
+                return _analyze_entities_spacy_fallback(text, main_keyword)
             return []
 
         data = response.json()
         entities = []
-        
+
         for ent in data.get("entities", []):
             etype = ent.get("type", "UNKNOWN")
             if ENTITY_TYPE_MAP.get(etype) is None:
                 continue  # skip numbers, dates, prices
-            
+
             metadata = ent.get("metadata", {})
             entities.append({
                 "name": ent.get("name", ""),
@@ -114,8 +155,8 @@ def analyze_entities_google_nlp(text, language="pl"):
         return entities
 
     except Exception as e:
-        logger.warning(f"Google NLP API call failed: {e}")
-        return []
+        logger.warning(f"Google NLP API call failed: {e} — trying spaCy fallback")
+        return _analyze_entities_spacy_fallback(text, main_keyword)
 
 
 def check_entity_salience(text, main_keyword, language="pl"):
@@ -136,7 +177,7 @@ def check_entity_salience(text, main_keyword, language="pl"):
       }
     """
     result = {
-        "enabled": bool(GOOGLE_NLP_API_KEY),
+        "enabled": is_salience_available(),
         "entities": [],
         "main_entity": None,
         "main_salience": 0.0,
@@ -147,13 +188,9 @@ def check_entity_salience(text, main_keyword, language="pl"):
         "score": 0,
     }
 
-    if not GOOGLE_NLP_API_KEY:
-        result["issues"].append("GOOGLE_NLP_API_KEY nie ustawiony — analiza salience niedostępna")
-        return result
-
-    entities = analyze_entities_google_nlp(text, language)
+    entities = analyze_entities_google_nlp(text, language, main_keyword=main_keyword)
     if not entities:
-        result["issues"].append("Google NLP API nie zwróciło encji")
+        result["issues"].append("Analiza NLP nie zwróciła encji (Google NLP / spaCy)")
         return result
 
     result["entities"] = entities[:20]  # top 20
@@ -1380,5 +1417,5 @@ def analyze_ymyl_references(text, legal_context=None, medical_context=None):
 
 
 def is_salience_available():
-    """Check if Google NLP API key is configured."""
-    return bool(GOOGLE_NLP_API_KEY)
+    """Check if entity salience analysis is available (Google NLP or spaCy fallback)."""
+    return bool(GOOGLE_NLP_API_KEY) or bool(BRAJEN_API_URL)
