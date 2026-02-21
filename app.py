@@ -29,7 +29,8 @@ import anthropic
 from prompt_builder import (
     build_system_prompt, build_user_prompt,
     build_faq_system_prompt, build_faq_user_prompt,
-    build_h2_plan_system_prompt, build_h2_plan_user_prompt
+    build_h2_plan_system_prompt, build_h2_plan_user_prompt,
+    build_category_system_prompt, build_category_user_prompt
 )
 
 # Optional: OpenAI
@@ -1623,15 +1624,19 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
 # ============================================================
 # TEXT GENERATION (Claude + OpenAI)
 # ============================================================
-def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="claude", openai_model=None, temperature=None):
+def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="claude", openai_model=None, temperature=None, content_type="article", category_data=None):
     """Generate batch text using optimized prompts built from pre_batch data.
-    
+
     v45.3: Replaces raw json.dumps() with structured natural language prompts
     that Claude can follow effectively. Uses prompt_builder module.
     v50.8 FIX 49: Adaptive thinking (effort) + web search for YMYL.
     """
-    system_prompt = build_system_prompt(pre_batch, batch_type)
-    user_prompt = build_user_prompt(pre_batch, h2, batch_type, article_memory)
+    if content_type == "category":
+        system_prompt = build_category_system_prompt(pre_batch, batch_type, category_data)
+        user_prompt = build_category_user_prompt(pre_batch, h2, batch_type, article_memory, category_data)
+    else:
+        system_prompt = build_system_prompt(pre_batch, batch_type)
+        user_prompt = build_user_prompt(pre_batch, h2, batch_type, article_memory)
 
     if engine == "openai" and OPENAI_API_KEY:
         return _generate_openai(system_prompt, user_prompt, model=openai_model, temperature=temperature)
@@ -1783,15 +1788,23 @@ def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=No
 # ============================================================
 # WORKFLOW ORCHESTRATOR (SSE)
 # ============================================================
-def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None, temperature=None):
+def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None, temperature=None, content_type="article", category_data=None):
     """
     Full BRAJEN workflow as a generator yielding SSE events.
     Follows PROMPT_v45_2.md EXACTLY:
     KROK 1: S1 → 2: YMYL → 3: (H2 already provided) → 4: Create → 5: Hierarchy →
     6: Batch Loop → 7: PAA → 8: Final Review → 9: Editorial → 10: Export
+
+    content_type: "article" (default) or "category" (e-commerce category description)
+    category_data: dict with store_name, hierarchy, products, etc. (only for category)
     """
     # Per-session model override for OpenAI
     effective_openai_model = openai_model or OPENAI_MODEL
+
+    # Category: force fast mode for short descriptions
+    if content_type == "category":
+        mode = "fast"
+
     def emit(event_type, data):
         """Yield SSE event."""
         return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
@@ -1799,10 +1812,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
     job = active_jobs.get(job_id, {})
     step_times = {}  # {step_num: {"start": time, "end": time}}
     workflow_start = time.time()
-    
+
     engine_label = "OpenAI " + effective_openai_model if engine == "openai" else "Claude " + ANTHROPIC_MODEL
     temp_label = f" [temp={temperature}]" if temperature is not None else ""
-    yield emit("log", {"msg": f"🚀 Workflow: {main_keyword} [{mode}] [🤖 {engine_label}]{temp_label}"})
+    ct_label = " [📦 Kategoria]" if content_type == "category" else ""
+    yield emit("log", {"msg": f"🚀 Workflow: {main_keyword} [{mode}] [🤖 {engine_label}]{temp_label}{ct_label}"})
     
     if engine == "openai" and not OPENAI_API_KEY:
         yield emit("log", {"msg": "⚠️ OPENAI_API_KEY nie ustawiony, fallback na Claude"})
@@ -2741,11 +2755,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🔄 Synonimy encji: {', '.join(str(s) for s in _entity_synonyms[:5])}"})
 
         # Fix #59: Oblicz target_length z recommended_length S1 zamiast hardcode 3500/2000
-        _s1_recommended = s1.get("recommended_length") or (s1.get("length_analysis") or {}).get("recommended")
-        if _s1_recommended and int(_s1_recommended) > 200:
-            _target_length = int(_s1_recommended * 1.05)  # 5% margines na intro/outro
+        if content_type == "category":
+            # Category descriptions: 200-500 (parent) or 500-1200 (subcategory)
+            _cat_type = (category_data or {}).get("category_type", "subcategory")
+            if _cat_type == "parent":
+                _target_length = 400
+            else:
+                _target_length = 1000
         else:
-            _target_length = 3500 if mode == "standard" else 2000
+            _s1_recommended = s1.get("recommended_length") or (s1.get("length_analysis") or {}).get("recommended")
+            if _s1_recommended and int(_s1_recommended) > 200:
+                _target_length = int(_s1_recommended * 1.05)  # 5% margines na intro/outro
+            else:
+                _target_length = 3500 if mode == "standard" else 2000
 
         project_payload = {
             "main_keyword": main_keyword,
@@ -3080,7 +3102,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 text = generate_batch_text(
                     pre_batch, current_h2, batch_type,
                     article_memory, engine=engine, openai_model=effective_openai_model,
-                    temperature=temperature
+                    temperature=temperature,
+                    content_type=content_type, category_data=category_data
                 )
 
             word_count = len(text.split())
@@ -4108,13 +4131,30 @@ def start_workflow():
     if user_temperature is not None:
         user_temperature = max(0.0, min(1.0, float(user_temperature)))
 
+    # Content type: "article" (default) or "category" (e-commerce category description)
+    content_type = data.get("content_type", "article")
+    category_data = None
+    if content_type == "category":
+        category_data = {
+            "category_type": data.get("category_type", "subcategory"),
+            "store_name": (data.get("store_name") or "").strip(),
+            "store_description": (data.get("store_description") or "").strip(),
+            "hierarchy": (data.get("category_hierarchy") or "").strip(),
+            "products": (data.get("category_products") or "").strip(),
+            "bestseller": (data.get("category_bestseller") or "").strip(),
+            "price_range": (data.get("category_price_range") or "").strip(),
+            "target_audience": (data.get("category_target") or "").strip(),
+            "usp": (data.get("category_usp") or "").strip(),
+            "brand_voice": (data.get("category_brand_voice") or "").strip(),
+        }
+
     # H2 is now OPTIONAL : if empty, will be auto-generated from S1
 
     job_id = str(uuid.uuid4())[:8]
-    
+
     # Cleanup old jobs to prevent memory leaks
     _cleanup_old_jobs()
-    
+
     active_jobs[job_id] = {
         "main_keyword": main_keyword,
         "mode": mode,
@@ -4125,6 +4165,8 @@ def start_workflow():
         "basic_terms": basic_terms,
         "extended_terms": extended_terms,
         "custom_instructions": custom_instructions,
+        "content_type": content_type,
+        "category_data": category_data,
         "status": "running",
         "created": datetime.now().isoformat(),
         "created_at": datetime.utcnow()
@@ -4186,7 +4228,9 @@ def stream_workflow(job_id):
             extended_terms=et,
             engine=data.get("engine", "claude"),
             openai_model=data.get("openai_model"),
-            temperature=data.get("temperature")
+            temperature=data.get("temperature"),
+            content_type=data.get("content_type", "article"),
+            category_data=data.get("category_data")
         )
 
     return Response(

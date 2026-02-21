@@ -75,6 +75,17 @@
         .ebtn:hover:not(.on){border-color:var(--b3);background:var(--s3)}
         .ebtn.unavailable{opacity:.4;pointer-events:none}
         .ebtn.unavailable small::after{content:' (brak klucza)';color:var(--mg)}
+        .ctbtn{
+            flex:1;padding:12px 8px;background:var(--s2);border:1px solid var(--b1);
+            border-radius:var(--rs);color:var(--mg);cursor:pointer;text-align:center;
+            transition:all .2s;font-family:inherit
+        }
+        .ctbtn.on{border-color:var(--orange);color:var(--orange);background:var(--og)}
+        .ctbtn:hover:not(.on){border-color:var(--b3);background:var(--s3)}
+        .ctbtn strong{display:block;font-size:15px;font-weight:600;margin-bottom:2px}
+        .ctbtn small{font-size:12px;color:var(--mg)}
+        .cat-fields label.lbl{margin-top:10px}
+        .cat-fields input,.cat-fields textarea{margin-bottom:2px}
         .mbtn strong{display:block;font-size:15px;font-weight:600;margin-bottom:2px}
         .mbtn small{font-size:12px;color:var(--mg)}
         .btn-go{
@@ -405,6 +416,11 @@
 <div class="layout">
     <div class="sidebar" id="sidebarArea">
         <button class="sb-toggle" id="sbToggle" onclick="toggleSidebar()" title="Zwiń panel" aria-label="Zwiń/rozwiń panel boczny">‹</button>
+        <div class="lbl">Typ treści</div>
+        <div class="modes">
+            <div class="ctbtn on" data-ctype="article" onclick="selContentType('article')"><strong>Artykuł</strong><small>Blog / poradnik</small></div>
+            <div class="ctbtn" data-ctype="category" onclick="selContentType('category')"><strong>Kategoria</strong><small>Opis kategorii</small></div>
+        </div>
         <label class="lbl" for="mainKeyword">Keyword</label>
         <input type="text" id="mainKeyword" placeholder="np. od czego zacząć przeprowadzkę">
         <div class="lbl">Tryb</div>
@@ -440,6 +456,32 @@
         <div class="lbl">Instrukcje dla modelu <button class="tbtn" onclick="tog('ciBox')">pokaż</button></div>
         <div id="ciBox" style="display:none"><textarea id="customInstr" rows="4" placeholder="np. Pisz potocznym tonem&#10;Dodaj przykłady z życia&#10;Używaj list numerowanych&#10;Grupa docelowa: studenci"></textarea><div class="hint">Dodatkowe wytyczne przekazywane do Claude przy każdym batchu i edycji.</div></div>
         </div><!-- /adv-section -->
+        <!-- ═══ CATEGORY-SPECIFIC FIELDS (hidden by default) ═══ -->
+        <div id="catFields" class="cat-fields" style="display:none">
+            <div class="lbl">Typ kategorii</div>
+            <div class="modes">
+                <div class="ctbtn on" data-cattype="subcategory" onclick="selCatType('subcategory')"><strong>Podkategoria</strong><small>500–1200 słów</small></div>
+                <div class="ctbtn" data-cattype="parent" onclick="selCatType('parent')"><strong>Nadrzędna</strong><small>200–500 słów</small></div>
+            </div>
+            <label class="lbl" for="catStoreName">Nazwa sklepu</label>
+            <input type="text" id="catStoreName" placeholder="np. SportShop.pl">
+            <label class="lbl" for="catStoreDesc">Opis sklepu <span style="opacity:.4;font-weight:400">opcjonalne</span></label>
+            <textarea id="catStoreDesc" rows="2" placeholder="np. Sklep z obuwiem sportowym, 10 lat na rynku"></textarea>
+            <label class="lbl" for="catHierarchy">Hierarchia kategorii <span style="opacity:.4;font-weight:400">opcjonalne</span></label>
+            <input type="text" id="catHierarchy" placeholder="np. Buty > Buty do biegania > Damskie">
+            <label class="lbl" for="catProducts">Produkty z cenami <span style="opacity:.4;font-weight:400">opcjonalne</span></label>
+            <textarea id="catProducts" rows="3" placeholder="Nike Air Zoom Pegasus 41 - 549 zł&#10;ASICS Gel-Nimbus 26 - 789 zł"></textarea>
+            <label class="lbl" for="catBestseller">Bestseller <span style="opacity:.4;font-weight:400">opcjonalne</span></label>
+            <input type="text" id="catBestseller" placeholder="np. Nike Pegasus 41 (4.7★, 312 recenzji)">
+            <label class="lbl" for="catPriceRange">Zakres cenowy <span style="opacity:.4;font-weight:400">opcjonalne</span></label>
+            <input type="text" id="catPriceRange" placeholder="np. 199–1299 zł">
+            <label class="lbl" for="catTarget">Grupa docelowa <span style="opacity:.4;font-weight:400">opcjonalne</span></label>
+            <input type="text" id="catTarget" placeholder="np. aktywne kobiety 25-45 lat">
+            <label class="lbl" for="catUSP">USP sklepu <span style="opacity:.4;font-weight:400">opcjonalne</span></label>
+            <textarea id="catUSP" rows="2" placeholder="np. Darmowa dostawa od 200 zł&#10;30 dni na zwrot"></textarea>
+            <label class="lbl" for="catBrandVoice">Brand voice <span style="opacity:.4;font-weight:400">opcjonalne</span></label>
+            <textarea id="catBrandVoice" rows="2" placeholder="np. Profesjonalny, pomocny&#10;Perspektywa: my (l.mn.)&#10;Zakazane: &quot;szeroki wybór&quot;"></textarea>
+        </div><!-- /catFields -->
         <button class="btn-go" id="btnStart" onclick="startWorkflow()">Uruchom workflow →</button>
         <button class="btn-stop" id="btnStop" onclick="stopWF()">Zatrzymaj</button>
     </div>
@@ -669,7 +711,7 @@
         <div id="tabCI" class="main-tab-panel" style="display:none;padding:16px 20px"><button class="mabtn" onclick="switchTab('workflow')" style="margin-bottom:12px;display:flex;align-items:center;gap:6px">← Workflow</button>
             <div class="pnl" id="ciP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('ciP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('ciP')}"><span>📊 Competitive Intelligence Dashboard</span><span class="arr">▼</span></div><div class="pnl-b open" id="ciB"></div></div>
         </div><!-- /tabCI -->
-            <div class="done" id="doneB" style="display:none"><h2>✓ Artykuł gotowy</h2><p id="doneD"></p></div>
+            <div class="done" id="doneB" style="display:none"><h2 id="doneH">✓ Artykuł gotowy</h2><p id="doneD"></p></div>
             <div class="exp" id="expB" style="display:none"><a class="btn-e pri" id="exH">HTML</a><a class="btn-e" id="exD">DOCX</a></div>
             </div>
             <div style="margin-top:16px"><span class="lbl">Logi <button class="tbtn" onclick="tog('logC')">pokaż</button></span></div>
@@ -680,7 +722,7 @@
 <script>
 (function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Final Review','Editorial','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
-let mode='standard',engine='openai',openaiModel='gpt-4.1',temperature=0.7,jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='';
+let mode='standard',engine='openai',openaiModel='gpt-4.1',temperature=0.7,contentType='article',catType='subcategory',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='';
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
 // XSS sanitization for SSE data
@@ -690,6 +732,8 @@ function escUrl(u){if(!u)return'#';const s=u.trim().toLowerCase();if(s.startsWit
 
 function selMode(m){mode=m;document.querySelectorAll('.mbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===m))}
 function selEngine(e){engine=e;document.querySelectorAll('.ebtn').forEach(b=>b.classList.toggle('on',b.dataset.engine===e));document.getElementById('modelPicker').style.display=e==='openai'?'':'none'}
+function selContentType(ct){contentType=ct;document.querySelectorAll('.ctbtn[data-ctype]').forEach(b=>b.classList.toggle('on',b.dataset.ctype===ct));document.getElementById('catFields').style.display=ct==='category'?'':'none';document.getElementById('mainKeyword').placeholder=ct==='category'?'np. buty do biegania damskie':'np. od czego zacząć przeprowadzkę'}
+function selCatType(t){catType=t;document.querySelectorAll('.ctbtn[data-cattype]').forEach(b=>b.classList.toggle('on',b.dataset.cattype===t))}
 function setTemp(v){temperature=v/10;document.getElementById('tempVal').textContent=temperature.toFixed(1)}
 function selOpenaiModel(m){openaiModel=m;document.getElementById('gptModel').textContent=m.toUpperCase()}
 // Check available engines on load
@@ -1164,10 +1208,10 @@ async function startWorkflow(){
     // Reset live status bar
     const _ls=document.getElementById('lsText');if(_ls){_ls.textContent='Przygotowanie...';document.getElementById('lsDetail').textContent='';document.getElementById('lsFill').style.width='0%';document.getElementById('lsPulse').className='ls-pulse';document.getElementById('lsPulse').style.background='';document.getElementById('lsPulse').style.animation='';document.getElementById('lsTimer').textContent='0:00';}
     document.getElementById('editorWrap').classList.remove('visible');
-    document.getElementById('chatHist').innerHTML='<div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>';
+    document.getElementById('chatHist').innerHTML=`<div class="chat-msg ai">${contentType==='category'?'Opis kategorii gotowy':'Artykuł gotowy'}! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>`;
     document.getElementById('valResult').classList.remove('vis');
     rawArticle='';selTxt='';s1Data=null;batchLog=[];finalData=null;salienceData=null;styleData=null;memoryData=null;articleData=null;editorialData=null;stepTimingData=null;paaData=null;ymylCtxData=null;ymylAnalysisData=null;ymylValData=null;liveArticle='';
-    log(`Start: "${kw}" [${mode}] [${engine}] [temp=${temperature}]`);
+    log(`Start: "${kw}" [${contentType}] [${mode}] [${engine}] [temp=${temperature}]`);
     // Start live status timer
     const _lsTimerEl=document.getElementById('lsTimer');
     if(window._lsTimerInt)clearInterval(window._lsTimerInt);
@@ -1175,7 +1219,20 @@ async function startWorkflow(){
     window._lsTimerInt=setInterval(()=>{const s=Math.round((Date.now()-window._lsTimerStart)/1000);const m=Math.floor(s/60);const ss=String(s%60).padStart(2,'0');if(_lsTimerEl)_lsTimerEl.textContent=m+':'+ss;},1000);
 
     try{
-        const resp=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({main_keyword:kw,mode:mode,engine:engine,openai_model:engine==='openai'?openaiModel:null,temperature:temperature,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci})});
+        const payload={main_keyword:kw,mode:mode,engine:engine,openai_model:engine==='openai'?openaiModel:null,temperature:temperature,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci,content_type:contentType};
+        if(contentType==='category'){
+            payload.category_type=catType;
+            payload.store_name=(document.getElementById('catStoreName').value||'').trim();
+            payload.store_description=(document.getElementById('catStoreDesc').value||'').trim();
+            payload.category_hierarchy=(document.getElementById('catHierarchy').value||'').trim();
+            payload.category_products=(document.getElementById('catProducts').value||'').trim();
+            payload.category_bestseller=(document.getElementById('catBestseller').value||'').trim();
+            payload.category_price_range=(document.getElementById('catPriceRange').value||'').trim();
+            payload.category_target=(document.getElementById('catTarget').value||'').trim();
+            payload.category_usp=(document.getElementById('catUSP').value||'').trim();
+            payload.category_brand_voice=(document.getElementById('catBrandVoice').value||'').trim();
+        }
+        const resp=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         const data=await resp.json();
         if(!resp.ok||data.error){log(`❌ ${data.error||'Server error '+resp.status}`);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';if(resp.status===429)log('⏳ Poczekaj na zakończenie bieżącego workflow');return}
         jid=data.job_id;log(`Job: ${jid}`);
@@ -1281,7 +1338,7 @@ async function startWorkflow(){
         es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss;updateQualityBar()});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:13px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:12px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:12px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
-        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;if(window._lsTimerInt){clearInterval(window._lsTimerInt);window._lsTimerInt=null;}renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
+        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;if(window._lsTimerInt){clearInterval(window._lsTimerInt);window._lsTimerInt=null;}renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';document.getElementById('doneH').textContent=contentType==='category'?'✓ Opis kategorii gotowy':'✓ Artykuł gotowy';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
         // Fix #47: Ukryj frazy BASIC z panelu po zakończeniu workflow
         try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
