@@ -264,7 +264,7 @@
         .mehr-btn{display:inline-block;padding:4px 10px;font-size:11px;color:var(--mg);background:none;border:1px solid var(--b1);border-radius:99px;cursor:pointer;font-family:inherit;transition:all .15s;user-select:none}
         .mehr-btn:hover,.mehr-btn.active{color:var(--orange);border-color:var(--orange)}
         .mehr-panel{max-height:0;overflow:hidden;transition:max-height .4s ease;opacity:0}
-        .mehr-panel.open,.mehr-panel.auto-open{max-height:2000px;opacity:1;overflow:visible;transition:max-height .4s ease,opacity .3s ease .1s}
+        .mehr-panel.open{max-height:1400px;opacity:1;transition:max-height .4s ease,opacity .3s ease .1s}
         .chart-wrap{position:relative;margin:12px 0;padding:16px;background:var(--s2);border-radius:var(--r);border:1px solid var(--b1)}
         .chart-wrap canvas{max-width:100%}
         .chart-title{font-size:11px;font-weight:700;color:var(--lg);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
@@ -1339,6 +1339,45 @@ function ciBar(pct,clr){return `<div style="background:var(--b1);border-radius:3
 function ciGrid(cols){return `<div style="display:grid;grid-template-columns:${cols};gap:3px 8px;font-size:12px;align-items:center">`}
 function ciStat(val,label,clr){return `<div style="text-align:center"><div style="font-size:20px;font-weight:800;${clr?'color:'+clr:''}">${val}</div><div style="font-size:11px;color:var(--mg)">${label}</div></div>`}
 
+function renderSourcesBox(){
+  const ctx=ymylCtxData;
+  const box=document.getElementById('sourcesBox');
+  if(!box)return;
+  const hasLegal=ctx&&ctx.legal&&(ctx.legal.judgments||ctx.legal.legal_acts||ctx.legal.legal_articles||ctx.legal.instruction_preview);
+  const hasMedical=ctx&&ctx.medical&&(ctx.medical.publications||ctx.medical.guidelines||ctx.medical.instruction_preview);
+  const hasWiki=window._wikiSources&&window._wikiSources.length;
+  const hasClassification=ctx&&ctx.classification&&ctx.classification.category&&ctx.classification.category!=='general';
+  if(!hasLegal&&!hasMedical&&!hasWiki&&!hasClassification){box.style.display='none';return;}
+  box.style.display='';
+  const G='var(--gn)',O='var(--orange)',M='var(--mg)',P='var(--pr)';
+  let h=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:13px;font-weight:800;color:var(--white);text-transform:uppercase;letter-spacing:.5px">📦 Zebrane informacje prawne / medyczne</div>`;
+  if(ctx&&ctx.classification){const cat=ctx.classification.category||'';const conf=ctx.classification.confidence||0;const int=ctx.ymyl_intensity||'none';const intClr=int==='full'?'var(--rd)':int==='light'?'var(--yl)':'var(--mg)';h+=`<span style="font-size:9px;padding:2px 8px;border-radius:10px;background:${intClr};color:#000;font-weight:700">${esc(cat.toUpperCase())} · ${int} · ${Math.round(conf*100)}%</span>`;}
+  h+=`</div>`;
+  const lActs=(ctx.legal||{}).legal_acts||[];
+  if(lActs.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">📜 Akty prawne (${lActs.length})</div>`;lActs.forEach(a=>{const name=typeof a==='string'?a:(a.name||a.title||JSON.stringify(a));h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:12px;color:var(--lg);border-left:3px solid var(--yl)"><span style="font-weight:600">${esc(name)}</span></div>`;});h+=`</div>`;}
+  const lArts=(ctx.legal||{}).legal_articles||[];
+  if(lArts.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:${O};font-weight:700;margin-bottom:6px">📋 Przepisy (artykuły)</div><div style="display:flex;flex-wrap:wrap;gap:4px">`;lArts.forEach(a=>{const txt=typeof a==='string'?a:(a.article||a.text||JSON.stringify(a));h+=`<span style="padding:3px 8px;background:rgba(251,169,44,.15);border:1px solid rgba(251,169,44,.3);border-radius:4px;font-size:11px;color:${O};font-weight:600">${esc(txt)}</span>`;});h+=`</div></div>`;}
+  const jj=(ctx.legal||{}).judgments||[];const jSkip=(ctx.legal||{}).judgments_skipped||[];
+  if(jj.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:${G};font-weight:700;margin-bottom:6px">⚖️ Orzeczenia sądowe (${jj.length})</div>`;jj.forEach(j=>{const sig=j.signature||'';const court=(j.court||'').split(' ').slice(-2).join(' ');const art=j.matched_article?` <span style="color:${O};font-size:9px">[${esc(j.matched_article)}]</span>`:'';const summ=j.summary?`<div style="color:var(--mg);font-size:10px;margin-top:2px;line-height:1.3">${esc(j.summary.substring(0,120))}</div>`:'';h+=`<div style="padding:5px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;border-left:3px solid ${G}"><div style="font-size:11px"><span style="color:${P};font-weight:700">${esc(sig)}</span>${art} <span style="color:${M};margin-left:4px">${esc(court)} ${j.date?'('+esc(j.date)+')':''}</span>${j.type?`<span style="color:var(--mg);font-size:9px;margin-left:4px">${esc(j.type)}</span>`:''}</div>${summ}</div>`;});if(jSkip.length)h+=`<div style="font-size:9px;color:${M};margin-top:2px">⚠️ Pominięto (błędna gałąź): ${jSkip.map(s=>`<span style='color:var(--yl)'>${esc(s)}</span>`).join(', ')}</div>`;h+=`</div>`;}
+  const lInstr=(ctx.legal||{}).instruction_preview||'';
+  if(lInstr){h+=`<div style="margin-bottom:10px;padding:6px 10px;background:rgba(52,211,153,.05);border-radius:4px;border-left:3px solid ${G}"><div style="font-size:9px;color:${G};font-weight:700;text-transform:uppercase;margin-bottom:3px">Instrukcja prawna dla modelu</div><div style="font-size:11px;color:var(--lg);line-height:1.4">${esc(lInstr)}</div></div>`;}
+  const citHint=(ctx.legal||{}).citation_hint||'';
+  if(citHint){h+=`<div style="margin-bottom:10px;font-size:11px;color:var(--mg);padding:4px 8px;background:var(--s2);border-radius:4px">💡 ${esc(citHint)}</div>`;}
+  const wiki=window._wikiSources||[];
+  if(wiki.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">📖 Wikipedia — przepisy (${wiki.length})</div>`;wiki.forEach(w=>{h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid var(--yl)"><span style="color:var(--yl);font-weight:600">${esc(w.article_ref||'')}</span> <span style="color:var(--white);margin-left:4px">${esc((w.title||'').substring(0,50))}</span> <a href="${esc(w.url||'#')}" target="_blank" style="color:${M};font-size:9px;margin-left:4px">↗</a>${w.summary?`<div style="color:var(--mg);font-size:10px;margin-top:2px">${esc((w.summary||'').substring(0,100))}</div>`:''}</div>`;});h+=`</div>`;}
+  const pp=(ctx.medical||{}).publications||[];
+  if(pp.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">🏥 Publikacje medyczne (${pp.length})</div>`;pp.slice(0,6).forEach(p=>{h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid var(--yl)"><span style="color:#fba92c;font-weight:600">PMID:${esc(p.pmid||'—')}</span> <span style="color:var(--white);margin-left:4px">${esc((p.title||'').substring(0,50))}</span> <span style="color:${M};margin-left:4px">${p.year||''}</span></div>`;});h+=`</div>`;}
+  const mGuidelines=(ctx.medical||{}).guidelines||[];
+  if(mGuidelines.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:${G};font-weight:700;margin-bottom:6px">📋 Wytyczne medyczne (${mGuidelines.length})</div>`;mGuidelines.slice(0,5).forEach(g=>{const txt=typeof g==='string'?g:(g.title||g.name||JSON.stringify(g));h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid ${G}">${esc(txt)}</div>`;});h+=`</div>`;}
+  const mInstr=(ctx.medical||{}).instruction_preview||'';
+  if(mInstr){h+=`<div style="margin-bottom:10px;padding:6px 10px;background:rgba(52,211,153,.05);border-radius:4px;border-left:3px solid ${G}"><div style="font-size:9px;color:${G};font-weight:700;text-transform:uppercase;margin-bottom:3px">Instrukcja medyczna dla modelu</div><div style="font-size:11px;color:var(--lg);line-height:1.4">${esc(mInstr)}</div></div>`;}
+  const enrich=ctx&&ctx.enrichment||{};const legalE=enrich.legal||{};const medE=enrich.medical||{};
+  if(legalE.definitions&&legalE.definitions.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--pr);font-weight:700;margin-bottom:6px">📖 Definicje prawne</div>`;legalE.definitions.forEach(def=>{const txt=typeof def==='string'?def:(def.term||def.text||JSON.stringify(def));h+=`<div style="padding:3px 8px;font-size:11px;color:var(--lg);border-left:2px solid var(--pr);margin-bottom:2px">${esc(txt)}</div>`;});h+=`</div>`;}
+  if(medE.mesh_terms&&medE.mesh_terms.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--pr);font-weight:700;margin-bottom:6px">🔬 MeSH Terms</div><div style="display:flex;flex-wrap:wrap;gap:4px">${medE.mesh_terms.map(t=>`<span style="padding:2px 6px;background:var(--s2);border-radius:3px;font-size:10px;color:var(--lg)">${esc(t)}</span>`).join('')}</div></div>`;}
+  if(medE.specialization){h+=`<div style="margin-bottom:10px;font-size:11px;color:var(--mg)">🏥 Specjalizacja: <b style="color:var(--lg)">${esc(medE.specialization)}</b></div>`;}
+  box.innerHTML=h;
+}
+
 function renderCompDash(){
     if(!s1Data&&!finalData&&!batchLog.length)return;
     document.getElementById('ciP').style.display='';
@@ -1460,161 +1499,6 @@ function renderCompDash(){
     // v50.7 FIX 38: Check article text directly when Google NLP not available
     const artTextLow=(liveArticle||rawArticle||'').toLowerCase();
     // Polish-aware entity match: check stems (first 4+ chars of each word)
-    function renderSourcesBox(){
-      const ctx=ymylCtxData;
-      const box=document.getElementById('sourcesBox');
-      if(!box)return;
-      // Fix #46: Show panel when ANY YMYL data exists (legal, medical, classification)
-      const hasLegal=ctx&&ctx.legal&&(ctx.legal.judgments||ctx.legal.legal_acts||ctx.legal.legal_articles||ctx.legal.instruction_preview);
-      const hasMedical=ctx&&ctx.medical&&(ctx.medical.publications||ctx.medical.guidelines||ctx.medical.instruction_preview);
-      const hasWiki=window._wikiSources&&window._wikiSources.length;
-      const hasClassification=ctx&&ctx.classification&&ctx.classification.category&&ctx.classification.category!=='general';
-      if(!hasLegal&&!hasMedical&&!hasWiki&&!hasClassification){
-        box.style.display='none';return;
-      }
-      box.style.display='';
-      const G='var(--gn)',O='var(--orange)',M='var(--mg)',P='var(--pr)',B='var(--b1)';
-      let h=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="font-size:13px;font-weight:800;color:var(--white);text-transform:uppercase;letter-spacing:.5px">📦 Zebrane informacje prawne / medyczne</div>`;
-      // Fix #46: Classification badge
-      if(ctx&&ctx.classification){
-        const cat=ctx.classification.category||'';
-        const conf=ctx.classification.confidence||0;
-        const int=ctx.ymyl_intensity||'none';
-        const intClr=int==='full'?'var(--rd)':int==='light'?'var(--yl)':'var(--mg)';
-        h+=`<span style="font-size:9px;padding:2px 8px;border-radius:10px;background:${intClr};color:#000;font-weight:700">${esc(cat.toUpperCase())} · ${int} · ${Math.round(conf*100)}%</span>`;
-      }
-      h+=`</div>`;
-
-      // Fix #46: Legal acts (ustawy, kodeksy)
-      const lActs=(ctx.legal||{}).legal_acts||[];
-      if(lActs.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">📜 Akty prawne (${lActs.length})</div>`;
-        lActs.forEach(a=>{
-          const name=typeof a==='string'?a:(a.name||a.title||JSON.stringify(a));
-          h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:12px;color:var(--lg);border-left:3px solid var(--yl)">
-            <span style="font-weight:600">${esc(name)}</span>
-          </div>`;
-        });
-        h+=`</div>`;
-      }
-
-      // Fix #46: Legal articles (art. 178a k.k. etc.)
-      const lArts=(ctx.legal||{}).legal_articles||[];
-      if(lArts.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:${O};font-weight:700;margin-bottom:6px">📋 Przepisy (artykuły)</div>`;
-        h+=`<div style="display:flex;flex-wrap:wrap;gap:4px">`;
-        lArts.forEach(a=>{
-          const txt=typeof a==='string'?a:(a.article||a.text||JSON.stringify(a));
-          h+=`<span style="padding:3px 8px;background:rgba(251,169,44,.15);border:1px solid rgba(251,169,44,.3);border-radius:4px;font-size:11px;color:${O};font-weight:600">${esc(txt)}</span>`;
-        });
-        h+=`</div></div>`;
-      }
-
-      // Legal judgments (orzeczenia)
-      const jj=(ctx.legal||{}).judgments||[];
-      const jSkip=(ctx.legal||{}).judgments_skipped||[];
-      if(jj.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:${G};font-weight:700;margin-bottom:6px">⚖️ Orzeczenia sądowe (${jj.length})</div>`;
-        jj.forEach(j=>{
-          const sig=j.signature||'';const court=(j.court||'').split(' ').slice(-2).join(' ');
-          const art=j.matched_article?` <span style="color:${O};font-size:9px">[${esc(j.matched_article)}]</span>`:'';
-          const summ=j.summary?`<div style="color:var(--mg);font-size:10px;margin-top:2px;line-height:1.3">${esc(j.summary.substring(0,120))}</div>`:'';
-          h+=`<div style="padding:5px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;border-left:3px solid ${G}">
-            <div style="font-size:11px"><span style="color:${P};font-weight:700">${esc(sig)}</span>${art}
-            <span style="color:${M};margin-left:4px">${esc(court)} ${j.date?'('+esc(j.date)+')':''}</span>
-            ${j.type?`<span style="color:var(--mg);font-size:9px;margin-left:4px">${esc(j.type)}</span>`:''}</div>
-            ${summ}
-          </div>`;
-        });
-        if(jSkip.length)h+=`<div style="font-size:9px;color:${M};margin-top:2px">⚠️ Pominięto (błędna gałąź): ${jSkip.map(s=>`<span style='color:var(--yl)'>${esc(s)}</span>`).join(', ')}</div>`;
-        h+=`</div>`;
-      }
-
-      // Fix #46: Legal instruction preview
-      const lInstr=(ctx.legal||{}).instruction_preview||'';
-      if(lInstr){
-        h+=`<div style="margin-bottom:10px;padding:6px 10px;background:rgba(52,211,153,.05);border-radius:4px;border-left:3px solid ${G}"><div style="font-size:9px;color:${G};font-weight:700;text-transform:uppercase;margin-bottom:3px">Instrukcja prawna dla modelu</div><div style="font-size:11px;color:var(--lg);line-height:1.4">${esc(lInstr)}</div></div>`;
-      }
-
-      // Fix #46: Citation hint
-      const citHint=(ctx.legal||{}).citation_hint||'';
-      if(citHint){
-        h+=`<div style="margin-bottom:10px;font-size:11px;color:var(--mg);padding:4px 8px;background:var(--s2);border-radius:4px">💡 ${esc(citHint)}</div>`;
-      }
-
-      // Wikipedia articles
-      const wiki=window._wikiSources||[];
-      if(wiki.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">📖 Wikipedia — przepisy (${wiki.length})</div>`;
-        wiki.forEach(w=>{
-          h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid var(--yl)">
-            <span style="color:var(--yl);font-weight:600">${esc(w.article_ref||'')}</span>
-            <span style="color:var(--white);margin-left:4px">${esc((w.title||'').substring(0,50))}</span>
-            <a href="${esc(w.url||'#')}" target="_blank" style="color:${M};font-size:9px;margin-left:4px">↗</a>
-            ${w.summary?`<div style="color:var(--mg);font-size:10px;margin-top:2px">${esc((w.summary||'').substring(0,100))}</div>`:''}
-          </div>`;
-        });
-        h+=`</div>`;
-      }
-
-      // Medical publications
-      const pp=(ctx.medical||{}).publications||[];
-      if(pp.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">🏥 Publikacje medyczne (${pp.length})</div>`;
-        pp.slice(0,6).forEach(p=>{
-          h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid var(--yl)">
-            <span style="color:#fba92c;font-weight:600">PMID:${esc(p.pmid||'—')}</span>
-            <span style="color:var(--white);margin-left:4px">${esc((p.title||'').substring(0,50))}</span>
-            <span style="color:${M};margin-left:4px">${p.year||''}</span>
-          </div>`;
-        });
-        h+=`</div>`;
-      }
-      
-      // Fix #46: Medical guidelines
-      const mGuidelines=(ctx.medical||{}).guidelines||[];
-      if(mGuidelines.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:${G};font-weight:700;margin-bottom:6px">📋 Wytyczne medyczne (${mGuidelines.length})</div>`;
-        mGuidelines.slice(0,5).forEach(g=>{
-          const txt=typeof g==='string'?g:(g.title||g.name||JSON.stringify(g));
-          h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid ${G}">${esc(txt)}</div>`;
-        });
-        h+=`</div>`;
-      }
-
-      // Fix #46: Medical instruction
-      const mInstr=(ctx.medical||{}).instruction_preview||'';
-      if(mInstr){
-        h+=`<div style="margin-bottom:10px;padding:6px 10px;background:rgba(52,211,153,.05);border-radius:4px;border-left:3px solid ${G}"><div style="font-size:9px;color:${G};font-weight:700;text-transform:uppercase;margin-bottom:3px">Instrukcja medyczna dla modelu</div><div style="font-size:11px;color:var(--lg);line-height:1.4">${esc(mInstr)}</div></div>`;
-      }
-
-      // Fix #46: Enrichment info from Claude classification
-      const enrich=ctx&&ctx.enrichment||{};
-      const legalE=enrich.legal||{};
-      const medE=enrich.medical||{};
-      // Legal definitions from Claude
-      if(legalE.definitions&&legalE.definitions.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--pr);font-weight:700;margin-bottom:6px">📖 Definicje prawne</div>`;
-        legalE.definitions.forEach(def=>{
-          const txt=typeof def==='string'?def:(def.term||def.text||JSON.stringify(def));
-          h+=`<div style="padding:3px 8px;font-size:11px;color:var(--lg);border-left:2px solid var(--pr);margin-bottom:2px">${esc(txt)}</div>`;
-        });
-        h+=`</div>`;
-      }
-      // Medical MeSH terms
-      if(medE.mesh_terms&&medE.mesh_terms.length){
-        h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--pr);font-weight:700;margin-bottom:6px">🔬 MeSH Terms</div>`;
-        h+=`<div style="display:flex;flex-wrap:wrap;gap:4px">${medE.mesh_terms.map(t=>`<span style="padding:2px 6px;background:var(--s2);border-radius:3px;font-size:10px;color:var(--lg)">${esc(t)}</span>`).join('')}</div></div>`;
-      }
-      // Medical specialization
-      if(medE.specialization){
-        h+=`<div style="margin-bottom:10px;font-size:11px;color:var(--mg)">🏥 Specjalizacja: <b style="color:var(--lg)">${esc(medE.specialization)}</b></div>`;
-      }
-
-      box.innerHTML=h;
-    }
-
-
     function plMatch(entityName,text){
         if(!text||!entityName)return false;
         const eLow=entityName.toLowerCase();
@@ -2220,20 +2104,8 @@ function _destroyChart(id){if(_chartInstances[id]){_chartInstances[id].destroy()
 
 function toggleMehr(panelId,btn){
   const p=document.getElementById(panelId);if(!p)return;
-  const wasOpen=p.classList.contains('open')||p.classList.contains('auto-open');
-  p.classList.remove('auto-open');
-  if(wasOpen){p.classList.remove('open')}else{p.classList.add('open')}
-  if(btn){btn.classList.toggle('active',!wasOpen);btn.textContent=wasOpen?'więcej ▾':'mniej ▴'}
-  if(!wasOpen){setTimeout(()=>{Object.values(_chartInstances).forEach(c=>{try{c.resize()}catch(e){}})},350)}
-}
-function _autoOpen(paneId,panelId){
-  const pane=document.getElementById(paneId);if(pane)pane.style.display='';
-  const panel=document.getElementById(panelId);
-  if(panel&&!panel.classList.contains('open')&&!panel.classList.contains('auto-open')){
-    panel.classList.add('auto-open');
-    const btn=pane?pane.querySelector('.mehr-btn'):null;
-    if(btn){btn.classList.add('active');btn.textContent='mniej ▴';}
-  }
+  p.classList.toggle('open');
+  if(btn){btn.classList.toggle('active');btn.textContent=p.classList.contains('open')?'mniej ▴':'więcej ▾'}
 }
 
 // Dark theme defaults for Chart.js
@@ -2253,11 +2125,9 @@ function initRadarChart(fd){
   if(!fd||!fd.quality_breakdown)return;
   const qb=fd.quality_breakdown;
   const labels=['Keywords','Humanness','Grammar','Structure','Semantic','Depth','Coherence'];
-  let data=labels.map(l=>qb[l.toLowerCase()]||0);
-  // Fix #52: fallback when all breakdown values are null/0
-  if(data.every(v=>v===0)&&fd.score){const base=fd.score;data=data.map(()=>base);}
+  const data=labels.map(l=>qb[l.toLowerCase()]||0);
   const avg=Math.round(data.reduce((a,b)=>a+b,0)/data.length);
-  _autoOpen('radarPane','radarPanel');
+  document.getElementById('radarPane').style.display='';
   _destroyChart('radar');
   const ctx=document.getElementById('radarChart');if(!ctx)return;
   _chartInstances.radar=new Chart(ctx,{
@@ -2282,7 +2152,7 @@ function initRadarChart(fd){
 // 2. BAR — Batch Quality Scores
 function initBatchChart(bl){
   if(!bl||!bl.length)return;
-  _autoOpen('batchChartPane','batchPanel');
+  document.getElementById('batchChartPane').style.display='';
   const labels=bl.map((b,i)=>'B'+(b.batch||i+1));
   const scores=bl.map(b=>b.quality_score||0);
   const colors=bl.map(b=>!b.accepted?'#f87171':b.quality_score>=80?'#34d399':b.quality_score>=60?'#fbbf24':'#9e9e9e');
@@ -2310,7 +2180,7 @@ function initBatchChart(bl){
 // 3. HORIZONTAL BARS — Entity Salience
 function initSalienceChart(sd){
   if(!sd||!sd.entities||!sd.entities.length)return;
-  _autoOpen('salienceChartPane','saliencePanel');
+  document.getElementById('salienceChartPane').style.display='';
   const ents=sd.entities.slice().sort((a,b)=>(b.salience||0)-(a.salience||0)).slice(0,14);
   const mainKw=(sd.main_keyword||'').toLowerCase();
   const container=document.getElementById('salienceBarChart');if(!container)return;
@@ -2336,7 +2206,7 @@ function initKwCoverageChart(fd,bl){
   const basicPct=Math.round(basicCov*100);
   const extPct=Math.round(extCov*100);
   const missPct=100-basicPct;
-  _autoOpen('kwCoveragePane','kwCoveragePanel');
+  document.getElementById('kwCoveragePane').style.display='';
   _destroyChart('kwCov');
   const ctx=document.getElementById('kwCoverageChart');if(!ctx)return;
   _chartInstances.kwCov=new Chart(ctx,{
@@ -2357,7 +2227,7 @@ function initKwCoverageChart(fd,bl){
 // 5. BAR — Word Distribution vs Competitors
 function initWordDistChart(s1,fd){
   if(!s1||!s1.word_counts||!s1.word_counts.length)return;
-  _autoOpen('wordDistPane','wordDistPanel');
+  document.getElementById('wordDistPane').style.display='';
   const comps=s1.word_counts.slice(0,10);
   const ours=fd?fd.word_count||0:0;
   const rec=s1.recommended_length||0;
@@ -2382,7 +2252,7 @@ function initWordDistChart(s1,fd){
 // 6. BAR — Workflow Timeline
 function initTimelineChart(td){
   if(!td||!td.steps)return;
-  _autoOpen('timelinePane','timelinePanel');
+  document.getElementById('timelinePane').style.display='';
   const names=['S1','YMYL','H2','Project','Phrase','Batche','PAA','Content Ed','Final','Editorial','Export'];
   const data=[];const labels=[];
   for(let i=1;i<=11;i++){const t=td.steps[String(i)]||td.steps[i]||0;if(t>0){data.push(Math.round(t));labels.push(names[i-1]||('K'+i))}}
@@ -2409,7 +2279,7 @@ function initTimelineChart(td){
 function initCooccHeatmap(s1){
   if(!s1||!s1.entity_seo||!s1.entity_seo.entity_cooccurrence)return;
   const pairs=s1.entity_seo.entity_cooccurrence;if(!pairs.length)return;
-  _autoOpen('cooccPane','cooccPanel');
+  document.getElementById('cooccPane').style.display='';
   const entSet=new Set();
   pairs.forEach(p=>{entSet.add(p.entity_a||p[0]||'');entSet.add(p.entity_b||p[1]||'')});
   const ents=Array.from(entSet).filter(Boolean).slice(0,10);
