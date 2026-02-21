@@ -633,7 +633,7 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
     ]
     batch_num = pre_batch.get("batch_number", 1) or 1
     if batch_type in ("INTRO", "intro"):
-        pattern_idx = 0  # INTRO: zawsze liczba/fakt dla silnego otwarcia
+        pattern_idx = 4  # INTRO: podmiot+orzeczenie — lead zaczyna od definicji/odpowiedzi
     else:
         pattern_idx = (batch_num - 1) % len(_OPENING_PATTERNS)
     p_letter, p_name, p_desc = _OPENING_PATTERNS[pattern_idx]
@@ -721,6 +721,14 @@ Długość: {min_w}-{max_w} słów{length_hint}{h2_instruction}"""
 
 
 def _fmt_intro_guidance(pre_batch, batch_type):
+    """Build the LEAD paragraph prompt — the article's answer-first introduction.
+
+    The lead must:
+    1. Directly answer the featured snippet question OR complement AI Overview
+    2. Contain the main keyword in the first sentence
+    3. Be a self-contained mini-article (readable without scrolling)
+    4. Promise deeper content to encourage further reading
+    """
     if batch_type not in ("INTRO", "intro"):
         return ""
     guidance = pre_batch.get("intro_guidance", "")
@@ -728,59 +736,146 @@ def _fmt_intro_guidance(pre_batch, batch_type):
     main_kw = pre_batch.get("main_keyword") or {}
     kw_name = main_kw.get("keyword", "") if isinstance(main_kw, dict) else str(main_kw)
 
-    parts = ["═══ WPROWADZENIE (WSTĘP ARTYKUŁU) ═══",
-             "To jest PIERWSZY batch, piszesz WSTĘP artykułu.",
-             "",
-             "═══ FORMAT FEATURED SNIPPET / AI OVERVIEW ═══",
-             "Wstęp musi być zbudowany w formacie ANSWER-FIRST:",
-             "",
-             "  ZDANIE 1-2 (40-58 słów łącznie): Bezpośrednia definicja lub odpowiedź.",
-             f'    Zawiera frazę główną ("{kw_name}") w pierwszym zdaniu.' if kw_name else "",
-             "    Styl: prosto, rzeczowo, bez wstępów ani zapowiedzi.",
-             "    Przykład: 'Rejestr spadkowy to publiczna baza danych prowadzona",
-             "    przez samorząd notarialny, która potwierdza, czy po danym zmarłym",
-             "    sporządzono akt poświadczenia dziedziczenia lub sądowe postanowienie.'",
-             "",
-             "  ZDANIE 3-4: Jeden konkretny fakt lub rok — kontekst.",
-             "    Przykład: 'System działa od 2016 roku i obejmuje wpisy notarialne",
-             "    oraz sądowe z całej Polski.'",
-             "",
-             "  ZDANIE 5-6: Co czytelnik znajdzie w artykule (bez listy H2!).",
-             "",
-             "REGUŁY STYLISTYCZNE WSTĘPU:",
-             "  • Każde zdanie: max 18 słów",
-             "  • Max 2 przecinki w jednym zdaniu",
-             "  • ZAKAZ zdań wielokrotnie złożonych ('który... ponieważ... a także...')",
-             "  • ZAKAZ: 'W dzisiejszych czasach', 'Warto zaznaczyć', 'Należy podkreślić'",
-             "  • ZAKAZ nagłówka h2: (wstęp nie ma nagłówka)",
-             "  • Długość: 80-150 słów",
-             "  • Ton: rzeczowy, bez dramatyzowania"]
+    # ── Extract SERP signals ──
+    serp = pre_batch.get("serp_enrichment") or {}
 
+    # Featured snippet (position 0)
+    fs_raw = serp.get("featured_snippet") or {}
+    if isinstance(fs_raw, dict):
+        fs_text = fs_raw.get("text", "") or fs_raw.get("snippet", "") or ""
+        fs_type = fs_raw.get("type", "paragraph")  # paragraph / list / table
+    elif isinstance(fs_raw, str):
+        fs_text = fs_raw
+        fs_type = "paragraph"
+    else:
+        fs_text = ""
+        fs_type = "paragraph"
+
+    # AI Overview
+    ai_ov_raw = serp.get("ai_overview") or {}
+    if isinstance(ai_ov_raw, dict):
+        ai_ov_text = ai_ov_raw.get("text", "") or ai_ov_raw.get("summary", "") or ""
+    elif isinstance(ai_ov_raw, str):
+        ai_ov_text = ai_ov_raw
+    else:
+        ai_ov_text = ""
+
+    # Search intent
+    search_intent = serp.get("search_intent") or ""
+
+    # Competitor titles — reveal what TOP10 promises
+    comp_titles = serp.get("competitor_titles") or []
+
+    # ── Determine lead strategy based on available SERP data ──
+    has_snippet = bool(fs_text and len(fs_text) > 30)
+    has_ai_overview = bool(ai_ov_text and len(ai_ov_text) > 50)
+
+    parts = [
+        "═══ LEAD / WSTĘP ARTYKUŁU ═══",
+        "Piszesz LEAD — pierwszą rzecz, którą widzi czytelnik po kliknięciu w artykuł.",
+        "Lead NIE jest zapowiedzią artykułu. Lead JEST odpowiedzią na pytanie użytkownika.",
+    ]
+
+    # ── STRATEGY A: Featured snippet exists → beat it ──
+    if has_snippet:
+        parts.append("")
+        parts.append("═══ FEATURED SNIPPET (pozycja 0 w Google) ═══")
+        parts.append("Google wyświetla tę odpowiedź NAD wynikami organicznymi:")
+        parts.append(f"  « {fs_text[:500]} »")
+        if fs_type == "list":
+            parts.append("  (typ: lista punktowa)")
+        parts.append("")
+        parts.append("STRATEGIA: Twój lead musi BIĆ ten snippet.")
+        parts.append("  • Zdanie 1-2: Daj tę samą odpowiedź, ale LEPSZĄ — precyzyjniejszą, aktualniejszą, z konkretną liczbą/datą.")
+        parts.append("  • Zdanie 3-4: Dodaj kontekst, którego snippet NIE zawiera (rok, zmiana prawa, wyjątek, skala zjawiska).")
+        parts.append("  • Zdanie 5-7: Zapowiedź głębi — dlaczego warto czytać dalej (bez listy H2!).")
+        parts.append("  Cel: Google powinien zastąpić obecny snippet TWOIM leadem.")
+
+    # ── STRATEGY B: AI Overview exists → complement it ──
+    if has_ai_overview:
+        parts.append("")
+        parts.append("═══ GOOGLE AI OVERVIEW ═══")
+        parts.append("Google generuje użytkownikom tę odpowiedź AI ZANIM klikną w wyniki:")
+        parts.append(f"  « {ai_ov_text[:500]} »")
+        parts.append("")
+        if has_snippet:
+            parts.append("AI Overview pokrywa się z featured snippet. Twój lead musi wnosić WIĘCEJ:")
+        else:
+            parts.append("STRATEGIA: Użytkownik już przeczytał to podsumowanie AI.")
+        parts.append("  • NIE powtarzaj tych samych informacji — czytelnik już je zna.")
+        parts.append("  • Zacznij od odpowiedzi, ale natychmiast dodaj fakt/liczbę/kontekst,")
+        parts.append("    którego AI Overview nie podaje.")
+        parts.append("  • Pokaż, że artykuł idzie GŁĘBIEJ niż AI Overview.")
+
+    # ── STRATEGY C: No SERP signals → pure answer-first ──
+    if not has_snippet and not has_ai_overview:
+        parts.append("")
+        parts.append("Brak featured snippet i AI Overview — Twój lead ma szansę STAĆ SIĘ snippetem!")
+        parts.append("  • Zdanie 1-2: Bezpośrednia, zwięzła odpowiedź na pytanie z frazy kluczowej.")
+        parts.append("  • Zdanie 3-4: Konkretna liczba, data lub fakt — kontekst.")
+        parts.append("  • Zdanie 5-7: Zapowiedź głębi artykułu.")
+        parts.append("  Google wyciągnie Twoje pierwsze 2-3 zdania jako snippet, jeśli będą answer-first.")
+
+    # ── Search intent guidance ──
+    if search_intent:
+        parts.append(f"\nIntencja wyszukiwania: {search_intent}")
+        if "informacyjn" in search_intent.lower() or "information" in search_intent.lower():
+            parts.append("→ Lead musi odpowiedzieć CO/JAK/DLACZEGO w pierwszym zdaniu.")
+        elif "transakcyjn" in search_intent.lower() or "transaction" in search_intent.lower():
+            parts.append("→ Lead musi szybko podać rozwiązanie/produkt/krok do działania.")
+        elif "nawigacyjn" in search_intent.lower() or "navigation" in search_intent.lower():
+            parts.append("→ Lead musi od razu wskazać gdzie/jak dotrzeć do celu.")
+
+    # ── Competitor titles — what TOP10 promises ──
+    if comp_titles:
+        titles_str = " | ".join(comp_titles[:5])
+        parts.append(f"\nTytuły TOP5 w Google: {titles_str}")
+        parts.append("→ Twój lead musi obiecywać to, co konkurencja obiecuje w tytułach, ALE z konkretem.")
+
+    # ── Answer-first structure ──
+    parts.append("")
+    parts.append("═══ STRUKTURA LEADU ═══")
+    if kw_name:
+        parts.append(f'Fraza główna: "{kw_name}" — MUSI pojawić się w pierwszym zdaniu.')
+    parts.append("""
+AKAPIT 1 — ODPOWIEDŹ (3-4 zdania, ~60 słów):
+  Bezpośrednia odpowiedź. Prosto, bez wstępów.
+  Pierwsze zdanie = definicja lub odpowiedź z frazą kluczową.
+  Drugie zdanie = uzupełnienie z konkretną liczbą/datą/faktem.
+
+AKAPIT 2 — KONTEKST (2-3 zdania, ~50 słów):
+  Dlaczego to ważne? Skala zjawiska, zmiana prawa, trend.
+  Jeden konkretny fakt, którego nie ma w snippet/AI overview.
+
+AKAPIT 3 — ZACHĘTA DO CZYTANIA (1-2 zdania, ~30 słów):
+  Co czytelnik znajdzie dalej? Bez listy H2.
+  Np. "Poniżej — krok po kroku procedura z wzorami pism i aktualnymi kosztami."
+""")
+
+    # ── Style rules ──
+    parts.append("REGUŁY STYLISTYCZNE LEADU:")
+    parts.append("  • Każde zdanie: max 20 słów")
+    parts.append("  • Max 2 przecinki w jednym zdaniu")
+    parts.append("  • ZAKAZ zdań wielokrotnie złożonych ('który... ponieważ... a także...')")
+    parts.append("  • ZAKAZ fraz: 'W dzisiejszych czasach', 'Warto zaznaczyć', 'Należy podkreślić',")
+    parts.append("    'Poniższy artykuł', 'W niniejszym tekście', 'Zapraszamy do lektury'")
+    parts.append("  • ZAKAZ nagłówka h2: (lead nie ma nagłówka)")
+    parts.append("  • Długość: 120-200 słów (3 krótkie akapity)")
+    parts.append("  • Ton: rzeczowy, bez dramatyzowania, bez clickbaitu")
+    parts.append("  • Pisz jak ekspert, nie jak copywriter — fakty > obietnice")
+
+    # ── Custom intro guidance from backend ──
     if guidance:
+        parts.append("")
         if isinstance(guidance, dict):
             hook = guidance.get("hook", "")
             angle = guidance.get("angle", "")
             if hook:
-                parts.append(f"\nHak otwierający: {hook}")
+                parts.append(f"Hak otwierający: {hook}")
             if angle:
                 parts.append(f"Kąt artykułu: {angle}")
         else:
-            parts.append(f"\n{guidance}")
-
-    # AI Overview — tylko we wstępie, żeby intro odpowiadało na to co Google już pokazuje
-    serp = pre_batch.get("serp_enrichment") or {}
-    ai_ov = serp.get("ai_overview") or {}
-    if isinstance(ai_ov, dict):
-        ai_ov_text = ai_ov.get("text", "") or ""
-    elif isinstance(ai_ov, str):
-        ai_ov_text = ai_ov
-    else:
-        ai_ov_text = ""
-    if ai_ov_text and len(ai_ov_text) > 50:
-        parts.append("\n═══ GOOGLE AI OVERVIEW ═══")
-        parts.append("Google wyświetla użytkownikom ten tekst ZANIM klikną w artykuł.")
-        parts.append("Wstęp MUSI nawiązywać do tego kontekstu i obiecywać głębszą odpowiedź:")
-        parts.append(f"  {ai_ov_text[:500]}")
+            parts.append(str(guidance))
 
     return "\n".join(parts)
 
@@ -1740,9 +1835,10 @@ def _fmt_h2_remaining(pre_batch):
 def _fmt_output_format(h2, batch_type):
     if batch_type in ("INTRO", "intro"):
         return f"""═══ FORMAT ODPOWIEDZI ═══
-Pisz TYLKO treść wstępu. NIE zaczynaj od "h2:". Wstęp nie ma nagłówka.
-80-150 słów. Frazę główną wpleć w PIERWSZE zdanie.
-NIE dodawaj komentarzy, wyjaśnień. TYLKO treść wstępu."""
+Pisz TYLKO treść leadu (wstępu). NIE zaczynaj od "h2:". Lead nie ma nagłówka.
+120-200 słów w 3 krótkich akapitach (odpowiedź → kontekst → zachęta).
+Frazę główną wpleć w PIERWSZE zdanie. Każdy akapit: 2-4 zdań.
+NIE dodawaj komentarzy, wyjaśnień, meta-tekstu. TYLKO treść leadu."""
     
     return f"""═══ FORMAT ODPOWIEDZI ═══
 Pisz TYLKO treść tego batcha. Zaczynaj dokładnie od:

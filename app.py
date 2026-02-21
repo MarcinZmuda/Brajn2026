@@ -2974,6 +2974,21 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 batch_type = "INTRO"
                 yield emit("log", {"msg": "📝 Batch 1 → wymuszony typ INTRO (wstęp artykułu)"})
 
+            # ═══ INTRO SERP INJECTION: pass snippet/AI overview to prompt builder ═══
+            if batch_num == 1 and batch_type in ("INTRO", "intro"):
+                _serp_for_intro = pre_batch.get("serp_enrichment") or {}
+                _fs = s1.get("featured_snippet") or serp_analysis.get("featured_snippet") or ""
+                _aov = s1.get("ai_overview") or serp_analysis.get("ai_overview") or ""
+                _sint = s1.get("search_intent") or serp_analysis.get("search_intent") or ""
+                _comp_titles = serp_analysis.get("competitor_titles", [])[:5]
+                if _fs or _aov:
+                    _serp_for_intro["featured_snippet"] = _fs
+                    _serp_for_intro["ai_overview"] = _aov
+                    _serp_for_intro["search_intent"] = _sint
+                    _serp_for_intro["competitor_titles"] = _comp_titles
+                    pre_batch["serp_enrichment"] = _serp_for_intro
+                    yield emit("log", {"msg": f"📰 INTRO SERP: snippet={'✅' if _fs else '❌'}, AI overview={'✅' if _aov else '❌'}, intent={_sint[:40] if _sint else '?'}"})
+
             # ═══ Inject phrase hierarchy data for prompt_builder ═══
             if phrase_hierarchy_data:
                 pre_batch["_phrase_hierarchy"] = phrase_hierarchy_data
@@ -3096,6 +3111,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "paa_from_serp": (enhanced_data.get("paa_from_serp") or [])[:3],
                 "main_keyword_ratio": (pre_batch.get("main_keyword") or {}).get("ratio"),
                 "intro_guidance": pre_batch.get("intro_guidance", "") if batch_type == "INTRO" else "",
+                "lead_serp_signals": {
+                    "has_snippet": bool((pre_batch.get("serp_enrichment") or {}).get("featured_snippet")),
+                    "has_ai_overview": bool((pre_batch.get("serp_enrichment") or {}).get("ai_overview")),
+                    "search_intent": (pre_batch.get("serp_enrichment") or {}).get("search_intent", ""),
+                } if batch_type in ("INTRO", "intro") else {},
                 # v45 flags
                 "has_causal_context": bool(enhanced_data.get("causal_context")),
                 "has_information_gain": bool(enhanced_data.get("information_gain")),
