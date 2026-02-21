@@ -19,22 +19,20 @@ Architecture:
 import json
 import logging
 
-# Fix #9 v4.2 + Fix #34: import shared sentence-length constants (zaostrzenie)
+# Fix #9 v4.2: import shared sentence-length constants
 try:
     from shared_constants import (
         SENTENCE_AVG_TARGET, SENTENCE_AVG_TARGET_MIN, SENTENCE_AVG_TARGET_MAX,
-        SENTENCE_SOFT_MAX, SENTENCE_HARD_MAX, SENTENCE_AVG_MAX_ALLOWED,
-        SENTENCE_MAX_COMMAS
+        SENTENCE_SOFT_MAX, SENTENCE_HARD_MAX, SENTENCE_AVG_MAX_ALLOWED
     )
 except ImportError:
-    # Fallback defaults — Fix #34: zaostrzenie
-    SENTENCE_AVG_TARGET = 12
-    SENTENCE_AVG_TARGET_MIN = 8
-    SENTENCE_AVG_TARGET_MAX = 15
-    SENTENCE_SOFT_MAX = 20
-    SENTENCE_HARD_MAX = 25
-    SENTENCE_AVG_MAX_ALLOWED = 16
-    SENTENCE_MAX_COMMAS = 1
+    # Fallback defaults if shared_constants unavailable
+    SENTENCE_AVG_TARGET = 15
+    SENTENCE_AVG_TARGET_MIN = 12
+    SENTENCE_AVG_TARGET_MAX = 18
+    SENTENCE_SOFT_MAX = 30
+    SENTENCE_HARD_MAX = 35
+    SENTENCE_AVG_MAX_ALLOWED = 20
 
 _pb_logger = logging.getLogger(__name__)
 
@@ -172,27 +170,10 @@ Nie stosuj przypadkowych wypełniaczy encyjnych.
     # ════════════════════════════════════════════════════════════
     parts.append("""<rules>
 
-FEATURED SNIPPET OPTIMIZATION (KRYTYCZNE dla pozycji 0)
+PASSAGE-FIRST + RÓŻNORODNOŚĆ OTWARĆ (KRYTYCZNE)
+Pod każdym H2 pierwsze zdanie musi być passage-ready (Google Featured Snippet).
+JEDNAK: każda sekcja H2 MUSI zaczynać się INNYM wzorcem składniowym.
 
-ANSWER-FIRST: Pod każdym H2 MUSISZ zacząć od bezpośredniej odpowiedzi 40-58 słów.
-Te 40-58 słów to "snippet-ready passage" — Google może je wyciąć jako Featured Snippet.
-Odpowiedź musi być SAMODZIELNA (bez "jak wspomniano", "dlatego właśnie").
-Po snippet-ready passage rozwijasz temat w kolejnych akapitach.
-
-LISTY HTML: W CAŁYM artykule MUSISZ użyć DOKŁADNIE 2 wypunktowań:
-  • Użyj <ul> dla kolekcji (objawy, cechy, typy) lub <ol> dla kroków/procesu
-  • Każda lista: 5-8 elementów, każdy <li> to 1 konkretne zdanie (nie samo słowo)
-  • Lista MUSI być poprzedzona zdaniem wprowadzającym kończącym się dwukropkiem
-  • Rozmieść listy w RÓŻNYCH sekcjach H2 (nie obie w jednej)
-
-TABELA HTML (opcjonalnie, max 1 na artykuł):
-  • Użyj <table> (NIE CSS grid) do porównań, danych liczbowych, typów
-  • Max 4-5 kolumn, 3-6 wierszy + nagłówek <thead>
-  • Komórki krótkie (≤25 znaków)
-  • Tabela ZAMIAST jednego z wypunktowań (czyli: 2 listy LUB 1 lista + 1 tabela)
-
-PASSAGE-FIRST + RÓŻNORODNOŚĆ OTWARĆ
-Każda sekcja H2 MUSI zaczynać się INNYM wzorcem składniowym.
 ZAKAZ: dwie sąsiednie sekcje o identycznej strukturze pierwszego zdania.
 
 Dostępne wzorce otwarcia sekcji — rotuj między nimi:
@@ -233,29 +214,24 @@ Wzorce: powoduje, skutkuje, prowadzi do, zapobiega, w wyniku, ponieważ
 ✅ "Wzrost temperatury powyżej 100°C powoduje wrzenie, co prowadzi do parowania."
 ❌ "Temperatura wynosi X°C." (suche stwierdzenie bez funkcji)
 
-BURSTINESS — rytm zdań (cel: CV zdań 0.30–0.45, śr. 14–18 słów)
+BURSTINESS — rytm zdań (cel: CV zdań 0.35–0.45, śr. 12–18 słów)
 
 Rozkład długości zdań w każdym akapicie:
-  • 20% krótkich (do 10 słów) — fakty, definicje, konkrety
-  • 55% średnich (11–20 słów) — rdzeń tekstu, naturalny styl
-  • 25% dłuższych (21–26 słów) — złożone wyjaśnienia, MAX 2 przecinki
+  • 20% krótkich (do 8 słów) — TYLKO fakty i definicje
+  • 60% średnich (9–18 słów) — rdzeń tekstu
+  • 20% długich (19–28 słów) — MAX 1 długie na akapit
 
 TWARDE LIMITY:
-  • ŻADNE zdanie nie może przekroczyć 28 słów — jeśli tak jest, ROZBIJ je.
-  • Średnia w całym batchu: cel 14–18 słów/zdanie (max dopuszczalna: 19).
-  • MAX 2 PRZECINKI na zdanie. Zdanie z 3+ przecinkami = ZA ZŁOŻONE → rozbij.
-  • NIE ZACZYNAJ wielu zdań od tej samej frazy — to spam, nie treść ekspercka.
-  • WAŻNE: Unikaj URWANYCH zdań (3-6 słów bez treści). Każde zdanie musi nieść informację.
+  • ŻADNE zdanie nie może przekroczyć 35 słów — jeśli tak jest, ROZBIJ je.
+  • Rozbij proaktywnie zdania >25 słów na dwa.
+  • Średnia w całym batchu: cel 12–18 słów/zdanie (max dopuszczalna: 20).
 
-Reguła przecinków:
-  ✅ „Zakaz prowadzenia pojazdów trwa od 3 do 15 lat i nie podlega zawieszeniu."
-  ✅ „Mandat wynosi od 2500 zł, a w przypadku recydywy górna granica to 30 000 zł."
-  ❌ „Kierowca może otrzymać mandat w wysokości od 2500 do 30 000 zł, a sąd dodatkowo cofa prawo jazdy, co oznacza zakaz prowadzenia, który trwa minimum 3 lata." (4 przecinki = za złożone)
-
-Technika rozbijania:
-  ✅ Jedno zdanie = jedna główna myśl. Dopuszczalne jedno rozwinięcie po przecinku.
+Technika rozbijania długich zdań:
+  ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
+     (zamiast: „Zakaz prowadzenia, obligatoryjnie orzekany przez sąd, trwa od 3 do 15 lat i nie podlega zawieszeniu.")
+  ✅ „Mandat wynosi 2500–30 000 zł. Dolicza się do tego cofnięcie prawa jazdy."
+     (zamiast: „Kierowca może otrzymać mandat w wysokości od 2500 do 30 000 zł, a sąd dodatkowo cofa prawo jazdy.")
   ✅ Długa wyliczanka → zdanie wprowadzające + lista HTML (ul/li)
-  ✅ Zamiast łańcucha „bo… ponieważ… gdyż…" → nowe zdanie.
 
 Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
   ✅ Krótkie zdanie niesie konkret: "Zakaz trwa od 3 do 15 lat."
@@ -267,21 +243,15 @@ Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
 SUBJECT POSITION — (reguła rotacji encji wstrzykiwana dynamicznie per batch poniżej)
 
 SENTENCE LENGTH — długość zdań (KRYTYCZNE dla czytelności)
-  Maksimum bezwzględne: 28 słów (HARD_MAX). Rozbij zdania >28 słów.
-  Cel średniej: 14–18 słów na zdanie (target: 14, max dopuszczalna: 19).
-  MAX 2 przecinki na zdanie. Unikaj URWANYCH mini-zdań (3-6 słów).
+  Maksimum bezwzględne: 35 słów (HARD_MAX). Rozbij proaktywnie >25 słów.
+  Cel średniej: 12–18 słów na zdanie (target: 15, max dopuszczalna: 20).
   ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
   ❌ „Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka na mocy art. 178a Kodeksu karnego, obowiązuje przez okres od 3 do nawet 15 lat i nie podlega warunkowemu zawieszeniu."
 
-SPACING — ANTYSPAM
+SPACING
 Minimalna odległość między powtórzeniami frazy:
-  MAIN: ~80 słów | BASIC: ~100 słów | EXTENDED: ~120 słów
+  MAIN: ~60 słów | BASIC: ~80 słów | EXTENDED: ~120 słów
   Nie klasteruj kilku fraz w jednym zdaniu.
-  ABSOLUTNY ZAKAZ: nie powtarzaj głównej frazy w każdym akapicie.
-  ABSOLUTNY ZAKAZ: nie zaczynaj 2+ zdań w jednym batchu od tej samej frazy kluczowej.
-  Używaj synonimów, zaimków, omówień. Powtórzenie = spam.
-  ❌ "Jazda po alkoholu... Jazda po alkoholu... Jazda po alkoholu..."
-  ✅ "Prowadzenie pod wpływem... To zachowanie... Taki czyn..."
 
 FLEKSJA
 Odmiana frazy = jedno użycie.
@@ -475,26 +445,6 @@ h2:/h3: dla nagłówków. Zero markdown, HTML, gwiazdek.
             "</subject_position_rule>"
         )
         parts.append(rule_body)
-
-    # ════════════════════════════════════════════════════════════
-    # Fix #57: SEMANTIC KEYPHRASES — natural compound phrases
-    # ════════════════════════════════════════════════════════════
-    sem_kp = pre_batch.get("_semantic_keyphrases") or []
-    if sem_kp:
-        kp_lines = []
-        for kp in sem_kp[:8]:
-            phrase = kp.get("phrase", kp) if isinstance(kp, dict) else str(kp)
-            if phrase:
-                kp_lines.append(f"  • {phrase}")
-        if kp_lines:
-            parts.append(
-                "<semantic_keyphrases>\n"
-                "FRAZY SEMANTYCZNE — użyj minimum 3 z poniższych jako KOMPLETNE FRAZY (nie rozbijaj na osobne słowa):\n"
-                + "\n".join(kp_lines) + "\n"
-                "Każda fraza powinna pojawić się jako spójny ciąg słów w jednym zdaniu.\n"
-                "Przykład: zamiast 'diagnostyka słuchu. Dziecka dotyczy...' → 'diagnostyka słuchu dziecka obejmuje...'\n"
-                "</semantic_keyphrases>"
-            )
 
     # ════════════════════════════════════════════════════════════
     # FEW-SHOT EXAMPLES
@@ -798,25 +748,43 @@ def _fmt_keywords(pre_batch):
     keyword_limits = pre_batch.get("keyword_limits") or {}
     soft_caps = pre_batch.get("soft_cap_recommendations") or {}
 
+    # Bug B Fix: Gdy globalny budzet main keyword wyczerpany — nie wstrzykuj go jako MUST
+    _kw_global_remaining = pre_batch.get("_kw_global_remaining", None)
+    _kw_global_used = pre_batch.get("_kw_global_used", None)
+    _main_kw_budget_exhausted = (
+        _kw_global_remaining is not None and _kw_global_remaining == 0
+    )
+
+    # Bug B Fix: Wyciagnij nazwe main keyword do porownania w petli
+    _raw_main_kw = pre_batch.get("main_keyword") or {}
+    main_kw = _raw_main_kw.get("keyword", "") if isinstance(_raw_main_kw, dict) else str(_raw_main_kw)
+
     # ── MUST USE (with calculated remaining) ──
     must_raw = keywords_info.get("basic_must_use", [])
     must_lines = []
+    _budget_exhausted_kws = []  # Bug B Fix: kw przeniesione z MUST do STOP
     for kw in must_raw:
         if isinstance(kw, dict):
             name = kw.get("keyword", "")
-            
+
+            # Bug B Fix: Gdy globalny budzet main keyword = 0, przenosimy go do STOP
+            if _main_kw_budget_exhausted and name and main_kw and \
+               name.lower() == main_kw.lower():
+                _budget_exhausted_kws.append(name)
+                continue  # nie dodawaj do MUST
+
             # Calculate remaining from actual + target_total
             actual = kw.get("actual", kw.get("actual_uses", kw.get("current_count", 0)))
             target_total = kw.get("target_total", "")
             target_max = _parse_target_max(target_total) or kw.get("target_max", 0)
             hard_max = kw.get("hard_max_this_batch", "")
             use_range = kw.get("use_this_batch", "")
-            
+
             # Explicit remaining from backend (if sent), otherwise calculate
             remaining = kw.get("remaining", kw.get("remaining_max", ""))
             if not remaining and target_max and isinstance(actual, (int, float)):
                 remaining = max(0, target_max - int(actual))
-            
+
             # Build descriptive line
             parts_line = [f'"{name}"']
             if remaining:
@@ -825,7 +793,7 @@ def _fmt_keywords(pre_batch):
                 parts_line.append(f"max {hard_max}× w tym batchu")
             elif use_range:
                 parts_line.append(f"cel: {use_range}× w tym batchu")
-            
+
             must_lines.append(f'  • {", ".join(parts_line)}')
         else:
             must_lines.append(f'  • "{kw}"')
@@ -861,6 +829,10 @@ def _fmt_keywords(pre_batch):
             stop_lines.append(f'  • "{name}" (już {current}×, limit {max_c}) , STOP!')
         else:
             stop_lines.append(f'  • "{s}"')
+
+    # Bug B Fix: Dodaj main keyword do STOP gdy globalny budzet = 0
+    for exhausted_kw in _budget_exhausted_kws:
+        stop_lines.append(f'  • "{exhausted_kw}" (limit globalny 6× osiągnięty — NIE UŻYWAJ w tym batchu!)')
 
     # ── CAUTION ──
     caution_raw = keyword_limits.get("caution_keywords") or []
@@ -1403,12 +1375,9 @@ def _fmt_legal_medical(pre_batch):
             parts.append("")
         parts.append("═══ KONTEKST MEDYCZNY (YMYL) ═══")
         parts.append("Ten artykuł dotyczy tematyki zdrowotnej. MUSISZ:")
-        parts.append("  1. Cytować źródła naukowe (podane niżej lub ogólne: 'badania wskazują', 'według wytycznych')")
+        parts.append("  1. Cytować źródła naukowe (podane niżej)")
         parts.append("  2. NIE wymyślać statystyk ani nazw badań")
-        parts.append("  3. W OSTATNIM batchu: dodać disclaimer 'Artykuł ma charakter informacyjny i nie zastępuje konsultacji lekarskiej.'")
-        parts.append("  4. Powołać się na min. 1 instytucję (np. WHO, NFZ, PTOiAu, MZ, Cochrane) per batch")
-        parts.append("  5. Użyć min. 1 sformułowania opartego na dowodach per batch: 'badania wskazują...', 'według meta-analizy...'")
-        parts.append("  WAŻNE: Artykuł bez źródeł medycznych = YMYL score 0/100 = odrzucenie.")
+        parts.append("  3. Dodać informację o konsultacji z lekarzem")
         
         # v47.2: Claude's enrichment: specialization, evidence guidelines
         med_enrich = ymyl_enrich.get("medical", {})
@@ -1969,44 +1938,6 @@ TRYB: {mode} ({mode_desc})""")
                 lines.append(f"  • {t}")
         sections.append("\n".join(lines))
 
-    # Fix #48: Entity-driven H2 generation — top entities should influence H2 names
-    entity_seo = s1_data.get("entity_seo") or {}
-    concept_ents = entity_seo.get("concept_entities") or entity_seo.get("topical_entities") or []
-    must_mention = entity_seo.get("must_mention") or []
-    top_named = entity_seo.get("top_entities") or []
-    entity_salience = entity_seo.get("entity_salience") or []
-
-    all_ents = []
-    seen_ent = set()
-    for src in [concept_ents, must_mention, top_named]:
-        for e in src[:15]:
-            name = e if isinstance(e, str) else (e.get("text") or e.get("entity") or e.get("display_text") or "")
-            name_low = name.lower().strip()
-            if name_low and name_low not in seen_ent and name_low != main_keyword.lower():
-                seen_ent.add(name_low)
-                sal = 0
-                for se in entity_salience:
-                    if isinstance(se, dict) and (se.get("entity", "")).lower() == name_low:
-                        sal = se.get("salience", 0)
-                        break
-                all_ents.append((name, sal))
-
-    if all_ents:
-        # Sort by salience descending
-        all_ents.sort(key=lambda x: x[1], reverse=True)
-        lines = ["═══ TOP ENCJE Z KONKURENCJI — UŻYJ W NAZEWNICTWIE H2 ═══",
-                 "Poniższe encje pojawiają się najczęściej u konkurencji.",
-                 "ZASADA: Każde H2 powinno zawierać 1-2 encje z tej listy.",
-                 "To daje H2 efekt typu Surfer/NeuronWriter — H2 bogate w encje.",
-                 "NIE kopiuj dosłownie, ale wplataj naturalnie w nazwy H2.",
-                 "Przykład: zamiast 'Konsekwencje' → 'Konsekwencje prawne i utrata prawa jazdy'",
-                 ""]
-        for i, (name, sal) in enumerate(all_ents[:14], 1):
-            sal_str = f" (salience: {sal:.2f})" if sal > 0 else ""
-            priority = "🔴 MUST" if i <= 5 else ("🟡 HIGH" if i <= 10 else "🟢 OPT")
-            lines.append(f"  {i:2}. [{priority}] {name}{sal_str}")
-        sections.append("\n".join(lines))
-
     if user_h2_hints:
         h2_hints_list = "\n".join(f'  • "{h}"' for h in user_h2_hints[:10])
         sections.append(f"""═══ FRAZY H2 UŻYTKOWNIKA ═══
@@ -2072,12 +2003,6 @@ i zaplanował H2 tak, by każda fraza miała naturalną sekcję:
 5. Logiczna narracja: od ogółu do szczegółu, chronologicznie, lub problemowo
 6. NIE powtarzaj hasła głównego dosłownie w każdym H2
 7. H2 muszą brzmieć naturalnie po polsku, żadnego keyword stuffingu
-8. ENCJE W H2: Każde H2 powinno zawierać 1-2 encje z listy TOP ENCJI powyżej.
-   To poprawia topical authority i pokrycie tematyczne (jak w Surfer/NeuronWriter).
-   Nie upychaj na siłę, ale naturalnie wplataj encje w nazwy H2.
-9. Preferuj H2 konkretne i informacyjne (z liczbami, encjami, terminami) nad ogólnikowe.
-   ❌ "Kary" → ✅ "Kary za jazdę po alkoholu — grzywna, zakaz i więzienie"
-   ❌ "Procedura" → ✅ "Badanie alkomatem i procedura kontroli drogowej"
 
 ═══ FORMAT ODPOWIEDZI ═══
 
