@@ -943,6 +943,10 @@ _DOMAIN_QUICK_PATTERNS = {
         (r"\baresztowan\w+", "aresztowanie → pozbawienie wolności (terminologia)"),
         (r"do\s+2\s+lat\b.{0,30}alkohol", "do 2 lat → art. 178a §1 = do 3 lat (2023)"),
         (r"mg/100\s*ml", "mg/100ml → promile (‰) lub mg/dm³"),
+        # Bug E Fix: confusable terminologia spadkowa — LLM myli "upadek" z "spadek"
+        (r"\bupad[klu]\w*\b", "upadek/upadku → prawdopodobnie 'spadek/spadku' (dziedziczenie)"),
+        (r"\bobjęci[ae]\s+upadku\b", "objęcie upadku → nabycie spadku"),
+        (r"\bupad[kl]\s+(?:po|jest|jako|na)\b", "upadek → spadek (mylenie terminów)"),
     ],
     "medycyna": [
         (r"badanie\s+wykazało\s+\d+%\s+skuteczn", "podejrzana statystyka — zweryfikuj"),
@@ -966,9 +970,10 @@ Przejrzyj poniższy tekst i wykryj TYLKO te błędy:
 5. Błędne kary: "do 2 lat" dla art. 178a §1 KK (poprawne: do 3 lat od 2023)
 6. Błędna terminologia: "obsługiwał pojazd" zamiast "prowadził pojazd"
 7. Podejrzane sygnatury wyroków (I C / II C w sprawach karnych)
+8. Mylenie "upadek/upadku" z "spadek/spadku" w kontekście dziedziczenia (np. "objęcie upadku" → "nabycie spadku")
 
 Odpowiedz TYLKO w JSON:
-{"errors": [{"type": "TERMINOLOGIA|HALUCYNACJA|JEDNOSTKI|PHANTOM|KARA|SYGNATURA", "found": "cytat z tekstu", "fix": "poprawka"}], "clean": true/false}
+{"errors": [{"type": "TERMINOLOGIA|HALUCYNACJA|JEDNOSTKI|PHANTOM|KARA|SYGNATURA|CONFUSABLE", "found": "cytat z tekstu", "fix": "poprawka"}], "clean": true/false}
 
 Jeśli brak błędów: {"errors": [], "clean": true}
 
