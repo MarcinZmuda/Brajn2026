@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BRAJEN SEO</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" integrity="sha512-+0Jv2OuqMZDJaEniKMKSYHJJwrOiSoGDCz43pHOro4RCITqnRCwCFPZ3gCVhLflVY8kxq4DtN7L+LNpahSrJA==" crossorigin="anonymous"></script>
     <style>
         :root {
             --black: #000000; --mg: #565656; --lg: #9e9e9e; --orange: #fba92c; --white: #ffffff;
@@ -19,6 +19,7 @@
         }
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--white);min-height:100vh;-webkit-font-smoothing:antialiased;overflow:hidden}
+        @media(max-width:960px){body{overflow:auto}}
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--b3)}
 
         /* ═══ HEADER ═══ */
@@ -34,7 +35,7 @@
 
         /* ═══ LAYOUT ═══ */
         .layout{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 90px);transition:grid-template-columns .25s}
-        @media(max-width:960px){.layout{grid-template-columns:1fr}}
+        @media(max-width:960px){.layout{grid-template-columns:1fr}.sidebar{display:none;position:fixed;top:52px;left:0;right:0;bottom:0;z-index:50;border-right:none;overflow-y:auto}.sidebar.mobile-open{display:block}#mobileMenuBtn{display:inline-flex!important;align-items:center;justify-content:center}}
 
         /* ═══ SIDEBAR ═══ */
         .sidebar{padding:24px 20px;border-right:1px solid var(--b1);overflow-y:auto;background:var(--s1)}
@@ -48,7 +49,7 @@
         input::placeholder,textarea::placeholder{color:var(--mg)}
         input:focus,textarea:focus{border-color:rgba(251,169,44,.4);box-shadow:0 0 0 3px var(--og)}
         textarea{resize:vertical;min-height:72px;line-height:1.5}
-        .hint{font-size:12px;color:var(--mg);margin-top:5px;line-height:1.5}
+        .hint{font-size:12px;color:#8a8a8a;margin-top:5px;line-height:1.5}
         .modes{display:flex;gap:6px;margin-bottom:12px}
         .mbtn{
             flex:1;padding:12px 8px;background:var(--s2);border:1px solid var(--b1);
@@ -366,7 +367,7 @@
 </head>
 <body>
 <div class="hd">
-    <div class="hd-l"><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge">V45.3</span></div>
+    <div class="hd-l"><button id="mobileMenuBtn" onclick="document.getElementById('sidebarArea').classList.toggle('mobile-open');this.textContent=document.getElementById('sidebarArea').classList.contains('mobile-open')?'✕':'☰'" aria-label="Menu" style="display:none;background:none;border:1px solid var(--b1);color:var(--lg);font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;margin-right:8px">☰</button><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge">V45.3</span></div>
     <div class="hd-r"><span>{{ username }}</span><a href="/logout">Wyloguj</a></div>
 </div>
 
@@ -395,8 +396,8 @@
 </div>
 <div class="layout">
     <div class="sidebar" id="sidebarArea">
-        <button class="sb-toggle" id="sbToggle" onclick="toggleSidebar()" title="Zwiń panel">‹</button>
-        <div class="lbl">Keyword</div>
+        <button class="sb-toggle" id="sbToggle" onclick="toggleSidebar()" title="Zwiń panel" aria-label="Zwiń/rozwiń panel boczny">‹</button>
+        <label class="lbl" for="mainKeyword">Keyword</label>
         <input type="text" id="mainKeyword" placeholder="np. od czego zacząć przeprowadzkę">
         <div class="lbl">Tryb</div>
         <div class="modes">
@@ -418,10 +419,10 @@
             <div class="hint" style="margin-top:2px">Zmienia model na jedną sesję. Env var OPENAI_MODEL = domyślny.</div>
         </div>
         <div class="adv-section" id="advSection">
-        <div class="lbl">Temperatura <span id="tempVal" style="opacity:.6;font-weight:400">0.7</span></div>
+        <label class="lbl" for="tempSlider">Temperatura <span id="tempVal" style="opacity:.6;font-weight:400">0.7</span></label>
         <input type="range" id="tempSlider" min="0" max="10" value="7" style="width:100%;accent-color:var(--orange)" oninput="setTemp(this.value)">
         <div style="display:flex;justify-content:space-between;font-size:7px;color:var(--mg);margin-top:-2px;margin-bottom:8px"><span>0.0 formalny</span><span>1.0 swobodny</span></div>
-        <div class="lbl">Nagłówki H2 <span style="opacity:.4;font-weight:400">opcjonalne</span></div>
+        <label class="lbl" for="h2Structure">Nagłówki H2 <span style="opacity:.4;font-weight:400">opcjonalne</span></label>
         <textarea id="h2Structure" rows="4" placeholder="Puste = auto z S1&#10;Lub wpisz wskazówki"></textarea>
         <div class="hint">Puste → system sam wygeneruje z analizy konkurencji.</div>
         <div class="lbl">Frazy BASIC <button class="tbtn" onclick="tog('bsc')">pokaż</button></div>
@@ -451,22 +452,22 @@
         </div>
         <!-- QUALITY BAR (always visible during workflow) -->
         <div id="qualityBar" class="quality-bar" style="display:none">
-            <div class="qb-item" title="Final Review Score">
+            <div class="qb-item" title="Final Review Score" lang="en">
                 <div class="qb-lbl">Quality</div>
                 <div class="qb-val" id="qbQuality" style="color:var(--mg)">—</div>
                 <div class="qb-bar"><div class="qb-fill" id="qbQualityBar" style="width:0%;background:var(--gn)"></div></div>
             </div>
-            <div class="qb-item" title="Editorial Score">
+            <div class="qb-item" title="Editorial Score" lang="en">
                 <div class="qb-lbl">Editorial</div>
                 <div class="qb-val" id="qbEditorial" style="color:var(--mg)">—</div>
                 <div class="qb-bar"><div class="qb-fill" id="qbEditorialBar" style="width:0%;background:var(--orange)"></div></div>
             </div>
-            <div class="qb-item" title="Entity Salience">
+            <div class="qb-item" title="Entity Salience" lang="en">
                 <div class="qb-lbl">Salience</div>
                 <div class="qb-val" id="qbSalience" style="color:var(--mg)">—</div>
                 <div class="qb-bar"><div class="qb-fill" id="qbSalienceBar" style="width:0%;background:var(--gn)"></div></div>
             </div>
-            <div class="qb-item" title="Anti-Frankenstein Style">
+            <div class="qb-item" title="Anti-Frankenstein Style" lang="en">
                 <div class="qb-lbl">Style</div>
                 <div class="qb-val" id="qbStyle" style="color:var(--mg)">—</div>
                 <div class="qb-bar"><div class="qb-fill" id="qbStyleBar" style="width:0%;background:var(--yl)"></div></div>
@@ -511,9 +512,9 @@
               </div>
               <div style="margin-top:8px;font-size:8px;color:var(--mg)">Analiza SERP, n-gramów, encji i konkurencji — zwykle 30–60 sekund</div>
             </div>
-            <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" onclick="tPnl('s1P')"><span>📊 Analiza S1 — Pełna mapa tematu</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B" style="max-height:900px"></div></div>
+            <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('s1P')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('s1P')}"><span>📊 Analiza S1 — Pełna mapa tematu</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B" style="max-height:900px"></div></div>
             <div id="sourcesBox" style="display:none;border:1px solid var(--b1);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--s1)"></div>
-            <div class="pnl" id="biP" style="display:none"><div class="pnl-h" onclick="tPnl('biP')"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
+            <div class="pnl" id="biP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('biP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('biP')}"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
             <div class="crd" id="bpC" style="display:none"><div class="pg-top"><span class="pg-lbl">Generowanie</span><span class="pg-ct" id="bCt">0/0</span></div><div class="pg-bar"><div class="pg-fill" id="bFill" style="width:0%"></div></div><div class="chips" id="bRes"></div></div>
                         <!-- ✍️ EDITORIAL MINI — skrót w Workflow, pełne szczegóły w zakładce Jakość -->
             <!-- ✍️ EDITORIAL RUNNING STATE — pojawia się gdy editorial się generuje -->
@@ -639,17 +640,17 @@
         <!-- ═══ QUALITY TAB ═══ -->
         <div id="tabQuality" class="main-tab-panel" style="display:none;padding:16px 20px"><button class="mabtn" onclick="switchTab('workflow')" style="margin-bottom:12px;display:flex;align-items:center;gap:6px">← Workflow</button>
             <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frQB" style="display:none;margin-top:10px;padding:8px 0;border-top:1px solid var(--b1)"><div style="font-size:9px;font-weight:600;margin-bottom:6px;color:var(--fg)">Quality Breakdown</div><div id="frBars" style="display:grid;grid-template-columns:90px 1fr 32px;gap:3px 8px;font-size:9px;align-items:center"></div></div><div id="frD" style="font-size:9px;color:var(--mg);margin-top:10px;max-height:200px;overflow-y:auto"></div></div>
-            <div id="pipelineSummary" style="display:none;margin:6px 0;padding:10px 16px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);font-size:9px;color:var(--mg);display:flex;align-items:center;gap:8px">
+            <div id="pipelineSummary" style="display:none;margin:6px 0;padding:10px 16px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);font-size:9px;color:var(--mg);align-items:center;gap:8px">
               <span id="psSEOStatus" style="font-weight:600"></span>
               <span style="color:var(--b3)">→</span>
               <span id="psEditStatus" style="font-weight:600"></span>
             </div>
-            <div class="pnl" id="cpP" style="display:none"><div class="pnl-h" onclick="tPnl('cpP')"><span>✅ S1 Compliance</span><span class="arr">▼</span></div><div class="pnl-b" id="cpB"></div></div>
+            <div class="pnl" id="cpP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('cpP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('cpP')}"><span>✅ S1 Compliance</span><span class="arr">▼</span></div><div class="pnl-b" id="cpB"></div></div>
             <div class="crd" id="esC" style="display:none"><div class="crd-t"><b>🔬 Entity</b> Salience (Google NLP)</div><div class="sg sg3"><div class="sc"><div class="sv" id="esSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="esSal">—</div><div class="sl">Main Salience</div></div><div class="sc"><div class="sv" id="esDom">—</div><div class="sl">Dominacja</div></div></div><div id="esSP" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--b1)"><div style="font-size:9px;font-weight:600;margin-bottom:4px">📐 Subject Position</div><div class="sg sg4" style="font-size:8px"><div class="sc"><div class="sv" id="spSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="spSR">—</div><div class="sl">Podmiot %</div></div><div class="sc"><div class="sv" id="spH2">—</div><div class="sl">H2</div></div><div class="sc"><div class="sv" id="sp1st">—</div><div class="sl">1. zdanie</div></div></div></div><div id="esEnts" style="margin-top:10px;font-size:9px;display:none"></div><div id="esIss" style="margin-top:8px;font-size:9px;color:var(--mg)"></div></div>
             <div class="crd" id="afC" style="display:none"><div class="crd-t"><b>🎭 Anti-Frankenstein</b> Style Analysis</div><div class="sg sg4"><div class="sc"><div class="sv" id="afSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="afCV">—</div><div class="sl">CV Zdań</div></div><div class="sc"><div class="sv" id="afP">—</div><div class="sl">Passive</div></div><div class="sc"><div class="sv" id="afSL">—</div><div class="sl">Śr. zdanie</div></div></div><div id="afIss" style="margin-top:8px;font-size:9px;color:var(--mg)"></div></div>
             <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Analiza wiarygodności</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Prawo</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medycyna</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Źródła</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Zastrzeżenie</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:10px;color:var(--mg)"></div></div>
-            <div class="pnl" id="schP" style="display:none"><div class="pnl-h" onclick="tPnl('schP')"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:8px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
-            <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" onclick="tPnl('tmP')"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
+            <div class="pnl" id="schP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('schP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('schP')}"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:8px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
+            <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('tmP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('tmP')}"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
 
         </div><!-- /tabQuality -->
         <!-- ═══ S1 TAB ═══ -->
@@ -658,7 +659,7 @@
         </div>
         <!-- ═══ CI TAB ═══ -->
         <div id="tabCI" class="main-tab-panel" style="display:none;padding:16px 20px"><button class="mabtn" onclick="switchTab('workflow')" style="margin-bottom:12px;display:flex;align-items:center;gap:6px">← Workflow</button>
-            <div class="pnl" id="ciP" style="display:none"><div class="pnl-h" onclick="tPnl('ciP')"><span>📊 Competitive Intelligence Dashboard</span><span class="arr">▼</span></div><div class="pnl-b open" id="ciB"></div></div>
+            <div class="pnl" id="ciP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('ciP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('ciP')}"><span>📊 Competitive Intelligence Dashboard</span><span class="arr">▼</span></div><div class="pnl-b open" id="ciB"></div></div>
         </div><!-- /tabCI -->
             <div class="done" id="doneB" style="display:none"><h2>✓ Artykuł gotowy</h2><p id="doneD"></p></div>
             <div class="exp" id="expB" style="display:none"><a class="btn-e pri" id="exH">HTML</a><a class="btn-e" id="exD">DOCX</a></div>
@@ -676,6 +677,8 @@ const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
 // XSS sanitization for SSE data
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+// Sanitize URLs — block javascript: and data: URIs
+function escUrl(u){if(!u)return'#';const s=u.trim().toLowerCase();if(s.startsWith('javascript:')||s.startsWith('data:')||s.startsWith('vbscript:'))return'#';return esc(u)}
 
 function selMode(m){mode=m;document.querySelectorAll('.mbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===m))}
 function selEngine(e){engine=e;document.querySelectorAll('.ebtn').forEach(b=>b.classList.toggle('on',b.dataset.engine===e));document.getElementById('modelPicker').style.display=e==='openai'?'':'none'}
@@ -769,8 +772,8 @@ function updateMiniStepper(step,status){
     if(dotEl)dotEl.className='sp-dot'+(status==='running'?' run':'');
 }
 
-function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);if(i){
-  const stpEl=i.closest('.stp');if(stpEl&&st==='done')stpEl.classList.add('done');
+function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);let stpEl=null;if(i){
+  stpEl=i.closest('.stp');if(stpEl&&st==='done')stpEl.classList.add('done');
   i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d;
   }
   updateMiniStepper(s,st);
@@ -827,7 +830,7 @@ function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.get
     }
   }
 }
-function tPnl(id){const p=document.getElementById(id),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');b.classList.toggle('open');h.classList.toggle('open')}
+function tPnl(id){const p=document.getElementById(id),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');const isOpen=b.classList.toggle('open');h.classList.toggle('open');h.setAttribute('aria-expanded',isOpen)}
 function tBd(id){document.getElementById(id).classList.toggle('open')}
 
 function kc(l,c){if(!l||!l.length)return'<span style="color:var(--mg)">—</span>';return l.map(k=>`<span class="chip ${c}">${esc(typeof k==='object'?(k.keyword||JSON.stringify(k)):k)}</span>`).join('')}
@@ -890,7 +893,7 @@ function rS1(d){
         b1+=`<div style="margin:8px 0;border:1px solid var(--orange);border-radius:6px;padding:8px 12px;background:rgba(255,140,0,.07)">`;
         b1+=`<div style="font-size:10px;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🤖 Google AI Overview</div>`;
         b1+=`<div style="font-size:12px;color:var(--lg);line-height:1.5">${esc(aioText.substring(0,600))}</div>`;
-        if(aioSrcs.length)b1+=`<div style="margin-top:6px;font-size:10px;color:var(--mg)">Źródła: ${aioSrcs.slice(0,3).map(s=>`<a href="${esc(s.link||'#')}" target="_blank" style="color:var(--mg)">${esc(s.title||s.link||'')}</a>`).join(' · ')}</div>`;
+        if(aioSrcs.length)b1+=`<div style="margin-top:6px;font-size:10px;color:var(--mg)">Źródła: ${aioSrcs.slice(0,3).map(s=>`<a href="${escUrl(s.link||'#')}" target="_blank" rel="noopener noreferrer" style="color:var(--mg)">${esc(s.title||s.link||'')}</a>`).join(' · ')}</div>`;
         b1+=`</div>`;
       }
     }
@@ -1141,7 +1144,7 @@ async function startWorkflow(){
     document.getElementById('qualityBar').style.display='';
     document.getElementById('spTimer').style.display='';
     switchTab('workflow');
-    const _tstart=Date.now();const _tInterval=setInterval(()=>{const e=document.getElementById('spTimer');if(!e){clearInterval(_tInterval);return;}const s=Math.round((Date.now()-_tstart)/1000);e.textContent=Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');},1000);
+    if(window._spTimerInt)clearInterval(window._spTimerInt);const _tstart=Date.now();window._spTimerInt=setInterval(()=>{const e=document.getElementById('spTimer');if(!e){clearInterval(window._spTimerInt);window._spTimerInt=null;return;}const s=Math.round((Date.now()-_tstart)/1000);e.textContent=Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');},1000);
 
     for(let i=1;i<=10;i++)uStep(i,'pending','—');
     ['logC','bRes','biB','s1B','cpB'].forEach(id=>document.getElementById(id).innerHTML='');
@@ -1172,8 +1175,10 @@ async function startWorkflow(){
         const par=new URLSearchParams();par.set('basic_terms',JSON.stringify(bt));par.set('extended_terms',JSON.stringify(et));
         if(es)es.close();es=new EventSource(`/api/stream/${jid}?${par.toString()}`);
 
-        es.addEventListener('step',e=>{const d=JSON.parse(e.data);uStep(d.step,d.status,d.detail||'')});
-        es.addEventListener('log',e=>{log(JSON.parse(e.data).msg)});
+        // Safe SSE JSON parser
+        function sseJson(e){try{return JSON.parse(e.data)}catch(err){log('⚠️ Nieprawidłowe dane SSE','warn');return null}}
+        es.addEventListener('step',e=>{const d=sseJson(e);if(!d)return;uStep(d.step,d.status,d.detail||'')});
+        es.addEventListener('log',e=>{const d=sseJson(e);if(d)log(d.msg)});
         es.addEventListener('project',e=>{const d=JSON.parse(e.data);tb=d.total_batches;log(`Project: ${d.project_id}`);const r=document.getElementById('bRes');r.innerHTML='';for(let i=1;i<=tb;i++)r.innerHTML+=`<div class="bchip pend" id="bc${i}">B${i}</div>`});
         es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:15px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(h)}</div>`).join('')});
         es.addEventListener('auto_basic_terms',e=>{const d=JSON.parse(e.data);if(d.terms&&d.terms.length){const ta=document.getElementById('basicTerms');ta.value=d.terms.join('\n');ta.rows=Math.min(12,d.terms.length+1);document.getElementById('bsc').style.display=''}});
@@ -1336,7 +1341,7 @@ function renderSourcesBox(){
   const citHint=(ctx.legal||{}).citation_hint||'';
   if(citHint){h+=`<div style="margin-bottom:10px;font-size:11px;color:var(--mg);padding:4px 8px;background:var(--s2);border-radius:4px">💡 ${esc(citHint)}</div>`;}
   const wiki=window._wikiSources||[];
-  if(wiki.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">📖 Wikipedia — przepisy (${wiki.length})</div>`;wiki.forEach(w=>{h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid var(--yl)"><span style="color:var(--yl);font-weight:600">${esc(w.article_ref||'')}</span> <span style="color:var(--white);margin-left:4px">${esc((w.title||'').substring(0,50))}</span> <a href="${esc(w.url||'#')}" target="_blank" style="color:${M};font-size:9px;margin-left:4px">↗</a>${w.summary?`<div style="color:var(--mg);font-size:10px;margin-top:2px">${esc((w.summary||'').substring(0,100))}</div>`:''}</div>`;});h+=`</div>`;}
+  if(wiki.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">📖 Wikipedia — przepisy (${wiki.length})</div>`;wiki.forEach(w=>{h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid var(--yl)"><span style="color:var(--yl);font-weight:600">${esc(w.article_ref||'')}</span> <span style="color:var(--white);margin-left:4px">${esc((w.title||'').substring(0,50))}</span> <a href="${escUrl(w.url||'#')}" target="_blank" rel="noopener noreferrer" style="color:${M};font-size:9px;margin-left:4px">↗</a>${w.summary?`<div style="color:var(--mg);font-size:10px;margin-top:2px">${esc((w.summary||'').substring(0,100))}</div>`:''}</div>`;});h+=`</div>`;}
   const pp=(ctx.medical||{}).publications||[];
   if(pp.length){h+=`<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--yl);font-weight:700;margin-bottom:6px">🏥 Publikacje medyczne (${pp.length})</div>`;pp.slice(0,6).forEach(p=>{h+=`<div style="padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid var(--yl)"><span style="color:#fba92c;font-weight:600">PMID:${esc(p.pmid||'—')}</span> <span style="color:var(--white);margin-left:4px">${esc((p.title||'').substring(0,50))}</span> <span style="color:${M};margin-left:4px">${p.year||''}</span></div>`;});h+=`</div>`;}
   const mGuidelines=(ctx.medical||{}).guidelines||[];
@@ -1960,7 +1965,9 @@ function renderCompDash(){
 
 function renderArt(text){
     const pv=document.getElementById('artP');
-    let html=text.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
+    // Sanitize: escape HTML first, then apply safe structural formatting
+    let safe=esc(text);
+    let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
     if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
     pv.innerHTML=html;pv.style.display='';
 }
@@ -1968,20 +1975,16 @@ function renderArt(text){
 function copyArticle(){
     const text = rawArticle || liveArticle || '';
     if(!text){alert('Brak artykułu do skopiowania.');return;}
-    navigator.clipboard.writeText(text).then(()=>{
-        const msg = document.getElementById('copyArtMsg');
-        const btn = document.getElementById('btnCopyArt');
-        if(msg){msg.style.display='inline';setTimeout(()=>msg.style.display='none',2500);}
-        if(btn){const orig=btn.textContent;btn.textContent='✓ Skopiowano!';setTimeout(()=>btn.textContent=orig,2500);}
-    }).catch(()=>{
-        // Fallback dla starszych przeglądarek
-        const ta=document.createElement('textarea');
-        ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
-        document.body.appendChild(ta);ta.select();
-        try{document.execCommand('copy');alert('Skopiowano do schowka!');}
-        catch(e){alert('Nie udało się skopiować. Zaznacz tekst ręcznie.');}
-        document.body.removeChild(ta);
-    });
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(()=>{
+            const msg = document.getElementById('copyArtMsg');
+            const btn = document.getElementById('btnCopyArt');
+            if(msg){msg.style.display='inline';setTimeout(()=>msg.style.display='none',2500);}
+            if(btn){const orig=btn.textContent;btn.textContent='✓ Skopiowano!';setTimeout(()=>btn.textContent=orig,2500);}
+        }).catch(()=>{alert('Nie udało się skopiować. Zaznacz tekst ręcznie.');});
+    } else {
+        alert('Clipboard API niedostępne. Skopiuj tekst ręcznie.');
+    }
 }
 
 // Inline selection
@@ -2066,7 +2069,7 @@ async function validateArt(){
         if(!miss.length&&!iss.length)h+=`<span style="color:var(--gn);font-weight:600">✓ Wszystko OK</span>`;
         vr.innerHTML=h;vr.classList.add('vis');
         log(`🔍 Walidacja: ${score} | ${status} | ${miss.length} brakujących`);
-    }catch(err){vr.innerHTML=`<span style="color:var(--rd)">❌ ${err.message}</span>`;vr.classList.add('vis')}
+    }catch(err){vr.innerHTML=`<span style="color:var(--rd)">❌ ${esc(err.message)}</span>`;vr.classList.add('vis')}
     finally{btn.classList.remove('loading');btn.textContent='🔍 Zwaliduj'}
 }
 

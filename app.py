@@ -1243,7 +1243,9 @@ def _sanitize_placement_instruction(text):
 # CONFIG
 # ============================================================
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "brajen-seo-secret-" + str(uuid.uuid4()))
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 BRAJEN_API = os.environ.get("BRAJEN_API_URL", "https://master-seo-api.onrender.com")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -1299,6 +1301,58 @@ def _llm_call_with_retry(fn, *args, **kwargs):
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# CSRF PROTECTION
+# ============================================================
+def _generate_csrf_token():
+    """Generate a per-session CSRF token."""
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = secrets.token_hex(32)
+    return session['_csrf_token']
+
+
+app.jinja_env.globals['csrf_token'] = _generate_csrf_token
+
+
+def _check_csrf_token():
+    """Validate CSRF token for state-changing requests."""
+    if request.method in ('GET', 'HEAD', 'OPTIONS'):
+        return
+    # Skip CSRF for API endpoints that use JSON bodies (SameSite cookie protects these)
+    if request.is_json:
+        return
+    token = request.form.get('csrf_token')
+    if not token or token != session.get('_csrf_token'):
+        from flask import abort
+        abort(403)
+
+
+@app.before_request
+def csrf_protect():
+    _check_csrf_token()
+
+
+# ============================================================
+# HTTP SECURITY HEADERS
+# ============================================================
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    return response
 
 # Auth: require env vars, no hardcoded fallbacks
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")

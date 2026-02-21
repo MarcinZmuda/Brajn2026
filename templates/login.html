@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BRAJEN SEO — Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" crossorigin="anonymous">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -57,10 +57,10 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 64px; height: 64px;
-            border-radius: 16px;
-            background: rgba(251,169,44,.06);
-            border: 1px solid rgba(251,169,44,.1);
+            width: 120px; height: 120px;
+            border-radius: 24px;
+            background: transparent;
+            border: none;
             margin-bottom: 20px;
         }
         .logo-mark span { font-size: 30px; line-height: 1; }
@@ -68,7 +68,7 @@
         h1 { font-size: 28px; font-weight: 800; color: #ffffff; margin-bottom: 4px; letter-spacing: -.6px; }
         h1 b { color: #fba92c; }
 
-        .subtitle { color: #565656; font-size: 13px; margin-bottom: 40px; letter-spacing: .3px; }
+        .subtitle { color: #8a8a8a; font-size: 13px; margin-bottom: 40px; letter-spacing: .3px; }
 
         .form-group { margin-bottom: 18px; text-align: left; }
 
@@ -148,7 +148,7 @@
 <body>
     <div class="login-card">
         <div class="logo-mark">
-            <img src="{{ url_for('static', filename='logo_brajen.png') }}" alt="BRAJEN" width="42" height="42" style="border-radius:10px">
+            <img src="{{ url_for('static', filename='logo_brajen.png') }}" alt="BRAJEN" width="96" height="96" style="border-radius:20px">
         </div>
         <h1><b>BRAJEN</b> SEO</h1>
         <div class="subtitle">Autonomous Content Engine</div>
@@ -156,13 +156,14 @@
         <div class="error">{{ error }}</div>
         {% endif %}
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
-                <label>Login</label>
-                <input type="text" name="username" autocomplete="username" required autofocus placeholder="Nazwa użytkownika">
+                <label for="username">Login</label>
+                <input type="text" id="username" name="username" autocomplete="username" required autofocus placeholder="Nazwa użytkownika">
             </div>
             <div class="form-group">
-                <label>Hasło</label>
-                <input type="password" name="password" autocomplete="current-password" required placeholder="••••••••">
+                <label for="password">Hasło</label>
+                <input type="password" id="password" name="password" autocomplete="current-password" required placeholder="••••••••">
             </div>
             <button type="submit">Zaloguj się →</button>
         </form>
