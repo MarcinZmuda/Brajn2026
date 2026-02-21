@@ -854,7 +854,8 @@ def _derive_entity_synonyms(main_keyword: str, secondary_entities: list = None, 
             model="claude-haiku-4-5-20251001",
             max_tokens=80,
             temperature=0,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
+            timeout=10.0
         )
         raw = resp.content[0].text.strip()
         # Parse: jedna linia = jeden zamiennik
@@ -3572,10 +3573,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "rollback_reason": rollback.get("reason", ""),
                 "feedback": (ed.get("editorial_feedback") or {}),
                 # v50.7 FIX 41: Add change details for expanded panel
-                "applied_changes": (ed.get("applied_changes") or diff.get("applied_changes") or [])[:15],
-                "failed_changes": (ed.get("failed_changes") or diff.get("failed_changes") or [])[:10],
+                "applied_changes": (ed.get("applied_changes") or diff.get("applied_changes") or [])[:20],
+                "failed_changes": (ed.get("failed_changes") or diff.get("failed_changes") or [])[:15],
                 "summary": (ed.get("editorial_feedback") or {}).get("summary", ed.get("summary", "")),
-                "errors_found": (ed.get("editorial_feedback") or {}).get("errors_to_fix", [])[:10],
+                "errors_found": (ed.get("editorial_feedback") or {}).get("errors_to_fix", [])[:15],
                 "grammar_fixes": (ed.get("grammar_correction") or {}).get("fixes", 0),
                 "grammar_removed": (ed.get("grammar_correction") or {}).get("removed", [])[:5],
             })
