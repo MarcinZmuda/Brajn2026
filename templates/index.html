@@ -5,7 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BRAJEN SEO</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" crossorigin="anonymous">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" integrity="sha512-+0Jv2OuqMZDJaEniKMKSYHJJwrOiSoGDCz43pHOro4RCITqnRCwCFPZ3gCVhLflVY8kxq4DtN7L+LNpahSrJA==" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" crossorigin="anonymous"></script>
+    <script>
+    if(typeof Chart==='undefined'){
+      var _s=document.createElement('script');
+      _s.src='https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
+      _s.onload=function(){if(typeof _initChartDefaults==='function')_initChartDefaults();};
+      document.head.appendChild(_s);
+    }
+    </script>
     <style>
         :root {
             --black: #000000; --mg: #565656; --lg: #9e9e9e; --orange: #fba92c; --white: #ffffff;
@@ -2089,16 +2097,27 @@ const _chartDark={
   borderColor:'#1a1a1a',
   backgroundColor:'#111',
 };
-if(typeof Chart!=='undefined'){
+function _initChartDefaults(){
+  if(typeof Chart==='undefined'){console.error('[BRAJEN] Chart.js not loaded — charts will not render');return;}
   Chart.defaults.color='#9e9e9e';
   Chart.defaults.borderColor='#1a1a1a';
   Chart.defaults.font.family="'Outfit',sans-serif";
 }
+_initChartDefaults();
 
+
+// Chart.js guard — show error in pane if library missing
+function _chartGuard(paneId){
+  if(typeof Chart!=='undefined')return true;
+  const p=document.getElementById(paneId);
+  if(p){p.style.display='';const cw=p.querySelector('.chart-wrap');if(cw)cw.innerHTML='<div style="color:var(--rd);padding:24px;text-align:center;font-size:12px">⚠️ Chart.js nie załadował się — odśwież stronę (Ctrl+Shift+R)</div>';}
+  return false;
+}
 
 // 1. RADAR — Quality Breakdown
 function initRadarChart(fd){
   if(!fd||!fd.quality_breakdown)return;
+  if(!_chartGuard('radarPane'))return;
   const qb=fd.quality_breakdown;
   const labels=['Keywords','Humanness','Grammar','Structure','Semantic','Depth','Coherence'];
   const data=labels.map(l=>qb[l.toLowerCase()]||0);
@@ -2129,6 +2148,7 @@ function initRadarChart(fd){
 // 2. BAR — Batch Quality Scores
 function initBatchChart(bl){
   if(!bl||!bl.length)return;
+  if(!_chartGuard('batchChartPane'))return;
   document.getElementById('batchChartPane').style.display='';
 
   const labels=bl.map((b,i)=>'B'+(b.batch||i+1));
@@ -2177,6 +2197,7 @@ function initSalienceChart(sd){
 // 4. DONUT — Keyword Coverage
 function initKwCoverageChart(fd,bl){
   if(!fd)return;
+  if(!_chartGuard('kwCoveragePane'))return;
   const missing=fd.missing_keywords_count||0;
   const overuse=(fd.overuse_warnings||[]).length;
   const total=Math.max(1,(fd.word_count||100)/10);
@@ -2207,6 +2228,7 @@ function initKwCoverageChart(fd,bl){
 // 5. BAR — Word Distribution vs Competitors
 function initWordDistChart(s1,fd){
   if(!s1||!s1.word_counts||!s1.word_counts.length)return;
+  if(!_chartGuard('wordDistPane'))return;
   document.getElementById('wordDistPane').style.display='';
 
   const comps=s1.word_counts.slice(0,10);
@@ -2233,6 +2255,7 @@ function initWordDistChart(s1,fd){
 // 6. BAR — Workflow Timeline
 function initTimelineChart(td){
   if(!td||!td.steps)return;
+  if(!_chartGuard('timelinePane'))return;
   document.getElementById('timelinePane').style.display='';
 
   const names=['S1','YMYL','H2','Project','Phrase','Batche','PAA','Content Ed','Final','Editorial','Export'];
