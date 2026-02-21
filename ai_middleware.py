@@ -835,18 +835,18 @@ def is_garbage_regex(text: str) -> bool:
 # ================================================================
 
 def check_sentence_length(text: str, max_avg: float = None, max_hard: int = None) -> dict:
-    # Fix #9 + Fix #34: Import z shared_constants (zaostrzenie)
+    # Fix #9: Import z shared_constants
     try:
         from shared_constants import SENTENCE_AVG_MAX_ALLOWED, SENTENCE_HARD_MAX
         if max_avg is None:
-            max_avg = float(SENTENCE_AVG_MAX_ALLOWED)  # 16.0
+            max_avg = float(SENTENCE_AVG_MAX_ALLOWED)  # 20.0
         if max_hard is None:
-            max_hard = SENTENCE_HARD_MAX  # 25
+            max_hard = SENTENCE_HARD_MAX  # 35
     except ImportError:
         if max_avg is None:
-            max_avg = 16.0
+            max_avg = 20.0
         if max_hard is None:
-            max_hard = 25
+            max_hard = 35
     """
     Check if text has too-long sentences.
     Returns dict: {needs_retry, avg_len, long_count, long_sentences}
@@ -876,7 +876,7 @@ def sentence_length_retry(text: str, h2: str = "", avg_len: float = 0, long_coun
     if not ANTHROPIC_API_KEY:
         return text
 
-    problem_desc = f"Średnia długość zdania: {avg_len:.0f} słów (cel: ≤18). Zdań powyżej 28 słów: {long_count}."
+    problem_desc = f"Średnia długość zdania: {avg_len:.0f} słów (cel: 14–18). Zdań powyżej 28 słów: {long_count}."
 
     prompt = f"""Skróć zdania w poniższym fragmencie artykułu SEO.
 
@@ -884,14 +884,12 @@ PROBLEM: {problem_desc}
 SEKCJA: {h2}
 
 ZASADY:
-1. Rozbij KAŻDE zdanie dłuższe niż 28 słów — podziel na 2 krótsze.
-2. Rozbij też zdania 22-28 słów jeśli mają 3+ przecinki.
-3. Zachowaj CAŁĄ treść merytoryczną — zero usuwania informacji.
-4. Zachowaj strukturę HTML (tagi p, ul, li, h2, h3 itp.) bez zmian.
-5. Nie zmieniaj zdań krótszych niż 22 słów — zostaw je identycznie.
-6. Cel po edycji: średnia długość zdania 14–18 słów.
-7. Odpowiedz TYLKO przepisanym HTML, bez żadnych komentarzy.
-8. WAŻNE: Jeśli wiele zdań zaczyna się od tej samej frazy — zmień początek na synonim.
+1. Rozbij TYLKO zdania dłuższe niż 25 słów — podziel je na 2 krótsze.
+2. Zachowaj CAŁĄ treść merytoryczną — zero usuwania informacji.
+3. Zachowaj strukturę HTML (tagi p, ul, li, h2, h3 itp.) bez zmian.
+4. Nie zmieniaj zdań krótszych niż 20 słów — zostaw je identycznie.
+5. Cel po edycji: średnia długość zdania 14–18 słów.
+6. Odpowiedz TYLKO przepisanym HTML, bez żadnych komentarzy.
 
 Technika rozbijania:
 - „X, który/która/które Y, skutkuje Z" → „X skutkuje Z. [Nowe zdanie:] Dzieje się tak, ponieważ Y."
