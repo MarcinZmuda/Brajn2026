@@ -1182,7 +1182,10 @@ async function startWorkflow(){
     document.getElementById('tbQuality').textContent='—';document.getElementById('tbS1').textContent='—';document.getElementById('tbCI').textContent='—';
     document.getElementById('qualityBar').style.display='none';document.getElementById('mainTabsBar').style.display='none';
     const _em=document.getElementById('edMini');if(_em)_em.style.display='none';
-    ['bpC','edC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP'].forEach(id=>document.getElementById(id).style.display='none');
+    ['bpC','edC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','radarPane','batchChartPane','salienceChartPane','kwCoveragePane','wordDistPane','timelinePane','cooccPane'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
+    // Reset mehr panels
+    document.querySelectorAll('.mehr-panel').forEach(p=>{p.classList.remove('open')});
+    document.querySelectorAll('.mehr-btn').forEach(b=>{b.classList.remove('active');b.textContent='więcej ▾'});
     document.getElementById('editorWrap').classList.remove('visible');
     document.getElementById('chatHist').innerHTML='<div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>';
     document.getElementById('valResult').classList.remove('vis');
@@ -1298,7 +1301,7 @@ async function startWorkflow(){
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:13px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:12px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:12px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
         es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
         // Fix #47: Ukryj frazy BASIC z panelu po zakończeniu workflow
-        try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
+        try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
 
         let rr=0;
@@ -1340,7 +1343,7 @@ function ciGrid(cols){return `<div style="display:grid;grid-template-columns:${c
 function ciStat(val,label,clr){return `<div style="text-align:center"><div style="font-size:20px;font-weight:800;${clr?'color:'+clr:''}">${val}</div><div style="font-size:11px;color:var(--mg)">${label}</div></div>`}
 
 function renderSourcesBox(){
-  const ctx=ymylCtxData;
+  const ctx=ymylCtxData||{};
   const box=document.getElementById('sourcesBox');
   if(!box)return;
   const hasLegal=ctx&&ctx.legal&&(ctx.legal.judgments||ctx.legal.legal_acts||ctx.legal.legal_articles||ctx.legal.instruction_preview);
@@ -2120,6 +2123,15 @@ if(typeof Chart!=='undefined'){
   Chart.defaults.font.family="'Outfit',sans-serif";
 }
 
+// Auto-open mehr panels when chart is initialized
+function _autoOpenMehr(panelId){
+  const p=document.getElementById(panelId);if(!p)return;
+  if(!p.classList.contains('open')){p.classList.add('open');
+    const btn=p.parentElement.querySelector('.mehr-btn');
+    if(btn){btn.classList.add('active');btn.textContent='mniej ▴';}
+  }
+}
+
 // 1. RADAR — Quality Breakdown
 function initRadarChart(fd){
   if(!fd||!fd.quality_breakdown)return;
@@ -2128,6 +2140,7 @@ function initRadarChart(fd){
   const data=labels.map(l=>qb[l.toLowerCase()]||0);
   const avg=Math.round(data.reduce((a,b)=>a+b,0)/data.length);
   document.getElementById('radarPane').style.display='';
+  _autoOpenMehr('radarPanel');
   _destroyChart('radar');
   const ctx=document.getElementById('radarChart');if(!ctx)return;
   _chartInstances.radar=new Chart(ctx,{
@@ -2153,6 +2166,7 @@ function initRadarChart(fd){
 function initBatchChart(bl){
   if(!bl||!bl.length)return;
   document.getElementById('batchChartPane').style.display='';
+  _autoOpenMehr('batchPanel');
   const labels=bl.map((b,i)=>'B'+(b.batch||i+1));
   const scores=bl.map(b=>b.quality_score||0);
   const colors=bl.map(b=>!b.accepted?'#f87171':b.quality_score>=80?'#34d399':b.quality_score>=60?'#fbbf24':'#9e9e9e');
@@ -2181,6 +2195,7 @@ function initBatchChart(bl){
 function initSalienceChart(sd){
   if(!sd||!sd.entities||!sd.entities.length)return;
   document.getElementById('salienceChartPane').style.display='';
+  _autoOpenMehr('saliencePanel');
   const ents=sd.entities.slice().sort((a,b)=>(b.salience||0)-(a.salience||0)).slice(0,14);
   const mainKw=(sd.main_keyword||'').toLowerCase();
   const container=document.getElementById('salienceBarChart');if(!container)return;
@@ -2207,6 +2222,7 @@ function initKwCoverageChart(fd,bl){
   const extPct=Math.round(extCov*100);
   const missPct=100-basicPct;
   document.getElementById('kwCoveragePane').style.display='';
+  _autoOpenMehr('kwCoveragePanel');
   _destroyChart('kwCov');
   const ctx=document.getElementById('kwCoverageChart');if(!ctx)return;
   _chartInstances.kwCov=new Chart(ctx,{
@@ -2228,6 +2244,7 @@ function initKwCoverageChart(fd,bl){
 function initWordDistChart(s1,fd){
   if(!s1||!s1.word_counts||!s1.word_counts.length)return;
   document.getElementById('wordDistPane').style.display='';
+  _autoOpenMehr('wordDistPanel');
   const comps=s1.word_counts.slice(0,10);
   const ours=fd?fd.word_count||0:0;
   const rec=s1.recommended_length||0;
@@ -2253,6 +2270,7 @@ function initWordDistChart(s1,fd){
 function initTimelineChart(td){
   if(!td||!td.steps)return;
   document.getElementById('timelinePane').style.display='';
+  _autoOpenMehr('timelinePanel');
   const names=['S1','YMYL','H2','Project','Phrase','Batche','PAA','Content Ed','Final','Editorial','Export'];
   const data=[];const labels=[];
   for(let i=1;i<=11;i++){const t=td.steps[String(i)]||td.steps[i]||0;if(t>0){data.push(Math.round(t));labels.push(names[i-1]||('K'+i))}}
@@ -2280,6 +2298,7 @@ function initCooccHeatmap(s1){
   if(!s1||!s1.entity_seo||!s1.entity_seo.entity_cooccurrence)return;
   const pairs=s1.entity_seo.entity_cooccurrence;if(!pairs.length)return;
   document.getElementById('cooccPane').style.display='';
+  _autoOpenMehr('cooccPanel');
   const entSet=new Set();
   pairs.forEach(p=>{entSet.add(p.entity_a||p[0]||'');entSet.add(p.entity_b||p[1]||'')});
   const ents=Array.from(entSet).filter(Boolean).slice(0,10);
