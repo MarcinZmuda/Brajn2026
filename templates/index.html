@@ -102,36 +102,22 @@
         .welcome h2{font-size:22px;font-weight:700;margin-bottom:8px;letter-spacing:-.4px}
         .welcome p{color:var(--mg);font-size:15px;line-height:1.6}
 
-        /* ═══ STEPS ═══ */
-        .steps{margin-bottom:24px}
-        .stp{
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  margin: 0 !important;
-}
-        .steps.collapsed .stp:not(.done){display:none}
-        .steps.collapsed .stp.done{padding:4px 0}
-        .steps-toggle{font-size:12px;color:var(--mg);cursor:pointer;text-align:center;padding:4px 0;display:none}
-        .steps-toggle:hover{color:var(--orange)}
-        .stp+.stp{border-top:1px solid var(--w5)}
-        .stp-i{
-            width:28px;height:28px;border-radius:var(--rs);display:flex;align-items:center;
-            justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;transition:all .3s
-        }
-        .stp-i.pending{background:var(--s3);color:var(--mg)}
-        .stp-i.running{background:var(--og);color:var(--orange);animation:blink 1.8s ease-in-out infinite}
-        .stp-i.done{background:var(--gnd);color:var(--gn)}
-        .stp-i.warning{background:var(--yld);color:var(--yl)}
-        .stp-i.error{background:var(--rdd);color:var(--rd)}
+        /* ═══ STEPS (hidden — replaced by status bar) ═══ */
+        .steps{display:none}
+        .stp{display:none}
+        .stp-i{display:none}
+        .stp-n{display:none}
+        .stp-d{display:none}
         @keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
-        .stp-n{font-size:14px;font-weight:600;color:var(--white);flex:1}
-        .stp-d{font-size:12px;color:var(--mg);margin-top:2px;line-height:1.4}
+        /* ═══ LIVE STATUS BAR ═══ */
+        .live-status{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);margin-bottom:14px}
+        .ls-pulse{width:10px;height:10px;border-radius:50%;background:var(--orange);animation:blink 1.2s ease-in-out infinite;flex-shrink:0}
+        .ls-pulse.done{background:var(--gn);animation:none}
+        .ls-text{flex:1;font-size:14px;font-weight:600;color:var(--white)}
+        .ls-detail{font-size:12px;color:var(--mg);margin-top:2px}
+        .ls-timer{font-size:13px;font-weight:700;color:var(--orange);font-family:'JetBrains Mono',monospace;flex-shrink:0}
+        .ls-track{width:100%;height:3px;background:var(--s3);border-radius:2px;overflow:hidden;margin-top:8px}
+        .ls-fill{height:100%;background:linear-gradient(90deg,var(--orange),#fcd34d);border-radius:2px;transition:width .5s ease;width:0%}
 
         /* ═══ CARDS ═══ */
         .crd{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:20px;margin:14px 0;position:relative;overflow:hidden}
@@ -351,10 +337,7 @@
         .sb-toggle.out{right:-30px}
 
         /* ═══ ADVANCED TOGGLE ═══ */
-        .adv-toggle{font-size:12px;color:var(--mg);cursor:pointer;padding:5px 0;display:flex;align-items:center;gap:4px;margin-top:8px;user-select:none}
-        .adv-toggle:hover{color:var(--orange)}
-        .adv-section{overflow:hidden;max-height:0;transition:max-height .3s ease}
-        .adv-section.open{max-height:600px}
+        .adv-section{margin-top:8px}
 
         /* ═══ MAIN TABS ═══ */
         .main-tabs-bar{display:flex;align-items:center;background:var(--s1);border-bottom:1px solid var(--b1);padding:0 20px;height:38px;flex-shrink:0;position:sticky;top:0;z-index:10}
@@ -434,9 +417,6 @@
             </select>
             <div class="hint" style="margin-top:2px">Zmienia model na jedną sesję. Env var OPENAI_MODEL = domyślny.</div>
         </div>
-        <div class="adv-toggle" onclick="toggleAdv()" id="advToggle">
-            <span id="advArr">▸</span> Zaawansowane (temp, H2, frazy, instrukcje)
-        </div>
         <div class="adv-section" id="advSection">
         <div class="lbl">Temperatura <span id="tempVal" style="opacity:.6;font-weight:400">0.7</span></div>
         <input type="range" id="tempSlider" min="0" max="10" value="7" style="width:100%;accent-color:var(--orange)" oninput="setTemp(this.value)">
@@ -505,7 +485,17 @@
         <div id="wel" class="welcome"><img src="{{ url_for('static', filename='logo_brajen.png') }}" alt="BRAJEN" class="w-logo"><h2>BRAJEN SEO Engine</h2><p>Wpisz keyword i uruchom workflow</p></div>
         <div id="tabWorkflow" class="main-tab-panel on">
         <div id="prog" style="display:none">
-            <div class="steps" id="stC"></div>
+            <div class="steps" id="stC" style="display:none"></div>
+            <!-- LIVE STATUS BAR -->
+            <div class="live-status" id="liveStatus">
+              <div class="ls-pulse" id="lsPulse"></div>
+              <div style="flex:1">
+                <div class="ls-text" id="lsText">Przygotowanie...</div>
+                <div class="ls-detail" id="lsDetail"></div>
+                <div class="ls-track"><div class="ls-fill" id="lsFill"></div></div>
+              </div>
+              <div class="ls-timer" id="lsTimer">0:00</div>
+            </div>
                         <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
             <!-- Fix #39: S1 Running state — pasek postępu jak editorial -->
             <div class="ed-running-state" id="s1Running">
@@ -543,7 +533,7 @@
 <div id="edMini" style="display:none;margin-top:12px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                 <span class="lbl" style="margin:0">✍️ Editorial Review</span>
-                <button class="tbtn" onclick="switchTab('quality')" style="color:var(--orange)">pełne szczegóły →</button>
+                <button class="tbtn" onclick="const d=document.getElementById('edDet');d.style.display=d.style.display==='none'?'block':'none';this.textContent=d.style.display==='none'?'szczegóły ▾':'zwiń ▴'">szczegóły ▾</button>
               </div>
               <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:12px 16px">
                 <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
@@ -567,6 +557,7 @@
                 <div id="edMiniChanges" style="font-size:8px;color:rgba(255,255,255,.7);line-height:1.7"></div>
                 <div id="edMiniFailed" style="margin-top:6px;font-size:8px;color:var(--rd);display:none"></div>
                 <div id="edMiniSummary" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--b1);font-size:9px;color:var(--mg)"></div>
+                <div id="edDet" style="display:none;padding:10px 0 0;font-size:9px;border-top:1px solid var(--b1);margin-top:10px;max-height:500px;overflow-y:auto"></div>
               </div>
             </div>
 <div style="margin-top:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -597,6 +588,53 @@
                 <button onclick="sendInline()">OK</button>
                 <button class="bx" onclick="hideInl()">✕</button>
             </div>
+
+            <!-- ═══ ANALYTICS CHARTS (on main workflow card) ═══ -->
+            <div id="chartsSection" style="margin-top:20px">
+            <div class="crd" id="radarPane" style="display:none">
+              <div class="crd-t"><b>📊 Quality</b> Radar</div>
+              <div class="chart-wrap" style="height:320px"><canvas id="radarChart"></canvas></div>
+            </div>
+
+            <div class="crd" id="batchChartPane" style="display:none">
+              <div class="crd-t"><b>📈 Batch</b> Quality</div>
+              <div class="chart-wrap" style="height:220px"><canvas id="batchQualityChart"></canvas></div>
+              <div class="mehr-stats">
+                <div class="mehr-stat"><div class="v" id="bsAvg">—</div><div class="l">Średnia</div></div>
+                <div class="mehr-stat"><div class="v" id="bsMax">—</div><div class="l">Najlepszy</div></div>
+                <div class="mehr-stat"><div class="v" id="bsMin">—</div><div class="l">Najgorszy</div></div>
+                <div class="mehr-stat"><div class="v" id="bsAcc">—</div><div class="l">Accepted</div></div>
+              </div>
+            </div>
+
+            <div class="crd" id="salienceChartPane" style="display:none">
+              <div class="crd-t"><b>🔬 Entity</b> Salience Ranking</div>
+              <div id="salienceBarChart" style="padding:12px"></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <div class="crd" id="kwCoveragePane" style="display:none">
+                <div class="crd-t"><b>🔑 Keyword</b> Coverage</div>
+                <div class="chart-wrap" style="height:260px"><canvas id="kwCoverageChart"></canvas></div>
+              </div>
+              <div class="crd" id="wordDistPane" style="display:none">
+                <div class="crd-t"><b>📄 Word Count</b> vs Competitors</div>
+                <div class="chart-wrap" style="height:260px"><canvas id="wordDistChart"></canvas></div>
+              </div>
+            </div>
+
+            <div class="crd" id="timelinePane" style="display:none">
+              <div class="crd-t"><b>⏱️ Workflow</b> Timeline</div>
+              <div class="chart-wrap" style="height:240px"><canvas id="timelineChart"></canvas></div>
+              <div class="mehr-stats" id="timelineStats"></div>
+            </div>
+
+            <div class="crd" id="cooccPane" style="display:none">
+              <div class="crd-t"><b>🔗 Entity</b> Co-occurrence</div>
+              <div class="heatmap-grid" id="cooccGrid"></div>
+            </div>
+            </div><!-- /chartsSection -->
+
         </div><!-- /tabWorkflow -->
         <!-- ═══ QUALITY TAB ═══ -->
         <div id="tabQuality" class="main-tab-panel" style="display:none;padding:16px 20px"><button class="mabtn" onclick="switchTab('workflow')" style="margin-bottom:12px;display:flex;align-items:center;gap:6px">← Workflow</button>
@@ -606,84 +644,12 @@
               <span style="color:var(--b3)">→</span>
               <span id="psEditStatus" style="font-weight:600"></span>
             </div>
-            <div class="crd" id="edC" style="display:none">
-              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between">
-                <span><b>Editorial</b> Review</span>
-                <div style="display:flex;align-items:center;gap:10px">
-                  <span style="font-size:20px;font-weight:800;color:var(--white)" id="edSc">—<span style="font-size:11px;color:var(--mg);font-weight:400">/10</span></span>
-                  <button class="tbtn" onclick="const d=document.getElementById('edDet');d.style.display=d.style.display==='none'?'block':'none'">szczegóły ▾</button>
-                </div>
-              </div>
-              <div class="sg sg3" style="margin-top:10px">
-                <div class="sc"><div class="sv" id="edCh">—</div><div class="sl">Zmiany</div></div>
-                <div class="sc"><div class="sv" id="edW">—</div><div class="sl">Słowa przed→po</div></div>
-                <div class="sc"><div class="sv" id="edR">—</div><div class="sl">Rollback</div></div>
-              </div>
-              <div id="edDet" style="display:block;padding:10px 0 0;font-size:9px;border-top:1px solid var(--b1);margin-top:10px;max-height:400px;overflow-y:auto"></div>
-            </div>
             <div class="pnl" id="cpP" style="display:none"><div class="pnl-h" onclick="tPnl('cpP')"><span>✅ S1 Compliance</span><span class="arr">▼</span></div><div class="pnl-b" id="cpB"></div></div>
             <div class="crd" id="esC" style="display:none"><div class="crd-t"><b>🔬 Entity</b> Salience (Google NLP)</div><div class="sg sg3"><div class="sc"><div class="sv" id="esSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="esSal">—</div><div class="sl">Main Salience</div></div><div class="sc"><div class="sv" id="esDom">—</div><div class="sl">Dominacja</div></div></div><div id="esSP" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--b1)"><div style="font-size:9px;font-weight:600;margin-bottom:4px">📐 Subject Position</div><div class="sg sg4" style="font-size:8px"><div class="sc"><div class="sv" id="spSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="spSR">—</div><div class="sl">Podmiot %</div></div><div class="sc"><div class="sv" id="spH2">—</div><div class="sl">H2</div></div><div class="sc"><div class="sv" id="sp1st">—</div><div class="sl">1. zdanie</div></div></div></div><div id="esEnts" style="margin-top:10px;font-size:9px;display:none"></div><div id="esIss" style="margin-top:8px;font-size:9px;color:var(--mg)"></div></div>
             <div class="crd" id="afC" style="display:none"><div class="crd-t"><b>🎭 Anti-Frankenstein</b> Style Analysis</div><div class="sg sg4"><div class="sc"><div class="sv" id="afSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="afCV">—</div><div class="sl">CV Zdań</div></div><div class="sc"><div class="sv" id="afP">—</div><div class="sl">Passive</div></div><div class="sc"><div class="sv" id="afSL">—</div><div class="sl">Śr. zdanie</div></div></div><div id="afIss" style="margin-top:8px;font-size:9px;color:var(--mg)"></div></div>
             <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Analiza wiarygodności</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Prawo</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medycyna</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Źródła</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Zastrzeżenie</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:10px;color:var(--mg)"></div></div>
             <div class="pnl" id="schP" style="display:none"><div class="pnl-h" onclick="tPnl('schP')"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:8px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
             <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" onclick="tPnl('tmP')"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
-
-            <!-- ═══ ANALYTICS CHARTS ═══ -->
-            <div class="crd" id="radarPane" style="display:none">
-              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>📊 Quality</b> Radar</span><button class="mehr-btn" onclick="toggleMehr('radarPanel',this)">więcej ▾</button></div>
-              <div class="mehr-panel" id="radarPanel">
-                <div class="chart-wrap" style="height:320px"><canvas id="radarChart"></canvas></div>
-              </div>
-            </div>
-
-            <div class="crd" id="batchChartPane" style="display:none">
-              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>📈 Batch</b> Quality</span><button class="mehr-btn" onclick="toggleMehr('batchPanel',this)">więcej ▾</button></div>
-              <div class="mehr-panel" id="batchPanel">
-                <div class="chart-wrap" style="height:220px"><canvas id="batchQualityChart"></canvas></div>
-                <div class="mehr-stats">
-                  <div class="mehr-stat"><div class="v" id="bsAvg">—</div><div class="l">Średnia</div></div>
-                  <div class="mehr-stat"><div class="v" id="bsMax">—</div><div class="l">Najlepszy</div></div>
-                  <div class="mehr-stat"><div class="v" id="bsMin">—</div><div class="l">Najgorszy</div></div>
-                  <div class="mehr-stat"><div class="v" id="bsAcc">—</div><div class="l">Accepted</div></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="crd" id="salienceChartPane" style="display:none">
-              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>🔬 Entity</b> Salience Ranking</span><button class="mehr-btn" onclick="toggleMehr('saliencePanel',this)">więcej ▾</button></div>
-              <div class="mehr-panel" id="saliencePanel">
-                <div id="salienceBarChart" style="padding:12px"></div>
-              </div>
-            </div>
-
-            <div class="crd" id="kwCoveragePane" style="display:none">
-              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>🔑 Keyword</b> Coverage</span><button class="mehr-btn" onclick="toggleMehr('kwCoveragePanel',this)">więcej ▾</button></div>
-              <div class="mehr-panel" id="kwCoveragePanel">
-                <div class="chart-wrap" style="height:260px"><canvas id="kwCoverageChart"></canvas></div>
-              </div>
-            </div>
-
-            <div class="crd" id="wordDistPane" style="display:none">
-              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>📄 Word Count</b> vs Competitors</span><button class="mehr-btn" onclick="toggleMehr('wordDistPanel',this)">więcej ▾</button></div>
-              <div class="mehr-panel" id="wordDistPanel">
-                <div class="chart-wrap" style="height:240px"><canvas id="wordDistChart"></canvas></div>
-              </div>
-            </div>
-
-            <div class="crd" id="timelinePane" style="display:none">
-              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>⏱️ Workflow</b> Timeline</span><button class="mehr-btn" onclick="toggleMehr('timelinePanel',this)">więcej ▾</button></div>
-              <div class="mehr-panel" id="timelinePanel">
-                <div class="chart-wrap" style="height:240px"><canvas id="timelineChart"></canvas></div>
-                <div class="mehr-stats" id="timelineStats"></div>
-              </div>
-            </div>
-
-            <div class="crd" id="cooccPane" style="display:none">
-              <div class="crd-t" style="display:flex;align-items:center;justify-content:space-between"><span><b>🔗 Entity</b> Co-occurrence</span><button class="mehr-btn" onclick="toggleMehr('cooccPanel',this)">więcej ▾</button></div>
-              <div class="mehr-panel" id="cooccPanel">
-                <div class="heatmap-grid" id="cooccGrid"></div>
-              </div>
-            </div>
 
         </div><!-- /tabQuality -->
         <!-- ═══ S1 TAB ═══ -->
@@ -734,12 +700,6 @@ function toggleSidebar(){
     btn.classList.toggle('out',sb.classList.contains('collapsed'));
 }
 
-// ═══ ADVANCED TOGGLE ═══
-function toggleAdv(){
-    const s=document.getElementById('advSection'),a=document.getElementById('advArr');
-    s.classList.toggle('open');
-    a.textContent=s.classList.contains('open')?'▾':'▸';
-}
 
 // ═══ MAIN TABS ═══
 function switchTab(tab){
@@ -809,11 +769,17 @@ function updateMiniStepper(step,status){
     if(dotEl)dotEl.className='sp-dot'+(status==='running'?' run':'');
 }
 
-function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);if(!i)return;
-  // Dodaj klasę done do .stp elementu (dla CSS collapsed)
+function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.getElementById(`sd${s}`);if(i){
   const stpEl=i.closest('.stp');if(stpEl&&st==='done')stpEl.classList.add('done');
-  updateMiniStepper(s,st);
   i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d;
+  }
+  updateMiniStepper(s,st);
+  // Live Status Bar update
+  const _lsNames=['','📊 Analiza S1 — SERP, encje, konkurencja','⚖️ Analiza YMYL — klasyfikacja treści','📝 Planowanie struktury H2','📁 Tworzenie projektu','🔤 Hierarchia fraz — n-gramy','✍️ Generowanie batchy treści','❓ Zbieranie PAA / FAQ','🔍 Final Review — scoring jakości','✍️ Editorial Review — korekta','📦 Eksport artykułu'];
+  const lsText=document.getElementById('lsText'),lsDetail=document.getElementById('lsDetail'),lsPulse=document.getElementById('lsPulse'),lsFill=document.getElementById('lsFill');
+  if(lsText&&st==='running'){lsText.textContent=_lsNames[s]||`Krok ${s}...`;lsDetail.textContent=d||'';lsPulse.className='ls-pulse';lsFill.style.width=Math.round(((s-1)/10)*100)+'%';}
+  if(lsText&&st==='done'){lsFill.style.width=Math.round((s/10)*100)+'%';if(s>=10){lsText.textContent='✅ Workflow zakończony';lsDetail.textContent='';lsPulse.className='ls-pulse done';}}
+  if(lsText&&st==='error'){lsText.textContent='❌ Błąd: '+(_lsNames[s]||`Krok ${s}`);lsDetail.textContent=d||'';lsPulse.className='ls-pulse';lsPulse.style.background='var(--rd)';lsPulse.style.animation='none';}
   // Long-step progress bar (steps 8-11 are slow: Editorial, Final Review, Editorial Review, Export)
   const LONG={8:'Content Editorial',9:'Final Review',10:'Editorial Review',11:'Export'};
   if(LONG[s]&&stpEl){
@@ -1182,15 +1148,20 @@ async function startWorkflow(){
     document.getElementById('tbQuality').textContent='—';document.getElementById('tbS1').textContent='—';document.getElementById('tbCI').textContent='—';
     document.getElementById('qualityBar').style.display='none';document.getElementById('mainTabsBar').style.display='none';
     const _em=document.getElementById('edMini');if(_em)_em.style.display='none';
-    ['bpC','edC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','radarPane','batchChartPane','salienceChartPane','kwCoveragePane','wordDistPane','timelinePane','cooccPane'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
-    // Reset mehr panels
-    document.querySelectorAll('.mehr-panel').forEach(p=>{p.classList.remove('open')});
-    document.querySelectorAll('.mehr-btn').forEach(b=>{b.classList.remove('active');b.textContent='więcej ▾'});
+    ['bpC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','edMini','radarPane','batchChartPane','salienceChartPane','kwCoveragePane','wordDistPane','timelinePane','cooccPane'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
+    const _edDetR=document.getElementById('edDet');if(_edDetR){_edDetR.innerHTML='';_edDetR.style.display='none';}
+    // Reset live status bar
+    const _ls=document.getElementById('lsText');if(_ls){_ls.textContent='Przygotowanie...';document.getElementById('lsDetail').textContent='';document.getElementById('lsFill').style.width='0%';document.getElementById('lsPulse').className='ls-pulse';document.getElementById('lsPulse').style.background='';document.getElementById('lsPulse').style.animation='';document.getElementById('lsTimer').textContent='0:00';}
     document.getElementById('editorWrap').classList.remove('visible');
     document.getElementById('chatHist').innerHTML='<div class="chat-msg ai">Artykuł gotowy! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>';
     document.getElementById('valResult').classList.remove('vis');
     rawArticle='';selTxt='';s1Data=null;batchLog=[];finalData=null;salienceData=null;styleData=null;memoryData=null;articleData=null;editorialData=null;stepTimingData=null;paaData=null;ymylCtxData=null;ymylAnalysisData=null;ymylValData=null;liveArticle='';
     log(`Start: "${kw}" [${mode}] [${engine}] [temp=${temperature}]`);
+    // Start live status timer
+    const _lsTimerEl=document.getElementById('lsTimer');
+    if(window._lsTimerInt)clearInterval(window._lsTimerInt);
+    window._lsTimerStart=Date.now();
+    window._lsTimerInt=setInterval(()=>{const s=Math.round((Date.now()-window._lsTimerStart)/1000);const m=Math.floor(s/60);const ss=String(s%60).padStart(2,'0');if(_lsTimerEl)_lsTimerEl.textContent=m+':'+ss;},1000);
 
     try{
         const resp=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({main_keyword:kw,mode:mode,engine:engine,openai_model:engine==='openai'?openaiModel:null,temperature:temperature,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci})});
@@ -1211,16 +1182,23 @@ async function startWorkflow(){
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
         es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
         es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);batchLog.push(d);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}if(d.accepted&&d.text_preview){liveArticle+=(liveArticle?'\n\n':'')+d.text_preview;renderArt(liveArticle)}try{initBatchChart(batchLog)}catch(e){console.warn('batchChart:',e)}});
-        es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);editorialData=d;document.getElementById('edC').style.display='';
+        es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);editorialData=d;
+    // Pokaż edMini (pełne szczegóły w workflow card)
+    const em=document.getElementById('edMini');if(em)em.style.display='';
     // Fix #35+#43: Ukryj edRunning i oznacz step 10 jako done
     const _edRun=document.getElementById('edRunning');if(_edRun){_edRun.classList.remove('active');if(_edRun._timer){clearInterval(_edRun._timer);_edRun._timer=null;}}
     // Fix #43: Defensive — update step 10 pill when editorial event arrives
     try{uStep(10,d._failed?'warning':'done',d._failed?'Błąd editorial':`Ocena: ${d.score}/10`)}catch(e2){}
+    // Aktualizuj edMini summary stats
+    const ems=document.getElementById('edMiniScore');if(ems){const sc=d.score||0;ems.innerHTML=`${sc}<span style="font-size:15px;color:var(--mg);font-weight:400">/10</span>`;ems.style.color=sc>=7?'var(--gn)':sc>=5?'var(--yl)':'var(--rd)';}
+    const emch=document.getElementById('edMiniCh');if(emch)emch.textContent=`${d.changes_applied||0}/${(d.changes_applied||0)+(d.changes_failed||0)}`;
+    const emw=document.getElementById('edMiniW');if(emw)emw.textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;
+    const emr=document.getElementById('edMiniR');if(emr){emr.textContent=d.rollback?'⚠️ TAK':'✓ NIE';emr.style.color=d.rollback?'var(--rd)':'var(--gn)';}
+    const emch2=document.getElementById('edMiniChanges');if(emch2&&d.applied_changes&&d.applied_changes.length){emch2.innerHTML=d.applied_changes.slice(0,5).map(c=>{const f=c.find||c.original||c.ZNAJDŹ||'';const r=c.replace||c.corrected||c.ZAMIEŃ||'';return f||r?`<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="color:var(--rd);text-decoration:line-through">${esc(f.substring(0,55))}${f.length>55?'…':''}</span> <span style="color:var(--mg)">→</span> <span style="color:var(--gn)">${esc(r.substring(0,55))}${r.length>55?'…':''}</span></div>`:''}).join('')+(d.applied_changes.length>5?`<div style="color:var(--mg);padding-top:4px">…i ${d.applied_changes.length-5} więcej</div>`:'')}
+    const emf=document.getElementById('edMiniFailed');if(emf&&d.failed_changes&&d.failed_changes.length){emf.style.display='';emf.textContent=`❌ Nieznalezione: ${d.failed_changes.slice(0,3).map(c=>'"'+(c.find||c.original||c.ZNAJDŹ||'').substring(0,40)+'"').join(', ')}${d.failed_changes.length>3?` (+${d.failed_changes.length-3})`:''}`;}
+    const emsum=document.getElementById('edMiniSummary');if(emsum&&d.summary)emsum.textContent=typeof d.summary==='string'?d.summary:(d.summary.summary||'');
     // Fix #35: Obsługa editorial failure
-    if(d._failed){document.getElementById('edSc').innerHTML=`<span style="color:var(--rd)">✗</span>`;document.getElementById('edCh').textContent='—';document.getElementById('edW').textContent='—';document.getElementById('edR').textContent='—';const det=document.getElementById('edDet');det.innerHTML=`<div style="color:var(--rd);font-weight:600;margin-bottom:8px">❌ Editorial Review nie powiódł się</div><div style="color:var(--mg);font-size:12px">${esc(d._error||'Nieznany błąd')}</div><div style="margin-top:8px;color:var(--mg);font-size:11px">Artykuł został zachowany bez zmian editorial.</div>`;det.style.display='block';return;}
-    document.getElementById('edSc').innerHTML=`${d.score}<span>/10</span>`;
-    document.getElementById('edSc').style.color=d.score>=7?'var(--gn)':d.score>=5?'var(--yl)':'var(--rd)';
-    document.getElementById('edCh').textContent=`${d.changes_applied}/${d.changes_applied+d.changes_failed}`;document.getElementById('edW').textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;document.getElementById('edR').textContent=d.rollback?'⚠️ TAK':'✓ NIE';
+    if(d._failed){const det=document.getElementById('edDet');if(det){det.innerHTML=`<div style="color:var(--rd);font-weight:600;margin-bottom:8px">❌ Editorial Review nie powiódł się</div><div style="color:var(--mg);font-size:12px">${esc(d._error||'Nieznany błąd')}</div><div style="margin-top:8px;color:var(--mg);font-size:11px">Artykuł został zachowany bez zmian editorial.</div>`;det.style.display='block';}return;}
     const det=document.getElementById('edDet');let h='';
     // Fix #37: Podsumowanie — szukaj w wielu miejscach
     const _sum=typeof d.summary==='string'?d.summary:(d.summary&&d.summary.summary?d.summary.summary:'');
@@ -1264,15 +1242,6 @@ async function startWorkflow(){
     const _ecol=_rb?'var(--rd)':_ch>0?'var(--gn)':'var(--yl)';
     _psEd.innerHTML='<span style="color:'+_ecol+'">'+'Editorial: '+(_rb?'ROLLBACK':_ch+' zmian naprawiono')+(_fail>0?' ('+_fail+' nieznaleziono)':'')+' </span>';
     if(_ps2)_ps2.style.display='flex';updateQualityBar();
-    // ── EDITORIAL MINI (Workflow tab skrót) ──
-    const em=document.getElementById('edMini');if(em)em.style.display='';
-    const ems=document.getElementById('edMiniScore');if(ems){const sc=d.score||0;ems.innerHTML=`${sc}<span style="font-size:15px;color:var(--mg);font-weight:400">/10</span>`;ems.style.color=sc>=7?'var(--gn)':sc>=5?'var(--yl)':'var(--rd)';}
-    const emch=document.getElementById('edMiniCh');if(emch)emch.textContent=`${d.changes_applied||0}/${(d.changes_applied||0)+(d.changes_failed||0)}`;
-    const emw=document.getElementById('edMiniW');if(emw)emw.textContent=`${d.word_count_before||'?'}→${d.word_count_after||'?'}`;
-    const emr=document.getElementById('edMiniR');if(emr){emr.textContent=d.rollback?'⚠️ TAK':'✓ NIE';emr.style.color=d.rollback?'var(--rd)':'var(--gn)';}
-    const emch2=document.getElementById('edMiniChanges');if(emch2&&d.applied_changes&&d.applied_changes.length){emch2.innerHTML=d.applied_changes.slice(0,5).map(c=>{const f=c.find||c.original||c.ZNAJDŹ||'';const r=c.replace||c.corrected||c.ZAMIEŃ||'';return f||r?`<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="color:var(--rd);text-decoration:line-through">${esc(f.substring(0,55))}${f.length>55?'…':''}</span> <span style="color:var(--mg)">→</span> <span style="color:var(--gn)">${esc(r.substring(0,55))}${r.length>55?'…':''}</span></div>`:''}).join('')+(d.applied_changes.length>5?`<div style="color:var(--mg);padding-top:4px">…i ${d.applied_changes.length-5} więcej → zakładka Jakość</div>`:'')}
-    const emf=document.getElementById('edMiniFailed');if(emf&&d.failed_changes&&d.failed_changes.length){emf.style.display='';emf.textContent=`❌ Nieznalezione: ${d.failed_changes.slice(0,3).map(c=>'"'+(c.find||c.original||c.ZNAJDŹ||'').substring(0,40)+'"').join(', ')}${d.failed_changes.length>3?` (+${d.failed_changes.length-3})`:''}`;}
-    const emsum=document.getElementById('edMiniSummary');if(emsum&&d.summary)emsum.textContent=typeof d.summary==='string'?d.summary:(d.summary.summary||'');
     }
   });
         es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}try{initRadarChart(d)}catch(e){console.warn('radarChart:',e)}try{initKwCoverageChart(d,batchLog)}catch(e){console.warn('kwCoverage:',e)}});
@@ -1299,7 +1268,7 @@ async function startWorkflow(){
         es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss;updateQualityBar()});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:13px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:12px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:12px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
-        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
+        es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;if(window._lsTimerInt){clearInterval(window._lsTimerInt);window._lsTimerInt=null;}renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
         // Fix #47: Ukryj frazy BASIC z panelu po zakończeniu workflow
         try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
@@ -2123,14 +2092,6 @@ if(typeof Chart!=='undefined'){
   Chart.defaults.font.family="'Outfit',sans-serif";
 }
 
-// Auto-open mehr panels when chart is initialized
-function _autoOpenMehr(panelId){
-  const p=document.getElementById(panelId);if(!p)return;
-  if(!p.classList.contains('open')){p.classList.add('open');
-    const btn=p.parentElement.querySelector('.mehr-btn');
-    if(btn){btn.classList.add('active');btn.textContent='mniej ▴';}
-  }
-}
 
 // 1. RADAR — Quality Breakdown
 function initRadarChart(fd){
@@ -2140,7 +2101,7 @@ function initRadarChart(fd){
   const data=labels.map(l=>qb[l.toLowerCase()]||0);
   const avg=Math.round(data.reduce((a,b)=>a+b,0)/data.length);
   document.getElementById('radarPane').style.display='';
-  _autoOpenMehr('radarPanel');
+
   _destroyChart('radar');
   const ctx=document.getElementById('radarChart');if(!ctx)return;
   _chartInstances.radar=new Chart(ctx,{
@@ -2166,7 +2127,7 @@ function initRadarChart(fd){
 function initBatchChart(bl){
   if(!bl||!bl.length)return;
   document.getElementById('batchChartPane').style.display='';
-  _autoOpenMehr('batchPanel');
+
   const labels=bl.map((b,i)=>'B'+(b.batch||i+1));
   const scores=bl.map(b=>b.quality_score||0);
   const colors=bl.map(b=>!b.accepted?'#f87171':b.quality_score>=80?'#34d399':b.quality_score>=60?'#fbbf24':'#9e9e9e');
@@ -2195,7 +2156,7 @@ function initBatchChart(bl){
 function initSalienceChart(sd){
   if(!sd||!sd.entities||!sd.entities.length)return;
   document.getElementById('salienceChartPane').style.display='';
-  _autoOpenMehr('saliencePanel');
+
   const ents=sd.entities.slice().sort((a,b)=>(b.salience||0)-(a.salience||0)).slice(0,14);
   const mainKw=(sd.main_keyword||'').toLowerCase();
   const container=document.getElementById('salienceBarChart');if(!container)return;
@@ -2222,7 +2183,7 @@ function initKwCoverageChart(fd,bl){
   const extPct=Math.round(extCov*100);
   const missPct=100-basicPct;
   document.getElementById('kwCoveragePane').style.display='';
-  _autoOpenMehr('kwCoveragePanel');
+
   _destroyChart('kwCov');
   const ctx=document.getElementById('kwCoverageChart');if(!ctx)return;
   _chartInstances.kwCov=new Chart(ctx,{
@@ -2244,7 +2205,7 @@ function initKwCoverageChart(fd,bl){
 function initWordDistChart(s1,fd){
   if(!s1||!s1.word_counts||!s1.word_counts.length)return;
   document.getElementById('wordDistPane').style.display='';
-  _autoOpenMehr('wordDistPanel');
+
   const comps=s1.word_counts.slice(0,10);
   const ours=fd?fd.word_count||0:0;
   const rec=s1.recommended_length||0;
@@ -2270,7 +2231,7 @@ function initWordDistChart(s1,fd){
 function initTimelineChart(td){
   if(!td||!td.steps)return;
   document.getElementById('timelinePane').style.display='';
-  _autoOpenMehr('timelinePanel');
+
   const names=['S1','YMYL','H2','Project','Phrase','Batche','PAA','Content Ed','Final','Editorial','Export'];
   const data=[];const labels=[];
   for(let i=1;i<=11;i++){const t=td.steps[String(i)]||td.steps[i]||0;if(t>0){data.push(Math.round(t));labels.push(names[i-1]||('K'+i))}}
@@ -2298,7 +2259,7 @@ function initCooccHeatmap(s1){
   if(!s1||!s1.entity_seo||!s1.entity_seo.entity_cooccurrence)return;
   const pairs=s1.entity_seo.entity_cooccurrence;if(!pairs.length)return;
   document.getElementById('cooccPane').style.display='';
-  _autoOpenMehr('cooccPanel');
+
   const entSet=new Set();
   pairs.forEach(p=>{entSet.add(p.entity_a||p[0]||'');entSet.add(p.entity_b||p[1]||'')});
   const ents=Array.from(entSet).filter(Boolean).slice(0,10);
