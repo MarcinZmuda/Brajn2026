@@ -176,30 +176,71 @@ JEDNAK: każda sekcja H2 MUSI zaczynać się INNYM wzorcem składniowym.
 
 ZAKAZ: dwie sąsiednie sekcje o identycznej strukturze pierwszego zdania.
 
+FEATURED SNIPPET — ANSWER-FIRST (Fix #60)
+Pierwsze 2–3 zdania pod każdym H2 muszą tworzyć samodzielną, bezpośrednią odpowiedź
+na pytanie zadane w nagłówku. Cel: 40–58 słów, bez wstępów i zapowiedzi.
+
+  ❌ ŹLE (zapowiedź zamiast odpowiedzi):
+     h2: Co to jest rejestr spadkowy?
+     "Zanim przejdziemy do szczegółów, warto zrozumieć, czym jest rejestr..."
+  ✅ DOBRZE (answer-first):
+     h2: Co to jest rejestr spadkowy?
+     "Rejestr spadkowy to publiczna baza danych prowadzona przez samorząd notarialny,
+      w której odnotowuje się akty poświadczenia dziedziczenia oraz sądowe postanowienia
+      o nabyciu spadku. Umożliwia weryfikację, czy po danej osobie sporządzono już
+      formalny dokument potwierdzający prawa do majątku."
+
+  REGUŁA: Odpowiedź musi być zrozumiała BEZ czytania reszty sekcji.
+  Unikaj zaimków odsyłających do wcześniejszych fragmentów: "jak wspomniano",
+  "z powyższego wynika", "jak opisano wyżej".
+
+LISTY HTML — OBOWIĄZEK przy procesach krok po kroku (Fix #60)
+Gdy sekcja opisuje kolejność działań, kroki, wymagania lub wyliczenia
+zawierające 3+ elementów — ZAWSZE użyj listy HTML:
+
+  ✅ Proces (ul lub ol):
+     <ol>
+       <li>Wejdź na stronę rejestry.gov.pl</li>
+       <li>Wypełnij formularz danymi osoby zmarłej (imię, nazwisko, PESEL)</li>
+       <li>Uiść opłatę 20 zł za zapytanie</li>
+       <li>Odbierz wynik — informację o istnieniu lub braku wpisu</li>
+     </ol>
+
+  ✅ Wyliczenie (ul):
+     <ul>
+       <li>imię i nazwisko osoby zmarłej</li>
+       <li>numer PESEL lub data urodzenia</li>
+       <li>data śmierci (jeśli znana)</li>
+     </ul>
+
+  ❌ Proza zamiast listy (ZAKAZ gdy 3+ kroki):
+     "Najpierw wchodzisz na stronę, potem wypełniasz formularz, następnie uiszczasz
+      opłatę i na końcu odbierasz wynik."
+
 Dostępne wzorce otwarcia sekcji — rotuj między nimi:
 
   A) LICZBA / FAKT (zaczyna od konkretu):
-     „Mandaty za jazdę po alkoholu wahają się od 2500 do 30 000 zł..."
-     „Trzy lata pozbawienia wolności — tyle grozi za pierwsze wykroczenie..."
+     "Mandaty za jazdę po alkoholu wahają się od 2500 do 30 000 zł..."
+     "Trzy lata pozbawienia wolności — tyle grozi za pierwsze wykroczenie..."
 
-  B) WARUNEK / PRÓG (zaczyna od „jeśli/gdy/przy"):
-     „Gdy stężenie alkoholu przekracza 0,5 promila, czyn staje się przestępstwem..."
-     „Przy pozytywnym wyniku testu policja zatrzymuje prawo jazdy na miejscu..."
+  B) WARUNEK / PRÓG (zaczyna od "jeśli/gdy/przy"):
+     "Gdy stężenie alkoholu przekracza 0,5 promila, czyn staje się przestępstwem..."
+     "Przy pozytywnym wyniku testu policja zatrzymuje prawo jazdy na miejscu..."
 
   C) SKUTEK WPROST (zaczyna od konsekwencji):
-     „Konfiskata pojazdu grozi każdemu, kto zostanie skazany po raz drugi..."
-     „Zakaz prowadzenia trwa od 3 do 15 lat — sąd nie może go skrócić..."
+     "Konfiskata pojazdu grozi każdemu, kto zostanie skazany po raz drugi..."
+     "Zakaz prowadzenia trwa od 3 do 15 lat — sąd nie może go skrócić..."
 
   D) KONTRAST / ROZRÓŻNIENIE (zaczyna od różnicy):
-     „Wykroczenie i przestępstwo — granica przebiega dokładnie przy 0,2 promila..."
-     „Recydywista i osoba karana po raz pierwszy odpowiadają inaczej..."
+     "Wykroczenie i przestępstwo — granica przebiega dokładnie przy 0,2 promila..."
+     "Recydywista i osoba karana po raz pierwszy odpowiadają inaczej..."
 
   E) PODMIOT + ORZECZENIE (klasyczne, ale nie zawsze pierwsze):
-     „Stan po użyciu alkoholu to poziom 0,2–0,5 promila we krwi..."
-     „Przepadek pojazdu obowiązuje automatycznie od nowelizacji z 2023 roku..."
+     "Stan po użyciu alkoholu to poziom 0,2–0,5 promila we krwi..."
+     "Przepadek pojazdu obowiązuje automatycznie od nowelizacji z 2023 roku..."
 
   F) PYTANIE + NATYCHMIASTOWA ODPOWIEDŹ (pytanie retoryczne tylko jako opener):
-     „Czy można ubiegać się o warunkowe umorzenie? Tak — ale tylko przy pierwszym wykroczeniu..."
+     "Czy można ubiegać się o warunkowe umorzenie? Tak — ale tylko przy pierwszym wykroczeniu..."
 
 REGUŁA: batch 1=wzorzec A lub B, batch 2=inny, batch 3=inny itd.
 W obrębie jednego batcha każda sekcja H3 też musi startować innym wzorcem.
@@ -227,10 +268,10 @@ TWARDE LIMITY:
   • Średnia w całym batchu: cel 12–18 słów/zdanie (max dopuszczalna: 20).
 
 Technika rozbijania długich zdań:
-  ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
-     (zamiast: „Zakaz prowadzenia, obligatoryjnie orzekany przez sąd, trwa od 3 do 15 lat i nie podlega zawieszeniu.")
-  ✅ „Mandat wynosi 2500–30 000 zł. Dolicza się do tego cofnięcie prawa jazdy."
-     (zamiast: „Kierowca może otrzymać mandat w wysokości od 2500 do 30 000 zł, a sąd dodatkowo cofa prawo jazdy.")
+  ✅ "Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
+     (zamiast: "Zakaz prowadzenia, obligatoryjnie orzekany przez sąd, trwa od 3 do 15 lat i nie podlega zawieszeniu.")
+  ✅ "Mandat wynosi 2500–30 000 zł. Dolicza się do tego cofnięcie prawa jazdy."
+     (zamiast: "Kierowca może otrzymać mandat w wysokości od 2500 do 30 000 zł, a sąd dodatkowo cofa prawo jazdy.")
   ✅ Długa wyliczanka → zdanie wprowadzające + lista HTML (ul/li)
 
 Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
@@ -245,13 +286,32 @@ SUBJECT POSITION — (reguła rotacji encji wstrzykiwana dynamicznie per batch p
 SENTENCE LENGTH — długość zdań (KRYTYCZNE dla czytelności)
   Maksimum bezwzględne: 35 słów (HARD_MAX). Rozbij proaktywnie >25 słów.
   Cel średniej: 12–18 słów na zdanie (target: 15, max dopuszczalna: 20).
-  ✅ „Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
-  ❌ „Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka na mocy art. 178a Kodeksu karnego, obowiązuje przez okres od 3 do nawet 15 lat i nie podlega warunkowemu zawieszeniu."
+  ✅ "Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
+  ❌ "Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka na mocy art. 178a Kodeksu karnego, obowiązuje przez okres od 3 do nawet 15 lat i nie podlega warunkowemu zawieszeniu."
 
 SPACING
 Minimalna odległość między powtórzeniami frazy:
   MAIN: ~60 słów | BASIC: ~80 słów | EXTENDED: ~120 słów
   Nie klasteruj kilku fraz w jednym zdaniu.
+
+ANTI-ANAPHORA — ZAKAZ seryjnego otwierania zdań tą samą frazą (Fix #64)
+  ❌ WZORZEC ZAKAZANY (anaphoryczny keyword stuffing):
+     "Rejestr spadkowy zapewnia X. Rejestr spadkowy umożliwia Y. Rejestr spadkowy wskazuje Z."
+     "Sąd może A. Sąd bada B. Sąd ocenia C. Sąd rozstrzyga D."
+  ✅ POPRAWNA rotacja podmiotów:
+     "Rejestr spadkowy zapewnia X. System umożliwia Y. Wpis wskazuje Z."
+     "Sąd może A. Kolejnym etapem jest B. Po przeprowadzeniu dowodów C."
+
+  REGUŁA TWARDA: Ta sama fraza (główna lub kluczowa) NIE MOŻE otwierać więcej niż
+  2 kolejnych zdań w obrębie jednego akapitu. Przy trzecim zdaniu z rzędu —
+  OBOWIĄZKOWO zastąp ją: zaimkiem, synonimem, hiperonimem lub sformułowaniem
+  opartym na innym podmiocie gramatycznym.
+
+  Przykłady zastępników dla encji głównej:
+    "rejestr spadkowy" → "system", "baza", "narzędzie", "wyszukiwarka", "ten wpis", "on"
+    "sąd spadkowy"     → "organ", "instytucja", "sędzia", "postępowanie"
+    "notariusz"        → "kancelaria", "organ notarialny", "czynność notarialna"
+    "dziedzic"         → "uprawniony", "beneficjent", "osoba wskazana"
 
 FLEKSJA
 Odmiana frazy = jedno użycie.
@@ -261,69 +321,69 @@ Odmiana frazy = jedno użycie.
 ANTY-AI — zakaz fraz-klisz (BEZWZGLĘDNY ZAKAZ — wszystkie tematy, zawsze)
 
 KATEGORIA 1 — Zapowiadacze wagi (zamiast nich: podaj fakt wprost)
-  „warto zauważyć / podkreślić / pamiętać / wiedzieć / mieć na uwadze"
-  „należy podkreślić / zaznaczyć / mieć świadomość / wspomnieć"
-  „co istotne / co ważne / co kluczowe / co warte uwagi"
-  „kluczowe jest / kluczowym aspektem / kluczową kwestią"
-  „nie ulega wątpliwości / nie można zapomnieć / nie można pominąć"
-  „istotnym elementem jest / ważnym elementem jest / istotną kwestią"
-  ✅ Zamiast: „Warto zauważyć, że zakaz trwa 3 lata." → „Zakaz trwa 3 lata."
+  "warto zauważyć / podkreślić / pamiętać / wiedzieć / mieć na uwadze"
+  "należy podkreślić / zaznaczyć / mieć świadomość / wspomnieć"
+  "co istotne / co ważne / co kluczowe / co warte uwagi"
+  "kluczowe jest / kluczowym aspektem / kluczową kwestią"
+  "nie ulega wątpliwości / nie można zapomnieć / nie można pominąć"
+  "istotnym elementem jest / ważnym elementem jest / istotną kwestią"
+  ✅ Zamiast: "Warto zauważyć, że zakaz trwa 3 lata." → "Zakaz trwa 3 lata."
 
 KATEGORIA 2 — Puste przejścia i zapowiedzi
-  „w tym kontekście / w kontekście powyższego / w tym miejscu"
-  „przejdźmy teraz do / przyjrzyjmy się / skupmy się na"
-  „kolejnym ważnym aspektem jest / następnym krokiem jest"
-  „w dalszej części artykułu / jak wspomniano wcześniej (bez ref.)"
-  „to prowadzi do kolejnego aspektu / to rodzi pytanie"
-  ✅ Zamiast: „Przyjrzyjmy się karom." → H2: „Kary" + pierwsze zdanie z danymi.
+  "w tym kontekście / w kontekście powyższego / w tym miejscu"
+  "przejdźmy teraz do / przyjrzyjmy się / skupmy się na"
+  "kolejnym ważnym aspektem jest / następnym krokiem jest"
+  "w dalszej części artykułu / jak wspomniano wcześniej (bez ref.)"
+  "to prowadzi do kolejnego aspektu / to rodzi pytanie"
+  ✅ Zamiast: "Przyjrzyjmy się karom." → H2: "Kary" + pierwsze zdanie z danymi.
 
 KATEGORIA 3 — Fałszywe podsumowania i wnioski
-  „podsumowując / podsumowując powyższe / reasumując"
-  „w świetle powyższego / w związku z powyższym / jak widać"
-  „można zatem stwierdzić / należy zatem podkreślić"
-  „z powyższego wynika / wniosek jest następujący"
-  „to kluczowa różnica / to najważniejsza kwestia"
-  ✅ Zamiast: „Podsumowując, sankcje są surowe." → Zakończ sekcję konkretnym faktem.
+  "podsumowując / podsumowując powyższe / reasumując"
+  "w świetle powyższego / w związku z powyższym / jak widać"
+  "można zatem stwierdzić / należy zatem podkreślić"
+  "z powyższego wynika / wniosek jest następujący"
+  "to kluczowa różnica / to najważniejsza kwestia"
+  ✅ Zamiast: "Podsumowując, sankcje są surowe." → Zakończ sekcję konkretnym faktem.
 
 KATEGORIA 4 — Nadmierny formalizm AI
-  „każdorazowo należy / każdorazowo warto / każdorazowo wymaga"
-  „rekomendowana jest konsultacja / zalecana jest konsultacja"
-  „ze względu na złożoność / ze względu na specyfikę tematu"
-  „ze względu na powyższe okoliczności / mając na uwadze powyższe"
-  „w praktyce oznacza to / w praktyce wygląda to następująco"
-  „należy zwrócić szczególną uwagę / wymaga szczególnej uwagi"
-  ✅ Zamiast: „Ze względu na złożoność zagadnienia..." → Podaj konkret.
+  "każdorazowo należy / każdorazowo warto / każdorazowo wymaga"
+  "rekomendowana jest konsultacja / zalecana jest konsultacja"
+  "ze względu na złożoność / ze względu na specyfikę tematu"
+  "ze względu na powyższe okoliczności / mając na uwadze powyższe"
+  "w praktyce oznacza to / w praktyce wygląda to następująco"
+  "należy zwrócić szczególną uwagę / wymaga szczególnej uwagi"
+  ✅ Zamiast: "Ze względu na złożoność zagadnienia..." → Podaj konkret.
 
 KATEGORIA 5 — Dramatyzatory i teatr
-  „Granice są sztywne." / „Sąd patrzy. I słucha." / „I protokół."
-  „To nie jest sprawa na skróty." / „Liczy się uzasadnienie."
-  „W tle zostaje pytanie." / „Prawo nie wybacza."
+  "Granice są sztywne." / "Sąd patrzy. I słucha." / "I protokół."
+  "To nie jest sprawa na skróty." / "Liczy się uzasadnienie."
+  "W tle zostaje pytanie." / "Prawo nie wybacza."
   Krótkie zdanie jako dramatyczna pointa — ZAKAZ.
   ✅ Krótkie zdanie = TYLKO twarda liczba lub definicja.
 
 KATEGORIA 6 — Placeholder-zdania (wtrącenia bez treści)
-  „Istotnym elementem jest [powtórzenie frazy MUST bez treści]."
-  „[Encja] jest ważnym pojęciem w tym kontekście."
-  „Temat ten zasługuje na szczególną uwagę."
+  "Istotnym elementem jest [powtórzenie frazy MUST bez treści]."
+  "[Encja] jest ważnym pojęciem w tym kontekście."
+  "Temat ten zasługuje na szczególną uwagę."
   Każde zdanie MUSI dodawać nową informację — nie zapowiadać jej.
 
 KATEGORIA 7 — Phantom-placeholder prawny (BEZWZGLĘDNY ZAKAZ)
-  ❌ „odpowiednich przepisów prawa" — ZAWSZE podaj konkretny artykuł: „art. 178a § 1 k.k."
-  ❌ „właściwych przepisów" / „stosownych regulacji" / „obowiązujących przepisów" bez numeru — ZAKAZ
-  ❌ „zgodnie z przepisami" bez podania jakich — ZAKAZ
-  ❌ „do 2 lat więzienia" dla art. 178a § 1 k.k. — BŁĄD: nowelizacja 2023 = do 3 lat
-  ❌ „recydywa w ciągu 2 lat" — BŁĄD: prawo karne nie definiuje recydywy terminem
-  ❌ Sygnatura „I C" lub „II C" w kontekście konfiskaty pojazdu — BŁĄD: to sprawa cywilna
-  ❌ „mg/100 ml" jako jednostka alkoholu — BŁĄD: używaj promili (‰) lub mg/dm³
+  ❌ "odpowiednich przepisów prawa" — ZAWSZE podaj konkretny artykuł: "art. 178a § 1 k.k."
+  ❌ "właściwych przepisów" / "stosownych regulacji" / "obowiązujących przepisów" bez numeru — ZAKAZ
+  ❌ "zgodnie z przepisami" bez podania jakich — ZAKAZ
+  ❌ "do 2 lat więzienia" dla art. 178a § 1 k.k. — BŁĄD: nowelizacja 2023 = do 3 lat
+  ❌ "recydywa w ciągu 2 lat" — BŁĄD: prawo karne nie definiuje recydywy terminem
+  ❌ Sygnatura "I C" lub "II C" w kontekście konfiskaty pojazdu — BŁĄD: to sprawa cywilna
+  ❌ "mg/100 ml" jako jednostka alkoholu — BŁĄD: używaj promili (‰) lub mg/dm³
   Reguła: jeśli nie znasz konkretnego artykułu → usuń zdanie, NIE zastępuj ogólnikiem.
 
 KATEGORIA 8 — Halucynacje terminologiczne w prawie o alkoholu (BEZWZGLĘDNY ZAKAZ)
-  ❌ „alkohol z natury" / „alkohol z urodzenia" — NONSENS, nie istnieje takie pojęcie
-  ❌ „stężenie alkoholu z natury" / „promile z natury" / „promile z urodzenia" — NONSENS
-  ❌ „opilstwo" — archaizm, nie używany w aktualnym prawie karnym
-  ❌ „pijaństwo" w kontekście prawnym — używaj: „stan nietrzeźwości"
-  ❌ „obsługiwał pojazd" / „zakaz obsługi pojazdu" — BŁĄD: używaj „prowadził pojazd" / „zakaz prowadzenia pojazdu"
-  ✅ Poprawna terminologia: „stan po użyciu alkoholu" (0,2–0,5‰) | „stan nietrzeźwości" (powyżej 0,5‰)
+  ❌ "alkohol z natury" / "alkohol z urodzenia" — NONSENS, nie istnieje takie pojęcie
+  ❌ "stężenie alkoholu z natury" / "promile z natury" / "promile z urodzenia" — NONSENS
+  ❌ "opilstwo" — archaizm, nie używany w aktualnym prawie karnym
+  ❌ "pijaństwo" w kontekście prawnym — używaj: "stan nietrzeźwości"
+  ❌ "obsługiwał pojazd" / "zakaz obsługi pojazdu" — BŁĄD: używaj "prowadził pojazd" / "zakaz prowadzenia pojazdu"
+  ✅ Poprawna terminologia: "stan po użyciu alkoholu" (0,2–0,5‰) | "stan nietrzeźwości" (powyżej 0,5‰)
   ✅ Jednostki: promile (‰) | mg/dm³ w wydychanym powietrzu (NIE: mg/100ml)
 
 ANTY-POWTÓRZENIA
@@ -670,14 +730,31 @@ def _fmt_intro_guidance(pre_batch, batch_type):
 
     parts = ["═══ WPROWADZENIE (WSTĘP ARTYKUŁU) ═══",
              "To jest PIERWSZY batch, piszesz WSTĘP artykułu.",
-             "MUSISZ:",
-             f'  1. Wpleć frazę główną ("{kw_name}") w PIERWSZE zdanie' if kw_name else "  1. Frazę główną umieść w pierwszym zdaniu",
-             "  2. Zacząć od angażującego haka (hook): pytanie, statystyka, scenariusz",
-             "  3. Przedstawić GŁÓWNĄ TEZĘ artykułu w 1-2 zdaniach",
-             "  4. Zapowiedzieć co czytelnik znajdzie dalej (bez listy H2!)",
-             "  5. NIE zaczynać od definicji ani od 'W dzisiejszych czasach...'",
-             "  6. NIE dodawać nagłówka h2: (wstęp nie ma nagłówka",
-             "  7. Utrzymać zwięzłość; wstęp to 80-150 słów"]
+             "",
+             "═══ FORMAT FEATURED SNIPPET / AI OVERVIEW ═══",
+             "Wstęp musi być zbudowany w formacie ANSWER-FIRST:",
+             "",
+             "  ZDANIE 1-2 (40-58 słów łącznie): Bezpośrednia definicja lub odpowiedź.",
+             f'    Zawiera frazę główną ("{kw_name}") w pierwszym zdaniu.' if kw_name else "",
+             "    Styl: prosto, rzeczowo, bez wstępów ani zapowiedzi.",
+             "    Przykład: 'Rejestr spadkowy to publiczna baza danych prowadzona",
+             "    przez samorząd notarialny, która potwierdza, czy po danym zmarłym",
+             "    sporządzono akt poświadczenia dziedziczenia lub sądowe postanowienie.'",
+             "",
+             "  ZDANIE 3-4: Jeden konkretny fakt lub rok — kontekst.",
+             "    Przykład: 'System działa od 2016 roku i obejmuje wpisy notarialne",
+             "    oraz sądowe z całej Polski.'",
+             "",
+             "  ZDANIE 5-6: Co czytelnik znajdzie w artykule (bez listy H2!).",
+             "",
+             "REGUŁY STYLISTYCZNE WSTĘPU:",
+             "  • Każde zdanie: max 18 słów",
+             "  • Max 2 przecinki w jednym zdaniu",
+             "  • ZAKAZ zdań wielokrotnie złożonych ('który... ponieważ... a także...')",
+             "  • ZAKAZ: 'W dzisiejszych czasach', 'Warto zaznaczyć', 'Należy podkreślić'",
+             "  • ZAKAZ nagłówka h2: (wstęp nie ma nagłówka)",
+             "  • Długość: 80-150 słów",
+             "  • Ton: rzeczowy, bez dramatyzowania"]
 
     if guidance:
         if isinstance(guidance, dict):
@@ -1552,6 +1629,19 @@ def _fmt_natural_polish(pre_batch):
     if spacing_lines:
         parts.append("📏 ODSTĘPY MIĘDZY POWTÓRZENIAMI:\n" + "\n".join(spacing_lines))
 
+    # Dynamiczny zakaz anaphor dla encji głównej
+    _raw_main = pre_batch.get("main_keyword") or {}
+    _main_name = _raw_main.get("keyword", "") if isinstance(_raw_main, dict) else str(_raw_main)
+    if _main_name:
+        # Wczytaj synonimy z topical entity generator (zapisane w entity_seo)
+        _entity_seo = (pre_batch.get("s1_data") or {}).get("entity_seo") or pre_batch.get("entity_seo") or {}
+        _dynamic_synonyms = _entity_seo.get("entity_synonyms", [])
+        if _dynamic_synonyms and len(_dynamic_synonyms) >= 2:
+            synonyms = ", ".join(str(s) for s in _dynamic_synonyms[:7])
+        else:
+            # Fallback: zaimki + ogólne zamienniki
+            synonyms = "on, to, ten system, ta baza, narzedzie, wpis"
+        parts.append("ANTY-ANAPHORA [" + _main_name + "] MAX 2 ZDANIA Z RZEDU.\nPrzy 3. zdaniu zmien podmiot na: " + synonyms)
     parts.append(
         "⚠️ ZASADY:\n"
         "  • Max 2× ta sama fraza w jednym akapicie\n"
