@@ -392,17 +392,6 @@ def _detect_ymyl_local(main_keyword: str) -> dict:
         }
 
 
-def _detect_ymyl(main_keyword: str) -> dict:
-    """
-    YMYL detection with master-seo-api enrichment.
-
-    Flow:
-    1. Call _detect_ymyl_local as pre-filter
-    2. If not YMYL: add detected_category, return
-    3. If YMYL: call master-seo-api /api/ymyl/detect_and_enrich for enrichment
-    4. Return enriched data with normalized detected_category
-    """
-
 # ═══ v56 FIX 1A: Validate legal article references from Haiku ═══
 # Haiku hallucinates act names — e.g. "art. 87 ustawy o ochronie konkurencji"
 # instead of "art. 87 k.w." (Kodeks wykroczeń). Only allow known Polish acts.
@@ -454,6 +443,18 @@ def _validate_legal_articles(articles: list) -> list:
         # Reject — likely hallucinated
         logger.warning(f"[YMYL_VALID] Rejected hallucinated article ref: {art}")
     return validated
+
+
+def _detect_ymyl(main_keyword: str) -> dict:
+    """
+    YMYL detection with master-seo-api enrichment.
+
+    Flow:
+    1. Call _detect_ymyl_local as pre-filter
+    2. If not YMYL: add detected_category, return
+    3. If YMYL: call master-seo-api /api/ymyl/detect_and_enrich for enrichment
+    4. Return enriched data with normalized detected_category
+    """
     try:
         # Step 1: Pre-filter with local detection
         local_result = _detect_ymyl_local(main_keyword)
