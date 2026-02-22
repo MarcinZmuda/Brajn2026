@@ -1408,8 +1408,29 @@ def _clean_batch_text(text):
     return "\n".join(cleaned)
 
 
-# ============================================================
-# H2 PLAN GENERATOR (from S1 + user phrases)
+def _normalize_html_tags(text):
+    """v56: Safety net — normalize malformed HTML tags in any text.
+    Strips code fences, fixes <p.>→<p>, <H2>→<h2>, etc.
+    Called before emitting article text to frontend."""
+    if not text:
+        return text
+    import re as _re_norm
+    _t = text.strip()
+    if _t.startswith("```html"):
+        _t = _t[7:]
+    elif _t.startswith("```"):
+        _t = _t[3:]
+    if _t.endswith("```"):
+        _t = _t[:-3]
+    _t = _t.strip()
+    _t = _re_norm.sub(r'<p[.,;:]+>', '<p>', _t, flags=_re_norm.IGNORECASE)
+    _t = _re_norm.sub(r'</p[.,;:]+>', '</p>', _t, flags=_re_norm.IGNORECASE)
+    _t = _re_norm.sub(r'<(h[2-6])[.,;:]+>', r'<\1>', _t, flags=_re_norm.IGNORECASE)
+    _t = _re_norm.sub(r'</(h[2-6])[.,;:]+>', r'</\1>', _t, flags=_re_norm.IGNORECASE)
+    def _lower(m):
+        return m.group(0).lower()
+    _t = _re_norm.sub(r'</?[A-Z][A-Z0-9]*(?:\s[^>]*)?\s*/?>', _lower, _t)
+    return _t
 # ============================================================
 def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, user_h2_hints=None):
     """
@@ -3789,6 +3810,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 if skip_reason:
                     yield emit("log", {"msg": f"⚠️ Editorial: pominięto aktualizację — {skip_reason}"})
                 else:
+                    corrected_text = _normalize_html_tags(corrected_text)
                     yield emit("article", {
                         "text": corrected_text,
                         "word_count": corrected_wc,
@@ -3824,14 +3846,20 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             # v50.7 FIX 41: Use editorial corrected article if available
             article_text = full.get("full_article", "")
+            full_article_wc = len(article_text.split()) if article_text else 0
             if editorial_result and editorial_result.get("ok"):
                 ed_corrected = (editorial_result.get("data") or {}).get("corrected_article", "")
                 if ed_corrected and len(ed_corrected.strip()) > 50:
                     ed_rollback = ((editorial_result.get("data") or {}).get("rollback") or {}).get("triggered", False)
-                    if not ed_rollback:
+                    ed_wc = len(ed_corrected.split())
+                    # v56 FIX: Don't replace full article with truncated editorial output
+                    # editorial_review reads from Firestore full_article field which may be stale
+                    # while GET /full_article joins ALL batches correctly
+                    if not ed_rollback and full_article_wc > 0 and ed_wc < full_article_wc * 0.75:
+                        yield emit("log", {"msg": f"⚠️ Editorial truncated: {ed_wc} vs {full_article_wc} słów ({round(ed_wc/full_article_wc*100)}%) — zostawiam pełny artykuł"})
+                    elif not ed_rollback:
                         article_text = ed_corrected
-                        yield emit("log", {"msg": f"📝 Export: użyto tekst po editorial review ({len(ed_corrected.split())} słów)"})
-
+                        yield emit("log", {"msg": f"📝 Export: użyto tekst po editorial review ({ed_wc} słów)"})
                         # Bug D Fix: Sentence check PO editorial — editorial moze cofnac retry
                         try:
                             sl_post = check_sentence_length(article_text)
@@ -3880,6 +3908,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             pass
                         except Exception as _gfix_err:
                             yield emit("log", {"msg": f"⚠️ Grammar auto-fix error: {str(_gfix_err)[:60]}"})
+
+            # v56: Safety net — normalize HTML tags before final emit
+            article_text = _normalize_html_tags(article_text)
 
             yield emit("article", {
                 "text": article_text,
