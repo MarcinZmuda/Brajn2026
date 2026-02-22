@@ -94,6 +94,36 @@ from css_filter import (
 )
 
 
+# v56: S1 cache — SERP data doesn't change within 24h for the same keyword
+_S1_CACHE_DIR = "/tmp/s1_cache"
+_S1_CACHE_TTL = 24 * 3600  # 24 hours
+
+def _s1_cache_get(keyword):
+    """Get cached S1 result for keyword. Returns None if expired or missing."""
+    try:
+        os.makedirs(_S1_CACHE_DIR, exist_ok=True)
+        cache_key = hashlib.md5(keyword.lower().strip().encode()).hexdigest()
+        cache_path = os.path.join(_S1_CACHE_DIR, f"{cache_key}.json")
+        if os.path.exists(cache_path):
+            mtime = os.path.getmtime(cache_path)
+            if time.time() - mtime < _S1_CACHE_TTL:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+    except Exception:
+        pass
+    return None
+
+def _s1_cache_set(keyword, data):
+    """Cache S1 result for keyword."""
+    try:
+        os.makedirs(_S1_CACHE_DIR, exist_ok=True)
+        cache_key = hashlib.md5(keyword.lower().strip().encode()).hexdigest()
+        cache_path = os.path.join(_S1_CACHE_DIR, f"{cache_key}.json")
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception:
+        pass
+
 # v50.7 FIX 40: AI cleanup for n-grams and causal triplets
 # Uses Claude Haiku (cheap, ~$0.005/call) to filter scraper garbage
 # that regex-based _is_css_garbage() misses.
@@ -1803,14 +1833,20 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # ─── KROK 1: S1 Analysis ───
         step_start(1)
         yield emit("step", {"step": 1, "name": "S1 Analysis", "status": "running"})
-        yield emit("log", {"msg": f"POST /api/s1_analysis → {main_keyword}"})
 
-        s1_result = brajen_call("post", "/api/s1_analysis", {"main_keyword": main_keyword})
-        if not s1_result["ok"]:
-            yield emit("workflow_error", {"step": 1, "msg": f"S1 Analysis failed: {s1_result.get('error', 'unknown')}"})
-            return
-
-        s1_raw = s1_result["data"]
+        # v56: Check S1 cache first (SERP doesn't change within 24h)
+        _s1_cached = _s1_cache_get(main_keyword)
+        if _s1_cached:
+            yield emit("log", {"msg": f"⚡ S1 cache hit: '{main_keyword}' (24h TTL)"})
+            s1_raw = _s1_cached
+        else:
+            yield emit("log", {"msg": f"POST /api/s1_analysis → {main_keyword}"})
+            s1_result = brajen_call("post", "/api/s1_analysis", {"main_keyword": main_keyword})
+            if not s1_result["ok"]:
+                yield emit("workflow_error", {"step": 1, "msg": f"S1 Analysis failed: {s1_result.get('error', 'unknown')}"})
+                return
+            s1_raw = s1_result["data"]
+            _s1_cache_set(main_keyword, s1_raw)
         
         # Debug: log S1 response structure for diagnostics
         la = s1_raw.get("length_analysis", {})
@@ -2735,8 +2771,24 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             else:
                 _target_length = 3500 if mode == "standard" else 2000
 
-            # Fix: Ensure target_length covers all H2 sections
-            # Each H2 needs ~200 words minimum + ~150 for intro
+            # v56: Bidirectional constraint — trim H2 count to fit target_length
+            # instead of only bumping target_length up (which inflates article unnecessarily)
+            _WORDS_PER_H2 = 250  # optimal batch size
+            _max_h2_for_length = max(3, _target_length // _WORDS_PER_H2)
+            if len(h2_structure) > _max_h2_for_length:
+                _orig_h2_count = len(h2_structure)
+                # Preserve FAQ at the end if present
+                _has_faq = any("pytani" in h.lower() for h in h2_structure[-2:])
+                if _has_faq:
+                    _faq = [h for h in h2_structure if "pytani" in h.lower()][-1]
+                    _content = [h for h in h2_structure if "pytani" not in h.lower()]
+                    h2_structure = _content[:_max_h2_for_length - 1] + [_faq]
+                else:
+                    h2_structure = h2_structure[:_max_h2_for_length]
+                yield emit("log", {"msg": f"📏 H2 trimmed: {_orig_h2_count}→{len(h2_structure)} (target {_target_length} słów / {_WORDS_PER_H2} na sekcję)"})
+                yield emit("h2_plan", {"h2_list": h2_structure, "count": len(h2_structure)})
+
+            # Ensure target_length covers remaining H2 sections
             _min_length_for_h2 = len(h2_structure) * 200 + 150
             if _target_length < _min_length_for_h2:
                 yield emit("log", {"msg": f"📏 target_length {_target_length} < min dla {len(h2_structure)} H2 ({_min_length_for_h2}) — podwyższam"})
@@ -2950,6 +3002,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # Fix #56: Przekaż budżet keywordu do prompt_buildera
             pre_batch["_kw_global_used"] = _global_main_kw_count
             pre_batch["_kw_global_remaining"] = max(0, _GLOBAL_KW_MAX - _global_main_kw_count)
+            # v56: Hard keyword overflow ceiling — force-ban when >150% target
+            _KW_OVERFLOW_FACTOR = 1.5
+            _kw_hard_ceiling = int(_GLOBAL_KW_MAX * _KW_OVERFLOW_FACTOR)
+            pre_batch["_kw_force_ban"] = _global_main_kw_count >= _kw_hard_ceiling
             # v50: Pass intensity to prompt_builder for conditional legal/medical injection
             pre_batch["_ymyl_intensity"] = ymyl_intensity
             if light_ymyl_note:

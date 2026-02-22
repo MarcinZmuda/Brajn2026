@@ -1031,8 +1031,20 @@ def _fmt_keywords(pre_batch):
                 if action and action != "OK":
                     soft_notes.append(f'  ℹ️ "{kw_name}": {action}')
 
+    # v56: Hard keyword ban when overflow ceiling reached (>150% target)
+    _kw_force_ban = pre_batch.get("_kw_force_ban", False)
+    if _kw_force_ban and main_kw:
+        # Remove main keyword from MUST entirely and add extreme prohibition
+        must_lines = [l for l in must_lines if main_kw.lower() not in l.lower()]
+
     # ── Build section ──
     parts = ["═══ FRAZY KLUCZOWE ═══"]
+
+    # v56: ABSOLUTE BAN block — appears first, impossible to miss
+    if _kw_force_ban and main_kw:
+        parts.append(f'⛔⛔⛔ ABSOLUTNY ZAKAZ: Fraza "{main_kw}" jest PRZEKROCZONA ×4.')
+        parts.append(f'NIE PISZ "{main_kw}" ANI RAZ w tym batchu. Użyj zaimków (to, tego, tym) lub synonimów.')
+        parts.append(f'Każde użycie "{main_kw}" w tym batchu = keyword stuffing = kara Google.\n')
 
     if must_lines:
         parts.append("🔴 OBOWIĄZKOWE (wpleć naturalnie w tekst):")
