@@ -1256,21 +1256,23 @@ def _fetch_wikipedia_legal_article(article_ref):
                 best_result = res
                 break
         # Fallback: skip results about elections, politicians, sports etc.
-        _irrelevant_patterns = ['wybory', 'kadencj', 'parlamentarn', 'prezydent', 'olimp', 'mistrz', 'piłk']
+        _irrelevant_patterns = ['wybory', 'kadencj', 'parlamentarn', 'prezydent', 'olimp', 'mistrz', 'piłk',
+                                'piłkarz', 'sportow', 'aktor', 'piosenkarz', 'film']
         if not best_result:
-            # v56 FIX 1C: Only accept results that mention the act name or article number
-            # Don't fall back to random Wikipedia articles (causes hallucinations)
+            # v56 FIX 1C v2: Only accept results that mention the SPECIFIC act name
+            # Generic "kodeks" or "art." is too loose — "Kodeks cywilny" matched for "art. 178 k.k."
             for res in results:
                 title_low = res.get("title", "").lower()
                 snippet_low = (res.get("snippet") or "").lower()
                 combined = title_low + " " + snippet_low
                 if any(pat in title_low for pat in _irrelevant_patterns):
                     continue
-                # Must contain at least the act name or "kodeks" or "ustawa"
+                # STRICT: Must contain the specific act name (e.g. "kodeks karny")
                 if _act_name and _act_name in combined:
                     best_result = res
                     break
-                if any(kw in combined for kw in ['kodeks', 'ustawa', 'prawo o', 'art.']):
+                # Only if no _act_name available, accept generic legal keywords in TITLE (not snippet)
+                if not _act_name and any(kw in title_low for kw in ['kodeks', 'ustawa', 'prawo o']):
                     best_result = res
                     break
         if not best_result:
@@ -2908,7 +2910,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "mode": mode,
             "h2_structure": h2_structure,
             "keywords": keywords,
-            "total_batches": _planned_total_batches,
+            "total_planned_batches": _planned_total_batches,
             "s1_data": {
                 "causal_triplets": (s1.get("causal_triplets") or {}),
                 "content_gaps": (s1.get("content_gaps") or {}),
