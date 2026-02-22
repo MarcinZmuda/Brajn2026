@@ -182,6 +182,15 @@ def _build_raw_data_summary(s1_data: dict) -> str:
     return "\n".join(parts)
 
 
+def _preserve_paa(s1_data: dict) -> list:
+    """Extract PAA questions from S1 data before Claude cleaning (which drops them)."""
+    paa = s1_data.get("paa") or s1_data.get("paa_questions") or []
+    if not paa:
+        sa = s1_data.get("serp_analysis") or {}
+        paa = sa.get("paa_questions", [])
+    return paa
+
+
 def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
     """
     ONE Claude Sonnet call to clean ALL S1 data.
@@ -197,6 +206,9 @@ def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
     """
     if not s1_data:
         return s1_data
+
+    # v55.1: Preserve PAA before Claude cleanup (cleanup doesn't know about PAA)
+    preserved_paa = _preserve_paa(s1_data)
 
     raw_summary = _build_raw_data_summary(s1_data)
 
@@ -236,11 +248,22 @@ def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
                      f"{len(clean.get('clean_h2_patterns', []))} H2 | "
                      f"{clean.get('garbage_summary', '')[:80]}")
 
-        return _apply_clean_data(s1_data, clean, main_keyword)
+        cleaned = _apply_clean_data(s1_data, clean, main_keyword)
+        # v55.1: Restore PAA (Claude cleanup doesn't handle PAA)
+        if preserved_paa:
+            cleaned["paa"] = preserved_paa
+            sa = cleaned.get("serp_analysis")
+            if isinstance(sa, dict):
+                sa["paa_questions"] = preserved_paa
+            logger.info(f"[AI_MW] Restored {len(preserved_paa)} PAA questions after cleanup")
+        return cleaned
 
     except Exception as e:
         logger.error(f"[AI_MW] Claude cleanup FAILED — {type(e).__name__}: {e}")
-        return _regex_fallback_clean(s1_data, main_keyword)
+        fallback = _regex_fallback_clean(s1_data, main_keyword)
+        if preserved_paa:
+            fallback["paa"] = preserved_paa
+        return fallback
 
 
 def _apply_clean_data(s1_data: dict, clean: dict, main_keyword: str) -> dict:
@@ -917,10 +940,10 @@ def sentence_length_retry(text: str, h2: str = "", avg_len: float = 0, long_coun
 
     problem_desc = f"Srednia dlugos zdania: {avg_len:.0f} slow (cel: 14-18). Zdan powyzej 28 slow: {long_count}.{comma_note}"
 
-    prompt = f"""Skroc i uprosz zdania w ponizszym fragmencie artykulu SEO po polsku.
+    base_prompt = """Skroc i uprosz zdania w ponizszym fragmencie artykulu SEO po polsku.
 
-PROBLEM: {problem_desc}
-SEKCJA: {h2}
+PROBLEM: {problem}
+SEKCJA: {section}
 
 ZASADY:
 1. Rozbij zdania dluzsze niz 25 slow — podziel na 2 krotsze zdania.
@@ -937,22 +960,60 @@ Technika rozbijania:
 - Dlugie wyliczanki -> zdanie + lista punktowa.
 
 TEKST DO SKROCENIA:
-{text[:4000]}"""
+{chunk}"""
+
+    # v55.1: Process in chunks to handle full articles (not just first 4000 chars)
+    # Split by H2 boundaries to preserve section structure
+    import re as _re
+    sections = _re.split(r'(<h2[^>]*>.*?</h2>)', text)
+
+    # Group into chunks of ~4000 chars max
+    chunks = []
+    current = ""
+    for section in sections:
+        if len(current) + len(section) > 4000 and current:
+            chunks.append(current)
+            current = section
+        else:
+            current += section
+    if current:
+        chunks.append(current)
+
+    if not chunks:
+        return text
 
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=MIDDLEWARE_MODEL,
-            max_tokens=4000,
-            temperature=0.2,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        result = response.content[0].text.strip()
+        processed_chunks = []
+        for chunk in chunks:
+            if len(chunk.split()) < 20:
+                processed_chunks.append(chunk)
+                continue
+            prompt = base_prompt.format(
+                problem=problem_desc,
+                section=h2,
+                chunk=chunk,
+            )
+            response = client.messages.create(
+                model=MIDDLEWARE_MODEL,
+                max_tokens=5000,
+                temperature=0.2,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = response.content[0].text.strip()
+            chunk_words = len(chunk.split())
+            result_words = len(result.split())
+            if result_words < chunk_words * 0.7:
+                processed_chunks.append(chunk)  # reject this chunk
+            else:
+                processed_chunks.append(result)
+
+        full_result = "".join(processed_chunks)
         original_words = len(text.split())
-        new_words = len(result.split())
+        new_words = len(full_result.split())
         if new_words < original_words * 0.7:
-            return text  # too much removed, reject
-        return result
+            return text  # too much removed overall
+        return full_result
     except Exception:
         return text
 

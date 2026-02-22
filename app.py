@@ -1271,6 +1271,15 @@ def _clean_batch_text(text):
     """Remove duplicate ## headers when h2: format exists, strip markdown artifacts."""
     if not text:
         return text
+    # v55.1 Fix E: Strip markdown code fences (GPT-4.1 wraps HTML in ```html...```)
+    _t = text.strip()
+    if _t.startswith("```html"):
+        _t = _t[7:]
+    elif _t.startswith("```"):
+        _t = _t[3:]
+    if _t.endswith("```"):
+        _t = _t[:-3]
+    text = _t.strip()
     lines = text.split("\n")
     has_h2_prefix = any(l.strip().startswith("h2:") for l in lines)
     has_h3_prefix = any(l.strip().startswith("h3:") for l in lines)
@@ -3711,6 +3720,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         except Exception as _an_err:
                             yield emit("log", {"msg": f"⚠️ Post-editorial anaphora error: {str(_an_err)[:60]}"})
 
+                        # v55.1 Fix A: Grammar auto-fix AFTER all post-editorial processing
+                        try:
+                            from grammar_checker import auto_fix as grammar_auto_fix
+                            gfix = grammar_auto_fix(article_text)
+                            if gfix["grammar_fixes"] > 0 or gfix["phrases_removed"]:
+                                article_text = gfix["corrected"]
+                                yield emit("log", {"msg": f"✅ Grammar auto-fix: {gfix['grammar_fixes']} poprawek, {len(gfix['phrases_removed'])} fraz AI usunięto"})
+                        except ImportError:
+                            pass
+                        except Exception as _gfix_err:
+                            yield emit("log", {"msg": f"⚠️ Grammar auto-fix error: {str(_gfix_err)[:60]}"})
+
             yield emit("article", {
                 "text": article_text,
                 "word_count": len(article_text.split()) if article_text else 0,
@@ -3853,6 +3874,28 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 except Exception as lt_err:
                     logger.warning(f"LanguageTool check failed: {lt_err}")
 
+            # v55.1 Fix D: Deterministic YMYL disclaimer BEFORE scoring
+            # Export (HTML/DOCX) adds disclaimer during export, but scoring happens before export.
+            # Add it now so analyze_ymyl_references sees it and scores disclaimer_present: True.
+            if full_text and is_medical and "zastrzeżenie" not in full_text.lower():
+                _disclaimer = (
+                    "\n\n<p><strong>Zastrzeżenie medyczne:</strong> Niniejszy artykuł ma charakter wyłącznie informacyjny "
+                    "i edukacyjny. Nie stanowi porady medycznej ani nie zastępuje konsultacji "
+                    "z lekarzem lub innym wykwalifikowanym specjalistą.</p>"
+                )
+                article_text = article_text + _disclaimer if article_text else article_text
+                full_text = full_text + _disclaimer if full_text else full_text
+                yield emit("log", {"msg": "🏥 Dodano disclaimer medyczny (deterministyczny, YMYL=zdrowie)"})
+            elif full_text and is_legal and "zastrzeżenie" not in full_text.lower():
+                _disclaimer = (
+                    "\n\n<p><strong>Zastrzeżenie prawne:</strong> Niniejszy artykuł ma charakter wyłącznie informacyjny "
+                    "i nie stanowi porady prawnej. W indywidualnych sprawach zalecamy konsultację "
+                    "z wykwalifikowanym prawnikiem.</p>"
+                )
+                article_text = article_text + _disclaimer if article_text else article_text
+                full_text = full_text + _disclaimer if full_text else full_text
+                yield emit("log", {"msg": "⚖️ Dodano disclaimer prawny (deterministyczny, YMYL=prawo)"})
+
             # ═══ YMYL INTELLIGENCE: Analyze legal/medical references in text ═══
             if full_text and (is_legal or is_medical):
                 try:
@@ -3882,22 +3925,44 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 except Exception as ymyl_err:
                     logger.warning(f"YMYL analysis failed: {ymyl_err}")
             
-            if full_text and is_salience_available():
+            # v55.1 Fix C: Polish — skip Google NLP (returns 400), use entity coverage score
+            # System is Polish-only; Google NLP returns 400 for pl, spaCy fallback returns 404
+            if full_text:
+                # Compute salience from entity coverage (semantic_dist already has this data)
+                _ent_cov = semantic_dist_result.get("entity_overlap", 0) if semantic_dist_result.get("enabled") else 0
+                _must_cov = semantic_dist_result.get("must_mention_pct", 0) if semantic_dist_result.get("enabled") else 0
+                sal_score = min(100, int((_ent_cov * 60) + (_must_cov * 40)))
+                is_dominant = _ent_cov >= 0.8
+                yield emit("log", {"msg": f"🔬 Entity Salience (PL): score {sal_score}/100 (entity_cov={_ent_cov:.0%}, must_mention={_must_cov:.0%}) [Google NLP nie obsługuje polskiego]"})
+                yield emit("entity_salience", {
+                    "enabled": True,
+                    "score": sal_score,
+                    "engine": "entity_coverage_pl",
+                    "main_keyword": main_keyword,
+                    "main_salience": round(_ent_cov, 4),
+                    "is_dominant": is_dominant,
+                    "top_entity": None,
+                    "entities": [],
+                    "issues": [] if sal_score >= 60 else ["Pokrycie encji tematycznych poniżej 60%"],
+                    "recommendations": [],
+                    "subject_position": subject_pos,
+                })
+            elif full_text and is_salience_available():
                 yield emit("log", {"msg": "🔬 Entity Salience: analiza artykułu przez Google NLP API..."})
                 try:
                     salience_result = check_entity_salience(full_text, main_keyword)
                     nlp_entities = salience_result.get("entities", [])
-                    
+
                     main_sal = salience_result.get("main_salience", 0)
                     is_dominant = salience_result.get("is_main_dominant", False)
                     sal_score = salience_result.get("score", 0)
                     top_ent = salience_result.get("top_entity") or {}
-                    
+
                     top_name = top_ent.get("name", "?")
                     top_sal = top_ent.get("salience", 0)
                     dom_str = "DOMINUJE" if is_dominant else f"Dominuje: {top_name} ({top_sal:.2f})"
                     yield emit("log", {"msg": f"Salience: {main_keyword} = {main_sal:.2f} | {dom_str} | Score: {sal_score}/100"})
-                    
+
                     yield emit("entity_salience", {
                         "enabled": True,
                         "score": sal_score,
@@ -3910,7 +3975,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             "type": top_ent.get("type", ""),
                         } if top_ent else None,
                         "entities": [
-                            {"name": e["name"], "salience": round(e["salience"], 4), 
+                            {"name": e["name"], "salience": round(e["salience"], 4),
                              "type": e["type"], "has_wikipedia": bool(e.get("wikipedia_url")),
                              "has_kg": bool(e.get("mid"))}
                             for e in nlp_entities[:12]
