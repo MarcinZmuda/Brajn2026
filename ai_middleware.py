@@ -990,6 +990,40 @@ def check_anaphora(text: str, main_entity: str = "") -> dict:
             else:
                 run = 0
 
+    # --- Fix #64: Dodatkowe wzorce anafory globalnej ---
+
+    # 1. FAQ: 4+ pytań zaczynających się od tego samego słowa z rzędu
+    sentences_all = re.split(r'(?<=[.!?])\s+', text)
+    faq_window = 4
+    for i in range(len(sentences_all) - faq_window + 1):
+        window = sentences_all[i:i + faq_window]
+        first_words = [s.split()[0].lower().rstrip(".,?!") if s.split() else "" for s in window]
+        if len(set(first_words)) == 1 and first_words[0]:
+            total_runs += 1
+            if len(examples) < 3:
+                examples.append(f"[FAQ anaphora] 4x \'{first_words[0]}\': {window[0][:60]}")
+
+    # 2. Zero-subject: zdanie zaczyna się od imiesłowu bez podmiotu
+    # np. "Zlekceważone prowadzą", "Nieleczone skutkują", "Pozostawione mogą"
+    zero_subj_matches = re.findall(
+        r'(?:^|(?<=[.!?]\s))[A-ZŁŚĆŃÓŹ][a-złśćńóź]{3,}ne\s|'
+        r'(?:^|(?<=[.!?]\s))[A-ZŁŚĆŃÓŹ][a-złśćńóź]{3,}ny\s|'
+        r'(?:^|(?<=[.!?]\s))[A-ZŁŚĆŃÓŹ][a-złśćńóź]{3,}nych\s',
+        text
+    )
+    if zero_subj_matches:
+        total_runs += len(zero_subj_matches)
+        for m in zero_subj_matches[:2]:
+            if len(examples) < 3:
+                examples.append(f"[zero-subject] \'{m.strip()}\'")
+
+    # 3. Zaimek 'To' jako podmiot zdania (2+ razy)
+    to_subject = re.findall(r'(?:^|(?<=[.!?]\s))To\s+[a-ząćęłńóśźż]', text)
+    if len(to_subject) >= 2:
+        total_runs += 1
+        if len(examples) < 3:
+            examples.append(f"[To-subject] {len(to_subject)}x zdanie zaczyna się od 'To'")
+
     return {
         "needs_fix": total_runs > 0,
         "anaphora_count": total_runs,

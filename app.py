@@ -1850,6 +1850,18 @@ def _extract_quality_breakdown(final):
         "coherence": ["coherence_score", "coherence"],
     }
 
+    # Map radar dimensions to nested API response paths
+    # Backend returns: keywords_validation, advanced_semantic, entity_scoring, validations
+    _NESTED_PATHS = {
+        "keywords":  ["keywords_validation", ("validations", "missing_keywords")],
+        "semantic":  ["advanced_semantic", ("validations", "semantic")],
+        "depth":     ["entity_scoring", ("validations", "depth")],
+        "grammar":   [("validations", "grammar")],
+        "structure": [("validations", "structure")],
+        "humanness": [("validations", "humanness"), ("validations", "ai_detection")],
+        "coherence": [("validations", "coherence")],
+    }
+
     result = {}
     for dim, candidates in _FIELDS.items():
         val = qb.get(dim)  # first try pre-built breakdown
@@ -1865,7 +1877,19 @@ def _extract_quality_breakdown(final):
                 val = scores_obj.get(key)
                 if val is not None:
                     break
-        # Normalize: if all scores <= 10, assume 0-10 scale
+        # Still None? Try nested API response objects (keywords_validation.score, etc.)
+        if val is None:
+            for path in _NESTED_PATHS.get(dim, []):
+                if isinstance(path, tuple):
+                    obj = final
+                    for key in path:
+                        obj = (obj.get(key) or {}) if isinstance(obj, dict) else {}
+                else:
+                    obj = final.get(path) or {}
+                if isinstance(obj, dict):
+                    val = obj.get("score") or obj.get(f"{dim}_score")
+                    if val is not None:
+                        break
         result[dim] = val
 
     # Auto-detect scale: if all non-None values are <= 10, multiply by 10
@@ -3665,7 +3689,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         step_start(8)
         yield emit("step", {"step": 8, "name": "Content Editorial", "status": "running"})
         yield emit("log", {"msg": "POST /content_editorial..."})
-        content_editorial_result = brajen_call("post", f"/api/project/{project_id}/content_editorial", timeout=HEAVY_REQUEST_TIMEOUT)
+        content_editorial_result = brajen_call("post", f"/api/project/{project_id}/content_editorial", json_data={}, timeout=HEAVY_REQUEST_TIMEOUT)
         if content_editorial_result["ok"]:
             ced = content_editorial_result["data"]
             ced_status = ced.get("status", "OK")
@@ -3847,7 +3871,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("log", {"msg": "POST /editorial_review, to może chwilę potrwać..."})
 
         editorial_result = {"ok": False}  # v50.7: safety init for FIX 41
-        editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review", timeout=HEAVY_REQUEST_TIMEOUT)
+        editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review", json_data={}, timeout=HEAVY_REQUEST_TIMEOUT)
         if editorial_result["ok"]:
             ed = editorial_result["data"]
             score = ed.get("overall_score", "?")
@@ -3881,10 +3905,27 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 yield emit("log", {"msg": f"⚠️ ROLLBACK: {rollback.get('reason', 'unknown')}"})
 
             # v50.7 FIX 41: Re-emit corrected article to update preview
+            # v52: Integrity checks — don't apply corrupted/truncated editorial
             if not rollback.get("triggered"):
                 corrected_text = ed.get("corrected_article", "")
-                if corrected_text and len(corrected_text.strip()) > 50:
-                    corrected_wc = len(corrected_text.split())
+                original_wc = word_guard.get("original", 0) or 0
+                corrected_wc = len(corrected_text.split()) if corrected_text else 0
+                changes_parsed = diff.get("total_changes_parsed", 0)
+                editorial_score = score if isinstance(score, (int, float)) else 0
+
+                skip_reason = None
+                if not corrected_text or len(corrected_text.strip()) <= 50:
+                    skip_reason = "tekst pusty lub za krótki"
+                elif original_wc > 0 and corrected_wc < original_wc * 0.6:
+                    skip_reason = f"obcięty ({corrected_wc} vs {original_wc} słów)"
+                elif "<h2" not in corrected_text.lower() and "<p" not in corrected_text.lower():
+                    skip_reason = "brak struktury HTML (h2/p)"
+                elif editorial_score <= 2 and changes_parsed == 0:
+                    skip_reason = f"niska ocena ({editorial_score}/10) i 0 zmian"
+
+                if skip_reason:
+                    yield emit("log", {"msg": f"⚠️ Editorial: pominięto aktualizację — {skip_reason}"})
+                else:
                     yield emit("article", {
                         "text": corrected_text,
                         "word_count": corrected_wc,
@@ -4606,5 +4647,5 @@ def health():
 # MAIN
 # ============================================================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=os.environ.get("DEBUG", "false").lower() == "true")
