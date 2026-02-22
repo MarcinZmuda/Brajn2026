@@ -3440,6 +3440,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         step_start(9)
         yield emit("step", {"step": 9, "name": "Final Review", "status": "running"})
         yield emit("log", {"msg": "GET /final_review..."})
+        final_score = None
         final_result = brajen_call("get", f"/api/project/{project_id}/final_review", timeout=HEAVY_REQUEST_TIMEOUT)
         if final_result["ok"]:
             final = final_result["data"]
@@ -3665,6 +3666,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # ─── KROK 11: Export ───
         step_start(11)
         yield emit("step", {"step": 11, "name": "Export", "status": "running"})
+
+        # Safe defaults for variables used in EVALUATION SUMMARY (outside if full_result block)
+        full_text = None
+        sal_score = None
+        is_dominant = None
+        st_score = None
+        semantic_dist_result = {"enabled": False, "score": 0}
 
         # Get full article
         full_result = brajen_call("get", f"/api/project/{project_id}/full_article", timeout=HEAVY_REQUEST_TIMEOUT)
