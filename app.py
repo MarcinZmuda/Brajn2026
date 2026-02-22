@@ -1427,6 +1427,33 @@ def _normalize_html_tags(text):
         return m.group(0).lower()
     _t = _re_norm.sub(r'</?[A-Z][A-Z0-9]*(?:\s[^>]*)?\s*/?>', _lower, _t)
     return _t
+
+
+def _strip_html_for_analysis(text):
+    """v59: Strip ALL HTML tags from text for grammar/language analysis.
+    
+    Problem: Editorial review adds <p>, <h2>, <h3> tags to article text.
+    These tags confuse LanguageTool (scores 0/100 because it treats <p> as
+    abbreviation 'p' needing a dot) and grammar_checker (48 false fixes).
+    
+    This function produces CLEAN TEXT for analysis tools while preserving
+    h2:/h3: markers that the scoring system understands.
+    """
+    if not text:
+        return text
+    import re as _re_strip
+    _t = text
+    # Convert <h2>Title</h2> back to h2: Title (preserves structure for scoring)
+    _t = _re_strip.sub(r'<h2[^>]*>\s*', 'h2: ', _t, flags=_re_strip.IGNORECASE)
+    _t = _re_strip.sub(r'\s*</h2>', '', _t, flags=_re_strip.IGNORECASE)
+    _t = _re_strip.sub(r'<h3[^>]*>\s*', 'h3: ', _t, flags=_re_strip.IGNORECASE)
+    _t = _re_strip.sub(r'\s*</h3>', '', _t, flags=_re_strip.IGNORECASE)
+    # Strip <p>, </p>, <li>, </li>, <ul>, </ul>, <ol>, </ol>, <br>, <hr>, etc.
+    _t = _re_strip.sub(r'</?(?:p|li|ul|ol|div|span|br|hr|table|tr|td|th|blockquote|strong|em|b|i|a)[^>]*/?>', '', _t, flags=_re_strip.IGNORECASE)
+    # Clean up extra whitespace from tag removal
+    _t = _re_strip.sub(r'\n{3,}', '\n\n', _t)
+    _t = _re_strip.sub(r'  +', ' ', _t)
+    return _t.strip()
 # ============================================================
 def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, user_h2_hints=None):
     """
@@ -1745,6 +1772,44 @@ def _extract_quality_breakdown(final):
 # ============================================================
 # SEMANTIC DISTANCE & EVALUATION HELPERS
 # ============================================================
+def _fuzzy_phrase_in_text(phrase, text_lower, _text_stems=None):
+    """
+    v59: Polish fuzzy matching using stem-prefix approach.
+    Handles declension: "kara pozbawienia wolności" matches "karę pozbawienia wolności".
+    
+    For each word in phrase:
+    - words ≤3 chars: exact substring match
+    - words 4 chars: match first 3 chars (Polish short-word declension changes last char)  
+    - words ≥5 chars: match first 4 chars (standard stem4)
+    
+    All words must match for phrase to count as found.
+    """
+    import re as _re
+    words = phrase.lower().split()
+    if not words:
+        return False
+    # Fast path: exact match
+    if phrase.lower() in text_lower:
+        return True
+    # Stem-prefix match: all words must appear
+    for w in words:
+        w_clean = _re.sub(r'[^\w]', '', w)
+        if not w_clean:
+            continue
+        if len(w_clean) <= 3:
+            if w_clean not in text_lower:
+                return False
+        elif len(w_clean) == 4:
+            stem = _re.escape(w_clean[:3])
+            if not _re.search(r'(?:^|\s|>)' + stem + r'\w*', text_lower):
+                return False
+        else:
+            stem = _re.escape(w_clean[:4])
+            if not _re.search(r'(?:^|\s|>)' + stem + r'\w*', text_lower):
+                return False
+    return True
+
+
 def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
                                 concept_entities, clean_must_mention,
                                 clean_ngrams, nlp_entities):
@@ -1756,13 +1821,14 @@ def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
     text_lower = full_text.lower() if full_text else ""
 
     # 1. Keyphrase coverage: check which semantic keyphrases appear in article
+    #    v59: fuzzy matching for Polish declension (stem4)
     kp_found = []
     kp_missing = []
     for kp in clean_semantic_kp:
         phrase = (kp.get("phrase", kp) if isinstance(kp, dict) else str(kp)).strip()
         if not phrase:
             continue
-        if phrase.lower() in text_lower:
+        if _fuzzy_phrase_in_text(phrase, text_lower):
             kp_found.append(phrase)
         else:
             kp_missing.append(phrase)
@@ -1787,8 +1853,9 @@ def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
                 art_entity_names.add(name.lower().strip())
     else:
         # Fallback: check which competitor entities appear as substrings
+        # v59: fuzzy matching for Polish declension
         for name in comp_entity_names:
-            if name in text_lower:
+            if _fuzzy_phrase_in_text(name, text_lower):
                 art_entity_names.add(name)
 
     shared = art_entity_names & comp_entity_names
@@ -1796,21 +1863,21 @@ def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
     only_competitor = comp_entity_names - art_entity_names
     ent_overlap = len(shared) / len(comp_entity_names) if comp_entity_names else 0.0
 
-    # 3. Must-mention coverage
+    # 3. Must-mention coverage (v59: fuzzy matching)
     mm_found = []
     mm_missing = []
     for e in (clean_must_mention or []):
         name = _extract_text(e) if isinstance(e, (dict, str)) else str(e)
         if not name:
             continue
-        if name.lower() in text_lower:
+        if _fuzzy_phrase_in_text(name, text_lower):
             mm_found.append(name)
         else:
             mm_missing.append(name)
     mm_total = len(mm_found) + len(mm_missing)
     mm_pct = len(mm_found) / mm_total if mm_total > 0 else 0.0
 
-    # 4. N-gram overlap
+    # 4. N-gram overlap (v59: fuzzy matching)
     ng_found = 0
     ng_total = 0
     for ng in (clean_ngrams or []):
@@ -1818,7 +1885,7 @@ def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
         if not ngram_text or len(ngram_text) < 3:
             continue
         ng_total += 1
-        if ngram_text.lower() in text_lower:
+        if _fuzzy_phrase_in_text(ngram_text, text_lower):
             ng_found += 1
     ng_overlap = ng_found / ng_total if ng_total > 0 else 0.0
 
@@ -2836,10 +2903,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if entity_kw_count:
             yield emit("log", {"msg": f"🧬 Entity keywords: {entity_kw_count} encji dodanych jako type=ENTITY"})
 
-        # ═══ v59 FIX: Add semantic keyphrases as EXTENDED keywords ═══
-        # These are competitor-derived keyphrases (e.g. "kara za jazdę po alkoholu",
-        # "kierowca pod wpływem alkoholu"). Without them GPT never uses these phrases,
-        # but scoring (keyphrase_coverage) penalizes their absence → low Quality score.
+        # ═══ v59 FIX: Add semantic keyphrases as EXTENDED keywords (PRIORITY 3) ═══
+        # Priority order: 1=Entities (BASIC/ENTITY), 2=N-grams (BASIC), 3=Keyphrases (EXTENDED)
+        # Keyphrases are long competitor phrases (e.g. "kara za jazdę po alkoholu").
+        # GPT partially covers them by writing about the topic. Low targets = don't crowd out
+        # entities and n-grams which have higher SEO value (entity salience, exact phrase match).
         _kp_added = 0
         for kp in clean_semantic_kp:
             phrase = (kp.get("phrase", kp) if isinstance(kp, dict) else str(kp)).strip()
@@ -2851,12 +2919,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "keyword": phrase,
                 "type": "EXTENDED",
                 "target_min": 1,
-                "target_max": 3
+                "target_max": 2
             })
             _existing_kw_lower.add(phrase.lower())
             _kp_added += 1
         if _kp_added:
-            yield emit("log", {"msg": f"🔑 Keyphrases→EXTENDED: {_kp_added} fraz z competitor overlap dodanych jako EXTENDED"})
+            yield emit("log", {"msg": f"🔑 Keyphrases→EXTENDED (P3): {_kp_added} fraz z competitor overlap"})
 
         # ═══ Keyword deduplication (word-boundary safe) ═══
         pre_dedup_count = len(keywords)
@@ -3871,23 +3939,24 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     elif not ed_rollback:
                         article_text = ed_corrected
                         yield emit("log", {"msg": f"📝 Export: użyto tekst po editorial review ({ed_wc} słów)"})
-                        # Bug D Fix: Sentence check PO editorial — editorial moze cofnac retry
+                        
+                        # v59 FIX: Strip <p></p> tags from editorial output.
+                        # Editorial review sometimes wraps paragraphs in <p> tags or converts
+                        # h2: markers to <h2> tags. These HTML tags then contaminate ALL
+                        # downstream processors: sentence_length_retry, grammar_checker,
+                        # LanguageTool (which scores 0/100 treating <p> as abbreviation).
+                        # Strip <p> tags here; keep h2:/h3: markers for structure.
+                        article_text = _strip_html_for_analysis(article_text)
+                        # v59 FIX: DISABLED post-editorial sentence_length_retry.
+                        # Reason: sentence_length_retry sends text[:4000] to Haiku (~700 words).
+                        # Full article is 2000-3000 words → Haiku only sees 30% → produces garbage.
+                        # Per-batch retry (in batch loop) still works fine (batches are ~400 words).
+                        # Post-editorial retry was the root cause of the degradation chain:
+                        #   editorial 2336 words → Haiku chops to 8.8 avg → grammar 58 false positives → 37/100
                         try:
                             sl_post = check_sentence_length(article_text)
                             if sl_post["needs_retry"]:
-                                yield emit("log", {"msg": f"✂️ Post-editorial: zdania za długie (śr. {sl_post['avg_len']} słów) — skracam..."})
-                                # Uzyjemy generic h2 jako kontekstu
-                                article_text_fixed = sentence_length_retry(
-                                    article_text, h2="cały artykuł",
-                                    avg_len=sl_post["avg_len"],
-                                    long_count=sl_post["long_count"]
-                                )
-                                sl_verify = check_sentence_length(article_text_fixed)
-                                if sl_verify["avg_len"] < sl_post["avg_len"]:
-                                    article_text = article_text_fixed
-                                    yield emit("log", {"msg": f"✅ Post-editorial retry: śr. {sl_verify['avg_len']} słów/zdanie"})
-                                else:
-                                    yield emit("log", {"msg": "⚠️ Post-editorial retry nie poprawił — zostawiam po editorial"})
+                                yield emit("log", {"msg": f"ℹ️ Post-editorial: śr. {sl_post['avg_len']} słów/zdanie (skip retry — per-batch retry wystarczy)"})
                         except Exception as _sl_err:
                             yield emit("log", {"msg": f"⚠️ Post-editorial sentence check error: {str(_sl_err)[:60]}"})
 
@@ -4031,7 +4100,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             lt_result = {}
             if full_text and LANGUAGETOOL_AVAILABLE:
                 try:
-                    lt_result = lt_check_text(full_text)
+                    # v59: Strip HTML tags before LanguageTool — <p> tags cause 49 false "typos"
+                    _lt_clean = _strip_html_for_analysis(full_text)
+                    lt_result = lt_check_text(_lt_clean)
                     lt_score = lt_result.get("score", 0)
                     cats = lt_result.get("categories", {})
                     available = lt_result.get("api_available", False)
