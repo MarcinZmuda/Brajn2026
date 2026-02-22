@@ -182,15 +182,6 @@ def _build_raw_data_summary(s1_data: dict) -> str:
     return "\n".join(parts)
 
 
-def _preserve_paa(s1_data: dict) -> list:
-    """Extract PAA questions from S1 data before Claude cleaning (which drops them)."""
-    paa = s1_data.get("paa") or s1_data.get("paa_questions") or []
-    if not paa:
-        sa = s1_data.get("serp_analysis") or {}
-        paa = sa.get("paa_questions", [])
-    return paa
-
-
 def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
     """
     ONE Claude Sonnet call to clean ALL S1 data.
@@ -206,9 +197,6 @@ def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
     """
     if not s1_data:
         return s1_data
-
-    # v55.1: Preserve PAA before Claude cleanup (cleanup doesn't know about PAA)
-    preserved_paa = _preserve_paa(s1_data)
 
     raw_summary = _build_raw_data_summary(s1_data)
 
@@ -248,22 +236,11 @@ def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
                      f"{len(clean.get('clean_h2_patterns', []))} H2 | "
                      f"{clean.get('garbage_summary', '')[:80]}")
 
-        cleaned = _apply_clean_data(s1_data, clean, main_keyword)
-        # v55.1: Restore PAA (Claude cleanup doesn't handle PAA)
-        if preserved_paa:
-            cleaned["paa"] = preserved_paa
-            sa = cleaned.get("serp_analysis")
-            if isinstance(sa, dict):
-                sa["paa_questions"] = preserved_paa
-            logger.info(f"[AI_MW] Restored {len(preserved_paa)} PAA questions after cleanup")
-        return cleaned
+        return _apply_clean_data(s1_data, clean, main_keyword)
 
     except Exception as e:
         logger.error(f"[AI_MW] Claude cleanup FAILED — {type(e).__name__}: {e}")
-        fallback = _regex_fallback_clean(s1_data, main_keyword)
-        if preserved_paa:
-            fallback["paa"] = preserved_paa
-        return fallback
+        return _regex_fallback_clean(s1_data, main_keyword)
 
 
 def _apply_clean_data(s1_data: dict, clean: dict, main_keyword: str) -> dict:
@@ -668,13 +645,7 @@ def smart_retry_batch(original_text, exceeded_keywords, pre_batch, h2, batch_typ
         kw = exc.get("keyword", "")
         synonyms = exc.get("use_instead") or exc.get("synonyms") or []
         severity = exc.get("severity", "WARNING")
-        kw_type = exc.get("type", "BASIC").upper()
         if not kw:
-            continue
-        # v56: Skip ENTITY type keywords — these are required topical/named entities
-        # Smart Retry was removing legally required phrases like "pozbawienie wolności"
-        if kw_type == "ENTITY":
-            logger.info(f"[AI_MW] Smart retry: SKIP entity '{kw}' (type=ENTITY, required)")
             continue
         syn_list = [s if isinstance(s, str) else str(s) for s in synonyms[:3]] if synonyms else []
         replacements.append({"keyword": kw, "synonyms": syn_list, "severity": severity})
@@ -845,11 +816,7 @@ def should_use_smart_retry(result: dict, attempt: int) -> bool:
     exceeded = result.get("exceeded_keywords", [])
     if not exceeded:
         return False
-    # v56: Skip if ALL exceeded keywords are ENTITY type (required entities, not retryable)
-    non_entity_exceeded = [e for e in exceeded if e.get("type", "BASIC").upper() != "ENTITY"]
-    if not non_entity_exceeded:
-        return False
-    critical = sum(1 for e in non_entity_exceeded if e.get("severity") == "CRITICAL")
+    critical = sum(1 for e in exceeded if e.get("severity") == "CRITICAL")
     if critical > 5:
         return False
     return True
@@ -920,14 +887,13 @@ def check_sentence_length(text: str, max_avg: float = None, max_hard: int = None
         _max_commas = 2
     comma_heavy = [(s, s.count(",")) for s in sentences if s.count(",") > _max_commas]
 
-    # v56: Scale thresholds proportionally for full-article checks
-    # Absolute threshold of 2 is designed for ~400-word batches (~25 sentences).
-    # For 2000+ word articles (~150+ sentences), having 3 long sentences is normal.
+    # v59 FIX: Proportional thresholds — scale with text length.
+    # Old: hardcoded > 2 → triggered on full articles (170 sentences, 3 long = 1.8% = normal).
+    # New: 5% threshold — allows proportional number of long/complex sentences.
     total_sents = len(sentences)
-    long_threshold = max(2, int(total_sents * 0.05))    # 5% of sentences
-    comma_threshold = max(2, int(total_sents * 0.05))
-
-    needs_retry = avg > max_avg or len(long_sents) > long_threshold or len(comma_heavy) > comma_threshold
+    _long_threshold = max(2, int(total_sents * 0.05))
+    _comma_threshold = max(2, int(total_sents * 0.05))
+    needs_retry = avg > max_avg or len(long_sents) > _long_threshold or len(comma_heavy) > _comma_threshold
     return {
         "needs_retry": needs_retry,
         "avg_len": round(avg, 1),
@@ -957,10 +923,10 @@ def sentence_length_retry(text: str, h2: str = "", avg_len: float = 0, long_coun
 
     problem_desc = f"Srednia dlugos zdania: {avg_len:.0f} slow (cel: 14-18). Zdan powyzej 28 slow: {long_count}.{comma_note}"
 
-    base_prompt = """Skroc i uprosz zdania w ponizszym fragmencie artykulu SEO po polsku.
+    prompt = f"""Skroc i uprosz zdania w ponizszym fragmencie artykulu SEO po polsku.
 
-PROBLEM: {problem}
-SEKCJA: {section}
+PROBLEM: {problem_desc}
+SEKCJA: {h2}
 
 ZASADY:
 1. Rozbij zdania dluzsze niz 25 slow — podziel na 2 krotsze zdania.
@@ -977,60 +943,22 @@ Technika rozbijania:
 - Dlugie wyliczanki -> zdanie + lista punktowa.
 
 TEKST DO SKROCENIA:
-{chunk}"""
-
-    # v55.1: Process in chunks to handle full articles (not just first 4000 chars)
-    # Split by H2 boundaries to preserve section structure
-    import re as _re
-    sections = _re.split(r'(<h2[^>]*>.*?</h2>)', text)
-
-    # Group into chunks of ~4000 chars max
-    chunks = []
-    current = ""
-    for section in sections:
-        if len(current) + len(section) > 4000 and current:
-            chunks.append(current)
-            current = section
-        else:
-            current += section
-    if current:
-        chunks.append(current)
-
-    if not chunks:
-        return text
+{text[:4000]}"""
 
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        processed_chunks = []
-        for chunk in chunks:
-            if len(chunk.split()) < 20:
-                processed_chunks.append(chunk)
-                continue
-            prompt = base_prompt.format(
-                problem=problem_desc,
-                section=h2,
-                chunk=chunk,
-            )
-            response = client.messages.create(
-                model=MIDDLEWARE_MODEL,
-                max_tokens=5000,
-                temperature=0.2,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            result = response.content[0].text.strip()
-            chunk_words = len(chunk.split())
-            result_words = len(result.split())
-            if result_words < chunk_words * 0.7:
-                processed_chunks.append(chunk)  # reject this chunk
-            else:
-                processed_chunks.append(result)
-
-        full_result = "".join(processed_chunks)
+        response = client.messages.create(
+            model=MIDDLEWARE_MODEL,
+            max_tokens=4000,
+            temperature=0.2,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        result = response.content[0].text.strip()
         original_words = len(text.split())
-        new_words = len(full_result.split())
+        new_words = len(result.split())
         if new_words < original_words * 0.7:
-            return text  # too much removed overall
-        return full_result
+            return text  # too much removed, reject
+        return result
     except Exception:
         return text
 
