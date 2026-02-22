@@ -1241,38 +1241,32 @@ def _fetch_wikipedia_legal_article(article_ref):
         results = data.get("query", {}).get("search", [])
         if not results:
             return {"found": False, "article_ref": article_ref}
-        # v51: Filter results for relevance — pick the best matching page
-        # Prefer pages whose title contains the article number or act name
+        # v59 FIX: Much stricter relevance filter for Wikipedia results.
+        # Problem: "art. 178 k.k." matched "Kodeks cywilny" (wrong act!) and
+        # "art. 178a k.k." matched "Maciej Szczęsny" (person, not law!).
+        # Solution: require the SPECIFIC act name in the page TITLE.
         best_result = None
         for res in results:
             title_low = res.get("title", "").lower()
-            snippet_low = (res.get("snippet") or "").lower()
-            combined = title_low + " " + snippet_low
-            # Strong match: title contains "art." + number or the act name
-            if _art_num and _art_num.lower() in combined:
+            # STRICT: Page title must contain the specific act name
+            # e.g. "kodeks karny" for k.k., "kodeks wykroczeń" for k.w.
+            if _act_name and _act_name in title_low:
                 best_result = res
                 break
-            if _act_name and _act_name in combined:
-                best_result = res
-                break
-        # Fallback: skip results about elections, politicians, sports etc.
-        _irrelevant_patterns = ['wybory', 'kadencj', 'parlamentarn', 'prezydent', 'olimp', 'mistrz', 'piłk',
-                                'piłkarz', 'sportow', 'aktor', 'piosenkarz', 'film']
-        if not best_result:
-            # v56 FIX 1C v2: Only accept results that mention the SPECIFIC act name
-            # Generic "kodeks" or "art." is too loose — "Kodeks cywilny" matched for "art. 178 k.k."
+        # Fallback: if no title match, try title containing "art" + number
+        if not best_result and _art_num:
             for res in results:
                 title_low = res.get("title", "").lower()
-                snippet_low = (res.get("snippet") or "").lower()
-                combined = title_low + " " + snippet_low
-                if any(pat in title_low for pat in _irrelevant_patterns):
-                    continue
-                # STRICT: Must contain the specific act name (e.g. "kodeks karny")
-                if _act_name and _act_name in combined:
+                # Must have BOTH: article-like prefix AND the number in title
+                if ("art" in title_low or "§" in title_low) and _art_num.lower() in title_low:
                     best_result = res
                     break
-                # Only if no _act_name available, accept generic legal keywords in TITLE (not snippet)
-                if not _act_name and any(kw in title_low for kw in ['kodeks', 'ustawa', 'prawo o']):
+        # Last resort: search for just the act name (e.g. "Kodeks karny")
+        if not best_result and _act_name:
+            for res in results:
+                title_low = res.get("title", "").lower()
+                # Accept if title IS the act name (exact or starts with)
+                if title_low.startswith(_act_name) or _act_name.startswith(title_low):
                     best_result = res
                     break
         if not best_result:
@@ -2842,6 +2836,28 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if entity_kw_count:
             yield emit("log", {"msg": f"🧬 Entity keywords: {entity_kw_count} encji dodanych jako type=ENTITY"})
 
+        # ═══ v59 FIX: Add semantic keyphrases as EXTENDED keywords ═══
+        # These are competitor-derived keyphrases (e.g. "kara za jazdę po alkoholu",
+        # "kierowca pod wpływem alkoholu"). Without them GPT never uses these phrases,
+        # but scoring (keyphrase_coverage) penalizes their absence → low Quality score.
+        _kp_added = 0
+        for kp in clean_semantic_kp:
+            phrase = (kp.get("phrase", kp) if isinstance(kp, dict) else str(kp)).strip()
+            if not phrase or len(phrase) < 4 or phrase.lower() in _existing_kw_lower:
+                continue
+            if phrase.lower() == main_keyword.lower():
+                continue
+            keywords.append({
+                "keyword": phrase,
+                "type": "EXTENDED",
+                "target_min": 1,
+                "target_max": 3
+            })
+            _existing_kw_lower.add(phrase.lower())
+            _kp_added += 1
+        if _kp_added:
+            yield emit("log", {"msg": f"🔑 Keyphrases→EXTENDED: {_kp_added} fraz z competitor overlap dodanych jako EXTENDED"})
+
         # ═══ Keyword deduplication (word-boundary safe) ═══
         pre_dedup_count = len(keywords)
         keywords = deduplicate_keywords(keywords, main_keyword)
@@ -2879,22 +2895,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             else:
                 _target_length = 3500 if mode == "standard" else 2000
 
-            # v56: Bidirectional constraint — trim H2 count to fit target_length
-            # instead of only bumping target_length up (which inflates article unnecessarily)
-            _WORDS_PER_H2 = 250  # optimal batch size
-            _max_h2_for_length = max(3, _target_length // _WORDS_PER_H2)
-            if len(h2_structure) > _max_h2_for_length:
-                _orig_h2_count = len(h2_structure)
-                # Preserve FAQ at the end if present
-                _has_faq = any("pytani" in h.lower() for h in h2_structure[-2:])
-                if _has_faq:
-                    _faq = [h for h in h2_structure if "pytani" in h.lower()][-1]
-                    _content = [h for h in h2_structure if "pytani" not in h.lower()]
-                    h2_structure = _content[:_max_h2_for_length - 1] + [_faq]
-                else:
-                    h2_structure = h2_structure[:_max_h2_for_length]
-                yield emit("log", {"msg": f"📏 H2 trimmed: {_orig_h2_count}→{len(h2_structure)} (target {_target_length} słów / {_WORDS_PER_H2} na sekcję)"})
-                yield emit("h2_plan", {"h2_list": h2_structure, "count": len(h2_structure)})
+            # v59 FIX: NEVER trim H2s — scale target_length UP to fit all sections.
+            # AI generated these H2 for good reason (coverage, gaps, PAA). Cutting
+            # loses SEO value. Instead: bump target_length so each H2 gets ~250 words.
+            _WORDS_PER_H2 = 250
+            _min_length_for_all_h2 = len(h2_structure) * _WORDS_PER_H2 + 150  # +150 for intro
+            if _target_length < _min_length_for_all_h2:
+                _old_target = _target_length
+                _target_length = _min_length_for_all_h2
+                yield emit("log", {"msg": f"📏 target_length {_old_target}→{_target_length} (scaled UP for {len(h2_structure)} H2 × {_WORDS_PER_H2} words)"})
 
             # Ensure target_length covers remaining H2 sections
             _min_length_for_h2 = len(h2_structure) * 200 + 150
