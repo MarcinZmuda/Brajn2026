@@ -2748,7 +2748,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "entity_seo": filtered_entity_seo,
                 "paa": (s1.get("paa") or []),
                 "ngrams": _filter_ngrams((s1.get("ngrams") or [])[:30]),
-                "competitor_h2_patterns": _filter_h2_patterns((s1.get("competitor_h2_patterns") or [])[:30])
+                "competitor_h2_patterns": _filter_h2_patterns((s1.get("competitor_h2_patterns") or [])[:30]),
+                # v55.1: SERP data needed by pre-batch (featured_snippet, ai_overview, related_searches)
+                "featured_snippet": s1.get("featured_snippet") or serp_analysis.get("featured_snippet"),
+                "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview"),
+                "related_searches": (s1.get("related_searches") or serp_analysis.get("related_searches") or [])[:10],
+                "semantic_keyphrases": (s1.get("semantic_keyphrases") or [])[:15],
+                "search_intent": s1.get("search_intent") or serp_analysis.get("search_intent", "informational"),
             },
             "target_length": _target_length,
             "is_legal": is_legal,
