@@ -402,6 +402,58 @@ def _detect_ymyl(main_keyword: str) -> dict:
     3. If YMYL: call master-seo-api /api/ymyl/detect_and_enrich for enrichment
     4. Return enriched data with normalized detected_category
     """
+
+# ═══ v56 FIX 1A: Validate legal article references from Haiku ═══
+# Haiku hallucinates act names — e.g. "art. 87 ustawy o ochronie konkurencji"
+# instead of "art. 87 k.w." (Kodeks wykroczeń). Only allow known Polish acts.
+_KNOWN_LEGAL_ACTS_ABBR = {
+    'k.k.', 'k.w.', 'k.c.', 'k.p.c.', 'k.p.k.', 'k.p.', 'k.r.o.',
+    'k.p.a.', 'k.s.h.', 'p.r.d.', 'u.s.g.', 'k.k.s.',
+}
+# Use stems/roots to match Polish grammatical forms (prawo/prawa/prawem, ustawa/ustawy)
+_KNOWN_LEGAL_ACT_STEMS = [
+    'kodeks karn',          # Kodeks karny/karnego
+    'kodeks wykrocz',       # Kodeks wykroczeń
+    'kodeks cywiln',        # Kodeks cywilny/cywilnego
+    'kodeks postępowan',    # Kodeks postępowania ...
+    'kodeks prac',          # Kodeks pracy
+    'kodeks rodzinn',       # Kodeks rodzinny
+    'kodeks spółek',        # Kodeks spółek handlowych
+    'praw. o ruchu drog',   # Prawo/Prawa o ruchu drogowym (regex below)
+    'ustaw. o ruchu drog',  # Ustawa/Ustawy o ruchu drogowym
+    'praw. budowlan',       # Prawo budowlane
+    'praw. zamówień',       # Prawo zamówień publicznych
+    'ustaw. o samorząd',    # Ustawa o samorządzie
+    'kodeks karny skarbow', # Kodeks karny skarbowy
+    'ustaw. o przeciwdziałaniu narkomani',  # Ustawa o przeciwdziałaniu narkomanii
+    'ustaw. o wychowaniu w trzeźw',         # Ustawa o wychowaniu w trzeźwości
+    'ustaw. o ochronie danych',             # Ustawa o ochronie danych osobowych
+]
+
+def _validate_legal_articles(articles: list) -> list:
+    """Reject article references with hallucinated act names."""
+    import re as _re
+    validated = []
+    for art in articles:
+        art_lower = art.lower().strip()
+        # Check known abbreviations (e.g. "k.k.", "k.w.", "p.r.d.")
+        if any(abbr in art_lower for abbr in _KNOWN_LEGAL_ACTS_ABBR):
+            validated.append(art)
+            continue
+        # Check known act stems (handles Polish grammatical forms)
+        matched = False
+        for stem in _KNOWN_LEGAL_ACT_STEMS:
+            # Replace '.' in stem with regex for any single char (handles prawo/prawa/prawem)
+            pattern = stem.replace('.', '.')
+            if _re.search(pattern, art_lower):
+                matched = True
+                break
+        if matched:
+            validated.append(art)
+            continue
+        # Reject — likely hallucinated
+        logger.warning(f"[YMYL_VALID] Rejected hallucinated article ref: {art}")
+    return validated
     try:
         # Step 1: Pre-filter with local detection
         local_result = _detect_ymyl_local(main_keyword)
@@ -1205,13 +1257,24 @@ def _fetch_wikipedia_legal_article(article_ref):
         # Fallback: skip results about elections, politicians, sports etc.
         _irrelevant_patterns = ['wybory', 'kadencj', 'parlamentarn', 'prezydent', 'olimp', 'mistrz', 'piłk']
         if not best_result:
+            # v56 FIX 1C: Only accept results that mention the act name or article number
+            # Don't fall back to random Wikipedia articles (causes hallucinations)
             for res in results:
                 title_low = res.get("title", "").lower()
-                if not any(pat in title_low for pat in _irrelevant_patterns):
+                snippet_low = (res.get("snippet") or "").lower()
+                combined = title_low + " " + snippet_low
+                if any(pat in title_low for pat in _irrelevant_patterns):
+                    continue
+                # Must contain at least the act name or "kodeks" or "ustawa"
+                if _act_name and _act_name in combined:
+                    best_result = res
+                    break
+                if any(kw in combined for kw in ['kodeks', 'ustawa', 'prawo o', 'art.']):
                     best_result = res
                     break
         if not best_result:
-            best_result = results[0]
+            # No relevant result — return not found instead of random article
+            return {"found": False, "article_ref": article_ref, "reason": "no_relevant_wikipedia_result"}
         page_id = best_result["pageid"]
         extract_url = "https://pl.wikipedia.org/w/api.php?" + _urllib_parse.urlencode({
             "action": "query", "pageids": page_id, "prop": "extracts|info",
@@ -1310,6 +1373,22 @@ def _clean_batch_text(text):
     if _t.endswith("```"):
         _t = _t[:-3]
     text = _t.strip()
+    
+    # ═══ v56 FIX 2A: Normalize malformed HTML tags from GPT ═══
+    # GPT sometimes returns <p.> <p,> <P> <H2> <H3> etc.
+    import re as _re2
+    # Fix <p.> <p,> <p:> → <p>  and closing variants
+    text = _re2.sub(r'<p[.,;:]+>', '<p>', text, flags=_re2.IGNORECASE)
+    text = _re2.sub(r'</p[.,;:]+>', '</p>', text, flags=_re2.IGNORECASE)
+    # Fix <h2.> <h3,> etc.
+    text = _re2.sub(r'<(h[2-6])[.,;:]+>', r'<\1>', text, flags=_re2.IGNORECASE)
+    text = _re2.sub(r'</(h[2-6])[.,;:]+>', r'</\1>', text, flags=_re2.IGNORECASE)
+    # Normalize tag case: <H2> → <h2>, <P> → <p>, </H2> → </h2>
+    def _lower_tag(m):
+        return m.group(0).lower()
+    text = _re2.sub(r'</?[A-Z][A-Z0-9]*(?:\s[^>]*)?\s*/?>', _lower_tag, text)
+    # ═══ END FIX 2A ═══
+    
     lines = text.split("\n")
     has_h2_prefix = any(l.strip().startswith("h2:") for l in lines)
     has_h3_prefix = any(l.strip().startswith("h3:") for l in lines)
@@ -2360,7 +2439,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         if is_legal:
             legal_hints = ymyl_data.get("legal", {})
-            articles = legal_hints.get("articles", [])
+            articles_raw = legal_hints.get("articles", [])
+            # v56 FIX 1B: Validate articles — reject hallucinated act names from Haiku
+            articles = _validate_legal_articles(articles_raw)
+            if len(articles) < len(articles_raw):
+                rejected = [a for a in articles_raw if a not in articles]
+                logger.warning(f"[YMYL] Rejected {len(rejected)} hallucinated articles: {rejected}")
             arts_str = ", ".join(articles[:4]) if articles else "brak"
             yield emit("log", {"msg": f"⚖️ Temat prawny YMYL, przepisy: {arts_str}. Pobieram orzeczenia..."})
             
