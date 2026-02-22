@@ -3925,6 +3925,33 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 except Exception as ymyl_err:
                     logger.warning(f"YMYL analysis failed: {ymyl_err}")
             
+            # ═══ SEMANTIC DISTANCE: Article vs Competitor data ═══
+            # (must run before salience — salience block reads semantic_dist_result)
+            semantic_dist_result = {"enabled": False, "score": 0}
+            if full_text:
+                try:
+                    yield emit("log", {"msg": "📐 Semantic Distance: porównanie artykułu z konkurencją..."})
+                    semantic_dist_result = _compute_semantic_distance(
+                        full_text=full_text,
+                        clean_semantic_kp=clean_semantic_kp,
+                        clean_entities=clean_entities,
+                        concept_entities=concept_entities,
+                        clean_must_mention=clean_must_mention,
+                        clean_ngrams=clean_ngrams,
+                        nlp_entities=nlp_entities,
+                    )
+                    sem_score = semantic_dist_result["score"]
+                    yield emit("log", {"msg": (
+                        f"📐 Semantic Distance: {sem_score}/100 | "
+                        f"KP: {semantic_dist_result['keyphrases_found']}/{semantic_dist_result['keyphrases_total']} | "
+                        f"Entity: {round(semantic_dist_result['entity_overlap']*100)}% | "
+                        f"Must-mention: {round(semantic_dist_result['must_mention_pct']*100)}%"
+                    )})
+                    yield emit("semantic_distance", semantic_dist_result)
+                except Exception as sd_err:
+                    logger.warning(f"Semantic distance calculation failed: {sd_err}")
+                    yield emit("log", {"msg": f"⚠️ Semantic distance error: {str(sd_err)[:80]}"})
+
             # v55.1 Fix C: Polish — skip Google NLP (returns 400), use entity coverage score
             # System is Polish-only; Google NLP returns 400 for pl, spaCy fallback returns 404
             if full_text:
@@ -3994,32 +4021,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     "message": "Ustaw GOOGLE_NLP_API_KEY aby włączyć walidację salience",
                     "subject_position": subject_pos,
                 })
-
-            # ═══ SEMANTIC DISTANCE: Article vs Competitor data ═══
-            semantic_dist_result = {"enabled": False, "score": 0}
-            if full_text:
-                try:
-                    yield emit("log", {"msg": "📐 Semantic Distance: porównanie artykułu z konkurencją..."})
-                    semantic_dist_result = _compute_semantic_distance(
-                        full_text=full_text,
-                        clean_semantic_kp=clean_semantic_kp,
-                        clean_entities=clean_entities,
-                        concept_entities=concept_entities,
-                        clean_must_mention=clean_must_mention,
-                        clean_ngrams=clean_ngrams,
-                        nlp_entities=nlp_entities,
-                    )
-                    sem_score = semantic_dist_result["score"]
-                    yield emit("log", {"msg": (
-                        f"📐 Semantic Distance: {sem_score}/100 | "
-                        f"KP: {semantic_dist_result['keyphrases_found']}/{semantic_dist_result['keyphrases_total']} | "
-                        f"Entity: {round(semantic_dist_result['entity_overlap']*100)}% | "
-                        f"Must-mention: {round(semantic_dist_result['must_mention_pct']*100)}%"
-                    )})
-                    yield emit("semantic_distance", semantic_dist_result)
-                except Exception as sd_err:
-                    logger.warning(f"Semantic distance calculation failed: {sd_err}")
-                    yield emit("log", {"msg": f"⚠️ Semantic distance error: {str(sd_err)[:80]}"})
 
             # ═══ SCHEMA.ORG JSON-LD: Generate from real NLP entities ═══
             try:
