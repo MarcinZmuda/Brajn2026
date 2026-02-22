@@ -150,6 +150,39 @@ def check_text(text: str) -> dict:
         if raw_matches is None:
             return empty
 
+        # v59 FIX: Filter false positives from legal/medical/technical terminology.
+        # LanguageTool flags "k.k.", "k.w.", "mg/dm³", "art. 178a" as typos/grammar errors.
+        # These are valid Polish legal abbreviations that appear in YMYL articles.
+        _LEGAL_PATTERNS = re.compile(
+            r'\b(?:k\.k\.|k\.w\.|k\.c\.|k\.p\.|k\.p\.c\.|k\.r\.o\.|k\.s\.h\.|k\.p\.a\.'
+            r'|art\.\s*\d+[a-z]?|§\s*\d+'
+            r'|mg/dm[³3]|‰|promil[eai]?'
+            r'|OC|AC|KRS|NIP|PESEL|REGON'
+            r')\b',
+            re.IGNORECASE
+        )
+        filtered_matches = []
+        for m in raw_matches:
+            ctx = m.get("context", {})
+            ctx_text = ctx.get("text", "") if isinstance(ctx, dict) else str(ctx)
+            offset = m.get("offset", 0)
+            length = m.get("length", 0)
+            # Extract the flagged fragment from context
+            ctx_offset = ctx.get("offset", 0) if isinstance(ctx, dict) else 0
+            flagged = ctx_text[ctx_offset:ctx_offset + length] if ctx_text else ""
+            # Skip if flagged text is a legal/technical abbreviation
+            if flagged and _LEGAL_PATTERNS.search(flagged):
+                continue
+            # Skip if surrounding context contains legal abbreviation (LT sometimes flags nearby words)
+            if _LEGAL_PATTERNS.search(ctx_text[max(0, ctx_offset - 10):ctx_offset + length + 10]):
+                rule_id = m.get("rule", {}).get("id", "")
+                cat_id = m.get("rule", {}).get("category", {}).get("id", "")
+                # Only skip typo/spelling rules near legal terms, not grammar rules
+                if "TYPO" in rule_id.upper() or "SPELL" in cat_id.upper() or "MORFOLOGIK" in rule_id.upper():
+                    continue
+            filtered_matches.append(m)
+        raw_matches = filtered_matches
+
         categories = {"GRAMMAR": 0, "COLLOCATIONS": 0, "PUNCTUATION": 0,
                       "STYLE": 0, "REDUNDANCY": 0, "TYPOS": 0}
 
