@@ -2902,6 +2902,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 continue
 
             pre_batch = pre_result["data"]
+            # v55.1: Guard against pre_batch being a string instead of dict
+            if not isinstance(pre_batch, dict):
+                logger.warning(f"[BATCH] pre_batch is {type(pre_batch).__name__}, forcing empty dict")
+                pre_batch = {}
             batch_type = pre_batch.get("batch_type", "CONTENT")
             
             # ═══ BATCH 1 = INTRO: First batch must always be introduction ═══
