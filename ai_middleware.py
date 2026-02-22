@@ -182,6 +182,15 @@ def _build_raw_data_summary(s1_data: dict) -> str:
     return "\n".join(parts)
 
 
+def _preserve_paa(s1_data: dict) -> list:
+    """Extract PAA questions from S1 data before Claude cleaning (which drops them)."""
+    paa = s1_data.get("paa") or s1_data.get("paa_questions") or []
+    if not paa:
+        sa = s1_data.get("serp_analysis") or {}
+        paa = sa.get("paa_questions", [])
+    return paa
+
+
 def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
     """
     ONE Claude Sonnet call to clean ALL S1 data.
@@ -197,6 +206,9 @@ def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
     """
     if not s1_data:
         return s1_data
+
+    # v55.1: Preserve PAA before Claude cleanup (cleanup doesn't know about PAA)
+    preserved_paa = _preserve_paa(s1_data)
 
     raw_summary = _build_raw_data_summary(s1_data)
 
@@ -236,11 +248,22 @@ def ai_clean_s1_complete(s1_data: dict, main_keyword: str) -> dict:
                      f"{len(clean.get('clean_h2_patterns', []))} H2 | "
                      f"{clean.get('garbage_summary', '')[:80]}")
 
-        return _apply_clean_data(s1_data, clean, main_keyword)
+        cleaned = _apply_clean_data(s1_data, clean, main_keyword)
+        # v55.1: Restore PAA (Claude cleanup doesn't handle PAA)
+        if preserved_paa:
+            cleaned["paa"] = preserved_paa
+            sa = cleaned.get("serp_analysis")
+            if isinstance(sa, dict):
+                sa["paa_questions"] = preserved_paa
+            logger.info(f"[AI_MW] Restored {len(preserved_paa)} PAA questions after cleanup")
+        return cleaned
 
     except Exception as e:
         logger.error(f"[AI_MW] Claude cleanup FAILED — {type(e).__name__}: {e}")
-        return _regex_fallback_clean(s1_data, main_keyword)
+        fallback = _regex_fallback_clean(s1_data, main_keyword)
+        if preserved_paa:
+            fallback["paa"] = preserved_paa
+        return fallback
 
 
 def _apply_clean_data(s1_data: dict, clean: dict, main_keyword: str) -> dict:
