@@ -50,6 +50,34 @@ ENTITY_TYPE_MAP = {
 
 
 # ════════════════════════════════════════════════════════════
+# 0. spaCy FALLBACK via master-seo-api
+# ════════════════════════════════════════════════════════════
+
+def _spacy_fallback(text, language="pl"):
+    """
+    Fallback entity analysis via master-seo-api /api/nlp/analyze_entities.
+    Uses spaCy pl_core_news_md on the backend. Returns entities in the
+    same format as Google NLP API (name, type, schema_type, salience, ...).
+    Returns empty list on any failure.
+    """
+    try:
+        import requests
+        resp = requests.post(
+            f"{BRAJEN_API_URL}/api/nlp/analyze_entities",
+            json={"text": text[:500_000], "language": language},
+            timeout=30,
+        )
+        if resp.status_code == 200:
+            entities = resp.json().get("entities", [])
+            logger.info(f"spaCy fallback returned {len(entities)} entities")
+            return entities
+        logger.warning(f"spaCy fallback HTTP {resp.status_code}: {resp.text[:200]}")
+    except Exception as e:
+        logger.warning(f"spaCy fallback failed: {e}")
+    return []
+
+
+# ════════════════════════════════════════════════════════════
 # 1. GOOGLE NLP API — REAL SALIENCE MEASUREMENT
 # ════════════════════════════════════════════════════════════
 
@@ -186,6 +214,7 @@ def check_entity_salience(text, main_keyword, language="pl"):
         "issues": [],
         "recommendations": [],
         "score": 0,
+        "engine": "google_nlp" if GOOGLE_NLP_API_KEY else "spacy_fallback",
     }
 
     entities = analyze_entities_google_nlp(text, language, main_keyword=main_keyword)
