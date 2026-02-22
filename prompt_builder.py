@@ -1896,6 +1896,8 @@ def build_faq_user_prompt(paa_data, pre_batch=None):
     avoid = paa_data.get("avoid_in_faq") or []
     if isinstance(avoid, dict):
         avoid = avoid.get("topics") or []
+    elif isinstance(avoid, str):
+        avoid = [avoid] if avoid.strip() else []
     elif not isinstance(avoid, list):
         avoid = []
     instructions_raw = paa_data.get("instructions", "")
