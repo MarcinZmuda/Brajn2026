@@ -920,7 +920,14 @@ def check_sentence_length(text: str, max_avg: float = None, max_hard: int = None
         _max_commas = 2
     comma_heavy = [(s, s.count(",")) for s in sentences if s.count(",") > _max_commas]
 
-    needs_retry = avg > max_avg or len(long_sents) > 2 or len(comma_heavy) > 2
+    # v56: Scale thresholds proportionally for full-article checks
+    # Absolute threshold of 2 is designed for ~400-word batches (~25 sentences).
+    # For 2000+ word articles (~150+ sentences), having 3 long sentences is normal.
+    total_sents = len(sentences)
+    long_threshold = max(2, int(total_sents * 0.05))    # 5% of sentences
+    comma_threshold = max(2, int(total_sents * 0.05))
+
+    needs_retry = avg > max_avg or len(long_sents) > long_threshold or len(comma_heavy) > comma_threshold
     return {
         "needs_retry": needs_retry,
         "avg_len": round(avg, 1),
