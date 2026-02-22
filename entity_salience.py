@@ -55,20 +55,22 @@ ENTITY_TYPE_MAP = {
 
 def _spacy_fallback(text, language="pl"):
     """
-    Fallback entity analysis via master-seo-api /api/nlp/analyze_entities.
+    Fallback entity analysis via master-seo-api /api/spacy/salience.
     Uses spaCy pl_core_news_md on the backend. Returns entities in the
     same format as Google NLP API (name, type, schema_type, salience, ...).
     Returns empty list on any failure.
     """
     try:
         import requests
+        # v55.1: Use /api/spacy/salience (exists) instead of /api/nlp/analyze_entities (404)
         resp = requests.post(
-            f"{BRAJEN_API_URL}/api/nlp/analyze_entities",
-            json={"text": text[:500_000], "language": language},
+            f"{BRAJEN_API_URL}/api/spacy/salience",
+            json={"text": text[:50_000], "top_n": 30},
             timeout=30,
         )
         if resp.status_code == 200:
-            entities = resp.json().get("entities", [])
+            data = resp.json()
+            entities = data.get("entities", [])
             logger.info(f"spaCy fallback returned {len(entities)} entities")
             return entities
         logger.warning(f"spaCy fallback HTTP {resp.status_code}: {resp.text[:200]}")
@@ -90,12 +92,13 @@ def _analyze_entities_spacy_fallback(text, main_keyword=""):
     """
     try:
         import requests
+        # v55.1: Use /api/spacy/salience (exists) instead of /api/nlp/analyze_entities (404)
         response = requests.post(
-            f"{BRAJEN_API_URL}/api/nlp/analyze_entities",
+            f"{BRAJEN_API_URL}/api/spacy/salience",
             json={
                 "text": text[:50000],
                 "main_keyword": main_keyword,
-                "language": "pl"
+                "top_n": 30
             },
             timeout=60
         )

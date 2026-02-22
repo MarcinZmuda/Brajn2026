@@ -23,3 +23,7 @@ SENTENCE_RETRY_THRESHOLD = 27  # hard retry jesli srednia > 27 (bylo: 25)
 
 # Max przecinkow w jednym zdaniu (naturalny rytm)
 SENTENCE_MAX_COMMAS = 2        # Fix #53: bylo 1, to zbyt restrykcyjne dla polskich zdan
+
+# Fix #44: Keyword anti-stuffing
+KEYWORD_MAIN_MAX_PER_BATCH = 2   # max uzyc glownej frazy w jednym batchu
+KEYWORD_MIN_SPACING_WORDS = 80   # min odleglosc miedzy powtorzeniami
