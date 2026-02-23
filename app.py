@@ -1140,7 +1140,16 @@ def _filter_h2_patterns(patterns):
         if len(text.strip()) < 5:
             continue
         clean.append(p)
-    return clean
+    # v60: Deduplicate H2 patterns (case-insensitive)
+    seen = set()
+    deduped = []
+    for p in clean:
+        text = p if isinstance(p, str) else (p.get("pattern", "") if isinstance(p, dict) else str(p))
+        key = text.strip().lower()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(p)
+    return deduped
 
 
 def _filter_cooccurrence(pairs):
@@ -2657,6 +2666,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "featured_snippet": s1.get("featured_snippet") or serp_analysis.get("featured_snippet"),
             "ai_overview": s1.get("ai_overview") or serp_analysis.get("ai_overview"),
             "related_searches": s1.get("related_searches") or serp_analysis.get("related_searches") or [],
+            "refinement_chips": s1.get("refinement_chips") or serp_analysis.get("refinement_chips") or [],  # v60: Google search chips
             # PAA: check multiple locations
             "paa_questions": (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or (s1_raw.get("serp_analysis") or {}).get("paa_questions") or s1_raw.get("paa") or [])[:10],
             # Causal triplets
@@ -3446,6 +3456,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     pre_batch["serp_enrichment"] = _serp_for_intro
                     yield emit("log", {"msg": f"📰 INTRO SERP: snippet={'✅' if _fs else '❌'}, AI overview={'✅' if _aov else '❌'}, intent={_sint[:40] if _sint else '?'}"})
 
+            # ═══ v60: Inject refinement chips for all batches ═══
+            _chips = s1.get("refinement_chips") or serp_analysis.get("refinement_chips") or []
+            if _chips:
+                _se = pre_batch.get("serp_enrichment") or {}
+                _se["refinement_chips"] = _chips
+                pre_batch["serp_enrichment"] = _se
             # ═══ Inject phrase hierarchy data for prompt_builder ═══
             if phrase_hierarchy_data:
                 pre_batch["_phrase_hierarchy"] = phrase_hierarchy_data
