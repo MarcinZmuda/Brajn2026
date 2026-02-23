@@ -121,12 +121,21 @@ Tematy prawne / medyczne / finansowe (YMYL):
 Tematy praktyczne / lifestylowe:
   • przystępny, ale nadal rzeczowy,
   • bez frywolności.
+
+BEZWZGLĘDNA ZASADA FORMY OSOBOWEJ:
+  • Pisz w 3. osobie lub bezosobowo (np. "kierowca ponosi", "grozi kara", "należy złożyć").
+  • ZAKAZ 2. osoby: NIE pisz "mówisz", "wchodzisz", "musisz", "Twój", "powinieneś".
+  • Jedyny wyjątek: cytat lub fragment typu FAQ, gdzie pytanie pada w 1. osobie ("Czy mogę...?").
 </tone>""")
 
     # ════════════════════════════════════════════════════════════
     # EPISTEMOLOGIA — ZASADA ŹRÓDEŁ
     # ════════════════════════════════════════════════════════════
-    parts.append("""<epistemology>
+    detected_category = pre_batch.get("detected_category", "")
+    is_ymyl = detected_category in ("prawo", "medycyna", "finanse")
+
+    if is_ymyl:
+        parts.append("""<epistemology>
 SKĄD BIERZESZ WIEDZĘ — ZASADA BEZWZGLĘDNA:
 
 Twoja wiedza pochodzi WYŁĄCZNIE z:
@@ -141,11 +150,31 @@ Twoja wiedza pochodzi WYŁĄCZNIE z:
   • Nie podawaj wartości, kwot, terminów, artykułów ustaw których nie masz w danych
   • Nie "uzupełniaj luk" własnymi domysłami — lepiej pomiń niż zmyśl
 
-JEŚLI NIE WIESZ → OPUŚĆ zdanie:
+JEŚLI NIE WIESZ → OPUŚĆ zdanie (YMYL — zero tolerancji):
   • Brakuje sygnatury? → nie cytuj wyroku wcale
   • Nie znasz artykułu ustawy? → usuń zdanie z odwołaniem do prawa
   • Masz sprzeczne dane? → podaj zakres lub pomiń
 </epistemology>""")
+    else:
+        parts.append("""<epistemology>
+SKĄD BIERZESZ WIEDZĘ:
+
+Twoja wiedza pochodzi WYŁĄCZNIE z:
+  1. Stron konkurencji z SERP (podane w danych) — czytasz fakty, NIE kopiujesz zdań
+  2. Artykułów Wikipedia (podane wprost) — możesz cytować jako źródło uzupełniające
+  3. Danych liczbowych z podanych źródeł
+
+❌ ZAKAZ — halucynacji faktograficznych:
+  • Nie wymyślaj liczb, dat, statystyk, nazw badań, raportów
+  • Nie podawaj wartości których nie masz w danych
+
+JEŚLI W DANYCH BRAKUJE KONKRETNEJ INFORMACJI:
+  • Użyj ogólnego opisu mechanizmu lub zasady — ale NIGDY nie zmyślaj konkretów
+  • ✅ "Proces trwa zwykle kilka tygodni" (gdy brak dokładnej liczby)
+  • ❌ "Proces trwa dokładnie 14 dni roboczych" (zmyślony konkret)
+  • Masz sprzeczne dane? → podaj zakres lub pomiń
+</epistemology>""")
+
 
     # ════════════════════════════════════════════════════════════
     # v45.3: ZAKAZ NAZW HANDLOWYCH I MAREK
@@ -265,6 +294,18 @@ zawierające 3+ elementów — ZAWSZE użyj listy HTML:
      "Najpierw wchodzisz na stronę, potem wypełniasz formularz, następnie uiszczasz
       opłatę i na końcu odbierasz wynik."
 
+TABELE HTML — OBOWIĄZEK przy porównaniach
+Jeśli sekcja porównuje 3+ wartości (np. progi promili, kary za różne wykroczenia,
+koszty, parametry) — ZAWSZE użyj tabeli HTML zamiast prozy.
+  ✅ Tabela:
+     <table>
+       <tr><th>Próg</th><th>Kwalifikacja</th><th>Kara</th></tr>
+       <tr><td>0,2–0,5‰</td><td>Wykroczenie</td><td>Grzywna do 30 000 zł</td></tr>
+       <tr><td>powyżej 0,5‰</td><td>Przestępstwo</td><td>Do 3 lat pozbawienia wolności</td></tr>
+     </table>
+  ❌ Proza zamiast tabeli: "Przy 0,2 promila jest to wykroczenie i grozi grzywna,
+     a przy 0,5 promila staje się przestępstwem karanym do 3 lat."
+
 Dostępne wzorce otwarcia sekcji — rotuj między nimi:
 
   A) LICZBA / FAKT (zaczyna od konkretu):
@@ -303,17 +344,15 @@ Wzorce: powoduje, skutkuje, prowadzi do, zapobiega, w wyniku, ponieważ
 ✅ "Wzrost temperatury powyżej 100°C powoduje wrzenie, co prowadzi do parowania."
 ❌ "Temperatura wynosi X°C." (suche stwierdzenie bez funkcji)
 
-BURSTINESS — rytm zdań (cel: CV zdań 0.35–0.45, śr. 12–18 słów)
+BURSTINESS — rytm zdań
 
-Rozkład długości zdań w każdym akapicie:
-  • 20% krótkich (do 8 słów) — TYLKO fakty i definicje
-  • 60% średnich (9–18 słów) — rdzeń tekstu
-  • 20% długich (19–28 słów) — MAX 1 długie na akapit
+Zróżnicuj długość zdań. Unikaj monotonii.
+Przeplataj krótkie zdania (3–8 słów) z dłuższymi. Krótkie zdanie = tylko twarde fakty/liczby.
 
-TWARDE LIMITY:
-  • ŻADNE zdanie nie może przekroczyć 35 słów — jeśli tak jest, ROZBIJ je.
-  • Rozbij proaktywnie zdania >25 słów na dwa.
-  • Średnia w całym batchu: cel 12–18 słów/zdanie (max dopuszczalna: 20).
+LIMITY DŁUGOŚCI ZDAŃ (jedyna reguła — obowiązuje wszędzie):
+  • Unikaj zdań powyżej 25 słów — rozbij proaktywnie na dwa.
+  • Absolutne maksimum: 35 słów (HARD_MAX). Powyżej = natychmiastowy rozbij.
+  • Cel średniej: 12–18 słów na zdanie.
 
 Technika rozbijania długich zdań:
   ✅ "Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
@@ -331,35 +370,21 @@ Sygnały Frankenstein (równa długość wszystkich zdań): monotonne. UNIKAJ.
 
 SUBJECT POSITION — (reguła rotacji encji wstrzykiwana dynamicznie per batch poniżej)
 
-SENTENCE LENGTH — długość zdań (KRYTYCZNE dla czytelności)
-  Maksimum bezwzględne: 35 słów (HARD_MAX). Rozbij proaktywnie >25 słów.
-  Cel średniej: 12–18 słów na zdanie (target: 15, max dopuszczalna: 20).
-  ✅ "Zakaz trwa od 3 do 15 lat. Sąd nie może od niego odstąpić."
-  ❌ "Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka na mocy art. 178a Kodeksu karnego, obowiązuje przez okres od 3 do nawet 15 lat i nie podlega warunkowemu zawieszeniu."
-
 SPACING
 Minimalna odległość między powtórzeniami frazy:
   MAIN: ~60 słów | BASIC: ~80 słów | EXTENDED: ~120 słów
   Nie klasteruj kilku fraz w jednym zdaniu.
 
-ANTI-ANAPHORA — ZAKAZ seryjnego otwierania zdań tą samą frazą (Fix #64)
-  ❌ WZORZEC ZAKAZANY (anaphoryczny keyword stuffing):
+ANTI-ANAPHORA — unikaj seryjnego otwierania zdań tą samą frazą
+  ❌ WZORZEC ZAKAZANY:
      "Rejestr spadkowy zapewnia X. Rejestr spadkowy umożliwia Y. Rejestr spadkowy wskazuje Z."
      "Sąd może A. Sąd bada B. Sąd ocenia C. Sąd rozstrzyga D."
-  ✅ POPRAWNA rotacja podmiotów:
+  ✅ POPRAWNA rotacja:
      "Rejestr spadkowy zapewnia X. System umożliwia Y. Wpis wskazuje Z."
      "Sąd może A. Kolejnym etapem jest B. Po przeprowadzeniu dowodów C."
 
-  REGUŁA TWARDA: Ta sama fraza (główna lub kluczowa) NIE MOŻE otwierać więcej niż
-  2 kolejnych zdań w obrębie jednego akapitu. Przy trzecim zdaniu z rzędu —
-  OBOWIĄZKOWO zastąp ją: zaimkiem, synonimem, hiperonimem lub sformułowaniem
-  opartym na innym podmiocie gramatycznym.
-
-  Przykłady zastępników dla encji głównej:
-    "rejestr spadkowy" → "system", "baza", "narzędzie", "wyszukiwarka", "ten wpis", "on"
-    "sąd spadkowy"     → "organ", "instytucja", "sędzia", "postępowanie"
-    "notariusz"        → "kancelaria", "organ notarialny", "czynność notarialna"
-    "dziedzic"         → "uprawniony", "beneficjent", "osoba wskazana"
+  REGUŁA: Nie zaczynaj 3 kolejnych zdań w jednym akapicie tym samym podmiotem.
+  Przy trzecim z rzędu — użyj zaimka, synonimu lub innej encji.
 
 FLEKSJA
 Odmiana frazy = jedno użycie.
@@ -483,15 +508,6 @@ POLSZCZYZNA (NKJP, 1,8 mld segmentów)
   wysoki poziom (NIE: duży), wysokie ryzyko (NIE: duże),
   odgrywać rolę (NIE: pełnić), silny ból (NIE: duży),
   rzęsisty deszcz (NIE: duży), wysunąć propozycję (NIE: dać).
-→ DŁUGOŚĆ ZDAŃ: średnio 12–18 słów (styl publicystyczny).
-  NIE pisz wszystkich zdań jednej długości — to sygnał AI.
-  🔴 NIGDY nie pisz zdania dłuższego niż 25 słów. Jeśli zbliżasz się do 22 — zacznij nowe.
-  PRZYKŁAD:
-  ❌ PRZED (38 słów): "Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka wobec sprawcy przestępstwa z art. 178a KK, obowiązuje od dnia uprawomocnienia się wyroku i trwa od 3 do 15 lat."
-  ✅ PO (2 zdania, śr. 14): "Sąd obligatoryjnie orzeka zakaz prowadzenia pojazdów. Obowiązuje on od 3 do 15 lat, licząc od uprawomocnienia wyroku."
-→ ŚREDNIA DŁUGOŚĆ WYRAZU: 6 znaków (±0,5).
-  Nie nadużywaj nominalizacji.
-→ DIAKRYTYKI: naturalny tekst ma ~7% ą,ę,ć,ł,ń,ó,ś,ź,ż.
 → Unikaj pleonazmów: "wzajemna współpraca",
   "aktualna sytuacja na dziś", "krótkie streszczenie".
 → Mieszaj przypadki gramatyczne — nie powtarzaj frazy w mianowniku.
@@ -909,8 +925,7 @@ AKAPIT 1 — DEFINICJA + ODPOWIEDŹ (3-4 zdania, ~60 słów):
   Zdanie 2-3: Uzupełnienie z konkretną liczbą/datą/faktem.
 
 AKAPIT 2 — HAK + KONTEKST (2-3 zdania, ~50 słów):
-  Zdanie otwierające: osobiste odwołanie do czytelnika (Ty/Twój)
-    + dlaczego TEN TEMAT dotyczy JEGO sytuacji.
+  Zdanie otwierające: dlaczego ten temat jest istotny w praktyce.
   Kolejne zdania: skala zjawiska, zmiana prawa, trend.
   Jeden konkretny fakt, którego nie ma w snippet/AI overview.
 
@@ -929,6 +944,7 @@ AKAPIT 3 — ZACHĘTA DO CZYTANIA (1-2 zdania, ~30 słów):
     parts.append("  • ZAKAZ nagłówka h2: (lead nie ma nagłówka)")
     parts.append("  • Długość: 120-200 słów (3 krótkie akapity)")
     parts.append("  • Ton: rzeczowy, bez dramatyzowania, bez clickbaitu")
+    parts.append("  • ZAKAZ formy 'Ty/Twój' i 2. osoby ('mówisz', 'wchodzisz', 'musisz') — pisz w 3. osobie lub bezosobowo")
     parts.append("  • Pisz jak ekspert, nie jak copywriter — fakty > obietnice")
 
     # ── Custom intro guidance from backend ──
@@ -1141,7 +1157,7 @@ def _fmt_semantic_plan(pre_batch, h2):
     if not plan:
         return ""
 
-    parts = ["═══ CO PISAĆ W TEJ SEKCJI ═══"]
+    parts = ["═══ CO PISAĆ W TEJ SEKCJI (tematy do pokrycia) ═══"]
 
     h2_coverage = plan.get("h2_coverage") or {}
     for h2_name, info in h2_coverage.items():
@@ -1351,11 +1367,19 @@ def _fmt_serp_enrichment(pre_batch):
 
     paa = (serp.get("paa_for_batch") or enhanced.get("paa_from_serp") or [])
     lsi = (serp.get("lsi_keywords") or [])
+    chips = serp.get("refinement_chips") or []  # v60: Google search refinement chips
 
-    if not paa and not lsi:
+    if not paa and not lsi and not chips:
         return ""
 
     parts = ["═══ WZBOGACENIE Z SERP ═══"]
+
+    # v60: Refinement chips — Google's own topic classification
+    if chips:
+        chips_str = ", ".join(str(c) for c in chips[:8])
+        parts.append(f"Google Refinement Chips (podtematy wg Google): {chips_str}")
+        parts.append("→ Te podtematy Google uznaje za kluczowe. Upewnij się, że artykuł pokrywa je.")
+        parts.append("")
 
     if paa:
         parts.append("Pytania które ludzie zadają w Google (PAA), odpowiedz na 1-2 w tekście:")
@@ -1906,7 +1930,7 @@ def _fmt_phrase_hierarchy(pre_batch):
     if not hier:
         return ""
 
-    parts = ["═══ HIERARCHIA FRAZ ═══"]
+    parts = ["═══ WAŻNOŚĆ FRAZ (które obowiązkowe, które opcjonalne) ═══"]
 
     strategies = hier.get("strategies") or {}
 
