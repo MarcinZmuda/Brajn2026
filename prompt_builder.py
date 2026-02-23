@@ -113,10 +113,11 @@ Nigdy nie upraszczaj nadmiernie, jeśli kontekst tego nie wymaga.
     # ════════════════════════════════════════════════════════════
     parts.append("""<tone>
 Tematy prawne / medyczne / finansowe (YMYL):
-  • ton formalny,
-  • język precyzyjny,
-  • brak potoczności,
-  • brak metafor i kolokwializmów.
+  • ton rzeczowy i precyzyjny — ale NIE urzędniczy,
+  • pisz jak doświadczony prawnik tłumaczący klientowi, nie jak kodeks,
+  • brak potoczności i kolokwializmów,
+  • dozwolone: przystępne porównania ("działa jak przełącznik", "próg, który zmienia reguły gry"),
+  • zakazane: żargon urzędniczy ("reżim karny", "w przedmiotowej sprawie", "na kanwie niniejszego").
 
 Tematy praktyczne / lifestylowe:
   • przystępny, ale nadal rzeczowy,
@@ -373,13 +374,7 @@ SUBJECT POSITION — (reguła rotacji encji wstrzykiwana dynamicznie per batch p
 SPACING
 Minimalna odległość między powtórzeniami frazy:
   MAIN: ~60 słów | BASIC: ~80 słów | EXTENDED: ~120 słów
-  Nie klasteruj kilku fraz w jednym zdaniu.
-
-ANTI-CONCATENATION — ZAKAZ łączenia keyword głównego z frazą rozszerzającą
-  ❌ "Jazda po alkoholu pod wpływem alkoholu" — nonsens, dwa keywordy sklejone
-  ❌ "Rejestr spadkowy rejestru spadkowego" — tautologia
-  ✅ "Jazda po alkoholu jest przestępstwem, gdy kierowca prowadzi pod wpływem alkoholu."
-  REGUŁA: Każda fraza kluczowa w OSOBNYM kontekście gramatycznym.
+  Nie klasteruj kilku fraz w jednym zdaniu. Każda fraza w OSOBNYM kontekście gramatycznym.
 
 ANTI-ANAPHORA — unikaj seryjnego otwierania zdań tą samą frazą
   ❌ WZORZEC ZAKAZANY:
@@ -391,6 +386,35 @@ ANTI-ANAPHORA — unikaj seryjnego otwierania zdań tą samą frazą
 
   REGUŁA: Nie zaczynaj 3 kolejnych zdań w jednym akapicie tym samym podmiotem.
   Przy trzecim z rzędu — użyj zaimka, synonimu lub innej encji.
+
+MAIN KEYWORD JAKO OPENER — TWARDE OGRANICZENIE
+  Fraza główna (main keyword) NIE MOŻE otwierać więcej niż 2 zdania w całym batchu.
+  W pozostałych zdaniach — użyj frazy w ŚRODKU lub na KOŃCU zdania.
+  ❌ "Jazda po alkoholu stanowi wykroczenie. Jazda po alkoholu staje się przestępstwem.
+     Jazda po alkoholu bywa sporna. Jazda po alkoholu wymaga oceny."
+     → 4× opener z main keyword = tekst jak z generatora AI
+  ✅ "Wykroczenie zachodzi, gdy jazda po alkoholu mieści się w niższym progu.
+     Przestępstwo zaczyna się powyżej 0,5‰. Spór dowodowy dotyczy zwykle
+     chwili pomiaru, bo jazda po alkoholu bywa stwierdzana z opóźnieniem."
+     → main keyword w środku zdania, naturalne podmioty
+
+ZAKAZ FORMULAICZNYCH ZAKOŃCZEŃ
+  ❌ WZORZEC: każda sekcja H2 kończy się "zasadna bywa konsultacja z adwokatem
+     lub radcą prawnym" — to sygnał AI, nie ekspert.
+  REGUŁA: fraza "konsultacja z adwokatem/radcą" pojawia się MAX 2× w artykule
+  (raz w intro, raz w sekcji o obronie). W pozostałych sekcjach:
+  ✅ zakończ konkretem: liczbą, terminem, konsekwencją praktyczną
+  ✅ zakończ przykładem: "w sprawie I Ka 123/24 sąd orzekł..."
+  ❌ NIGDY nie kończ sekcji ogólnikowym CTA
+
+NATURALNOŚĆ — RÓŻNORODNOŚĆ STRUKTURALNA
+  Każda sekcja H2 MUSI różnić się strukturą od poprzedniej:
+  • Jedna zaczyna od progu / liczby i kończy konsekwencją
+  • Następna zaczyna od scenariusza ("kierowca zatrzymany o 3:00 nad ranem...")
+  • Kolejna zaczyna od kontrastu ("wykroczenie vs przestępstwo")
+  • Inna zaczyna od pytania retorycznego i natychmiastowej odpowiedzi
+  Unikaj wzorca: definicja → progi → konsekwencje → skonsultuj z adwokatem.
+  Człowiek pisze chaotyczniej — dygresje, anegdoty, powroty do tematu.
 
 FLEKSJA
 Odmiana frazy = jedno użycie.
@@ -431,8 +455,9 @@ KATEGORIA 4 — Nadmierny formalizm AI
   "ze względu na powyższe okoliczności / mając na uwadze powyższe"
   "w praktyce oznacza to / w praktyce wygląda to następująco"
   "należy zwrócić szczególną uwagę / wymaga szczególnej uwagi"
-  "reżim karny / reżim wykroczeniowy / reżim ubezpieczeniowy"
-    → używaj: "tryb karny", "odpowiedzialność karna", "zasady wykroczeniowe"
+  ✅ Zamiast: "Ze względu na złożoność zagadnienia..." → Podaj konkret.
+  ❌ "w reżimie karnym" → ✅ "na podstawie Kodeksu karnego" lub "w trybie karnym"
+  ❌ "odmienne reżimy sankcji" → ✅ "odmienne zasady karania" lub "inne sankcje"
   ✅ Zamiast: "Ze względu na złożoność zagadnienia..." → Podaj konkret.
 
 KATEGORIA 5 — Dramatyzatory i teatr
@@ -599,6 +624,18 @@ od wymierzenia środka, co warto zauważyć i należy podkreślić.
 Błędy: dramatyzatory ("Sąd patrzy. I słucha."), powtórzenie zdania 2×,
 frazy AI ("warto zauważyć"), brak liczb, puste stwierdzenia.
 
+PRZYKŁAD ZŁY — "tekst-generator" (keyword jako opener co zdanie):
+<example_bad>
+Jazda po alkoholu stanowi wykroczenie, gdy wynik mieści się w granicach
+stanu po użyciu alkoholu. Jazda po alkoholu staje się przestępstwem,
+gdy przekroczony zostaje próg. Jazda po alkoholu bywa sporna przy
+wynikach granicznych. Jazda po alkoholu wymaga indywidualnej oceny.
+W sprawach o jazdę po alkoholu zasadna bywa konsultacja z adwokatem
+lub radcą prawnym.
+</example_bad>
+Błędy: 4× keyword jako opener zdania = widoczny wzorzec maszynowy.
+Formulaiczne zakończenie "konsultacja z adwokatem". Brak konkretów.
+
 PRZYKŁAD DOBRY — tak pisz:
 <example_good>
 Skazanie z art. 178a § 1 KK grozi pozbawieniem wolności do 3 lat
@@ -610,7 +647,7 @@ uwagę stopień zawinienia i dotychczasową karalność sprawcy.
 </example_good>
 Zalety: konkretny artykuł KK, konkretne liczby (3 lata, 3–15 lat),
 kauzalność (obligatoryjny → brak uznaniowości → jedyna zmienna),
-zero fraz AI, zero powtórzeń.
+zero fraz AI, zero powtórzeń, keyword NIE jest openerem żadnego zdania.
 
 </examples>""")
 
