@@ -966,7 +966,7 @@ BRAJEN_API = os.environ.get("BRAJEN_API_URL", "https://master-seo-api.onrender.c
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.2")
 
 REQUEST_TIMEOUT = 120
 HEAVY_REQUEST_TIMEOUT = 360  # For editorial_review, final_review, full_article (6 min)

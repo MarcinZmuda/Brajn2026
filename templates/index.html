@@ -775,7 +775,7 @@ function selOpenaiModel(m){openaiModel=m;document.getElementById('gptModel').tex
 // Check available engines on load
 (async function(){try{const r=await fetch('/api/engines');if(r.ok){const d=await r.json();const eng=d.engines||{};
 if(eng.claude&&eng.claude.model)document.getElementById('claudeModel').textContent=eng.claude.model.replace('claude-','').replace(/-\d{8}/,'');
-if(eng.openai&&eng.openai.model)document.getElementById('gptModel').textContent=eng.openai.model;
+if(eng.openai&&eng.openai.model)document.getElementById('gptModel').textContent=eng.openai.model.toUpperCase();
 if(eng.openai&&!eng.openai.available){document.querySelector('.ebtn[data-engine=openai]').classList.add('unavailable');if(engine==='openai'){selEngine('claude')}}
 if(eng.claude&&!eng.claude.available){document.querySelector('.ebtn[data-engine=claude]').classList.add('unavailable');if(engine==='claude'){selEngine('openai')}}
 }}catch(e){}})()
