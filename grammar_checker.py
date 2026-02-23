@@ -134,6 +134,44 @@ def _remove_banned(text: str) -> tuple:
     return cleaned, removed
 
 
+def _fix_phantom_placeholders(text: str) -> tuple:
+    """Remove phantom-placeholder legal references (v60 — Kat.7).
+
+    GPT sometimes generates "odpowiednich przepisów prawa" or "właściwych
+    przepisów" instead of a concrete article reference. This is a YMYL
+    violation (phantom-placeholder). Remove the filler phrase.
+    """
+    count = 0
+    fixed = text
+
+    # Patterns: "z odpowiednich przepisów prawa", "odpowiednich przepisów prawa"
+    # Also: "właściwych przepisów prawa", "stosownych przepisów"
+    _PHANTOM_PATTERNS = [
+        (r'\s*z\s+odpowiednich\s+przepisów\s+prawa\s*', ' '),
+        (r'\s*odpowiednich\s+przepisów\s+prawa\s*', ' '),
+        (r'\s*z\s+właściwych\s+przepisów\s+prawa\s*', ' '),
+        (r'\s*właściwych\s+przepisów\s+prawa\s*', ' '),
+        (r'\s*z\s+stosownych\s+przepisów\s*', ' '),
+        (r'\s*stosownych\s+przepisów\s*', ' '),
+        # "w reżimie karnym" → "w trybie karnym" (stilted jargon)
+        (r'w\s+reżimie\s+karnym', 'w trybie karnym'),
+        (r'reżim(?:ie|u|em)?\s+karny(?:m|ch|ego)?', 'tryb karny'),
+        (r'reżim(?:ie|u|em)?\s+wykroczeniowy(?:m|ch|ego)?', 'tryb wykroczeniowy'),
+    ]
+
+    for pattern, replacement in _PHANTOM_PATTERNS:
+        new_text = re.sub(pattern, replacement, fixed, flags=re.IGNORECASE)
+        if new_text != fixed:
+            count += 1
+            fixed = new_text
+
+    # Clean up double spaces and orphaned punctuation
+    fixed = re.sub(r'  +', ' ', fixed)
+    fixed = re.sub(r'\.\s*\.', '.', fixed)
+
+    return fixed, count
+
+
 # ================================================================
 # POLISH DIACRITICS FIXER — common AI errors with ą/ę/ć/ł/ń/ó/ś/ź/ż
 # ================================================================
@@ -235,6 +273,13 @@ def auto_fix(text: str) -> dict:
     if diac_count > 0:
         details.extend(diac_details)
         logger.info(f"[GRAMMAR] Diacritics: {diac_count} fixes ({', '.join(d['from']+'→'+d['to'] for d in diac_details[:5])})")
+
+    # Step 2b: Phantom-placeholder removal (v60 — Kat.7 defense-in-depth)
+    corrected, phantom_count = _fix_phantom_placeholders(corrected)
+    if phantom_count > 0:
+        fix_count += phantom_count
+        details.append({"from": "odpowiednich przepisów prawa", "to": "(usunięto phantom-placeholder)", "rule": "PHANTOM_PLACEHOLDER"})
+        logger.info(f"[GRAMMAR] Phantom-placeholders removed: {phantom_count}")
 
     # Step 3: Remove AI-filler phrases
     corrected, removed = _remove_banned(corrected)
