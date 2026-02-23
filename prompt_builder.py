@@ -1085,16 +1085,14 @@ def _fmt_keywords(pre_batch):
             if not remaining and target_max and isinstance(actual, (int, float)):
                 remaining = max(0, target_max - int(actual))
 
-            # Build descriptive line
-            parts_line = [f'"{name}"']
-            if remaining:
-                parts_line.append(f"zostało {remaining}× ogółem")
+            # Build simplified line — topic hint, not exact count instruction
+            line = f'  • "{name}"'
             if hard_max:
-                parts_line.append(f"max {hard_max}× w tym batchu")
-            elif use_range:
-                parts_line.append(f"cel: {use_range}× w tym batchu")
-
-            must_lines.append(f'  • {", ".join(parts_line)}')
+                line += f" (max {hard_max}×)"
+            elif remaining and int(remaining) <= 2:
+                line += f" (jeszcze {remaining}×)"
+            # No count instruction for high remaining — let model write naturally
+            must_lines.append(line)
         else:
             must_lines.append(f'  • "{kw}"')
 
@@ -1104,17 +1102,7 @@ def _fmt_keywords(pre_batch):
     for kw in ext_raw:
         if isinstance(kw, dict):
             name = kw.get("keyword", "")
-            actual = kw.get("actual", kw.get("actual_uses", 0))
-            target_total = kw.get("target_total", "")
-            target_max = _parse_target_max(target_total) or kw.get("target_max", 0)
-            remaining = kw.get("remaining", kw.get("remaining_max", ""))
-            if not remaining and target_max and isinstance(actual, (int, float)):
-                remaining = max(0, target_max - int(actual))
-            
-            line = f'  • "{name}"'
-            if remaining:
-                line += f" , zostało {remaining}×"
-            ext_lines.append(line)
+            ext_lines.append(f'  • "{name}"')
         else:
             ext_lines.append(f'  • "{kw}"')
 
@@ -1167,27 +1155,28 @@ def _fmt_keywords(pre_batch):
 
     # ── Build section ──
     parts = ["═══ FRAZY KLUCZOWE ═══"]
+    parts.append("Poniższe frazy to TEMATY do poruszenia — NIE szablony do wklejania.")
+    parts.append("Pisz o danym zagadnieniu naturalnym językiem. Fraza może pojawić się")
+    parts.append("w odmienionym szyku, jako część dłuższego zdania, lub jako synonim.\n")
 
     # v56: ABSOLUTE BAN block — appears first, impossible to miss
     if _kw_force_ban and main_kw:
-        parts.append(f'⛔⛔⛔ ABSOLUTNY ZAKAZ: Fraza "{main_kw}" jest PRZEKROCZONA ×4.')
-        parts.append(f'NIE PISZ "{main_kw}" ANI RAZ w tym batchu. Użyj zaimków (to, tego, tym) lub synonimów.')
-        parts.append(f'Każde użycie "{main_kw}" w tym batchu = keyword stuffing = kara Google.\n')
+        parts.append(f'⛔ STOP: Fraza "{main_kw}" jest PRZEKROCZONA — nie używaj w tym batchu.\n')
 
     if must_lines:
-        parts.append("🔴 OBOWIĄZKOWE (wpleć naturalnie w tekst):")
+        parts.append("TEMATY OBOWIĄZKOWE (poruszyj w treści):")
         parts.extend(must_lines)
 
     if ext_lines:
-        parts.append("\n🟡 ROZSZERZONE (użyj jeśli pasują do kontekstu):")
+        parts.append("\nTEMATY DODATKOWE (wpleć jeśli pasują):")
         parts.extend(ext_lines)
 
     if stop_lines:
-        parts.append("\n🛑 STOP, NIE UŻYWAJ (przekroczone limity!):")
+        parts.append("\n🛑 STOP — nie używaj (przekroczone):")
         parts.extend(stop_lines)
 
     if caution_lines:
-        parts.append("\n⚠️ OSTROŻNIE, użyj max 1× lub pomiń:")
+        parts.append("\n⚠️ OSTROŻNIE — max 1× lub pomiń:")
         parts.extend(caution_lines)
 
     if soft_notes:
