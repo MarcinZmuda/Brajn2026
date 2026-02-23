@@ -148,6 +148,34 @@ JEŚLI NIE WIESZ → OPUŚĆ zdanie:
 </epistemology>""")
 
     # ════════════════════════════════════════════════════════════
+    # v45.3: ZAKAZ NAZW HANDLOWYCH I MAREK
+    # ════════════════════════════════════════════════════════════
+    parts.append("""<brands_and_trademarks>
+❌ BEZWZGLĘDNY ZAKAZ — NAZWY HANDLOWE I MARKI:
+
+Nigdy nie wprowadzaj nazw handlowych leków, suplementów, kosmetyków
+ani produktów medycznych jako "muszą być w artykule".
+
+1. ZAMIAST nazwy marki → użyj GENERYCZNEJ NAZWY / SKŁADNIKA AKTYWNEGO:
+   ❌ "SunewMed+" → ✅ "serum z witaminą C" lub podaj aktywny składnik
+   ❌ "Nurofen" → ✅ "ibuprofen"
+   ❌ "No-Spa" → ✅ "drotaweryna"
+   ❌ "Strepsils" → ✅ "pastylki antyseptyczne"
+   ❌ "Apap" → ✅ "paracetamol"
+
+2. WYJĄTEK: Konkurencja BEZPOŚREDNIO wspomina konkretny brand →
+   NIE wplataj go w tekst jako rekomendację. Opisz FUNKCJĘ, nie markę.
+
+3. REGUŁA: Treść powinna fokusować się na DZIAŁANIU, nie nazwie handlowej.
+   ✅ "Ibuprofen zmniejsza zapalenie poprzez inhibicję COX-2"
+   ❌ "SunewMed+ to najlepszy lek na ból"
+
+JEŚLI W must_mention POJAWIĄ SIĘ BRAND-NAMES:
+→ Zamień na nazwę generyczną lub aktywny składnik
+→ Nie wstawiaj do artykułu bez merytorycznego uzasadnienia
+</brands_and_trademarks>""")
+
+    # ════════════════════════════════════════════════════════════
     # TERMINOLOGIA I ENCJE
     # ════════════════════════════════════════════════════════════
     parts.append("""<entities>
@@ -435,8 +463,12 @@ POLSZCZYZNA (NKJP, 1,8 mld segmentów)
   wysoki poziom (NIE: duży), wysokie ryzyko (NIE: duże),
   odgrywać rolę (NIE: pełnić), silny ból (NIE: duży),
   rzęsisty deszcz (NIE: duży), wysunąć propozycję (NIE: dać).
-→ DŁUGOŚĆ ZDAŃ: średnio 10–15 słów (styl publicystyczny).
+→ DŁUGOŚĆ ZDAŃ: średnio 12–18 słów (styl publicystyczny).
   NIE pisz wszystkich zdań jednej długości — to sygnał AI.
+  🔴 NIGDY nie pisz zdania dłuższego niż 25 słów. Jeśli zbliżasz się do 22 — zacznij nowe.
+  PRZYKŁAD:
+  ❌ PRZED (38 słów): "Zakaz prowadzenia pojazdów mechanicznych, który sąd obligatoryjnie orzeka wobec sprawcy przestępstwa z art. 178a KK, obowiązuje od dnia uprawomocnienia się wyroku i trwa od 3 do 15 lat."
+  ✅ PO (2 zdania, śr. 14): "Sąd obligatoryjnie orzeka zakaz prowadzenia pojazdów. Obowiązuje on od 3 do 15 lat, licząc od uprawomocnienia wyroku."
 → ŚREDNIA DŁUGOŚĆ WYRAZU: 6 znaków (±0,5).
   Nie nadużywaj nominalizacji.
 → DIAKRYTYKI: naturalny tekst ma ~7% ą,ę,ć,ł,ń,ó,ś,ź,ż.

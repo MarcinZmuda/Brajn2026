@@ -836,6 +836,92 @@ def ai_synthesize_memory(accepted_batches: list, main_keyword: str) -> dict:
         logger.warning(f"[AI_MW] AI memory synthesis failed: {e}")
 
     return synthesize_article_memory(accepted_batches)
+def smart_retry_per_sentence(text: str, exceeded_keywords: list, attempt_num: int = 1) -> str:
+    """
+    v45.3: Per-sentence smart retry — chirurgiczny fix jednego zdania zamiast całego batcha.
+
+    Podejście:
+    1. Znajdź zdania zawierające przekroczoną frazę
+    2. Wyślij TYLKO to zdanie + kontekst ±1 do Haiku z prośbą o rewrite
+    3. Zastąp w oryginale
+
+    Tańsze (~$0.002 vs $0.01), precyzyjniejsze, mniejsze ryzyko regresji.
+    """
+    if not exceeded_keywords or not ANTHROPIC_API_KEY:
+        return text
+
+    import re as _re_local
+    sentences = _re_local.split(r'(?<=[.!?])\s+', text)
+    if not sentences:
+        return text
+
+    modified = False
+    for exc in exceeded_keywords[:3]:  # Max 3 keywords per retry
+        kw = exc.get("keyword", "")
+        synonyms = exc.get("use_instead") or exc.get("synonyms") or []
+        kw_type = exc.get("type", "BASIC").upper()
+
+        if not kw or kw_type == "ENTITY":
+            continue
+
+        syn_list = [s if isinstance(s, str) else str(s) for s in synonyms[:3]] if synonyms else []
+        syn_str = ", ".join(f'"{s}"' for s in syn_list) if syn_list else "synonim lub przeformułowanie"
+
+        # Znajdź zdania z tą frazą — weź OSTATNIE wystąpienie (bo early batches budżet zjadły)
+        kw_lower = kw.lower()
+        matching_indices = [i for i, s in enumerate(sentences) if kw_lower in s.lower()]
+
+        if not matching_indices:
+            continue
+
+        # Weź ostatnie zdanie z frazą
+        idx = matching_indices[-1]
+        target_sent = sentences[idx]
+        prev_sent = sentences[idx - 1] if idx > 0 else ""
+        next_sent = sentences[idx + 1] if idx < len(sentences) - 1 else ""
+
+        prompt = f"""Przepisz to zdanie tak, aby nie zawierało frazy "{kw}".
+Użyj zamiast tego: {syn_str}.
+Zachowaj identyczne znaczenie i długość (±3 słowa).
+Zachowaj strukturę HTML (tagi p, ul, li itp.).
+
+KONTEKST PRZED: "{prev_sent}"
+ZDANIE DO PRZEPISANIA: "{target_sent}"
+KONTEKST PO: "{next_sent}"
+
+Odpowiedz TYLKO przepisanym zdaniem, bez komentarzy."""
+
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=500,
+                temperature=0.2,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            rewritten = response.content[0].text.strip()
+
+            # Sanity checks
+            if len(rewritten) < len(target_sent) * 0.5 or len(rewritten) > len(target_sent) * 2:
+                logger.warning(f"[SMART_RETRY_SENT] Rewritten too short/long, skipping '{kw}'")
+                continue
+
+            # Verify keyword was actually removed
+            if kw_lower in rewritten.lower():
+                logger.warning(f"[SMART_RETRY_SENT] Keyword still present after rewrite, skipping '{kw}'")
+                continue
+
+            sentences[idx] = rewritten
+            modified = True
+            logger.info(f"[SMART_RETRY_SENT] ✅ '{kw}' removed from sentence {idx+1}")
+        except Exception as e:
+            logger.warning(f"[SMART_RETRY_SENT] Failed for '{kw}': {e}")
+
+    if modified:
+        return " ".join(sentences)
+    return text
+
+
 def should_use_smart_retry(result: dict, attempt: int) -> bool:
     """Decide if smart retry is worth attempting."""
     if attempt > 3:
@@ -1109,51 +1195,82 @@ def check_anaphora(text: str, main_entity: str = "") -> dict:
     }
 
 
-def anaphora_retry(text: str, main_entity: str, h2: str = "") -> str:
+def anaphora_retry(text: str, main_entity: str, h2: str = "", max_retries: int = 2) -> str:
     """
-    Fix #64: Użyj Haiku do rozbicia anaphorycznych serii zdań.
-    Zastępuje 3. i dalsze zdania otwierane tą samą frazą synonimami/zaimkami.
+    Fix #64 v2: Użyj Haiku do rozbicia anaphorycznych serii zdań.
+    v45.3 FIX:
+    - Rozszerzony prompt o WSZYSTKIE 4 wzorce anafory (entity, FAQ, zero-subject, To-subject)
+    - Podniesiony limit z 4000 do pełnego tekstu (max 8000)
+    - Dodany retry loop (max 2 próby)
     """
     if not ANTHROPIC_API_KEY or not main_entity:
         return text
 
-    prompt = f"""Masz do poprawienia fragment artykułu SEO po polsku.
+    # v45.3: Pełny tekst, nie obcięty do 4000
+    text_for_fix = text[:8000] if len(text) > 8000 else text
 
-PROBLEM: fraza "{main_entity}" otwiera 3 lub więcej kolejnych zdań w jednym akapicie.
-To jest anaphoryczny keyword stuffing — Google to wykrywa jako sztuczny tekst.
+    prompt = f"""Masz do poprawienia fragment artykułu SEO po polsku.
 
 SEKCJA: {h2}
 
-ZASADY NAPRAWY:
-1. W każdym akapicie fraza główna może otwierać MAKSYMALNIE 2 zdania z rzędu.
-2. Przy 3. i każdym kolejnym zdaniu — zastąp otwierającą frazę jednym z:
-   • zaimkiem: „on", „ona", „to", „ten system", „ta baza"
-   • synonimem: „system", „baza", „narzędzie", „wyszukiwarka", „rejestr", „wpis"
-   • innym podmiotem: „użytkownik", „wnioskodawca", „organ", „kancelaria"
-   • przeformułowaniem z innym podmiotem: „W systemie widnieje...", „Wpis zawiera..."
-3. NIE zmieniaj treści merytorycznej — tylko podmiot otwierający zdanie.
-4. Zachowaj pełną strukturę HTML (tagi p, ul, li, h2, h3 itp.).
-5. Odpowiedz TYLKO poprawionym HTML, bez żadnych komentarzy.
+PROBLEMY DO NAPRAWY (WSZYSTKIE 4 WZORCE):
+
+1. ENTITY ANAPHORA: fraza "{main_entity}" otwiera 3+ kolejnych zdań w jednym akapicie.
+   → Max 2 zdania z rzędu mogą zaczynać się od tej samej frazy.
+   → Przy 3. zdaniu zamień otwierającą frazę na: zaimek, synonim lub inny podmiot.
+
+2. FAQ ANAPHORA: 4+ zdań z rzędu zaczynających się od tego samego słowa (np. "Czy...", "Jak...", "Kiedy...").
+   → Przeformułuj co 3. pytanie: "Warto też wiedzieć, ...", "Często pojawia się pytanie o...", "Z kolei..."
+
+3. ZERO-SUBJECT: zdania zaczynające się od imiesłowu biernego bez podmiotu
+   (np. "Zlekceważone prowadzą...", "Nieleczone skutkują...", "Pozostawione mogą...").
+   → Dodaj jawny podmiot: "Objawy zlekceważone prowadzą...", "Schorzenie nieleczone skutkuje..."
+
+4. TO-SUBJECT: 2+ zdań zaczynających się od "To jest/To może/To wymaga".
+   → Zamień na konkretny podmiot: "Procedura wymaga...", "Ten etap może..."
+
+ZASADY:
+1. NIE zmieniaj treści merytorycznej — tylko podmiot/otwarcie zdania.
+2. Zachowaj pełną strukturę HTML (tagi p, ul, li, h2, h3 itp.).
+3. Odpowiedz TYLKO poprawionym HTML, bez żadnych komentarzy.
 
 TEKST DO POPRAWY:
-{text[:4000]}"""
+{text_for_fix}"""
 
-    try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=4096,
-            temperature=0,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        result = resp.content[0].text.strip()
-        # Sanity check — wynik musi byc dluzszy niz 50 znaków
-        if len(result) > 50:
-            return result
-        return text
-    except Exception as e:
-        logger.warning(f"[ANAPHORA_RETRY] Haiku call failed: {e}")
-        return text
+    current_text = text
+    for retry in range(max_retries):
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=6000,
+                temperature=0,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = resp.content[0].text.strip()
+
+            # Sanity check
+            if len(result) < len(current_text) * 0.7 or len(result) < 50:
+                logger.warning(f"[ANAPHORA_RETRY] Result too short on attempt {retry+1}, keeping current")
+                break
+
+            current_text = result
+
+            # Check if anaphora is fixed
+            check = check_anaphora(current_text, main_entity)
+            if not check["needs_fix"]:
+                logger.info(f"[ANAPHORA_RETRY] ✅ Fixed on attempt {retry+1}")
+                return current_text
+
+            logger.info(f"[ANAPHORA_RETRY] Attempt {retry+1}: still {check['anaphora_count']} issues, retrying...")
+            # Update prompt text for next retry
+            prompt = prompt.replace(text_for_fix, current_text[:8000])
+
+        except Exception as e:
+            logger.warning(f"[ANAPHORA_RETRY] Haiku call failed on attempt {retry+1}: {e}")
+            break
+
+    return current_text
 
 
 

@@ -3179,16 +3179,26 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             text = _clean_batch_text(text)
 
             # 6d-6g: Submit with retry logic
-            # Max 4 attempts: original + 2 AI smart retries + 1 forced
-            max_attempts = 4
+            # v45.3 FIX: Progressive relaxation — 5 attempts instead of 4
+            # attempt 0: normal validation
+            # attempt 1: smart retry (per-sentence)
+            # attempt 2: smart retry (full batch) with relaxed thresholds
+            # attempt 3: smart retry + relaxed thresholds (65%)
+            # attempt 4: forced save (last resort)
+            max_attempts = 5
             batch_accepted = False
+            _failed_keywords = set()  # Track which keywords keep failing
 
             for attempt in range(max_attempts):
                 forced = (attempt == max_attempts - 1)  # Last attempt is always forced
-                submit_data = {"text": text}
+                submit_data = {"text": text, "attempt": attempt + 1}
                 if forced:
                     submit_data["forced"] = True
-                    yield emit("log", {"msg": "⚡ Forced mode ON, wymuszam zapis"})
+                    yield emit("log", {"msg": "⚡ Forced mode ON (attempt 5/5), wymuszam zapis"})
+                elif attempt >= 2:
+                    # v45.3: Progressive relaxation — raise tolerance on later attempts
+                    submit_data["relaxed_threshold"] = 50 + (attempt - 1) * 15  # 65%, 80%
+                    yield emit("log", {"msg": f"🔧 Relaxed threshold: {submit_data['relaxed_threshold']}% (attempt {attempt + 1})"})
 
                 yield emit("log", {"msg": f"POST /batch_simple (próba {attempt + 1}/{max_attempts})"})
                 submit_result = brajen_call("post", f"/api/project/{project_id}/batch_simple", submit_data)

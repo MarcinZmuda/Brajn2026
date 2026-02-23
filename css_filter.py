@@ -285,11 +285,17 @@ def _filter_entities(entities):
         return []
     clean = []
     brand_count = 0
+    medicine_brand_count = 0  # v45.3: track medicine brands separately
     for ent in entities:
         if isinstance(ent, dict):
             text = ent.get("text", "") or ent.get("entity", "") or ent.get("name", "")
             if _is_css_garbage(text):
                 continue
+            # v45.3: Medicine/pharmaceutical brand check — max 1 per article
+            if _is_medicine_brand(text):
+                medicine_brand_count += 1
+                if medicine_brand_count > 1:
+                    continue  # Skip excess medicine brands
             # v50: Brand entity cap: max 2 brand entities per article
             if _is_brand_entity(text):
                 brand_count += 1
@@ -299,6 +305,10 @@ def _filter_entities(entities):
         elif isinstance(ent, str):
             if _is_css_garbage(ent):
                 continue
+            if _is_medicine_brand(ent):
+                medicine_brand_count += 1
+                if medicine_brand_count > 1:
+                    continue
             if _is_brand_entity(ent):
                 brand_count += 1
                 if brand_count > 2:
@@ -322,6 +332,40 @@ _BRAND_PATTERNS = {
     # Legal entity suffixes
     "s.a.", "sp. z o.o.", "sp.j.", "s.c.",
 }
+
+# v45.3: Pharmaceutical / medicine brand detection
+_MEDICINE_BRAND_PATTERNS = {
+    # Polish OTC medicine brands
+    "sunewd", "sunewmed", "nurofen", "apap", "no-spa", "no spa",
+    "strepsils", "flegamina", "hedelix", "mucosolvan",
+    "rutinoscorbin", "polopiryna", "gripex", "theraflu",
+    "coldrex", "fervex", "cholinex", "ibuprom", "metafen",
+    "ketonal", "voltaren", "fastum", "diclac", "naproxen",
+    "tantum verde", "neo-angin", "strepfen", "orofar",
+    # Supplement brands
+    "solgar", "swanson", "now foods", "olimp", "biotech",
+    # Cosmetic/health brands (common in medical articles)
+    "neutrogena", "cetaphil", "eucerin", "avène", "avene",
+    "bioderma", "vichy", "la roche-posay", "laroche",
+    "cerave", "dove", "nivea",
+}
+
+def _is_medicine_brand(text: str) -> bool:
+    """v45.3: Check if entity looks like a pharmaceutical product/medicine brand."""
+    if not text:
+        return False
+    t = text.lower().strip()
+    # Direct match
+    if t in _MEDICINE_BRAND_PATTERNS:
+        return True
+    # Partial match (e.g. "SunewMed+ serum")
+    for pattern in _MEDICINE_BRAND_PATTERNS:
+        if pattern in t:
+            return True
+    # Heuristic: contains ® or + (common in product names)
+    if "®" in text or (text.endswith("+") and len(text) > 3):
+        return True
+    return False
 
 def _is_brand_entity(text: str) -> bool:
     """Check if entity text looks like a brand/company name."""
