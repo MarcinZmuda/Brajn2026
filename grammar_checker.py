@@ -252,6 +252,69 @@ def _fix_diacritics(text: str) -> tuple:
     return fixed, len(details), details
 
 
+def _fix_keyword_concatenation(text: str) -> tuple:
+    """Detect and fix keyword concatenation (v62).
+    
+    Catches patterns where two keyword-like phrases are glued together,
+    creating nonsense like "Jazda po alkoholu pod wpływem alkoholu".
+    
+    Detection: find content words (≥4 chars) that repeat within 7-word window.
+    Fix: remove the second occurrence of the repeated phrase fragment.
+    """
+    count = 0
+    fixed = text
+    
+    # Split into sentences for local analysis
+    sentences = re.split(r'(?<=[.!?])\s+', fixed)
+    new_sentences = []
+    
+    _STOP_WORDS = {
+        'jest', 'nie', 'się', 'jak', 'ale', 'lub', 'oraz', 'czy', 'pod', 'nad',
+        'przy', 'przez', 'dla', 'bez', 'który', 'która', 'które', 'tego', 'tym',
+        'ten', 'tak', 'już', 'być', 'może', 'tylko', 'będzie', 'bardzo', 'więc',
+        'jednak', 'nawet', 'także', 'również', 'gdzie', 'kiedy', 'jeśli', 'jako',
+        'jego', 'jej', 'ich', 'mieć', 'jeszcze', 'wszystko', 'więcej',
+    }
+    
+    for sent in sentences:
+        words = sent.split()
+        if len(words) < 6:
+            new_sentences.append(sent)
+            continue
+        
+        # Find content words (≥4 chars, not stop words, not numbers)
+        content_positions = {}
+        for i, w in enumerate(words):
+            clean = re.sub(r'[^\wąęćłńóśźżĄĘĆŁŃÓŚŹŻ]', '', w.lower())
+            if len(clean) >= 4 and clean not in _STOP_WORDS and not clean.isdigit():
+                if clean in content_positions:
+                    prev_pos = content_positions[clean]
+                    gap = i - prev_pos
+                    # Same content word within 7 words = probable concatenation
+                    if gap <= 7:
+                        # Remove the repeated word and surrounding context
+                        # Find the shorter fragment (between occurrences) to remove
+                        fragment = ' '.join(words[prev_pos+1:i+1])
+                        if len(fragment.split()) <= 5:
+                            # Remove fragment, keep first occurrence
+                            new_words = words[:prev_pos+1] + words[i+1:]
+                            sent = ' '.join(new_words)
+                            words = sent.split()  # re-split after edit
+                            count += 1
+                            logger.info(f"[CONCAT_FIX] Removed repeated '{clean}' fragment: '{fragment}'")
+                            break  # one fix per sentence to avoid cascading
+                content_positions[clean] = i
+        
+        new_sentences.append(sent)
+    
+    if count > 0:
+        fixed = ' '.join(new_sentences)
+        # Clean up double spaces
+        fixed = re.sub(r'  +', ' ', fixed)
+    
+    return fixed, count
+
+
 def auto_fix(text: str) -> dict:
     """
     Auto-fix grammar + diacritics + remove AI phrases.
@@ -284,6 +347,15 @@ def auto_fix(text: str) -> dict:
         fix_count += phantom_count
         details.append({"from": "odpowiednich przepisów prawa", "to": "(usunięto phantom-placeholder)", "rule": "PHANTOM_PLACEHOLDER"})
         logger.info(f"[GRAMMAR] Phantom-placeholders removed: {phantom_count}")
+
+    # Step 2c: Keyword concatenation detector (v62 — anti-stuffing)
+    # Catches "Jazda po alkoholu pod wpływem alkoholu" where same word
+    # repeats within 7-word window (sign of glued keywords)
+    corrected, concat_count = _fix_keyword_concatenation(corrected)
+    if concat_count > 0:
+        fix_count += concat_count
+        details.append({"from": "(keyword concat)", "to": "(split or deduped)", "rule": "KEYWORD_CONCAT"})
+        logger.info(f"[GRAMMAR] Keyword concatenation fixes: {concat_count}")
 
     # Step 3: Remove AI-filler phrases
     corrected, removed = _remove_banned(corrected)
