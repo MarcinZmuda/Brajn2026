@@ -3122,7 +3122,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         step_start(4)
         yield emit("step", {"step": 4, "name": "Create Project", "status": "running"})
 
-        # Build keywords array
+        # Build keywords array (targets scaled in v61 budget step below, after _target_length is known)
         keywords = [{"keyword": main_keyword, "type": "MAIN", "target_min": 8, "target_max": 25}]
         for term_str in basic_terms:
             parts = term_str.strip().split(":")
@@ -3263,6 +3263,60 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # Calculate total_batches: 1 INTRO + 1 per H2
         _planned_total_batches = len(h2_structure) + 1
+
+        # ═══ v61: KEYWORD BUDGET SCALER — prevent keyword soup ═══
+        # Problem: n-gram targets from competition (e.g. "pod wpływem alkoholu: 7-17x")
+        # are raw frequencies from articles that may be 3000+ words,
+        # applied to our ~1600 word article. Result: keyword every 16-33 words = unnatural.
+        #
+        # Fix: Scale targets to article length, cap total budget, overflow → EXTENDED.
+        _BUDGET_PER_100_WORDS = 2.0  # max 2 keyword mentions per 100 words (natural density)
+        _MAX_SINGLE_BASIC = max(4, _target_length // 400)    # BASIC: ~1 per 400 words
+        _MAX_SINGLE_MAIN = max(5, min(12, _target_length // 200))  # MAIN: ~1 per 200 words
+        _total_budget = int(_target_length * _BUDGET_PER_100_WORDS / 100)
+
+        # 1. Scale MAIN keyword
+        for kw in keywords:
+            if kw["type"] == "MAIN":
+                kw["target_max"] = _MAX_SINGLE_MAIN
+                kw["target_min"] = max(3, kw["target_max"] // 2)
+                break
+
+        # 2. Cap individual keyword targets
+        for kw in keywords:
+            if kw["type"] in ("BASIC", "ENTITY"):
+                cap = _MAX_SINGLE_BASIC
+                if kw["target_max"] > cap:
+                    kw["target_max"] = cap
+                if kw["target_min"] > kw["target_max"]:
+                    kw["target_min"] = max(1, kw["target_max"] - 1)
+
+        # 3. Check total budget — if over, push lowest-priority BASIC → EXTENDED
+        _total_max = sum(kw["target_max"] for kw in keywords)
+        if _total_max > _total_budget * 1.5:  # use target_max, not min — model aims for max
+            # Sort BASIC by target_max desc — highest targets get demoted first
+            _basic_by_target = sorted(
+                [kw for kw in keywords if kw["type"] == "BASIC"],
+                key=lambda k: k["target_max"], reverse=True
+            )
+            _overflow_count = 0
+            for kw in _basic_by_target:
+                if _total_max <= _total_budget * 1.5:
+                    break
+                _old_max = kw["target_max"]
+                kw["type"] = "EXTENDED"
+                kw["target_max"] = min(2, kw["target_max"])
+                kw["target_min"] = 1
+                _total_max -= (_old_max - kw["target_max"])
+                _overflow_count += 1
+            if _overflow_count:
+                yield emit("log", {"msg": f"📊 Budget overflow: {_overflow_count} BASIC→EXTENDED (budget: {_total_budget} mentions for {_target_length} words)"})
+
+        _final_basic = sum(1 for k in keywords if k['type'] == 'BASIC')
+        _final_ext = sum(1 for k in keywords if k['type'] == 'EXTENDED')
+        _final_total_min = sum(kw['target_min'] for kw in keywords)
+        _final_total_max = sum(kw['target_max'] for kw in keywords)
+        yield emit("log", {"msg": f"📊 Budget: {_final_total_min}-{_final_total_max} mentions in {_target_length} words ({_final_basic} BASIC, {_final_ext} EXTENDED, density: {_final_total_min*100/_target_length:.1f}-{_final_total_max*100/_target_length:.1f}/100w)"})
 
         project_payload = {
             "main_keyword": main_keyword,
@@ -3658,11 +3712,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # 6d-6g: Submit with retry logic
             # v45.3 FIX: Progressive relaxation — 5 attempts instead of 4
             # attempt 0: normal validation
-            # attempt 1: smart retry (per-sentence)
-            # attempt 2: smart retry (full batch) with relaxed thresholds
-            # attempt 3: smart retry + relaxed thresholds (65%)
-            # attempt 4: forced save (last resort)
-            max_attempts = 5
+            # v62: Retry strategy:
+            # attempt 1: submit as-is
+            # attempt 2: relaxed threshold (85%) — accept if quality decent
+            # attempt 3: forced save (last resort)
+            # Previously 5 attempts caused text degradation from rewrites.
+            max_attempts = 3
             batch_accepted = False
             _failed_keywords = set()  # Track which keywords keep failing
 
@@ -3671,10 +3726,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 submit_data = {"text": text, "attempt": attempt + 1}
                 if forced:
                     submit_data["forced"] = True
-                    yield emit("log", {"msg": "⚡ Forced mode ON (attempt 5/5), wymuszam zapis"})
-                elif attempt >= 2:
-                    # v45.3: Progressive relaxation — raise tolerance on later attempts
-                    submit_data["relaxed_threshold"] = 50 + (attempt - 1) * 15  # 65%, 80%
+                    yield emit("log", {"msg": f"⚡ Forced mode ON (attempt {attempt+1}/{max_attempts}), wymuszam zapis"})
+                elif attempt >= 1:
+                    # v62: Relax threshold earlier — accept on attempt 2 if quality decent
+                    submit_data["relaxed_threshold"] = 70 + (attempt) * 15  # 85% on attempt 2
                     yield emit("log", {"msg": f"🔧 Relaxed threshold: {submit_data['relaxed_threshold']}% (attempt {attempt + 1})"})
 
                 yield emit("log", {"msg": f"POST /batch_simple (próba {attempt + 1}/{max_attempts})"})
@@ -3723,35 +3778,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             _ci.append("❌ RECYDYWA: brak limitu czasowego w art. 178a §4")
                         for w in _ci:
                             yield emit("log", {"msg": w})
-                    # ── Sentence length post-check ──
-                    sl = check_sentence_length(text)
-                    if sl["needs_retry"] and attempt < max_attempts - 1:
-                        comma_info = f", {sl.get('comma_count', 0)} zdań z 3+ przecinkami" if sl.get("comma_count", 0) > 0 else ""
-                        yield emit("log", {"msg": f"✂️ Zdania za długie/złożone (śr. {sl['avg_len']} słów, {sl['long_count']} ponad limit{comma_info}) — skracam..."})
-                        text_shortened = sentence_length_retry(text, h2=current_h2, avg_len=sl["avg_len"], long_count=sl["long_count"], comma_count=sl.get("comma_count", 0))
-                        sl_after = check_sentence_length(text_shortened)
-                        if sl_after["avg_len"] < sl["avg_len"]:
-                            text = text_shortened
-                            yield emit("log", {"msg": f"✅ Po skróceniu: śr. {sl_after['avg_len']} słów/zdanie"})
-                        else:
-                            yield emit("log", {"msg": f"⚠️ Skracanie nie poprawiło wyniku, zostawiam oryginał"})
+                    # ── v62: Post-acceptance cleanup — MAX 1 Sonnet rewrite ──
+                    # Each rewrite "smooths" the text. 3 rewrites = robotic.
+                    # Priority: domain (YMYL safety) > anaphora > sentence length
+                    _post_rewrite_done = False
 
-                    # ── Fix #64: Anaphora check — zakaz 3+ zdań z tym samym otwarciem ──
-                    if main_keyword and text:
-                        _an = check_anaphora(text, main_entity=main_keyword)
-                        if _an["needs_fix"]:
-                            yield emit("log", {"msg": f"🔁 ANAPHORA: {_an['anaphora_count']}× seria '{main_keyword[:30]}...' — naprawiam podmiot..."})
-                            text_fixed = anaphora_retry(text, main_entity=main_keyword, h2=current_h2)
-                            _an_after = check_anaphora(text_fixed, main_entity=main_keyword)
-                            if not _an_after["needs_fix"]:
-                                text = text_fixed
-                                yield emit("log", {"msg": f"✅ Anaphora naprawiona"})
-                            else:
-                                yield emit("log", {"msg": f"⚠️ Anaphora częściowo naprawiona ({_an_after['anaphora_count']}× pozostało)"})
-                                text = text_fixed  # weź poprawiony nawet jeśli nie idealny
-                    # ═══ DOMAIN VALIDATOR (Warstwa 2) ═══
+                    # ═══ DOMAIN VALIDATOR (Warstwa 2) — highest priority ═══
                     _dv_category = "prawo" if is_legal else ("medycyna" if is_medical else ("finanse" if is_finance else ""))
-                    if _dv_category and text:
+                    if _dv_category and text and not _post_rewrite_done:
                         _dv = validate_batch_domain(text, _dv_category, batch_num)
                         if not _dv.get("skipped"):
                             if not _dv.get("clean"):
@@ -3761,13 +3795,31 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                                 if _dv_quick:
                                     _dv_log = _dv_quick[:3]
                                 yield emit("log", {"msg": f"🔴 DOMAIN VALIDATOR: {len(_dv_errors or _dv_quick)} błędów terminologicznych — naprawiam... ({', '.join(_dv_log)})"})
-                                if attempt < max_attempts - 1:
-                                    text = fix_batch_domain_errors(text, _dv, _dv_category, h2=current_h2)
-                                    yield emit("log", {"msg": f"✅ Domain fix: tekst poprawiony ({len(text.split())} słów)"})
-                                else:
-                                    yield emit("log", {"msg": "⚠️ Domain errors — forced mode, pomijam auto-fix"})
+                                text = fix_batch_domain_errors(text, _dv, _dv_category, h2=current_h2)
+                                yield emit("log", {"msg": f"✅ Domain fix: tekst poprawiony ({len(text.split())} słów)"})
+                                _post_rewrite_done = True
                             else:
                                 yield emit("log", {"msg": f"✅ Domain validator: czysto [{_dv_category}]"})
+
+                    # ── Anaphora check — only if no domain rewrite was needed ──
+                    if main_keyword and text and not _post_rewrite_done:
+                        _an = check_anaphora(text, main_entity=main_keyword)
+                        if _an["needs_fix"]:
+                            yield emit("log", {"msg": f"🔁 ANAPHORA: {_an['anaphora_count']}× seria '{main_keyword[:30]}...' — naprawiam podmiot..."})
+                            text_fixed = anaphora_retry(text, main_entity=main_keyword, h2=current_h2)
+                            _an_after = check_anaphora(text_fixed, main_entity=main_keyword)
+                            if not _an_after["needs_fix"] or _an_after["anaphora_count"] < _an["anaphora_count"]:
+                                text = text_fixed
+                                yield emit("log", {"msg": f"✅ Anaphora naprawiona"})
+                                _post_rewrite_done = True
+                            else:
+                                yield emit("log", {"msg": f"⚠️ Anaphora nie poprawiona, zostawiam oryginał"})
+
+                    # ── Sentence length — only LOG, no rewrite (lightweight check) ──
+                    sl = check_sentence_length(text)
+                    if sl["needs_retry"]:
+                        comma_info = f", {sl.get('comma_count', 0)} zdań z 3+ przecinkami" if sl.get("comma_count", 0) > 0 else ""
+                        yield emit("log", {"msg": f"ℹ️ Zdania długie (śr. {sl['avg_len']} słów{comma_info}) — pominięto rewrite (limit 1 post-fix)"})
 
                     # Fix #56: Update globalny licznik głównego keywordu
                     if text and main_keyword:
@@ -3814,8 +3866,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     break
 
                 # ═══ AI MIDDLEWARE: Smart retry ═══
+                # v62: Only retry for EXCEEDED (overstuffed) keywords.
+                # Missing keywords = acceptable, model wrote naturally.
+                # Only exceeded = reader experience harmed by repetition.
                 if exceeded and should_use_smart_retry(result, attempt + 1):
-                    yield emit("log", {"msg": f"🤖 AI Smart Retry: Sonnet przepisuje tekst (zamiana {len(exceeded)} fraz)..."})
+                    yield emit("log", {"msg": f"🤖 AI Smart Retry: Sonnet przepisuje tekst (redukcja {len(exceeded)} przekroczonych fraz)..."})
                     text = smart_retry_batch(
                         original_text=text,
                         exceeded_keywords=exceeded,
@@ -3827,19 +3882,26 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     new_word_count = len(text.split())
                     yield emit("log", {"msg": f"🔄 Smart retry: {new_word_count} słów, próba {attempt + 2}/{max_attempts}"})
                     text = _clean_batch_text(text)
+                elif not exceeded:
+                    # v62: Not accepted but no exceeded keywords = missing keywords only.
+                    # Don't retry — accept as-is to preserve natural text.
+                    yield emit("log", {"msg": f"ℹ️ Batch odrzucony za brakujące frazy — akceptuję naturalny tekst (attempt {attempt + 1})"})
+                    batch_accepted = True
+                    accepted_batches_log.append({
+                        "text": text, "h2": current_h2, "batch_num": batch_num,
+                        "depth_score": depth
+                    })
+                    if batch_type not in ("INTRO", "intro"):
+                        _h2_key = current_h2.strip().lower()
+                        if _h2_key not in _h2_local_done:
+                            _h2_local_done.append(_h2_key)
+                        while _h2_local_idx < len(h2_structure) and \
+                              h2_structure[_h2_local_idx].strip().lower() in _h2_local_done:
+                            _h2_local_idx += 1
+                    break
                 else:
-                    # Fallback: mechanical fix for non-exceeded issues
-                    fixes_applied = 0
-                    if exceeded:
-                        for exc in exceeded:
-                            kw = exc.get("keyword", "")
-                            synonyms = (exc.get("use_instead") or exc.get("synonyms") or [])
-                            if synonyms and kw and kw in text:
-                                syn = synonyms[0] if isinstance(synonyms[0], str) else str(synonyms[0])
-                                text = text.replace(kw, syn, 1)
-                                fixes_applied += 1
-                                yield emit("log", {"msg": f"🔧 Zamiana: '{kw}' → '{syn}'"})
-                    yield emit("log", {"msg": f"🔄 Retry: naprawiono {fixes_applied} fraz, próba {attempt + 2}/{max_attempts}"})
+                    # Exceeded but smart retry not applicable — simple retry
+                    yield emit("log", {"msg": f"🔄 Retry: exceeded keywords, próba {attempt + 2}/{max_attempts}"})
 
             # Save FAQ if applicable
             if batch_type == "FAQ" and batch_accepted:
