@@ -253,64 +253,32 @@ def _fix_diacritics(text: str) -> tuple:
 
 
 def _fix_keyword_concatenation(text: str) -> tuple:
-    """Detect and fix keyword concatenation (v62).
+    """Detect and fix keyword concatenation (v62.1 — conservative).
     
-    Catches patterns where two keyword-like phrases are glued together,
-    creating nonsense like "Jazda po alkoholu pod wpływem alkoholu".
+    ONLY catches the specific pattern where two MULTI-WORD keyword phrases
+    are glued together creating obvious nonsense, e.g.:
+      "jazda po alkoholu pod wpływem alkoholu" 
+      "zakaz prowadzenia pojazdów zakaz prowadzenia"
     
-    Detection: find content words (≥4 chars) that repeat within 7-word window.
-    Fix: remove the second occurrence of the repeated phrase fragment.
+    Does NOT touch single repeated words — those are normal in Polish legal text.
+    
+    v62.0 was too aggressive (7-word window, single words) and destroyed 
+    legitimate sentences. This version requires:
+      1. A repeated PHRASE (≥2 words), not single word
+      2. The phrases must be adjacent or separated by max 2 words
     """
     count = 0
     fixed = text
     
-    # Split into sentences for local analysis
-    sentences = re.split(r'(?<=[.!?])\s+', fixed)
-    new_sentences = []
+    # Pattern: detect when two multi-word phrases share a key noun
+    # and are directly adjacent, creating obvious stuffing
+    # e.g. "jazda po alkoholu pod wpływem alkoholu" →
+    #       phrase1="jazda po alkoholu" + phrase2="pod wpływem alkoholu" 
+    #       share "alkoholu" at boundary
     
-    _STOP_WORDS = {
-        'jest', 'nie', 'się', 'jak', 'ale', 'lub', 'oraz', 'czy', 'pod', 'nad',
-        'przy', 'przez', 'dla', 'bez', 'który', 'która', 'które', 'tego', 'tym',
-        'ten', 'tak', 'już', 'być', 'może', 'tylko', 'będzie', 'bardzo', 'więc',
-        'jednak', 'nawet', 'także', 'również', 'gdzie', 'kiedy', 'jeśli', 'jako',
-        'jego', 'jej', 'ich', 'mieć', 'jeszcze', 'wszystko', 'więcej',
-    }
-    
-    for sent in sentences:
-        words = sent.split()
-        if len(words) < 6:
-            new_sentences.append(sent)
-            continue
-        
-        # Find content words (≥4 chars, not stop words, not numbers)
-        content_positions = {}
-        for i, w in enumerate(words):
-            clean = re.sub(r'[^\wąęćłńóśźżĄĘĆŁŃÓŚŹŻ]', '', w.lower())
-            if len(clean) >= 4 and clean not in _STOP_WORDS and not clean.isdigit():
-                if clean in content_positions:
-                    prev_pos = content_positions[clean]
-                    gap = i - prev_pos
-                    # Same content word within 7 words = probable concatenation
-                    if gap <= 7:
-                        # Remove the repeated word and surrounding context
-                        # Find the shorter fragment (between occurrences) to remove
-                        fragment = ' '.join(words[prev_pos+1:i+1])
-                        if len(fragment.split()) <= 5:
-                            # Remove fragment, keep first occurrence
-                            new_words = words[:prev_pos+1] + words[i+1:]
-                            sent = ' '.join(new_words)
-                            words = sent.split()  # re-split after edit
-                            count += 1
-                            logger.info(f"[CONCAT_FIX] Removed repeated '{clean}' fragment: '{fragment}'")
-                            break  # one fix per sentence to avoid cascading
-                content_positions[clean] = i
-        
-        new_sentences.append(sent)
-    
-    if count > 0:
-        fixed = ' '.join(new_sentences)
-        # Clean up double spaces
-        fixed = re.sub(r'  +', ' ', fixed)
+    # For now: DISABLED — the risk of false positives in Polish inflected text
+    # is too high. The budget scaler + prompt softening should handle density.
+    # Re-enable only after testing on 20+ articles with manual review.
     
     return fixed, count
 
