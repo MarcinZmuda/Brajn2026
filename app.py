@@ -578,15 +578,121 @@ def _parse_synonym_lines(raw: str) -> list:
     return [s for s in synonyms if 1 <= len(s.split()) <= 4][:6]
 
 
-def _derive_entity_synonyms(main_keyword: str, secondary_entities: list = None, clean_ngrams: list = None) -> list:
+def _find_keyword_synonyms(main_keyword: str, clean_ngrams: list = None, 
+                           clean_semantic_kp: list = None, clean_entities: list = None) -> list:
     """
-    Fix #64: Generuj podmiotowe zamienniki encji głównej przez mały Haiku call.
-    Pytanie: czym JEST ta encja — jakie słowa nadrzędne (hiperonimy) mogą ją zastąpić jako podmiot.
-    Koszt: ~0.001 USD per call (100-150 tokenów input + output).
-    Fallback chain: Claude Haiku → OpenAI gpt-4.1-mini → empty list.
+    v60 FIX: Find synonyms of main_keyword among existing S1 data.
+    
+    Example: main_keyword = "jazda po alkoholu"
+    If n-grams contain "jazda pod wpływem alkoholu" or "prowadzenie po alkoholu",
+    these are natural synonyms — no LLM call needed.
+    
+    Logic: A phrase is a synonym candidate if:
+    - It shares ≥50% of words with main_keyword (by word set overlap)
+    - OR it contains the main_keyword's core noun/verb stem
+    - AND it's not identical to main_keyword
+    - AND it's 2-6 words long
     """
     if not main_keyword:
         return []
+    
+    main_words = set(main_keyword.lower().split())
+    main_lower = main_keyword.lower().strip()
+    # Core words = words ≥ 4 chars (skip prepositions like "po", "do", "na")
+    core_words = {w for w in main_words if len(w) >= 4}
+    
+    candidates = set()
+    
+    # Scan n-grams
+    for ng in (clean_ngrams or []):
+        if not isinstance(ng, dict):
+            continue
+        text = ng.get("ngram", "").strip()
+        if not text or text.lower() == main_lower:
+            continue
+        _check_synonym_candidate(text, main_words, core_words, main_lower, candidates)
+    
+    # Scan semantic keyphrases
+    for kp in (clean_semantic_kp or []):
+        if isinstance(kp, dict):
+            text = kp.get("phrase", "").strip()
+        elif isinstance(kp, str):
+            text = kp.strip()
+        else:
+            continue
+        if not text or text.lower() == main_lower:
+            continue
+        _check_synonym_candidate(text, main_words, core_words, main_lower, candidates)
+    
+    # Scan entities
+    for ent in (clean_entities or []):
+        if not isinstance(ent, dict):
+            continue
+        text = (ent.get("text") or ent.get("entity") or ent.get("display_text") or "").strip()
+        if not text or text.lower() == main_lower:
+            continue
+        _check_synonym_candidate(text, main_words, core_words, main_lower, candidates)
+    
+    result = sorted(candidates)[:5]  # Max 5 keyword-derived synonyms
+    if result:
+        logger.info(f"[KEYWORD_SYNONYMS] Found {len(result)} keyword synonyms for '{main_keyword}': {result}")
+    return result
+
+
+def _check_synonym_candidate(text: str, main_words: set, core_words: set, 
+                              main_lower: str, candidates: set):
+    """Check if a phrase qualifies as a keyword synonym."""
+    text_lower = text.lower().strip()
+    text_words = set(text_lower.split())
+    word_count = len(text_words)
+    
+    # Must be 2-6 words
+    if word_count < 2 or word_count > 6:
+        return
+    
+    # Must not be identical
+    if text_lower == main_lower:
+        return
+    
+    # Check word overlap
+    overlap = main_words & text_words
+    overlap_ratio = len(overlap) / max(len(main_words), 1)
+    
+    # ≥50% word overlap = synonym candidate
+    if overlap_ratio >= 0.5 and len(overlap) >= 2:
+        candidates.add(text)
+        return
+    
+    # OR: shares ≥2 core words (≥4 chars each)
+    core_overlap = core_words & text_words
+    if len(core_overlap) >= 2:
+        candidates.add(text)
+        return
+
+
+def _derive_entity_synonyms(main_keyword: str, secondary_entities: list = None, 
+                            clean_ngrams: list = None, clean_semantic_kp: list = None,
+                            clean_entities: list = None) -> list:
+    """
+    Fix #64: Generuj podmiotowe zamienniki encji głównej.
+    
+    v60: First mines synonyms from existing S1 keyword data (zero cost),
+    then fills remaining slots via LLM (Haiku/OpenAI).
+    
+    Fallback chain: Keyword mining → Claude Haiku → OpenAI gpt-4.1-mini → empty list.
+    """
+    if not main_keyword:
+        return []
+    
+    # v60: First, mine synonyms from existing keywords
+    keyword_synonyms = _find_keyword_synonyms(
+        main_keyword, clean_ngrams, clean_semantic_kp, clean_entities
+    )
+    
+    # If we found ≥3 keyword synonyms, that's enough — skip LLM
+    if len(keyword_synonyms) >= 3:
+        logger.info(f"[ENTITY_SYNONYMS] Keyword mining sufficient: {keyword_synonyms}")
+        return keyword_synonyms
 
     prompt = (
         f"Fraza: \"{main_keyword}\"\n\n"
@@ -615,8 +721,10 @@ def _derive_entity_synonyms(main_keyword: str, secondary_entities: list = None, 
             )
             synonyms = _parse_synonym_lines(resp.content[0].text.strip())
             if synonyms:
-                logger.info(f"[ENTITY_SYNONYMS] Haiku OK: {synonyms}")
-                return synonyms
+                # v60: Merge keyword synonyms + LLM synonyms, deduplicate
+                merged = list(dict.fromkeys(keyword_synonyms + synonyms))[:8]
+                logger.info(f"[ENTITY_SYNONYMS] Haiku OK + {len(keyword_synonyms)} keyword: {merged}")
+                return merged
         except Exception as e:
             logger.warning(f"[ENTITY_SYNONYMS] Haiku failed: {e}")
 
@@ -635,11 +743,15 @@ def _derive_entity_synonyms(main_keyword: str, secondary_entities: list = None, 
             raw = resp.choices[0].message.content.strip()
             synonyms = _parse_synonym_lines(raw)
             if synonyms:
-                logger.info(f"[ENTITY_SYNONYMS] OpenAI fallback OK: {synonyms}")
-                return synonyms
+                merged = list(dict.fromkeys(keyword_synonyms + synonyms))[:8]
+                logger.info(f"[ENTITY_SYNONYMS] OpenAI fallback OK + {len(keyword_synonyms)} keyword: {merged}")
+                return merged
         except Exception as e:
             logger.warning(f"[ENTITY_SYNONYMS] OpenAI fallback failed: {e}")
 
+    if keyword_synonyms:
+        logger.info(f"[ENTITY_SYNONYMS] LLM failed, using keyword synonyms only: {keyword_synonyms}")
+        return keyword_synonyms
     logger.warning(f"[ENTITY_SYNONYMS] All providers failed for '{main_keyword}'")
     return []
 
@@ -2581,8 +2693,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "entity_placement": backend_entity_placement if isinstance(backend_entity_placement, dict) else {},
                 # v48.0: Cleanup info
                 "cleanup_method": cleanup_stats.get("method", "unknown"),
-                # Podmiotowe zamienniki encji głównej — Haiku/OpenAI (Fix #64 anty-anaphora)
-                "entity_synonyms": _derive_entity_synonyms(main_keyword),
+                # Podmiotowe zamienniki encji głównej — keyword mining + Haiku/OpenAI (Fix #64 anty-anaphora)
+                "entity_synonyms": _derive_entity_synonyms(
+                    main_keyword, 
+                    clean_ngrams=clean_ngrams,
+                    clean_semantic_kp=clean_semantic_kp,
+                    clean_entities=clean_entities,
+                ),
                 # v57.1: Multi-entity synonyms WYŁĄCZONE — generujemy synonimy TYLKO
                 # dla hasła głównego. Synonimy encji pobocznych (stan nietrzeźwości → Pijaństwo)
                 # były słabe jakościowo i nie wnosiły wartości SEO.
@@ -3458,7 +3575,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "continuation_context": bool(enhanced_data.get("continuation_context")),
                 "paa_from_serp": (enhanced_data.get("paa_from_serp") or [])[:3],
                 "main_keyword_ratio": (pre_batch.get("main_keyword") or {}).get("ratio"),
-                "intro_guidance": pre_batch.get("intro_guidance", "") if batch_type == "INTRO" else "",
+                "intro_guidance_active": bool(pre_batch.get("intro_guidance")) if batch_type == "INTRO" else False,
                 "lead_serp_signals": {
                     "has_snippet": bool((pre_batch.get("serp_enrichment") or {}).get("featured_snippet")),
                     "has_ai_overview": bool((pre_batch.get("serp_enrichment") or {}).get("ai_overview")),
