@@ -60,6 +60,78 @@ def _word_boundary_overlap(short_phrase: str, long_phrase: str) -> str:
     return ""
 
 
+def remove_subsumed_basic(keywords: list, main_keyword: str = "") -> list:
+    """
+    v60 FIX: Remove BASIC keywords that are fully contained in another BASIC/ENTITY keyword.
+    
+    Example:
+      - "kara pozbawienia wolności" (BASIC) exists → "pozbawienia wolności" (BASIC) REMOVED
+      - "zakaz prowadzenia pojazdów" (BASIC) exists → "prowadzenia pojazdów" (BASIC) REMOVED
+      - "zakaz prowadzenia pojazdów" (BASIC) exists → "zakaz prowadzenia" (BASIC) REMOVED
+    
+    Rules:
+      - Only removes BASIC keywords (never MAIN, ENTITY, EXTENDED)
+      - The "parent" (longer phrase) must be BASIC or ENTITY
+      - Uses word-boundary matching (same logic as _word_boundary_overlap)
+      - If a keyword is subsumed by MULTIPLE parents, one match is enough to remove it
+    
+    This prevents keyword stuffing: GPT no longer needs to insert both
+    "zakaz prowadzenia pojazdów" AND "prowadzenia pojazdów" separately.
+    """
+    if not keywords or len(keywords) < 2:
+        return keywords
+    
+    main_kw_lower = main_keyword.lower().strip()
+    
+    # Build lookup of all BASIC and ENTITY keywords (potential parents)
+    parent_phrases = []
+    for kw in keywords:
+        kw_type = kw.get("type", "BASIC")
+        if kw_type in ("BASIC", "ENTITY"):
+            phrase = kw.get("keyword", "").strip().lower()
+            if phrase:
+                parent_phrases.append(phrase)
+    
+    # Also include MAIN keyword as parent
+    if main_kw_lower:
+        parent_phrases.append(main_kw_lower)
+    
+    to_remove = set()
+    
+    for kw in keywords:
+        kw_type = kw.get("type", "BASIC")
+        if kw_type != "BASIC":
+            continue
+        
+        short_phrase = kw.get("keyword", "").strip().lower()
+        if not short_phrase:
+            continue
+        
+        short_words = set(short_phrase.split())
+        
+        for parent in parent_phrases:
+            if parent == short_phrase:
+                continue  # same keyword
+            
+            parent_words = parent.split()
+            if len(short_phrase.split()) >= len(parent_words):
+                continue  # short is not actually shorter
+            
+            # Check: are ALL words of short contained in parent?
+            if short_words.issubset(set(parent_words)):
+                to_remove.add(short_phrase)
+                logger.info(f"[DEDUP_REMOVE] '{short_phrase}' ⊂ '{parent}' → REMOVING from BASIC")
+                break  # one parent match is enough
+    
+    if to_remove:
+        original_count = len(keywords)
+        keywords = [kw for kw in keywords 
+                    if not (kw.get("type") == "BASIC" and kw.get("keyword", "").strip().lower() in to_remove)]
+        logger.info(f"[DEDUP_REMOVE] Removed {original_count - len(keywords)} subsumed BASIC keywords: {to_remove}")
+    
+    return keywords
+
+
 def deduplicate_keywords(keywords: list, main_keyword: str = "") -> list:
     """
     Word-boundary safe keyword deduplication.
