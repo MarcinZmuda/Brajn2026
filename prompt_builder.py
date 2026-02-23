@@ -375,6 +375,12 @@ Minimalna odległość między powtórzeniami frazy:
   MAIN: ~60 słów | BASIC: ~80 słów | EXTENDED: ~120 słów
   Nie klasteruj kilku fraz w jednym zdaniu.
 
+ANTI-CONCATENATION — ZAKAZ łączenia keyword głównego z frazą rozszerzającą
+  ❌ "Jazda po alkoholu pod wpływem alkoholu" — nonsens, dwa keywordy sklejone
+  ❌ "Rejestr spadkowy rejestru spadkowego" — tautologia
+  ✅ "Jazda po alkoholu jest przestępstwem, gdy kierowca prowadzi pod wpływem alkoholu."
+  REGUŁA: Każda fraza kluczowa w OSOBNYM kontekście gramatycznym.
+
 ANTI-ANAPHORA — unikaj seryjnego otwierania zdań tą samą frazą
   ❌ WZORZEC ZAKAZANY:
      "Rejestr spadkowy zapewnia X. Rejestr spadkowy umożliwia Y. Rejestr spadkowy wskazuje Z."
@@ -425,6 +431,8 @@ KATEGORIA 4 — Nadmierny formalizm AI
   "ze względu na powyższe okoliczności / mając na uwadze powyższe"
   "w praktyce oznacza to / w praktyce wygląda to następująco"
   "należy zwrócić szczególną uwagę / wymaga szczególnej uwagi"
+  "reżim karny / reżim wykroczeniowy / reżim ubezpieczeniowy"
+    → używaj: "tryb karny", "odpowiedzialność karna", "zasady wykroczeniowe"
   ✅ Zamiast: "Ze względu na złożoność zagadnienia..." → Podaj konkret.
 
 KATEGORIA 5 — Dramatyzatory i teatr
@@ -2507,8 +2515,8 @@ PASSAGE-FIRST: Intro musi samodzielnie funkcjonować jako AI-extractable summary
 LISTY HTML: Przy wyliczeniach 3+ elementów — ZAWSZE lista <ul>/<ol>.
 
 DŁUGOŚĆ ZDAŃ:
-  Max bezwzględne: 35 słów. Cel średniej: 12–18 słów/zdanie.
-  20% krótkich (do 8 słów), 60% średnich (9–18), 20% długich (19–28).
+  Unikaj zdań powyżej 25 słów. Absolutne maksimum: 35 słów.
+  Cel średniej: 12–18 słów/zdanie. Przeplataj krótkie z dłuższymi.
 
 SPACING:
   MAIN keyword: ~60 słów odstępu. BASIC: ~80. EXTENDED: ~120.
