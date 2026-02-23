@@ -157,6 +157,10 @@ def _fix_phantom_placeholders(text: str) -> tuple:
         (r'w\s+reżimie\s+karnym', 'w trybie karnym'),
         (r'reżim(?:ie|u|em)?\s+karny(?:m|ch|ego)?', 'tryb karny'),
         (r'reżim(?:ie|u|em)?\s+wykroczeniowy(?:m|ch|ego)?', 'tryb wykroczeniowy'),
+        (r'reżim(?:ie|u|em)?\s+ubezpieczeniowy(?:m|ch|ego)?', 'system ubezpieczeniowy'),
+        (r'reżim(?:y|ów|om|ami|ach)?\s+sankcji', 'zasady karania'),
+        (r'odmienne\s+reżimy', 'odmienne zasady'),
+        (r'reżim(?:ie|u|em|y|ów|om|ami|ach)?\b', 'tryb'),
     ]
 
     for pattern, replacement in _PHANTOM_PATTERNS:
