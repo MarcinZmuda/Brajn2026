@@ -1835,9 +1835,26 @@ def _fmt_natural_polish(pre_batch):
         if _dynamic_synonyms and len(_dynamic_synonyms) >= 2:
             synonyms = ", ".join(str(s) for s in _dynamic_synonyms[:7])
         else:
-            # Fallback: zaimki + ogólne zamienniki
-            synonyms = "on, to, ten system, ta baza, narzedzie, wpis"
+            # Fallback: encje MUST-MENTION jako zamienniki podmiotowe
+            _must = _entity_seo.get("must_mention_entities", [])
+            _must_names = [str(e.get("entity", e) if isinstance(e, dict) else e) for e in _must[:4]]
+            _must_names = [n for n in _must_names if n and n.lower() != _main_name.lower()]
+            if _must_names:
+                synonyms = ", ".join(_must_names[:4]) + ", ta kwestia, ten aspekt"
+            else:
+                synonyms = "ta kwestia, ten problem, omawiany aspekt, ta sytuacja"
         parts.append("ANTY-ANAPHORA [" + _main_name + "] MAX 2 ZDANIA Z RZEDU.\nPrzy 3. zdaniu zmien podmiot na: " + synonyms)
+
+    # Multi-entity synonyms: mapa zamienników dla wielu encji
+    _multi_syns = _entity_seo.get("multi_entity_synonyms", {}) if _main_name else {}
+    if _multi_syns:
+        syn_lines = []
+        for ent, syns in list(_multi_syns.items())[:5]:
+            syn_lines.append(f'  "{ent}" → {", ".join(syns[:3])}')
+        parts.append(
+            "📖 MAPA SYNONIMÓW (używaj zamiast powtórzeń):\n" + "\n".join(syn_lines)
+        )
+
     parts.append(
         "⚠️ ZASADY:\n"
         "  • Max 2× ta sama fraza w jednym akapicie\n"

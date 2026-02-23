@@ -515,14 +515,24 @@ Przykłady dla "jazda po alkoholu":
 To są FAKTY MERYTORYCZNE które MUSZĄ znaleźć się w artykule — nie styl, nie encje ogólne."""
 
 
+def _parse_synonym_lines(raw: str) -> list:
+    """Parse synonym response lines into clean list."""
+    synonyms = [
+        line.strip().strip("-•·0123456789.").strip()
+        for line in raw.splitlines()
+        if line.strip() and len(line.strip()) > 2
+    ]
+    return [s for s in synonyms if 1 <= len(s.split()) <= 4][:6]
+
+
 def _derive_entity_synonyms(main_keyword: str, secondary_entities: list = None, clean_ngrams: list = None) -> list:
     """
     Fix #64: Generuj podmiotowe zamienniki encji głównej przez mały Haiku call.
     Pytanie: czym JEST ta encja — jakie słowa nadrzędne (hiperonimy) mogą ją zastąpić jako podmiot.
     Koszt: ~0.001 USD per call (100-150 tokenów input + output).
-    Fallback: lista zaimków gdy brak klucza API.
+    Fallback chain: Claude Haiku → OpenAI gpt-4.1-mini → empty list.
     """
-    if not ANTHROPIC_API_KEY or not main_keyword:
+    if not main_keyword:
         return []
 
     prompt = (
@@ -539,28 +549,132 @@ def _derive_entity_synonyms(main_keyword: str, secondary_entities: list = None, 
         f"Przykład dla 'rejestr spadkowy': system, baza danych, narzędzie, serwis, wyszukiwarka"
     )
 
-    try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=80,
-            temperature=0,
-            messages=[{"role": "user", "content": prompt}],
-            timeout=10.0
-        )
-        raw = resp.content[0].text.strip()
-        # Parse: jedna linia = jeden zamiennik
-        synonyms = [
-            line.strip().strip("-•·").strip()
-            for line in raw.splitlines()
-            if line.strip() and len(line.strip()) > 2
-        ]
-        # Odfiltruj puste i zbyt długie (>4 słowa)
-        synonyms = [s for s in synonyms if 1 <= len(s.split()) <= 4][:6]
-        return synonyms
-    except Exception as e:
-        logger.warning(f"[ENTITY_SYNONYMS] Haiku call failed: {e}")
-        return []
+    # Try 1: Claude Haiku
+    if ANTHROPIC_API_KEY:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=80,
+                temperature=0,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=10.0
+            )
+            synonyms = _parse_synonym_lines(resp.content[0].text.strip())
+            if synonyms:
+                logger.info(f"[ENTITY_SYNONYMS] Haiku OK: {synonyms}")
+                return synonyms
+        except Exception as e:
+            logger.warning(f"[ENTITY_SYNONYMS] Haiku failed: {e}")
+
+    # Try 2: OpenAI gpt-4.1-mini fallback
+    if OPENAI_API_KEY and OPENAI_AVAILABLE:
+        try:
+            import openai as _openai
+            _client = _openai.OpenAI(api_key=OPENAI_API_KEY)
+            resp = _client.chat.completions.create(
+                model="gpt-4.1-mini",
+                max_tokens=80,
+                temperature=0,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=10.0
+            )
+            raw = resp.choices[0].message.content.strip()
+            synonyms = _parse_synonym_lines(raw)
+            if synonyms:
+                logger.info(f"[ENTITY_SYNONYMS] OpenAI fallback OK: {synonyms}")
+                return synonyms
+        except Exception as e:
+            logger.warning(f"[ENTITY_SYNONYMS] OpenAI fallback failed: {e}")
+
+    logger.warning(f"[ENTITY_SYNONYMS] All providers failed for '{main_keyword}'")
+    return []
+
+
+def _derive_multi_entity_synonyms(entities: list, main_keyword: str = "") -> dict:
+    """
+    Generate synonyms for multiple entities in a SINGLE LLM call.
+    Returns dict: {entity_name: [synonym1, synonym2, ...], ...}
+    Fallback chain: Claude Haiku → OpenAI gpt-4.1-mini.
+    """
+    if not entities:
+        return {}
+
+    # Take top 5 entities
+    top_entities = [str(e) for e in entities[:5] if e]
+    if not top_entities:
+        return {}
+
+    entity_list = "\n".join(f"{i+1}. {e}" for i, e in enumerate(top_entities))
+    prompt = (
+        f"Dla każdej z poniższych fraz podaj 3-4 krótkie polskie synonimy/hiperonimy "
+        f"(max 3 słowa każdy), którymi można zastąpić tę frazę jako PODMIOT zdania.\n\n"
+        f"Frazy:\n{entity_list}\n\n"
+        f"Format odpowiedzi (dokładnie):\n"
+        f"1. synonim1, synonim2, synonim3\n"
+        f"2. synonim1, synonim2, synonim3\n\n"
+        f"Zasady:\n"
+        f"- Nie powtarzaj frazy ani jej części jako synonimu\n"
+        f"- Tylko naturalne polskie określenia\n"
+        f"- Zero komentarzy, tylko lista"
+    )
+
+    def _parse_multi(raw: str) -> dict:
+        result = {}
+        for line in raw.strip().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # Match "1. syn1, syn2, syn3" or "1) syn1, syn2"
+            m = _re.match(r'^(\d+)[.)]\s*(.+)$', line)
+            if m:
+                idx = int(m.group(1)) - 1
+                if 0 <= idx < len(top_entities):
+                    syns = [s.strip().strip("-•·").strip() for s in m.group(2).split(",")]
+                    syns = [s for s in syns if s and len(s) > 1 and len(s.split()) <= 4][:4]
+                    if syns:
+                        result[top_entities[idx]] = syns
+        return result
+
+    # Try 1: Claude Haiku
+    if ANTHROPIC_API_KEY:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=200,
+                temperature=0,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=12.0
+            )
+            result = _parse_multi(resp.content[0].text.strip())
+            if result:
+                logger.info(f"[MULTI_SYNONYMS] Haiku OK: {len(result)} entities")
+                return result
+        except Exception as e:
+            logger.warning(f"[MULTI_SYNONYMS] Haiku failed: {e}")
+
+    # Try 2: OpenAI gpt-4.1-mini
+    if OPENAI_API_KEY and OPENAI_AVAILABLE:
+        try:
+            import openai as _openai
+            _client = _openai.OpenAI(api_key=OPENAI_API_KEY)
+            resp = _client.chat.completions.create(
+                model="gpt-4.1-mini",
+                max_tokens=200,
+                temperature=0,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=12.0
+            )
+            result = _parse_multi(resp.choices[0].message.content.strip())
+            if result:
+                logger.info(f"[MULTI_SYNONYMS] OpenAI OK: {len(result)} entities")
+                return result
+        except Exception as e:
+            logger.warning(f"[MULTI_SYNONYMS] OpenAI failed: {e}")
+
+    logger.warning(f"[MULTI_SYNONYMS] All providers failed")
+    return {}
 
 
 def _generate_topical_entities(main_keyword: str, h2_plan: list = None) -> dict:
@@ -827,15 +941,18 @@ def _topical_to_cooccurrence(topical_result: dict) -> list:
 
 def _filter_h2_patterns(patterns):
     """Filter H2 patterns: remove CSS garbage AND navigation elements."""
-    # v49: Navigation terms that appear as H2 on scraped pages
-    _NAV_H2_TERMS = {
+    # v49: Navigation terms that appear as H2 on scraped pages (exact match only)
+    _NAV_H2_EXACT = {
         "wyszukiwarka", "nawigacja", "moje strony", "mapa serwisu", "mapa strony",
-        "biuletyn informacji publicznej", "redakcja serwisu", "dostępność",
-        "nota prawna", "polityka prywatności", "regulamin", "deklaracja dostępności",
-        "newsletter", "social media", "archiwum", "logowanie", "rejestracja",
-        "komenda miejska", "komenda powiatowa", "inne wersje portalu",
-        "kontakt", "o nas", "strona główna", "menu główne", "szukaj",
-        "przydatne linki", "informacje", "stopka", "cookie",
+        "dostępność", "regulamin", "newsletter", "social media", "archiwum",
+        "logowanie", "rejestracja", "kontakt", "o nas", "strona główna",
+        "menu główne", "szukaj", "przydatne linki", "informacje", "stopka", "cookie",
+    }
+    # Multi-word nav phrases: these ARE safe for partial/substring matching
+    _NAV_H2_PHRASES = {
+        "biuletyn informacji publicznej", "redakcja serwisu", "nota prawna",
+        "polityka prywatności", "deklaracja dostępności", "komenda miejska",
+        "komenda powiatowa", "inne wersje portalu", "mapa serwisu",
     }
     if not patterns:
         return []
@@ -848,11 +965,11 @@ def _filter_h2_patterns(patterns):
         # Skip CSS garbage
         if _is_css_garbage(text):
             continue
-        # v49: Skip navigation H2s
-        if t_lower in _NAV_H2_TERMS:
+        # v49: Skip exact-match navigation H2s
+        if t_lower in _NAV_H2_EXACT:
             continue
-        # Skip if contains nav term (partial match for longer phrases)
-        if any(nav in t_lower for nav in _NAV_H2_TERMS if len(nav) >= 8):
+        # Skip if contains multi-word nav phrase (safe partial match)
+        if any(phrase in t_lower for phrase in _NAV_H2_PHRASES):
             continue
         # Skip very short generic H2s
         if len(text.strip()) < 5:
@@ -2300,8 +2417,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "entity_placement": backend_entity_placement if isinstance(backend_entity_placement, dict) else {},
                 # v48.0: Cleanup info
                 "cleanup_method": cleanup_stats.get("method", "unknown"),
-                # Podmiotowe zamienniki encji głównej — Haiku call (Fix #64 anty-anaphora)
+                # Podmiotowe zamienniki encji głównej — Haiku/OpenAI (Fix #64 anty-anaphora)
                 "entity_synonyms": _derive_entity_synonyms(main_keyword),
+                # Multi-entity synonyms: synonimy dla top encji (1 query, mniej powtórzeń)
+                "multi_entity_synonyms": _derive_multi_entity_synonyms(
+                    clean_entities[:5], main_keyword
+                ),
             },
             # v47.0: Placement instruction (top-level for easy access)
             "placement_instruction": backend_placement_instruction,
@@ -2769,6 +2890,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         _entity_synonyms = filtered_entity_seo.get("entity_synonyms", [])
         if _entity_synonyms:
             yield emit("log", {"msg": f"🔄 Synonimy encji: {', '.join(str(s) for s in _entity_synonyms[:5])}"})
+
+        # Multi-entity synonyms (top 5 encji w jednym zapytaniu)
+        _multi_synonyms = filtered_entity_seo.get("multi_entity_synonyms", {})
+        if _multi_synonyms:
+            _ms_preview = "; ".join(f"{k}: {', '.join(v[:2])}" for k, v in list(_multi_synonyms.items())[:3])
+            yield emit("log", {"msg": f"🔄 Multi-synonimy ({len(_multi_synonyms)} encji): {_ms_preview}"})
 
         # Fix #59: Oblicz target_length z recommended_length S1 zamiast hardcode 3500/2000
         if content_type == "category":

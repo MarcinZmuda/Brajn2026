@@ -2095,6 +2095,8 @@ function renderArt(text){
     const pv=document.getElementById('artP');
     // Sanitize: escape HTML first, then apply safe structural formatting
     let safe=esc(text);
+    // Restore safe HTML tags: headings, lists, strong, em
+    safe=safe.replace(/&lt;(\/?(ul|ol|li|strong|em|b|i))&gt;/gi,function(_,tag){return '<'+tag+'>'});
     let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
     if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
     pv.innerHTML=html;pv.style.display='';
