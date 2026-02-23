@@ -2477,6 +2477,7 @@ function initSemanticDistChart(d){
   document.getElementById('semDistPane').style.display='';
   _destroyChart('semDist');
   const labels=['Keyphrases','Entity Overlap','Must-Mention','N-gramy'];
+  const _tooltipMap={'Keyphrases':'Frazy kluczowe z top stron Google','Entity Overlap':'Encje (nazwy, pojęcia) z konkurencji','Must-Mention':'Obowiązkowe tematy z analizy SERP','N-gramy':'Częste ciągi 2–4 słów z konkurencji'};
   const data=[
     Math.round(d.keyphrase_coverage*100),
     Math.round(d.entity_overlap*100),
@@ -2492,7 +2493,7 @@ function initSemanticDistChart(d){
       borderWidth:2,pointRadius:4,pointBackgroundColor:'#a78bfa',pointBorderColor:'#050505',pointBorderWidth:2
     }]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'%'}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>{const l=items[0].label;return _tooltipMap[l]||l},label:c=>c.raw+'%'}}},
       scales:{r:{min:0,max:100,
         grid:{color:'rgba(255,255,255,.06)'},
         angleLines:{color:'rgba(255,255,255,.06)'},
@@ -2506,11 +2507,11 @@ function initSemanticDistChart(d){
   if(st){
     const clr=v=>v>=70?G:v>=40?W:R;
     st.innerHTML=`
-      <div class="mehr-stat"><div class="v" style="color:${clr(data[0])}">${data[0]}%</div><div class="l">Keyphrases (${d.keyphrases_found}/${d.keyphrases_total})</div></div>
-      <div class="mehr-stat"><div class="v" style="color:${clr(data[1])}">${data[1]}%</div><div class="l">Entity Overlap</div></div>
-      <div class="mehr-stat"><div class="v" style="color:${clr(data[2])}">${data[2]}%</div><div class="l">Must-Mention (${(d.must_mention_found||[]).length}/${d.must_mention_total||0})</div></div>
-      <div class="mehr-stat"><div class="v" style="color:${clr(data[3])}">${data[3]}%</div><div class="l">N-gramy (${d.ngrams_found||0}/${d.ngrams_total||0})</div></div>
-      <div class="mehr-stat"><div class="v" style="color:${clr(d.score)};font-size:18px">${d.score}/100</div><div class="l">Composite Score</div></div>
+      <div class="mehr-stat" title="Procent fraz kluczowych z top stron Google, które pojawiają się w artykule. Im wyższy, tym lepiej artykuł pokrywa tematy istotne dla wyszukiwarki."><div class="v" style="color:${clr(data[0])}">${data[0]}%</div><div class="l">Keyphrases (${d.keyphrases_found}/${d.keyphrases_total})</div></div>
+      <div class="mehr-stat" title="Procent encji (nazw własnych, pojęć, instytucji) z konkurencji, które występują w artykule. Mierzy czy artykuł wspomina te same podmioty co najlepsze wyniki w Google."><div class="v" style="color:${clr(data[1])}">${data[1]}%</div><div class="l">Entity Overlap</div></div>
+      <div class="mehr-stat" title="Procent obowiązkowych tematów/encji, które system uznał za konieczne na podstawie analizy SERP. Brakujące elementy to luki tematyczne widoczne dla algorytmu Google."><div class="v" style="color:${clr(data[2])}">${data[2]}%</div><div class="l">Must-Mention (${(d.must_mention_found||[]).length}/${d.must_mention_total||0})</div></div>
+      <div class="mehr-stat" title="Częste ciągi 2–4 słów występujące u konkurencji (np. 'pozbawienie wolności', 'kodeks karny'). Ich obecność w artykule sygnalizuje Google, że tekst jest na temat."><div class="v" style="color:${clr(data[3])}">${data[3]}%</div><div class="l">N-gramy (${d.ngrams_found||0}/${d.ngrams_total||0})</div></div>
+      <div class="mehr-stat" title="Łączny wynik semantyczny artykułu (0–100). Uwzględnia pokrycie keyphrases, encji, must-mention i n-gramów."><div class="v" style="color:${clr(d.score)};font-size:18px">${d.score}/100</div><div class="l">Composite Score</div></div>
     `;
   }
 }
