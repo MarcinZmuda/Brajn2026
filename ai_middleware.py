@@ -909,6 +909,107 @@ def should_use_smart_retry(result: dict, attempt: int) -> bool:
 
 
 # ================================================================
+# ENTITY GAP ANALYSIS — identifies missing entities before writing
+# ================================================================
+
+ENTITY_GAP_PROMPT = """Jesteś ekspertem SEO i NLP. Analizujesz LUKI ENCYJNE (entity gaps) dla artykułu.
+
+TEMAT ARTYKUŁU: "{keyword}"
+
+ENCJE ZNALEZIONE U KONKURENCJI (z analizy S1):
+{found_entities}
+
+ZADANIE: Zidentyfikuj encje, które POWINNY być w artykule o "{keyword}", ale BRAKUJE ich w danych z konkurencji.
+Szukaj luk w kategoriach:
+1. Powiązane pojęcia medyczne/prawne/techniczne
+2. Przyczyny i skutki
+3. Instytucje, osoby, miejsca
+4. Procesy, metody, narzędzia
+5. Synonimy i pojęcia nadrzędne/podrzędne
+
+Zwróć TYLKO JSON:
+{{
+  "entity_gaps": [
+    {{"entity": "nazwa encji", "why": "dlaczego powinna być w artykule", "priority": "high/medium/low"}}
+  ]
+}}
+
+REGUŁY:
+- Max 12 luk encyjnych
+- Priorytet "high" = kluczowe dla topical authority, "medium" = wzbogacające, "low" = opcjonalne
+- NIE powtarzaj encji już znalezionych
+- Encje muszą być MERYTORYCZNE (nie CSS, nawigacja, marki)
+- Podaj krótki powód (max 15 słów) dlaczego encja jest potrzebna"""
+
+
+def analyze_entity_gaps(main_keyword: str, found_entities: list) -> list:
+    """
+    Analyze entity gaps — what entities SHOULD be in the article but are missing.
+    Uses Claude Haiku for fast, cheap analysis.
+
+    Returns list of entity gaps:
+      [{"entity": "...", "why": "...", "priority": "high/medium/low"}]
+    """
+    if not ANTHROPIC_API_KEY or not main_keyword:
+        return []
+
+    # Build entity list text
+    entity_names = []
+    for e in found_entities[:25]:
+        if isinstance(e, dict):
+            name = e.get("text", e.get("entity", e.get("name", "")))
+        else:
+            name = str(e)
+        if name and len(name) > 1:
+            entity_names.append(name)
+
+    if not entity_names:
+        return []
+
+    entities_text = ", ".join(entity_names)
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        prompt = ENTITY_GAP_PROMPT.format(
+            keyword=main_keyword,
+            found_entities=entities_text
+        )
+
+        response = client.messages.create(
+            model=MIDDLEWARE_MODEL,
+            max_tokens=800,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        raw_text = response.content[0].text.strip()
+        json_match = re.search(r'\{[\s\S]*\}', raw_text)
+        if not json_match:
+            logger.warning("[ENTITY_GAP] No JSON in response")
+            return []
+
+        data = json.loads(json_match.group())
+        gaps = data.get("entity_gaps", [])
+
+        # Validate and clean
+        clean_gaps = []
+        for g in gaps[:12]:
+            if isinstance(g, dict) and g.get("entity"):
+                clean_gaps.append({
+                    "entity": str(g["entity"]).strip(),
+                    "why": str(g.get("why", "")).strip()[:100],
+                    "priority": g.get("priority", "medium") if g.get("priority") in ("high", "medium", "low") else "medium",
+                })
+
+        logger.info(f"[ENTITY_GAP] Found {len(clean_gaps)} entity gaps for '{main_keyword}'")
+        return clean_gaps
+
+    except Exception as e:
+        logger.warning(f"[ENTITY_GAP] Analysis failed: {e}")
+        return []
+
+
+# ================================================================
 # EXPORTS — compatibility
 # ================================================================
 

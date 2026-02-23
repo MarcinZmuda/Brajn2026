@@ -55,6 +55,7 @@ from ai_middleware import (
     anaphora_retry,
     validate_batch_domain,
     fix_batch_domain_errors,
+    analyze_entity_gaps,
 )
 from keyword_dedup import deduplicate_keywords
 from entity_salience import (
@@ -2390,6 +2391,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🧠 Concept entities: {len(concept_entities)} (z topical_entity_extractor)"})
         if len(clean_ngrams) < len(raw_ngrams) * 0.5:
             yield emit("log", {"msg": f"⚠️ N-gramy: {len(raw_ngrams) - len(clean_ngrams)}/{len(raw_ngrams)} odfiltrowane jako CSS garbage"})
+        # ═══ ENTITY GAP ANALYSIS — find missing entities before writing ═══
+        entity_gaps = []
+        try:
+            all_found_entities = list(ai_topical) + list(ai_named) + list(clean_entities)
+            if all_found_entities:
+                entity_gaps = analyze_entity_gaps(main_keyword, all_found_entities)
+                if entity_gaps:
+                    yield emit("log", {"msg": f"🔍 Entity gaps: {len(entity_gaps)} luk encyjnych znalezionych ({sum(1 for g in entity_gaps if g.get('priority')=='high')} high)"})
+        except Exception as eg_err:
+            logger.warning(f"[ENTITY_GAP] Error: {eg_err}")
+
         # PAA diagnostics
         paa_debug = s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or []
         if not paa_debug:
@@ -2476,7 +2488,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "agent_instructions": s1.get("agent_instructions") or {},
             "semantic_hints": sem_hints,
             # Meta
-            "competitive_summary": s1.get("_competitive_summary", "")
+            "competitive_summary": s1.get("_competitive_summary", ""),
+            # v57: Entity gap analysis — missing entities before writing
+            "entity_gaps": entity_gaps,
         })
 
         # ═══ ENTITY SALIENCE: Build instructions from topical entities (primary) ═══
@@ -3230,6 +3244,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 pre_batch["_eav_triples"] = topical_gen_eav
             if topical_gen_svo:
                 pre_batch["_svo_triples"] = topical_gen_svo
+
+            # ═══ v57: Inject entity gaps as informational hints ═══
+            if entity_gaps:
+                pre_batch["_entity_gaps"] = entity_gaps
 
             # ═══ ENTITY CONTENT PLAN — inject lead entity for this batch/H2 ═══
             if _entity_content_plan and batch_num <= len(_entity_content_plan):
