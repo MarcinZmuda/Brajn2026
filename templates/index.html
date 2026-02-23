@@ -1057,6 +1057,12 @@ function rS1(d){
     // v47.0: Placement instruction preview
     const bPlace=ent.entity_placement||{};
     if(bPlace.placement_instruction){b4+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📐 PLACEMENT INSTRUCTION</div><div class="s1-instr" style="max-height:200px;overflow-y:auto">${esc(bPlace.placement_instruction)}</div></div>`}
+    // v56.4: Multi-entity synonyms (top 5 entities)
+    const mSyn=ent.multi_entity_synonyms||{},mSynKeys=Object.keys(mSyn);
+    if(mSynKeys.length){b4+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--pr);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔄 SYNONIMY ENCJI (${mSynKeys.length})</div>`;mSynKeys.forEach(k=>{const syns=mSyn[k]||[];if(syns.length){b4+=`<div style="margin-bottom:4px;font-size:12px"><span style="color:var(--white);font-weight:600">${esc(k)}</span><span style="opacity:.4"> → </span>${syns.map(s=>`<span class="tag c">${esc(s)}</span>`).join('')}</div>`}});b4+=`</div>`}
+    // v56.4: Main keyword entity synonyms
+    const eSyn=ent.entity_synonyms||[];
+    if(eSyn.length){b4+=`<div style="margin:6px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Synonimy głównej frazy</div>${eSyn.map(s=>`<span class="tag pk">${esc(typeof s==='string'?s:(s.text||s.synonym||''))}</span>`).join('')}</div>`}
     if(tC.length)b4+=`<div style="margin:6px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Topical Coverage</div>${tC.slice(0,10).map(t=>{const topic=typeof t==='string'?t:(t.subtopic||t.topic||el(t)),pri=typeof t==='object'?(t.priority||''):'';return`<span class="tag ${pri==='MUST'?'r':pri==='HIGH'?'o':'d'}">${topic}${pri?` · ${pri}`:''}</span>`}).join('')}</div>`;
     if(!tE.length&&!mE.length&&!cE.length)b4+=`<div style="color:var(--mg);font-style:italic">Brak danych encji — sprawdź czy trafilatura działa na produkcji</div>`;
     h+=s1Sec(4,'Encje — mapa bytów tematu',`${cE.length?cE.length+' concept + ':''}${ent.entity_count||tE.length} named`,b4);
