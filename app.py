@@ -4186,7 +4186,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     skip_reason = "tekst pusty lub za krótki"
                 elif original_wc > 0 and corrected_wc < original_wc * 0.6:
                     skip_reason = f"obcięty ({corrected_wc} vs {original_wc} słów)"
-                elif "<h2" not in corrected_text.lower() and "<p" not in corrected_text.lower():
+                elif ("<h2" not in corrected_text.lower() and "h2:" not in corrected_text.lower()
+                      and "<p" not in corrected_text.lower()):
                     skip_reason = "brak struktury HTML (h2/p)"
                 elif editorial_score <= 2 and changes_parsed == 0:
                     skip_reason = f"niska ocena ({editorial_score}/10) i 0 zmian"
