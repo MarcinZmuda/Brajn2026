@@ -1013,7 +1013,25 @@ function rS1(d){
     if(sh2.length){b3+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">✨ Sugerowane nowe H2</div>${sh2.map(x=>`<span class="tag g">${ss(x)}</span>`).join('')}</div>`}
     if(d.gaps_instruction)b3+=`<div style="margin-top:8px"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja priorytetów</div><div class="s1-instr">${esc(d.gaps_instruction)}</div></div>`;
     if(!totalGaps&&!sh2.length)b3+=`<div style="color:var(--yl);font-size:11px;padding:6px 0;border-left:2px solid var(--yl);padding-left:8px">⚠️ Analiza luk nie zwróciła wyników z backendu.<br><span style="color:var(--mg)">Możliwe przyczyny: scraper nie wyekstrahował treści ze stron konkurencji (blokady, JS-only), strony są zbyt krótkie, lub brak danych PAA z SerpAPI.<br>Model wykorzysta dane z entity SEO i depth analysis do tworzenia unikalnej treści.</span></div>`;
-    h+=s1Sec(3,'Gap Analysis — przewagi konkurencyjne',`${totalGaps} luk`,b3);
+
+    // v57: Entity Gap Analysis — missing entities identified by Claude
+    const eGaps=d.entity_gaps||[];
+    if(eGaps.length){
+        b3+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--b1)"><div style="font-size:11px;color:var(--pr);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔍 LUKI ENCYJNE (${eGaps.length}) <span style="font-weight:400;color:var(--mg);font-size:10px">— hasła do rozważenia, nie wymóg</span></div>`;
+        const prClr={high:'var(--rd)',medium:'var(--orange)',low:'var(--yl)'};
+        const prLbl={high:'HIGH',medium:'MED',low:'LOW'};
+        eGaps.forEach(g=>{
+            const pr=g.priority||'medium';
+            b3+=`<div style="display:grid;grid-template-columns:40px 1fr;gap:6px;margin-bottom:4px;padding:3px 0;border-bottom:1px solid var(--b1)">`;
+            b3+=`<span style="font-size:9px;font-weight:700;color:${prClr[pr]||prClr.medium};padding:1px 4px;border-radius:4px;background:rgba(255,255,255,.05);text-align:center">${prLbl[pr]||'MED'}</span>`;
+            b3+=`<div><span style="color:var(--lg);font-weight:600;font-size:12px">${esc(g.entity||'')}</span>`;
+            if(g.why)b3+=` <span style="color:var(--mg);font-size:11px">— ${esc(g.why)}</span>`;
+            b3+=`</div></div>`;
+        });
+        b3+=`</div>`;
+    }
+
+    h+=s1Sec(3,'Gap Analysis — przewagi konkurencyjne',`${totalGaps} luk${eGaps.length?' + '+eGaps.length+' encyjnych':''}`,b3);
 
     // ─── 4️⃣ Entity SEO ───
     let b4='';

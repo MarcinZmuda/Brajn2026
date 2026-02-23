@@ -134,9 +134,85 @@ def _remove_banned(text: str) -> tuple:
     return cleaned, removed
 
 
+# ================================================================
+# POLISH DIACRITICS FIXER — common AI errors with ą/ę/ć/ł/ń/ó/ś/ź/ż
+# ================================================================
+
+# Common diacritical mistakes made by LLMs in Polish
+# Format: (wrong, correct) — case-insensitive matching
+_DIACRITICAL_FIXES = [
+    # Missing ę in accusative/locative
+    (r'\bskóre\b', 'skórę'),
+    (r'\bSkóre\b', 'Skórę'),
+    (r'\bskore\b', 'skórę'),
+    (r'\bceche\b', 'cechę'),
+    (r'\bdobe\b', 'dobę'),
+    (r'\bprobe\b', 'próbę'),
+    (r'\bdroge\b', 'drogę'),
+    (r'\bocene\b', 'ocenę'),
+    (r'\bprace\b', 'pracę'),
+    (r'\bstrone\b', 'stronę'),
+    (r'\bkare\b', 'karę'),
+    (r'\bochrone\b', 'ochronę'),
+    (r'\bbariére\b', 'barierę'),
+    (r'\bbariere\b', 'barierę'),
+    # Missing ó
+    (r'\bskora\b', 'skóra'),
+    (r'\bSkora\b', 'Skóra'),
+    (r'\bgora\b', 'góra'),
+    (r'\bGora\b', 'Góra'),
+    (r'\bwlokna\b', 'włókna'),
+    # Missing ł
+    (r'\bwlasciw', 'właściw'),
+    (r'\bpolacz', 'połącz'),
+    (r'\bwplyw', 'wpływ'),
+    (r'\bWplyw', 'Wpływ'),
+]
+
+# Capitalization fixes: compound names where second part should keep its case
+_CAPITALIZATION_PATTERNS = [
+    # Vitamin names: "Witamina C" not "witamina c" after period, but keep "witamina C" mid-sentence
+    (r'(?<=[.!?]\s)witamina\s+([a-eA-E](?:\d+)?)\b', lambda m: 'Witamina ' + m.group(1).upper()),
+    # "witamina c" → "witamina C" (the letter should always be uppercase)
+    (r'\bwitamina\s+([a-e])(\d*)\b', lambda m: 'witamina ' + m.group(1).upper() + m.group(2)),
+    (r'\bWitamina\s+([a-e])(\d*)\b', lambda m: 'Witamina ' + m.group(1).upper() + m.group(2)),
+    # Kwas + name: "kwas hialuronowy" is fine, but "Kwas Hialuronowy" mid-sentence is wrong
+    # pH should always be "pH" not "PH" or "Ph"
+    (r'\b[Pp][Hh]\b', 'pH'),
+    # SPF should be uppercase
+    (r'\bspf\b', 'SPF'),
+    # UV should be uppercase
+    (r'\buv[ab]?\b', lambda m: m.group(0).upper()),
+]
+
+
+def _fix_diacritics(text: str) -> tuple:
+    """Fix common Polish diacritical errors. Returns (text, fix_count, details)."""
+    fixed = text
+    details = []
+
+    for pattern, replacement in _DIACRITICAL_FIXES:
+        matches = list(re.finditer(pattern, fixed))
+        if matches:
+            repl = replacement if isinstance(replacement, str) else replacement
+            new_text = re.sub(pattern, repl, fixed)
+            if new_text != fixed:
+                for m in matches:
+                    details.append({"from": m.group(0), "to": repl if isinstance(repl, str) else "fixed", "rule": "DIACRITICS"})
+                fixed = new_text
+
+    for pattern, replacement in _CAPITALIZATION_PATTERNS:
+        new_text = re.sub(pattern, replacement, fixed)
+        if new_text != fixed:
+            details.append({"from": "(capitalization)", "to": "(fixed)", "rule": "CAPITALIZATION"})
+            fixed = new_text
+
+    return fixed, len(details), details
+
+
 def auto_fix(text: str) -> dict:
     """
-    Auto-fix grammar + remove AI phrases.
+    Auto-fix grammar + diacritics + remove AI phrases.
 
     Returns:
         {
@@ -144,21 +220,33 @@ def auto_fix(text: str) -> dict:
             "grammar_fixes": int,
             "grammar_details": list,
             "phrases_removed": list,
+            "diacritical_fixes": int,
         }
     """
     if not text or len(text.strip()) < 50:
-        return {"corrected": text, "grammar_fixes": 0, "grammar_details": [], "phrases_removed": []}
+        return {"corrected": text, "grammar_fixes": 0, "grammar_details": [], "phrases_removed": [], "diacritical_fixes": 0}
 
+    # Step 1: LanguageTool grammar fixes
     matches = _lt_check(text)
     corrected, fix_count, details = _apply_fixes(text, matches)
+
+    # Step 2: Polish diacritical fixes (catches what LT misses)
+    corrected, diac_count, diac_details = _fix_diacritics(corrected)
+    if diac_count > 0:
+        details.extend(diac_details)
+        logger.info(f"[GRAMMAR] Diacritics: {diac_count} fixes ({', '.join(d['from']+'→'+d['to'] for d in diac_details[:5])})")
+
+    # Step 3: Remove AI-filler phrases
     corrected, removed = _remove_banned(corrected)
 
-    if fix_count > 0 or removed:
-        logger.info(f"[GRAMMAR] Auto-fix: {fix_count} grammar, {len(removed)} phrases removed")
+    total_fixes = fix_count + diac_count
+    if total_fixes > 0 or removed:
+        logger.info(f"[GRAMMAR] Auto-fix: {fix_count} grammar, {diac_count} diacritics, {len(removed)} phrases removed")
 
     return {
         "corrected": corrected,
         "grammar_fixes": fix_count,
         "grammar_details": details[:20],
         "phrases_removed": removed,
+        "diacritical_fixes": diac_count,
     }
