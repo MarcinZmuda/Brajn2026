@@ -431,13 +431,13 @@
         <div class="lbl">Model AI</div>
         <div class="modes" id="engineModes">
             <div class="ebtn" data-engine="claude" onclick="selEngine('claude')"><strong>Claude</strong><small id="claudeModel">Opus 4.6</small></div>
-            <div class="ebtn on" data-engine="openai" onclick="selEngine('openai')"><strong>GPT</strong><small id="gptModel">GPT-5.2</small></div>
+            <div class="ebtn on" data-engine="openai" onclick="selEngine('openai')"><strong>GPT</strong><small id="gptModel">GPT-4.1</small></div>
         </div>
         <div id="modelPicker" style="display:none;margin-top:4px">
             <select id="openaiModelSel" style="width:100%;padding:6px 8px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);color:var(--fg);font-size:10px;font-family:inherit" onchange="selOpenaiModel(this.value)">
-                <option value="gpt-4.1">GPT-4.1 — najlepszy instruction following + pisanie</option>
+                <option value="gpt-4.1" selected>GPT-4.1 — najlepszy instruction following + pisanie</option>
                 <option value="gpt-5.1">GPT-5.1 — top creative writing (EQ-Bench #1)</option>
-                <option value="gpt-5.2" selected>GPT-5.2 — flagship, najnowszy (reasoning)</option>
+                <option value="gpt-5.2">GPT-5.2 — flagship, najnowszy (reasoning)</option>
                 <option value="gpt-4.1-mini">GPT-4.1 Mini — szybszy, tańszy</option>
             </select>
             <div class="hint" style="margin-top:2px">Zmienia model na jedną sesję. Env var OPENAI_MODEL = domyślny.</div>
@@ -758,7 +758,7 @@
 <script>
 (function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Final Review','Editorial','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
-let mode='standard',engine='openai',openaiModel='gpt-5.2',temperature=0.7,contentType='article',catType='subcategory',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='',semanticDistData=null,evalSummaryData=null;
+let mode='standard',engine='openai',openaiModel='gpt-4.1',temperature=0.7,contentType='article',catType='subcategory',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='',semanticDistData=null,evalSummaryData=null;
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
 // XSS sanitization for SSE data
@@ -775,7 +775,7 @@ function selOpenaiModel(m){openaiModel=m;document.getElementById('gptModel').tex
 // Check available engines on load
 (async function(){try{const r=await fetch('/api/engines');if(r.ok){const d=await r.json();const eng=d.engines||{};
 if(eng.claude&&eng.claude.model)document.getElementById('claudeModel').textContent=eng.claude.model.replace('claude-','').replace(/-\d{8}/,'');
-if(eng.openai&&eng.openai.model)document.getElementById('gptModel').textContent=eng.openai.model.toUpperCase();
+if(eng.openai&&eng.openai.model)document.getElementById('gptModel').textContent=eng.openai.model;
 if(eng.openai&&!eng.openai.available){document.querySelector('.ebtn[data-engine=openai]').classList.add('unavailable');if(engine==='openai'){selEngine('claude')}}
 if(eng.claude&&!eng.claude.available){document.querySelector('.ebtn[data-engine=claude]').classList.add('unavailable');if(engine==='claude'){selEngine('openai')}}
 }}catch(e){}})()
@@ -1013,25 +1013,7 @@ function rS1(d){
     if(sh2.length){b3+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">✨ Sugerowane nowe H2</div>${sh2.map(x=>`<span class="tag g">${ss(x)}</span>`).join('')}</div>`}
     if(d.gaps_instruction)b3+=`<div style="margin-top:8px"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Instrukcja priorytetów</div><div class="s1-instr">${esc(d.gaps_instruction)}</div></div>`;
     if(!totalGaps&&!sh2.length)b3+=`<div style="color:var(--yl);font-size:11px;padding:6px 0;border-left:2px solid var(--yl);padding-left:8px">⚠️ Analiza luk nie zwróciła wyników z backendu.<br><span style="color:var(--mg)">Możliwe przyczyny: scraper nie wyekstrahował treści ze stron konkurencji (blokady, JS-only), strony są zbyt krótkie, lub brak danych PAA z SerpAPI.<br>Model wykorzysta dane z entity SEO i depth analysis do tworzenia unikalnej treści.</span></div>`;
-
-    // v57: Entity Gap Analysis — missing entities identified by Claude
-    const eGaps=d.entity_gaps||[];
-    if(eGaps.length){
-        b3+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--b1)"><div style="font-size:11px;color:var(--pr);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔍 LUKI ENCYJNE (${eGaps.length}) <span style="font-weight:400;color:var(--mg);font-size:10px">— hasła do rozważenia, nie wymóg</span></div>`;
-        const prClr={high:'var(--rd)',medium:'var(--orange)',low:'var(--yl)'};
-        const prLbl={high:'HIGH',medium:'MED',low:'LOW'};
-        eGaps.forEach(g=>{
-            const pr=g.priority||'medium';
-            b3+=`<div style="display:grid;grid-template-columns:40px 1fr;gap:6px;margin-bottom:4px;padding:3px 0;border-bottom:1px solid var(--b1)">`;
-            b3+=`<span style="font-size:9px;font-weight:700;color:${prClr[pr]||prClr.medium};padding:1px 4px;border-radius:4px;background:rgba(255,255,255,.05);text-align:center">${prLbl[pr]||'MED'}</span>`;
-            b3+=`<div><span style="color:var(--lg);font-weight:600;font-size:12px">${esc(g.entity||'')}</span>`;
-            if(g.why)b3+=` <span style="color:var(--mg);font-size:11px">— ${esc(g.why)}</span>`;
-            b3+=`</div></div>`;
-        });
-        b3+=`</div>`;
-    }
-
-    h+=s1Sec(3,'Gap Analysis — przewagi konkurencyjne',`${totalGaps} luk${eGaps.length?' + '+eGaps.length+' encyjnych':''}`,b3);
+    h+=s1Sec(3,'Gap Analysis — przewagi konkurencyjne',`${totalGaps} luk`,b3);
 
     // ─── 4️⃣ Entity SEO ───
     let b4='';
@@ -1057,12 +1039,6 @@ function rS1(d){
     // v47.0: Placement instruction preview
     const bPlace=ent.entity_placement||{};
     if(bPlace.placement_instruction){b4+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--gn);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">📐 PLACEMENT INSTRUCTION</div><div class="s1-instr" style="max-height:200px;overflow-y:auto">${esc(bPlace.placement_instruction)}</div></div>`}
-    // v56.4: Multi-entity synonyms (top 5 entities)
-    const mSyn=ent.multi_entity_synonyms||{},mSynKeys=Object.keys(mSyn);
-    if(mSynKeys.length){b4+=`<div style="margin:8px 0"><div style="font-size:11px;color:var(--pr);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">🔄 SYNONIMY ENCJI (${mSynKeys.length})</div>`;mSynKeys.forEach(k=>{const syns=mSyn[k]||[];if(syns.length){b4+=`<div style="margin-bottom:4px;font-size:12px"><span style="color:var(--white);font-weight:600">${esc(k)}</span><span style="opacity:.4"> → </span>${syns.map(s=>`<span class="tag c">${esc(s)}</span>`).join('')}</div>`}});b4+=`</div>`}
-    // v56.4: Main keyword entity synonyms
-    const eSyn=ent.entity_synonyms||[];
-    if(eSyn.length){b4+=`<div style="margin:6px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Synonimy głównej frazy</div>${eSyn.map(s=>`<span class="tag pk">${esc(typeof s==='string'?s:(s.text||s.synonym||''))}</span>`).join('')}</div>`}
     if(tC.length)b4+=`<div style="margin:6px 0"><div style="font-size:11px;color:var(--mg);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Topical Coverage</div>${tC.slice(0,10).map(t=>{const topic=typeof t==='string'?t:(t.subtopic||t.topic||el(t)),pri=typeof t==='object'?(t.priority||''):'';return`<span class="tag ${pri==='MUST'?'r':pri==='HIGH'?'o':'d'}">${topic}${pri?` · ${pri}`:''}</span>`}).join('')}</div>`;
     if(!tE.length&&!mE.length&&!cE.length)b4+=`<div style="color:var(--mg);font-style:italic">Brak danych encji — sprawdź czy trafilatura działa na produkcji</div>`;
     h+=s1Sec(4,'Encje — mapa bytów tematu',`${cE.length?cE.length+' concept + ':''}${ent.entity_count||tE.length} named`,b4);
@@ -1408,8 +1384,8 @@ async function startWorkflow(){
         es.addEventListener('evaluation_summary',e=>{const d=JSON.parse(e.data);evalSummaryData=d;try{initEvalSummaryPane(d)}catch(e2){console.warn('evalSummary:',e2)}});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:13px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:12px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:12px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
         es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;if(window._lsTimerInt){clearInterval(window._lsTimerInt);window._lsTimerInt=null;}renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';document.getElementById('doneH').textContent=contentType==='category'?'✓ Opis kategorii gotowy':'✓ Artykuł gotowy';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
-        // Fix #47: Ukryj frazy BASIC z panelu + wyczyść pola po zakończeniu workflow
-        try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';const _bt=document.getElementById('basicTerms');if(_bt)_bt.value='';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
+        // Fix #47: Ukryj frazy BASIC z panelu po zakończeniu workflow
+        try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
 
         let rr=0;
@@ -2101,8 +2077,6 @@ function renderArt(text){
     const pv=document.getElementById('artP');
     // Sanitize: escape HTML first, then apply safe structural formatting
     let safe=esc(text);
-    // Restore safe HTML tags: headings, lists, strong, em
-    safe=safe.replace(/&lt;(\/?(ul|ol|li|strong|em|b|i))&gt;/gi,function(_,tag){return '<'+tag+'>'});
     let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
     if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
     pv.innerHTML=html;pv.style.display='';

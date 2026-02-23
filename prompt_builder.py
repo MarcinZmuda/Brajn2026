@@ -191,26 +191,6 @@ Buduj klastry semantyczne, nie luźne słowa kluczowe.
 Encje: powiązane logicznie, osadzone w kontekście
 przyczynowo-skutkowym, naturalne w strukturze tekstu.
 Nie stosuj przypadkowych wypełniaczy encyjnych.
-
-MOSTY SEMANTYCZNE — zdania łączące encje (KRYTYCZNE DLA TOPICAL AUTHORITY):
-Między encjami buduj MOCNE zdania-mosty: jedno zdanie łączy 2-3 encje
-relacją przyczynowo-skutkową, definicyjną lub funkcjonalną.
-
-WZORCE MOSTÓW:
-  • Kauzalny: "[Encja A] prowadzi do [Encja B], co skutkuje [Encja C]."
-  • Definicyjny: "[Encja A] to element [Encja B] odpowiedzialny za [funkcja]."
-  • Funkcjonalny: "[Encja A] wspiera [Encja B] poprzez [mechanizm Encja C]."
-  • Kontrastowy: "W odróżnieniu od [Encja A], [Encja B] działa na zasadzie [mechanizm]."
-
-PRZYKŁADY:
-  ✅ "Kwas hialuronowy wzmacnia barierę lipidową, co zapobiega przeznaskórkowej utracie wody."
-     (most: kwas hialuronowy → bariera lipidowa → utrata wody)
-  ✅ "Witamina C stymuluje syntezę kolagenu, który odpowiada za jędrność skóry."
-     (most: witamina C → kolagen → jędrność skóry)
-  ❌ "Witamina C jest ważna. Kolagen też jest ważny." (brak mostu — luźne stwierdzenia)
-
-REGUŁA: W każdym akapicie MIN 1 zdanie-most łączące 2+ encje.
-Google Knowledge Graph indeksuje relacje MIĘDZY encjami, nie same encje.
 </entities>""")
 
     # ════════════════════════════════════════════════════════════
@@ -826,18 +806,6 @@ def _fmt_intro_guidance(pre_batch, batch_type):
         "═══ LEAD / WSTĘP ARTYKUŁU ═══",
         "Piszesz LEAD — pierwszą rzecz, którą widzi czytelnik po kliknięciu w artykuł.",
         "Lead NIE jest zapowiedzią artykułu. Lead JEST odpowiedzią na pytanie użytkownika.",
-        "",
-        "ENCJA GŁÓWNA — DEFINICJA W PIERWSZYM ZDANIU (KRYTYCZNE DLA NLP):",
-        f'Pierwsze zdanie MUSI zawierać jednoznaczną definicję encji głównej "{kw_name}".',
-        "Wzorzec: \"[Encja główna] to [definicja jednozdaniowa]\" — Google NLP klasyfikuje encję",
-        "na podstawie PIERWSZEGO zdania w dokumencie. Brak definicji = niższa salience.",
-        'Przykład: "Witaminy na skórę to grupa składników odżywczych, które wspierają regenerację naskórka i spowalniają procesy starzenia."',
-        "",
-        "HAK CZYTELNICZY (zdanie 2-3 leadu):",
-        "Po definicji dodaj 2-3 zdania, które powiedzą czytelnikowi DLACZEGO ma to czytać.",
-        "Wzorzec: osobiste odwołanie + obietnica wartości.",
-        'Przykład: "Twoja skóra to lustro Twojego metabolizmu. Sprawdź, jak mądra suplementacja i dieta mogą odbudować barierę ochronną i zatrzymać fotostarzenie."',
-        "NIE pisz: 'W niniejszym artykule...', 'Poniżej przedstawiamy...', 'Zapraszamy do lektury...'",
     ]
 
     # ── STRATEGY A: Featured snippet exists → beat it ──
@@ -902,16 +870,13 @@ def _fmt_intro_guidance(pre_batch, batch_type):
     if kw_name:
         parts.append(f'Fraza główna: "{kw_name}" — MUSI pojawić się w pierwszym zdaniu.')
     parts.append("""
-AKAPIT 1 — DEFINICJA + ODPOWIEDŹ (3-4 zdania, ~60 słów):
-  Zdanie 1: JEDNOZNACZNA DEFINICJA encji głównej z frazą kluczową.
-    Wzorzec: "[Fraza kluczowa] to [co to jest / do czego służy]."
-    To zdanie trafia do featured snippet / AI Overview.
-  Zdanie 2-3: Uzupełnienie z konkretną liczbą/datą/faktem.
+AKAPIT 1 — ODPOWIEDŹ (3-4 zdania, ~60 słów):
+  Bezpośrednia odpowiedź. Prosto, bez wstępów.
+  Pierwsze zdanie = definicja lub odpowiedź z frazą kluczową.
+  Drugie zdanie = uzupełnienie z konkretną liczbą/datą/faktem.
 
-AKAPIT 2 — HAK + KONTEKST (2-3 zdania, ~50 słów):
-  Zdanie otwierające: osobiste odwołanie do czytelnika (Ty/Twój)
-    + dlaczego TEN TEMAT dotyczy JEGO sytuacji.
-  Kolejne zdania: skala zjawiska, zmiana prawa, trend.
+AKAPIT 2 — KONTEKST (2-3 zdania, ~50 słów):
+  Dlaczego to ważne? Skala zjawiska, zmiana prawa, trend.
   Jeden konkretny fakt, którego nie ma w snippet/AI overview.
 
 AKAPIT 3 — ZACHĘTA DO CZYTANIA (1-2 zdania, ~30 słów):
@@ -1309,28 +1274,6 @@ def _fmt_entity_salience(pre_batch):
         svo_lines.append("Google Knowledge Graph indeksuje te relacje. Im więcej z nich pojawi")
         svo_lines.append("się jako wyraźne zdania (nie wtrącenia), tym wyższy topic authority.")
         parts.append("\n".join(svo_lines))
-
-    # 9. v57: Entity gaps — informational hints, not requirements
-    entity_gaps = pre_batch.get("_entity_gaps") or []
-    if entity_gaps:
-        high_gaps = [g for g in entity_gaps if g.get("priority") == "high"]
-        other_gaps = [g for g in entity_gaps if g.get("priority") != "high"]
-        gap_lines = [
-            "═══ LUKI ENCYJNE (informacja, NIE wymóg) ═══",
-            "Poniższe encje MOGĄ wzbogacić artykuł, ale NIE MUSISZ ich wszystkich użyć.",
-            "Potraktuj je jako inspirację — użyj tylko tych, które naturalnie pasują do kontekstu.",
-            ""
-        ]
-        if high_gaps:
-            gap_lines.append("Wysoki priorytet (warto rozważyć):")
-            for g in high_gaps[:5]:
-                reason = f" — {g['why']}" if g.get("why") else ""
-                gap_lines.append(f'  🔴 "{g["entity"]}"{reason}')
-        if other_gaps:
-            gap_lines.append("Dodatkowe (opcjonalne):")
-            for g in other_gaps[:5]:
-                gap_lines.append(f'  🟡 "{g["entity"]}"')
-        parts.append("\n".join(gap_lines))
 
     return "\n\n".join(parts) if parts else ""
 
@@ -1835,26 +1778,9 @@ def _fmt_natural_polish(pre_batch):
         if _dynamic_synonyms and len(_dynamic_synonyms) >= 2:
             synonyms = ", ".join(str(s) for s in _dynamic_synonyms[:7])
         else:
-            # Fallback: encje MUST-MENTION jako zamienniki podmiotowe
-            _must = _entity_seo.get("must_mention_entities", [])
-            _must_names = [str(e.get("entity", e) if isinstance(e, dict) else e) for e in _must[:4]]
-            _must_names = [n for n in _must_names if n and n.lower() != _main_name.lower()]
-            if _must_names:
-                synonyms = ", ".join(_must_names[:4]) + ", ta kwestia, ten aspekt"
-            else:
-                synonyms = "ta kwestia, ten problem, omawiany aspekt, ta sytuacja"
+            # Fallback: zaimki + ogólne zamienniki
+            synonyms = "on, to, ten system, ta baza, narzedzie, wpis"
         parts.append("ANTY-ANAPHORA [" + _main_name + "] MAX 2 ZDANIA Z RZEDU.\nPrzy 3. zdaniu zmien podmiot na: " + synonyms)
-
-    # Multi-entity synonyms: mapa zamienników dla wielu encji
-    _multi_syns = _entity_seo.get("multi_entity_synonyms", {}) if _main_name else {}
-    if _multi_syns:
-        syn_lines = []
-        for ent, syns in list(_multi_syns.items())[:5]:
-            syn_lines.append(f'  "{ent}" → {", ".join(syns[:3])}')
-        parts.append(
-            "📖 MAPA SYNONIMÓW (używaj zamiast powtórzeń):\n" + "\n".join(syn_lines)
-        )
-
     parts.append(
         "⚠️ ZASADY:\n"
         "  • Max 2× ta sama fraza w jednym akapicie\n"
@@ -1875,21 +1801,6 @@ def _fmt_natural_polish(pre_batch):
         "  • NIE używaj 'To' jako podmiotu zdania:\n"
         "    ŹLE: 'To klucz do...' / 'To podstawa...' / 'To pierwszy krok...'\n"
         "    DOBRZE: 'Badanie słuchu stanowi klucz do...' / 'Właściwa diagnoza to podstawa...'"
-    )
-
-    # v57: Anti-stuffing naturalness check + anti-geographic stuffing
-    parts.append(
-        "🚫 NATURALNOŚĆ — TEST CZYTELNIKA:\n"
-        "  Przed użyciem frazy kluczowej zadaj sobie pytanie:\n"
-        "  'Czy ekspert powiedziałby to w rozmowie, czy tylko pisze się to pod SEO?'\n"
-        "  ❌ STUFFING: 'Detektyw Warszawa obsługuje w województwie mazowieckim.' (Warszawa zbędne)\n"
-        "  ❌ STUFFING: 'Witaminy na skórę to temat o witaminach na skórę.' (tautologia)\n"
-        "  ❌ STUFFING: 'Bariera lipidowa skóry chroni barierę lipidową.' (powtórzenie bez treści)\n"
-        "  ✅ NATURALNIE: 'Bariera lipidowa chroni naskórek przed utratą wody.' (fakt + funkcja)\n"
-        "  ✅ NATURALNIE: 'Ceramidy odbudowują strukturę bariery ochronnej skóry.' (synonim + mechanizm)\n"
-        "\n"
-        "  REGUŁA: Jeśli usunięcie frazy kluczowej NIE zmienia sensu zdania = stuffing.\n"
-        "  Każde użycie frazy musi WNOSIĆ informację, nie tylko 'karmić algorytm'."
     )
 
     return "\n".join(parts)
@@ -1993,14 +1904,6 @@ Pisz TYLKO treść tego batcha. Zaczynaj dokładnie od:
 h2: {h2}
 
 Potem: akapity tekstu (40-150 słów każdy), opcjonalnie h3: [podsekcja].
-
-ŚCIANA TEKSTU = UTRATA CZYTELNIKA:
-  • Akapit NIGDY nie powinien przekraczać 4-5 zdań (~80 słów).
-  • Gdy opisujesz 3+ elementów, kroków lub cech → UŻYJ LISTY HTML (<ul>/<ol>).
-  • Gdy porównujesz opcje → rozważ krótką tabelę lub listę.
-  • Między akapitami: przeplataj treść z listami/punktami.
-  Cel: każda sekcja H2 zawiera MIN 1 listę punktową lub numerowaną.
-
 NIE dodawaj komentarzy, wyjaśnień, podsumowań. TYLKO treść artykułu."""
 
 

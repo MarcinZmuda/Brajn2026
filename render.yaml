@@ -23,6 +23,6 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
-        value: gpt-5.2
+        value: gpt-4.1
       - key: GOOGLE_NLP_API_KEY
         sync: false
