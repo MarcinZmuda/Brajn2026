@@ -318,11 +318,24 @@ def _apply_clean_data(s1_data: dict, clean: dict, main_keyword: str) -> dict:
                 filtered_h2.append(h2_text)
         result["competitor_h2_patterns"] = filtered_h2
 
-    # ── SEMANTIC KEYPHRASES: filter ──
+    # ── SEMANTIC KEYPHRASES: filter (v57.1: fuzzy match) ──
+    # Claude returns clean_keyphrases as strings, TF-IDF returns dicts with
+    # "phrase" key. Exact match rarely works → use substring containment.
     if clean_kp:
         clean_kp_set = {k.lower() for k in clean_kp}
         raw_kp = result.get("semantic_keyphrases", [])
-        result["semantic_keyphrases"] = [k for k in raw_kp if _extract_text(k).lower() in clean_kp_set]
+        filtered_kp = []
+        for k in raw_kp:
+            kp_text = _extract_text(k).lower()
+            # Match if TF-IDF phrase is contained in Claude's phrase or vice versa
+            if any(kp_text in ckp or ckp in kp_text for ckp in clean_kp_set):
+                filtered_kp.append(k)
+        # v57.1: If Claude's filtering killed everything, fall back to raw
+        # (let _regex_filter_list handle garbage removal downstream)
+        if not filtered_kp and raw_kp:
+            result["semantic_keyphrases"] = raw_kp
+        else:
+            result["semantic_keyphrases"] = filtered_kp
 
     # ── TOPICAL COVERAGE: rebuild from Claude's entities ──
     entity_seo["topical_coverage"] = [

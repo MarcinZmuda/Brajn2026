@@ -2583,10 +2583,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "cleanup_method": cleanup_stats.get("method", "unknown"),
                 # Podmiotowe zamienniki encji głównej — Haiku/OpenAI (Fix #64 anty-anaphora)
                 "entity_synonyms": _derive_entity_synonyms(main_keyword),
-                # Multi-entity synonyms: synonimy dla top encji (1 query, mniej powtórzeń)
-                "multi_entity_synonyms": _derive_multi_entity_synonyms(
-                    clean_entities[:5], main_keyword
-                ),
+                # v57.1: Multi-entity synonyms WYŁĄCZONE — generujemy synonimy TYLKO
+                # dla hasła głównego. Synonimy encji pobocznych (stan nietrzeźwości → Pijaństwo)
+                # były słabe jakościowo i nie wnosiły wartości SEO.
+                "multi_entity_synonyms": {},
             },
             # v47.0: Placement instruction (top-level for easy access)
             "placement_instruction": backend_placement_instruction,
@@ -3081,13 +3081,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # Wyciagnij synonimy encji głównej z entity_seo (zapisane z topical entity generator)
         _entity_synonyms = filtered_entity_seo.get("entity_synonyms", [])
         if _entity_synonyms:
-            yield emit("log", {"msg": f"🔄 Synonimy encji: {', '.join(str(s) for s in _entity_synonyms[:5])}"})
-
-        # Multi-entity synonyms (top 5 encji w jednym zapytaniu)
-        _multi_synonyms = filtered_entity_seo.get("multi_entity_synonyms", {})
-        if _multi_synonyms:
-            _ms_preview = "; ".join(f"{k}: {', '.join(v[:2])}" for k, v in list(_multi_synonyms.items())[:3])
-            yield emit("log", {"msg": f"🔄 Multi-synonimy ({len(_multi_synonyms)} encji): {_ms_preview}"})
+            yield emit("log", {"msg": f"🔄 Synonimy głównej frazy: {', '.join(str(s) for s in _entity_synonyms[:5])}"})
 
         # Fix #59: Oblicz target_length z recommended_length S1 zamiast hardcode 3500/2000
         if content_type == "category":
