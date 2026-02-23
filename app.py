@@ -57,7 +57,7 @@ from ai_middleware import (
     fix_batch_domain_errors,
     analyze_entity_gaps,
 )
-from keyword_dedup import deduplicate_keywords
+from keyword_dedup import deduplicate_keywords, remove_subsumed_basic
 from entity_salience import (
     check_entity_salience,
     generate_article_schema,
@@ -2846,6 +2846,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # ─── v51: Auto-generate BASIC phrases from S1 entity + ngram frequency ───
         if not basic_terms:
             auto_basic = []
+            auto_extended_long = []  # v60: n-grams ≥4 words → EXTENDED (not BASIC)
             seen_texts = set()
             
             # === 1. ENTITIES (primary, Surfer-style) ===
@@ -2932,7 +2933,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 target_min = min(target_min, 25)
                 target_max = min(target_max, 30)
                 
-                auto_basic.append(f"{text}: {target_min}-{target_max}x")
+                # v60 FIX: N-grams with ≥4 words → EXTENDED (low targets 1-2)
+                # They're too long for BASIC — GPT can't naturally repeat them 3-5x
+                word_count_ng = len(text.split())
+                if word_count_ng >= 4:
+                    auto_extended_long.append(f"{text}: 1-2x")
+                else:
+                    auto_basic.append(f"{text}: {target_min}-{target_max}x")
                 seen_texts.add(text.lower())
             
             if auto_basic:
@@ -2944,6 +2951,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     yield emit("log", {"msg": f"  • {term}"})
                 if len(basic_terms) > 5:
                     yield emit("log", {"msg": f"  ... i {len(basic_terms) - 5} więcej"})
+            
+            # v60: Merge long n-grams into extended_terms
+            if auto_extended_long:
+                extended_terms = list(extended_terms) + auto_extended_long
+                yield emit("log", {"msg": f"📊 Long n-grams→EXTENDED: {len(auto_extended_long)} fraz (≥4 słowa)"})
 
         # ─── KROK 3: H2 Planning (auto from S1 + phrase optimization) ───
         step_start(3)
@@ -3060,6 +3072,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             _kp_added += 1
         if _kp_added:
             yield emit("log", {"msg": f"🔑 Keyphrases→EXTENDED (P3): {_kp_added} fraz z competitor overlap"})
+
+        # ═══ v60 FIX: Remove BASIC keywords subsumed by longer BASIC/ENTITY phrases ═══
+        # e.g. "pozbawienia wolności" removed if "kara pozbawienia wolności" exists
+        pre_remove_count = len(keywords)
+        keywords = remove_subsumed_basic(keywords, main_keyword)
+        _removed = pre_remove_count - len(keywords)
+        if _removed:
+            yield emit("log", {"msg": f"🧹 Subsumed BASIC removal: usunięto {_removed} fraz pochłoniętych przez dłuższe"})
 
         # ═══ Keyword deduplication (word-boundary safe) ═══
         pre_dedup_count = len(keywords)
@@ -3800,7 +3820,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         step_start(8)
         yield emit("step", {"step": 8, "name": "Content Editorial", "status": "running"})
         yield emit("log", {"msg": "POST /content_editorial..."})
-        content_editorial_result = brajen_call("post", f"/api/project/{project_id}/content_editorial", json_data={}, timeout=HEAVY_REQUEST_TIMEOUT)
+        # v60 FIX: Send article_text directly instead of relying on Firestore lookup
+        _ce_article = "\n\n".join(b.get("text", "") for b in accepted_batches_log if b.get("text"))
+        _ce_payload = {"article_text": _ce_article} if _ce_article else {}
+        content_editorial_result = brajen_call("post", f"/api/project/{project_id}/content_editorial", json_data=_ce_payload, timeout=HEAVY_REQUEST_TIMEOUT)
         if content_editorial_result["ok"]:
             ced = content_editorial_result["data"]
             ced_status = ced.get("status", "OK")
