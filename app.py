@@ -2310,17 +2310,27 @@ def _editor_in_chief_review(article_text, main_keyword, detected_category="inne"
             "output_tokens": response.usage.output_tokens,
         }
 
-        # Step 2: Auto-fix if critical errors found
-        if critical and len(critical) > 0:
-            errors_desc = "\n".join(
-                f"{i+1}. CYTAT: \"{e.get('cytat', '')}\"\n   BŁĄD: {e.get('blad', '')}\n   POPRAWKA: {e.get('poprawka', '')}"
-                for i, e in enumerate(critical[:8])
-            )
+        # Step 2: Auto-fix if critical errors or artifacts found
+        if (critical and len(critical) > 0) or (artifacts and len(artifacts) > 0):
+            errors_desc = ""
+            if critical:
+                errors_desc += "\n".join(
+                    f"{i+1}. CYTAT: \"{e.get('cytat', '')}\"\n   BŁĄD: {e.get('blad', '')}\n   POPRAWKA: {e.get('poprawka', '')}"
+                    for i, e in enumerate(critical[:8])
+                )
             # Add artifacts too
             if artifacts:
-                errors_desc += "\n\nARTEFAKTY DO USUNIĘCIA:\n" + "\n".join(
+                if errors_desc:
+                    errors_desc += "\n\n"
+                errors_desc += "ARTEFAKTY DO USUNIĘCIA:\n" + "\n".join(
                     f"- \"{a.get('cytat', '')}\" → {a.get('blad', '')}"
                     for a in artifacts[:5]
+                )
+            # Add logic issues
+            if logic:
+                errors_desc += "\n\nPROBLEMY LOGICZNE:\n" + "\n".join(
+                    f"- {l.get('opis', '')}"
+                    for l in logic[:5]
                 )
 
             fix_prompt = _EDITOR_FIX_PROMPT.format(
@@ -4632,7 +4642,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 9, "name": "Final Review", "status": "running"})
         yield emit("log", {"msg": "GET /final_review..."})
         final_score = None
-        _backend_qb = {}  # v2.3: stored for local quality override
+
         final_result = brajen_call("get", f"/api/project/{project_id}/final_review", timeout=HEAVY_REQUEST_TIMEOUT)
         if final_result["ok"]:
             final = final_result["data"]
@@ -4673,9 +4683,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # Issues = overuse + H3 + other issues from API
             issues = (final.get("issues") or final.get("all_issues") or [])
 
-            # v2.3: Store for local quality override later
-            _backend_qb = _extract_quality_breakdown(final)
-
             yield emit("final_review", {
                 "score": final_score,
                 "status": final_status,
@@ -4694,8 +4701,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 # v50.7: Stuffing info
                 "stuffing": (final.get("validations") or {}).get("missing_keywords", {}).get("stuffing", [])[:5],
                 "priority_to_add": (final.get("validations") or {}).get("missing_keywords", {}).get("priority_to_add", {}).get("to_add_by_claude", [])[:5],
-                # P5: Quality breakdown — multi-path extraction
-                "quality_breakdown": _backend_qb,  # v2.3: stored above for local override
+                # P5: density/coverage
                 "density": final.get("density") or final.get("keyword_density"),
                 "word_count": final.get("word_count") or final.get("total_words"),
                 "basic_coverage": final.get("basic_coverage"),
@@ -5308,97 +5314,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🎯 Ocena: {grade} | Quality: {_q_score} | Salience: {_sal_score} | Semantic: {_sem_score} | Style: {_st_score}"})
         except Exception as eval_err:
             logger.warning(f"Evaluation summary failed: {eval_err}")
-
-        # ═══ v2.3: LOCAL QUALITY BREAKDOWN OVERRIDE ═══
-        # Backend often returns null for semantic/depth/coherence — compute locally
-        try:
-            _local_qb = dict(_backend_qb)  # copy
-            _updated_dims = []
-
-            # Semantic: from semantic_dist_result (entity coverage + keyphrase + must-mention + ngram)
-            if _local_qb.get("semantic") is None and semantic_dist_result.get("enabled"):
-                _local_qb["semantic"] = semantic_dist_result["score"]
-                _updated_dims.append(f"semantic={_local_qb['semantic']}")
-
-            # Depth: avg of batch depth scores, fallback to causal+EAV coverage
-            if _local_qb.get("depth") is None:
-                _batch_depths = [b.get("depth_score") for b in accepted_batches_log
-                                 if b.get("depth_score") is not None and isinstance(b.get("depth_score"), (int, float))]
-                if _batch_depths:
-                    _avg_depth = sum(_batch_depths) / len(_batch_depths)
-                    # depth_score from API is often 0-10, normalize to 0-100
-                    if all(d <= 10 for d in _batch_depths):
-                        _avg_depth = _avg_depth * 10
-                    _local_qb["depth"] = round(min(100, max(0, _avg_depth)))
-                    _updated_dims.append(f"depth={_local_qb['depth']}(avg/{len(_batch_depths)})")
-
-            # Coherence: from style analysis (transition/flow score) or editorial
-            if _local_qb.get("coherence") is None:
-                if st_score is not None:
-                    # style score is 0-10 from editorial → scale to 0-100
-                    _coh = round(min(100, st_score * 10)) if st_score <= 10 else round(min(100, st_score))
-                    _local_qb["coherence"] = _coh
-                    _updated_dims.append(f"coherence={_coh}(style)")
-                elif editorial_score is not None and isinstance(editorial_score, (int, float)):
-                    _coh = round(min(100, editorial_score * 10)) if editorial_score <= 10 else round(min(100, editorial_score))
-                    _local_qb["coherence"] = _coh
-                    _updated_dims.append(f"coherence={_coh}(editorial)")
-
-            # Humanness: from salience_score or style_metrics
-            if _local_qb.get("humanness") is None:
-                if sal_score is not None and isinstance(sal_score, (int, float)):
-                    _hum = round(min(100, sal_score))
-                    _local_qb["humanness"] = _hum
-                    _updated_dims.append(f"humanness={_hum}(salience)")
-
-            # Grammar: from editorial grammar fixes — fewer fixes = higher score
-            if _local_qb.get("grammar") is None:
-                # Heuristic: start at 85, lose 3 pts per grammar fix (capped)
-                _gram_fixes = 0
-                try:
-                    if editorial_result.get("ok"):
-                        _ed = editorial_result["data"]
-                        _gram_fixes = (_ed.get("grammar_correction") or {}).get("fixes", 0)
-                except Exception:
-                    pass
-                _gram_score = max(50, 90 - _gram_fixes * 3)
-                _local_qb["grammar"] = _gram_score
-                _updated_dims.append(f"grammar={_gram_score}({_gram_fixes}fixes)")
-
-            # Keywords: from final_review basic_coverage or entity_coverage
-            if _local_qb.get("keywords") is None:
-                _bc = None
-                if final_result.get("ok"):
-                    _fr = final_result["data"]
-                    if _fr.get("status") == "EXISTS" and "final_review" in _fr:
-                        _fr = _fr["final_review"]
-                    _bc = _fr.get("basic_coverage")
-                if _bc is not None and isinstance(_bc, (int, float)):
-                    _local_qb["keywords"] = round(min(100, max(0, _bc)))
-                    _updated_dims.append(f"keywords={_local_qb['keywords']}(basic_cov)")
-                elif semantic_dist_result.get("enabled"):
-                    _kp_cov = semantic_dist_result.get("keyphrase_coverage", 0)
-                    _local_qb["keywords"] = round(min(100, _kp_cov * 100))
-                    _updated_dims.append(f"keywords={_local_qb['keywords']}(kp_cov)")
-
-            # Structure: from H3 issues count
-            if _local_qb.get("structure") is None:
-                _h3_issues_count = 0
-                if final_result.get("ok"):
-                    _fr = final_result["data"]
-                    if _fr.get("status") == "EXISTS" and "final_review" in _fr:
-                        _fr = _fr["final_review"]
-                    _h3_issues_count = len((_fr.get("validations") or {}).get("h3_length", {}).get("issues", []))
-                _struct = max(55, 90 - _h3_issues_count * 5)
-                _local_qb["structure"] = _struct
-                _updated_dims.append(f"structure={_struct}({_h3_issues_count}h3_issues)")
-
-            if _updated_dims:
-                yield emit("quality_breakdown_update", _local_qb)
-                yield emit("log", {"msg": f"📊 Radar local: {', '.join(_updated_dims)}"})
-                logger.info(f"[RADAR_LOCAL] updated: {_updated_dims}")
-        except Exception as qb_err:
-            logger.warning(f"Quality breakdown local override failed: {qb_err}")
 
         # ═══ v2.3: REDAKTOR NACZELNY — final expert review ═══
         try:
