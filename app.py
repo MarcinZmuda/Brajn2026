@@ -1600,30 +1600,20 @@ def _clean_batch_text(text):
     """Remove duplicate ## headers when h2: format exists, strip markdown artifacts."""
     if not text:
         return text
-    # v55.1 Fix E: Strip markdown code fences (GPT-4.1 wraps HTML in ```html...```)
-    _t = text.strip()
-    if _t.startswith("```html"):
-        _t = _t[7:]
-    elif _t.startswith("```"):
-        _t = _t[3:]
-    if _t.endswith("```"):
-        _t = _t[:-3]
-    text = _t.strip()
-    
-    # ═══ v56 FIX 2A: Normalize malformed HTML tags from GPT ═══
-    # GPT sometimes returns <p.> <p,> <P> <H2> <H3> etc.
-    import re as _re2
-    # Fix <p.> <p,> <p:> → <p>  and closing variants
-    text = _re2.sub(r'<p[.,;:]+>', '<p>', text, flags=_re2.IGNORECASE)
-    text = _re2.sub(r'</p[.,;:]+>', '</p>', text, flags=_re2.IGNORECASE)
-    # Fix <h2.> <h3,> etc.
-    text = _re2.sub(r'<(h[2-6])[.,;:]+>', r'<\1>', text, flags=_re2.IGNORECASE)
-    text = _re2.sub(r'</(h[2-6])[.,;:]+>', r'</\1>', text, flags=_re2.IGNORECASE)
-    # Normalize tag case: <H2> → <h2>, <P> → <p>, </H2> → </h2>
-    def _lower_tag(m):
-        return m.group(0).lower()
-    text = _re2.sub(r'</?[A-Z][A-Z0-9]*(?:\s[^>]*)?\s*/?>', _lower_tag, text)
-    # ═══ END FIX 2A ═══
+
+    # Step 1: Normalize malformed tags (reuse existing function — handles code fences, <p.>→<p>, case)
+    text = _normalize_html_tags(text)
+
+    # Step 2: Convert <h2>/<h3> → h2:/h3: format (display expects h2: prefix)
+    # NOTE: Do NOT call _strip_html_for_analysis — it strips <strong>/<em> from production text
+    text = _re.sub(r'<h2[^>]*>\s*', 'h2: ', text, flags=_re.IGNORECASE)
+    text = _re.sub(r'\s*</h2>', '', text, flags=_re.IGNORECASE)
+    text = _re.sub(r'<h3[^>]*>\s*', 'h3: ', text, flags=_re.IGNORECASE)
+    text = _re.sub(r'\s*</h3>', '', text, flags=_re.IGNORECASE)
+    # Strip structural wrapper tags only — keep inline formatting (<strong>, <em>, <a>) and tables
+    text = _re.sub(r'</?(?:p|li|ul|ol|div|span|br|hr|blockquote)[^>]*/?>',  '', text, flags=_re.IGNORECASE)
+    text = _re.sub(r'\n{3,}', '\n\n', text)
+    text = _re.sub(r'  +', ' ', text)
     
     lines = text.split("\n")
     has_h2_prefix = any(l.strip().startswith("h2:") for l in lines)
@@ -1750,7 +1740,11 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
         h2_list = suggested_h2s[:7] + ["Najczęściej zadawane pytania"] if suggested_h2s else [main_keyword, "Najczęściej zadawane pytania"]
     
     # ═══ v50.8 FIX 50: Enforce H2 count limits based on mode ═══
-    MAX_H2 = {"fast": 4, "standard": 14}  # fast=3+FAQ, standard=up to 13+FAQ
+    # Dynamic cap: derive from recommended length (not hardcoded)
+    _rec = (s1_data or {}).get("recommended_length") or \
+           ((s1_data or {}).get("length_analysis") or {}).get("recommended") or 1500
+    _dynamic_max = max(4, min(14, int(_rec) // 250 + 2))  # +2 = FAQ + buffer
+    MAX_H2 = {"fast": 4, "standard": _dynamic_max}
     max_allowed = MAX_H2.get(mode, 10)
     
     if len(h2_list) > max_allowed:
@@ -3246,15 +3240,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             else:
                 _target_length = 3500 if mode == "standard" else 2000
 
-            # v59 FIX: NEVER trim H2s — scale target_length UP to fit all sections.
-            # AI generated these H2 for good reason (coverage, gaps, PAA). Cutting
-            # loses SEO value. Instead: bump target_length so each H2 gets ~250 words.
+            # Scale target_length if H2 plan needs more space
             _WORDS_PER_H2 = 250
-            _min_length_for_all_h2 = len(h2_structure) * _WORDS_PER_H2 + 150  # +150 for intro
+            _min_length_for_all_h2 = len(h2_structure) * _WORDS_PER_H2 + 150
             if _target_length < _min_length_for_all_h2:
                 _old_target = _target_length
-                _target_length = _min_length_for_all_h2
-                yield emit("log", {"msg": f"📏 target_length {_old_target}→{_target_length} (scaled UP for {len(h2_structure)} H2 × {_WORDS_PER_H2} words)"})
+                _target_length = min(_min_length_for_all_h2, int(_target_length * 1.5))  # cap at 1.5x
+                yield emit("log", {"msg": f"📏 target_length {_old_target}→{_target_length} (for {len(h2_structure)} H2)"})
 
             # Ensure target_length covers remaining H2 sections
             _min_length_for_h2 = len(h2_structure) * 200 + 150
