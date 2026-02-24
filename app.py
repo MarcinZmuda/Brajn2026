@@ -1688,7 +1688,8 @@ def _strip_html_for_analysis(text):
     _t = _re_strip.sub(r'<h3[^>]*>\s*', 'h3: ', _t, flags=_re_strip.IGNORECASE)
     _t = _re_strip.sub(r'\s*</h3>', '', _t, flags=_re_strip.IGNORECASE)
     # Strip <p>, </p>, <li>, </li>, <ul>, </ul>, <ol>, </ol>, <br>, <hr>, etc.
-    _t = _re_strip.sub(r'</?(?:p|li|ul|ol|div|span|br|hr|table|tr|td|th|blockquote|strong|em|b|i|a)[^>]*/?>', '', _t, flags=_re_strip.IGNORECASE)
+    # NOTE: table|tr|td|th intentionally KEPT — tables are content, not formatting artifacts
+    _t = _re_strip.sub(r'</?(?:p|li|ul|ol|div|span|br|hr|blockquote|strong|em|b|i|a)[^>]*/?>', '', _t, flags=_re_strip.IGNORECASE)
     # Clean up extra whitespace from tag removal
     _t = _re_strip.sub(r'\n{3,}', '\n\n', _t)
     _t = _re_strip.sub(r'  +', ' ', _t)
@@ -4751,6 +4752,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # ─── DONE ───
         total_elapsed = round(time.time() - workflow_start, 1)
+        _circuit_breaker_reset(job_id)  # FIX: reset circuit breaker po zakończeniu joba
+        job["status"] = "done"  # FIX: ustaw finalny status
         yield emit("log", {"msg": f"⏱️ Workflow zakończony w {total_elapsed}s"})
         yield emit("done", {
             "project_id": project_id,
@@ -4766,6 +4769,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         })
 
     except Exception as e:
+        _circuit_breaker_reset(job_id)  # FIX: reset circuit breaker nawet przy błędzie
+        job["status"] = "error"  # FIX: ustaw finalny status
         logger.exception(f"Workflow error: {e}")
         yield emit("workflow_error", {"step": 0, "msg": f"Unexpected error: {str(e)}"})
 
