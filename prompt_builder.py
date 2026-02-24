@@ -64,6 +64,27 @@ def _word_trim(text, max_chars):
     return trimmed.rstrip(" ,;:") + "..."
 
 
+def _find_variants(keyword, variant_dict):
+    """Find variants for a keyword in the entity variant dictionary.
+    Matches exact key or by 4-char Polish stem prefix."""
+    if not keyword or not variant_dict:
+        return []
+    kw_lower = keyword.lower().strip()
+    # Exact match
+    for key, variants in variant_dict.items():
+        if key.lower().strip() == kw_lower:
+            return variants
+    # Stem match (first 4 chars of each word)
+    kw_stems = set(w[:4] for w in kw_lower.split() if len(w) >= 4)
+    if not kw_stems:
+        return []
+    for key, variants in variant_dict.items():
+        key_stems = set(w[:4] for w in key.lower().split() if len(w) >= 4)
+        if kw_stems and key_stems and kw_stems & key_stems:
+            return variants
+    return []
+
+
 # ════════════════════════════════════════════════════════════
 # PERSONAS (v2.1)
 # ════════════════════════════════════════════════════════════
@@ -221,6 +242,19 @@ STYL: Fakt + co to znaczy w portfelu/kalendarzu czytelnika.
 RYTM: mieszaj długość zdań. Nie pisz trzech zdań o podobnej długości pod rząd.
   Czasem użyj zdania 5-słowowego. Czasem rozwiń myśl na 25 słów.
   Naturalny rytm = różnorodność, nie formuła.
+
+ZDANIA PROSTE > ZŁOŻONE:
+  Max 2 przecinki w zdaniu. Zdanie z 3+ przecinkami = za złożone → rozbij.
+  ❌ „Sąd, który rozpatruje sprawę, może orzec zakaz, jeśli uzna, że kierowca stanowił zagrożenie."
+  ✅ „Sąd może orzec zakaz prowadzenia. Warunkiem jest uznanie, że kierowca stanowił zagrożenie."
+  Zdanie > 22 słów → sprawdź, czy da się rozbić na dwa krótsze.
+  ZAKAZ wielokrotnie złożonych: „X, który Y, ponieważ Z, a także W" → rozbij na 2-3 zdania.
+  Jedno zdanie = jedna myśl. Dwa fakty = dwa zdania.
+
+LISTY I TABELE:
+  W całym artykule użyj 1-2 list wypunktowanych (<ul><li>) tam, gdzie naturalnie pasują: wyliczanie warunków, kroków, wymagań.
+  Opcjonalnie 1 tabela (<table>) gdy porównujesz 2+ warianty lub zestawiasz dane liczbowe.
+  Nie nadużywaj — większość treści to akapity prozą. Lista ≠ zamiennik akapitu.
 Podmiot konkretny (inwestor, ekipa, hydraulik) + czynność + LICZBA/FAKT.
 NIE zaczynaj 2+ zdań w akapicie od tego samego wzorca.
 
@@ -499,26 +533,48 @@ def _fmt_keywords(pre_batch):
 
     # ── STOP ──
     stop_raw = keyword_limits.get("stop_keywords") or []
+    entity_variants = pre_batch.get("_entity_variants") or \
+        (pre_batch.get("_search_variants") or {}).get("secondary", {})
     stop_lines = []
     for s in stop_raw:
         if isinstance(s, dict):
             name = s.get("keyword", "")
             current = s.get("current_count", s.get("current", s.get("actual", "?")))
             max_c = s.get("max_count", s.get("max", s.get("target_max", "?")))
-            stop_lines.append(f'  • "{name}" (już {current}×, limit {max_c}) STOP!')
+            line = f'  • "{name}" (już {current}×, limit {max_c}) STOP!'
+            # v2.3: Show variant replacements
+            variants = _find_variants(name, entity_variants)
+            if variants:
+                line += f'\n    → zamiast użyj: {", ".join(variants[:4])}'
+            stop_lines.append(line)
         else:
-            stop_lines.append(f'  • "{s}"')
+            line = f'  • "{s}"'
+            variants = _find_variants(str(s), entity_variants)
+            if variants:
+                line += f'\n    → zamiast użyj: {", ".join(variants[:4])}'
+            stop_lines.append(line)
     for exhausted_kw in _budget_exhausted_kws:
-        stop_lines.append(f'  • "{exhausted_kw}" (limit globalny osiągnięty — NIE UŻYWAJ!)')
+        line = f'  • "{exhausted_kw}" (limit globalny osiągnięty — NIE UŻYWAJ!)'
+        variants = _find_variants(exhausted_kw, entity_variants)
+        if variants:
+            line += f'\n    → zamiast użyj: {", ".join(variants[:4])}'
+        stop_lines.append(line)
 
     # ── CAUTION ──
     caution_raw = keyword_limits.get("caution_keywords") or []
     caution_names = []
+    caution_variant_hints = []
     for c in caution_raw:
         if isinstance(c, dict):
-            caution_names.append(c.get("keyword", ""))
+            name = c.get("keyword", "")
+            caution_names.append(name)
         else:
-            caution_names.append(str(c))
+            name = str(c)
+            caution_names.append(name)
+        if name:
+            variants = _find_variants(name, entity_variants)
+            if variants:
+                caution_variant_hints.append(f'  "{name}" → {", ".join(variants[:3])}')
     caution_names = [n for n in caution_names if n]
 
     # ── SOFT CAPS ──
@@ -551,6 +607,8 @@ def _fmt_keywords(pre_batch):
         parts.extend(stop_lines)
     if caution_names:
         parts.append(f"\n⚠️ OSTROŻNIE (max 1× każda): {', '.join(caution_names)}")
+        if caution_variant_hints:
+            parts.extend(caution_variant_hints)
     if soft_notes:
         parts.append("")
         parts.extend(soft_notes)
@@ -643,8 +701,11 @@ Pisz TYLKO treść tego batcha. Zaczynaj od:
 h2: {h2}
 
 Akapity po 3-5 zdań. Opcjonalnie h3: [podsekcja].
+Gdy masz 3+ warunków/kroków/wymagań → lista <ul><li> (max 1-2 listy w artykule).
+Gdy porównujesz dane liczbowe → tabela <table> (max 1 w artykule).
 Każdy akapit powinien zawierać min. 1 konkretny fakt (liczbę, stawkę, wymiar, termin).
 Zdania bez informacji ("Ta sytuacja...", "Ten problem...") = DO USUNIĘCIA.
+Zdanie z 3+ przecinkami = za złożone → rozbij na dwa zdania.
 KAŻDY h3: na OSOBNEJ linii z pustą linią powyżej i poniżej.
 ŻADEN nagłówek NIE może być wklejony w środek akapitu.
 Zero markdown (**, __, #). Zero tagów HTML (<h2>, <h3>, <b>).
@@ -665,13 +726,18 @@ def _fmt_entity_context_v2(pre_batch):
     _entity_seo = (pre_batch.get("s1_data") or {}).get("entity_seo") or \
         pre_batch.get("entity_seo") or {}
 
-    # ── Block 1: Synonyms (static — needed for anaphora in every batch) ──
+    # ── Block 1: Synonyms (from search_variants or fallback to entity_synonyms) ──
     if main_name:
-        synonyms = _entity_seo.get("entity_synonyms", [])[:5]
-        if synonyms:
-            parts.append(f"═══ ENCJE ═══\nSynonimy: {', '.join(str(s) for s in synonyms)}")
+        sv = pre_batch.get("_search_variants") or {}
+        peryfrazy = sv.get("peryfrazy", [])
+        if peryfrazy:
+            parts.append(f"═══ ENCJE ═══\nSynonimy: {', '.join(peryfrazy[:5])}")
         else:
-            parts.append("═══ ENCJE ═══")
+            synonyms = _entity_seo.get("entity_synonyms", [])[:5]
+            if synonyms:
+                parts.append(f"═══ ENCJE ═══\nSynonimy: {', '.join(str(s) for s in synonyms)}")
+            else:
+                parts.append("═══ ENCJE ═══")
 
     # ── Block 2: Lead entity + concepts for THIS section ──
     lead = s1_ctx.get("lead_entity")
@@ -1106,10 +1172,7 @@ def _fmt_entity_salience(pre_batch):
 
 
 def _fmt_natural_polish(pre_batch):
-    """Anti-stuffing + fleksja — consolidated v2.2.
-    Removed per-keyword spacing table (LLM can't count words).
-    Kept: fleksja, anaphora, FAQ rotation, stuffing test.
-    """
+    """Anti-stuffing + fleksja — v2.3: uses search_variants for richer variation."""
     parts = ["═══ ANTY-STUFFING ═══"]
 
     parts.append(
@@ -1117,17 +1180,43 @@ def _fmt_natural_polish(pre_batch):
         "Rozkładaj frazy RÓWNOMIERNIE po tekście — nie skupiaj w jednym akapicie."
     )
 
-    # Dynamic anaphora ban for main entity
+    # Dynamic anaphora with search variants
     _raw_main = pre_batch.get("main_keyword") or {}
     _main_name = _raw_main.get("keyword", "") if isinstance(_raw_main, dict) else str(_raw_main)
     if _main_name:
-        _entity_seo = (pre_batch.get("s1_data") or {}).get("entity_seo") or pre_batch.get("entity_seo") or {}
-        _dynamic_synonyms = _entity_seo.get("entity_synonyms", [])
-        if _dynamic_synonyms and len(_dynamic_synonyms) >= 2:
-            synonyms = ", ".join(str(s) for s in _dynamic_synonyms[:5])
-        else:
-            synonyms = "konkretny podmiot z kontekstu (inwestor, ekipa, wykonawca, sąd)"
+        # Try search_variants first (richest source)
+        sv = pre_batch.get("_search_variants") or {}
+        peryfrazy = sv.get("peryfrazy", [])
+        potoczne = sv.get("potoczne", [])
+        formalne = sv.get("formalne", [])
+
+        # Build anaphora list from variants (peryfrazy first, then mix)
+        anaphora_pool = []
+        for v in peryfrazy[:3]:
+            anaphora_pool.append(v)
+        for v in potoczne[:2]:
+            if v not in anaphora_pool:
+                anaphora_pool.append(v)
+        for v in formalne[:2]:
+            if v not in anaphora_pool:
+                anaphora_pool.append(v)
+
+        # Fallback to entity_synonyms if no search_variants
+        if not anaphora_pool:
+            _entity_seo = (pre_batch.get("s1_data") or {}).get("entity_seo") or pre_batch.get("entity_seo") or {}
+            _dynamic_synonyms = _entity_seo.get("entity_synonyms", [])
+            if _dynamic_synonyms and len(_dynamic_synonyms) >= 2:
+                anaphora_pool = [str(s) for s in _dynamic_synonyms[:5]]
+            else:
+                anaphora_pool = ["konkretny podmiot z kontekstu"]
+
+        synonyms = ", ".join(anaphora_pool[:5])
         parts.append(f"ANTY-ANAPHORA [{_main_name}] MAX 2 ZDANIA Z RZĘDU → zmień na: {synonyms}")
+
+        # Add fleksyjne variants hint (helps LLM with case variation)
+        fleksyjne = sv.get("fleksyjne", [])
+        if fleksyjne:
+            parts.append(f"ODMIANY: {', '.join(fleksyjne[:4])}")
 
     parts.append(
         "FAQ: każde pytanie zaczynaj INNYM słowem (Czy, Kiedy, Jak, Co, Ile, Dlaczego).\n"
