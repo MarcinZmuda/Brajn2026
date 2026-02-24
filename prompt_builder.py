@@ -117,116 +117,57 @@ def build_system_prompt(pre_batch, batch_type):
     detected_category = pre_batch.get("detected_category", "")
     is_ymyl = detected_category in ("prawo", "medycyna", "finanse")
 
-    # ═══ 1. PERSONA ═══
+    # ═══ 1. ROLA ═══
     persona = _PERSONAS.get(detected_category, _PERSONAS["inne"])
-    parts.append(f"""<role>
+    parts.append(f"""<rola>
 {persona}
+Ton: analityczny, rzeczowy. 3. osoba lub bezosobowo. ZAKAZ 2. osoby.
+</rola>""")
 
-Piszesz jak redaktor z wieloletnim doświadczeniem w temacie którego się podejmujesz.
-W YMYL zachowujesz ton analityczny i rzeczowy.
-Unikasz dygresji i ocen wartościujących.
-Nie jesteś encyklopedią — jesteś autorem z doświadczeniem.
-</role>""")
+    # ═══ 2. ZASADY PISANIA ═══
+    # Jedno miejsce — cel, styl, anty-AI, zdania. Zero powtórzeń.
+    parts.append(f"""<zasady>
+Pisz konkretnie. Każde zdanie = nowa informacja.
+Fakt podany raz — nie powtarzaj go innymi słowami.
+Nie zapowiadaj ("dalej opiszemy"), nie streszczaj, nie komentuj. Po prostu pisz.
 
-    # ═══ 2. CEL ═══
-    parts.append("""<cel>
-Wyczerpanie search intent użytkownika.
-Tekst ma odpowiedzieć na pytanie, rozwiązać problem, uporządkować wiedzę.
-SEO jest efektem ubocznym kompletności i precyzji.
-Każde zdanie musi wnosić nową informację — nie zapowiadać jej.
-Unikaj wstępów ogólnych.
-</cel>""")
+ZDANIA: średnia 8-20 słów, max 30. Krótkie + dłuższe = naturalny rytm.
+Wielokrotnie złożone → rozbij na prostsze.
+
+INTERPUNKCJA: przecinki przed: że, który, ponieważ, aby.
+FLEKSJA: odmieniaj frazy przez przypadki — to jedno użycie, nie powtórzenie.
+
+FORMAT: h2:/h3: dla nagłówków. Zero markdown.
+  3+ kroków → lista HTML. 3+ porównań → tabela HTML (<table>).
+
+NAZWY FIRM I MAREK: nie używaj nazw handlowych — zastąp opisem generycznym.
+  Nurofen → ibuprofen, Karcher → myjka ciśnieniowa, Thermomix → robot kuchenny.
+  "kluczowe jest", "istotne jest", "w tym kontekście", "podsumowując",
+  "w przedmiotowej sprawie", "na kanwie niniejszego", placeholdery.
+</zasady>""")
 
     # ═══ 3. ENTITY SEO ═══
-    parts.append("""<entity_seo>
-SALIENCE ENCJI — z patentów Google:
+    parts.append("""<encje>
+1. KOLOKACJA: powiązane encje w tym samym akapicie.
+2. NAZEWNICTWO: spójna forma nazwy w całym tekście.
+3. HIERARCHIA: encja główna w pierwszym zdaniu i w H1.
+</encje>""")
 
-1. KOLOKACJA: Powiązane encje w TYM SAMYM akapicie.
-   Google mierzy co-occurrence — bliskość w tekście = silniejsza relacja.
-
-2. NAZEWNICTWO: Spójna forma nazwy w całym tekście.
-   Przy pierwszym użyciu: pełna nazwa. Potem: konsekwentna forma.
-
-3. HIERARCHIA: Encja główna w pierwszym zdaniu artykułu i w H1.
-   Encje wtórne — naturalnie w sekcjach, w których są merytorycznie uzasadnione.
-</entity_seo>""")
-
-    # ═══ 4. POLSZCZYZNA ═══
-    parts.append("""<polski>
-Polszczyzna publicystyczna (NKJP, 1.8 mld segmentów):
-
-PRZECINKI — dbaj o poprawną interpunkcję (zwłaszcza przed: że, który, ponieważ, aby).
-
-KOLOKACJE — poprawne połączenia:
-  podjąć decyzję (NIE: zrobić), odnieść sukces (NIE: mieć),
-  popełnić błąd (NIE: zrobić), ponieść konsekwencje (NIE: mieć),
-  wysoki poziom (NIE: duży), odgrywać rolę (NIE: pełnić).
-
-FLEKSJA: Odmieniaj frazy naturalnie przez przypadki.
-  „zakaz prowadzenia" = „zakazu prowadzenia" = „zakazem prowadzenia" — to jedno użycie.
-  Nie powtarzaj frazy ciągle w mianowniku.
-</polski>""")
-
-    # ═══ 5. TON I FORMA ═══
-    parts.append("""<ton>
-Forma: 3. osoba lub bezosobowo. ZAKAZ 2. osoby (mówisz, musisz, Twój).
-Styl: rzeczowy, ale nie urzędniczy. Dozwolone: porównania, przykłady z praktyki.
-Zakazany żargon: "w przedmiotowej sprawie", "na kanwie niniejszego", "reżim karny".
-Nazwy handlowe: zamień na nazwę generyczną (Nurofen → ibuprofen).
-
-FORMAT:
-  h2:/h3: dla nagłówków. Zero markdown.
-  Gdy opisujesz 3+ kroków/elementów → lista HTML (<ul>/<ol>).
-  Gdy porównujesz 3+ wartości → tabela HTML (<table>).
-
-ZDANIA:
-  Średnia: 10-20 słów. Max: 30 słów.
-  Krótkie (fakty, definicje) + dłuższe (wyjaśnienia) = naturalny rytm.
-  Zdanie wielokrotnie złożone → rozbij na 2-3 prostsze.
-</ton>""")
-
-    # ═══ 6. EPISTEMOLOGIA ═══
+    # ═══ 4. ŹRÓDŁA ═══
     if is_ymyl:
-        parts.append("""<epistemologia>
-ZASADA ŹRÓDEŁ — YMYL (zero tolerancji):
-
-Wiedza WYŁĄCZNIE z:
-  1. Stron konkurencji z SERP (podane w danych) — czytasz fakty, NIE kopiujesz zdań
-  2. Przepisów prawnych i orzeczeń (podane wprost)
-  3. Wikipedia (podana wprost)
-  4. Dane liczbowe — TYLKO potwierdzone w min 2 źródłach SERP
-
-❌ ZAKAZ BEZWZGLĘDNY:
-  • Nie wymyślaj: liczb, dat, statystyk, sygnatur, nazw badań, instytucji
-  • Nie „uzupełniaj luk" domysłami — lepiej pomiń niż zmyśl
-  • Nie podawaj artykułów ustaw, których nie masz w danych
-
-JEŚLI NIE WIESZ → POMIŃ zdanie.
-</epistemologia>""")
+        parts.append("""<zrodla>
+YMYL — zero tolerancji dla zmyśleń.
+Wiedza WYŁĄCZNIE z: stron SERP (podane), przepisów (podane), Wikipedia (podane).
+Nie wymyślaj liczb, dat, sygnatur, nazw badań.
+Nie znasz → pomiń zdanie.
+</zrodla>""")
     else:
-        parts.append("""<epistemologia>
-Wiedza z: stron SERP (podane), Wikipedia (podane), danych liczbowych (podane).
-ZAKAZ: wymyślania liczb, dat, nazw badań, statystyk.
-Jeśli brak danych → opisz zasadę ogólnie, nie zmyślaj konkretów.
-</epistemologia>""")
+        parts.append("""<zrodla>
+Wiedza z: stron SERP, Wikipedia, danych liczbowych (podane).
+Nie wymyślaj liczb, dat, nazw badań. Brak danych → opisz ogólnie.
+</zrodla>""")
 
-    # ═══ 7. MARKI ═══
-    parts.append("""<marki>
-Nazwy handlowe leków/suplementów/kosmetyków → zamień na składnik aktywny.
-  ❌ "Nurofen" → ✅ "ibuprofen"
-  ❌ "Apap" → ✅ "paracetamol"
-</marki>""")
-
-    # ═══ 8. ANTY-AI (skrócone) ═══
-    parts.append("""<anty_ai>
-Zakazane:
-  "warto zauważyć", "należy podkreślić", "w tym kontekście",
-  "podsumowując", "każdorazowo", "ze względu na złożoność",
-  puste przejścia, placeholdery typu "odpowiednie przepisy".
-Każde zdanie musi wnosić informację.
-</anty_ai>""")
-
-    # ═══ 9. PRZYKŁAD ═══
+    # ═══ 5. PRZYKŁAD ═══
     parts.append("""<przyklad>
 TAK PISZ:
 "Skazanie z art. 178a § 1 KK grozi pozbawieniem wolności do 3 lat
@@ -542,8 +483,7 @@ Pisz TYLKO treść tego batcha. Zaczynaj od:
 
 h2: {h2}
 
-Potem: akapity (3-5 zdań, ~80 słów), opcjonalnie h3: [podsekcja].
-Gdy 3+ elementów → lista HTML. Gdy porównania → tabela HTML.
+Akapity po 3-5 zdań, opcjonalnie h3: [podsekcja].
 NIE dodawaj komentarzy. TYLKO treść artykułu."""
 
 
@@ -698,7 +638,7 @@ def _fmt_intro_guidance_v2(pre_batch, batch_type):
     if kw_name:
         parts.append(f'Zdanie 1: bezpośrednia odpowiedź — czym jest "{kw_name}".')
     parts.append("Zdania 2-3: kontekst praktyczny (dlaczego to ważne, co z tego wynika).")
-    parts.append("Zdanie 4: zapowiedź — co czytelnik znajdzie dalej.")
+    parts.append("Zdanie 4: konkretny fakt lub praktyczna konsekwencja — NIE zapowiadaj co będzie dalej.")
 
     search_intent = serp.get("search_intent", "")
     if search_intent:
