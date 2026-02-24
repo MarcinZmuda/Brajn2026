@@ -718,11 +718,6 @@
               <div id="evalWordBar" style="margin:12px 16px 8px"></div>
             </div>
 
-            <div class="crd" id="radarPane" style="display:none">
-              <div class="crd-t"><b>📊 Quality</b> Radar</div>
-              <div class="chart-wrap" style="height:320px"><canvas id="radarChart"></canvas></div>
-            </div>
-
             <div class="crd" id="batchChartPane" style="display:none">
               <div class="crd-t"><b>📈 Batch</b> Quality</div>
               <div class="chart-wrap" style="height:220px"><canvas id="batchQualityChart"></canvas></div>
@@ -734,21 +729,10 @@
               </div>
             </div>
 
-            <div class="crd" id="salienceChartPane" style="display:none">
-              <div class="crd-t"><b>🔬 Entity</b> Salience Ranking</div>
-              <div id="salienceBarChart" style="padding:12px"></div>
-            </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-              <div class="crd" id="kwCoveragePane" style="display:none">
+            <div class="crd" id="kwCoveragePane" style="display:none">
                 <div class="crd-t"><b>🔑 Keyword</b> Coverage</div>
                 <div class="chart-wrap" style="height:260px"><canvas id="kwCoverageChart"></canvas></div>
               </div>
-              <div class="crd" id="wordDistPane" style="display:none">
-                <div class="crd-t"><b>📄 Word Count</b> vs Competitors</div>
-                <div class="chart-wrap" style="height:260px"><canvas id="wordDistChart"></canvas></div>
-              </div>
-            </div>
 
             <div class="crd" id="timelinePane" style="display:none">
               <div class="crd-t"><b>⏱️ Workflow</b> Timeline</div>
@@ -756,41 +740,25 @@
               <div class="mehr-stats" id="timelineStats"></div>
             </div>
 
-            <div class="crd" id="semDistPane" style="display:none">
-              <div class="crd-t"><b>📐 Odległość</b> Semantyczna vs Konkurencja</div>
-              <div class="chart-wrap" style="height:300px"><canvas id="semDistChart"></canvas></div>
-              <div class="mehr-stats" id="semDistStats"></div>
-            </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-              <div class="crd" id="cooccPane" style="display:none">
-                <div class="crd-t"><b>🔗 Entity</b> Co-occurrence</div>
-                <div class="heatmap-grid" id="cooccGrid"></div>
-              </div>
-              <div class="crd" id="entityCovPane" style="display:none">
+            <div class="crd" id="entityCovPane" style="display:none">
                 <div class="crd-t"><b>🎯 Entity</b> Coverage vs Competitors</div>
                 <div id="entityCovChart" style="padding:12px"></div>
-              </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-              <div class="crd" id="kpOverlapPane" style="display:none">
-                <div class="crd-t"><b>🔑 Keyphrase</b> Overlap</div>
-                <div id="kpOverlapChart" style="padding:12px"></div>
-              </div>
-              <div class="crd" id="entityOverlapPane" style="display:none">
-                <div class="crd-t"><b>🧬 Entity</b> Overlap (Artykuł vs Konkurencja)</div>
-                <div id="entityOverlapChart" style="padding:12px"></div>
-              </div>
-            </div>
             </div><!-- /chartsSection -->
 
         </div><!-- /tabWorkflow -->
         <!-- ═══ QUALITY TAB ═══ -->
         <div id="tabQuality" class="main-tab-panel" style="display:none;padding:16px 20px"><button class="mabtn" onclick="switchTab('workflow')" style="margin-bottom:12px;display:flex;align-items:center;gap:6px">← Workflow</button>
-            <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frQB" style="display:none;margin-top:10px;padding:8px 0;border-top:1px solid var(--b1)"><div style="font-size:9px;font-weight:600;margin-bottom:6px;color:var(--fg)">Quality Breakdown</div><div id="frBars" style="display:grid;grid-template-columns:90px 1fr 32px;gap:3px 8px;font-size:9px;align-items:center"></div></div><div id="frD" style="font-size:9px;color:var(--mg);margin-top:10px;max-height:200px;overflow-y:auto"></div></div>
+            <div class="crd" id="frC" style="display:none"><div class="crd-t"><b>Final</b> Review</div><div class="sg sg4"><div class="sc"><div class="sv" id="frS">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="frSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="frM">—</div><div class="sl">Brakujące</div></div><div class="sc"><div class="sv" id="frI">—</div><div class="sl">Issues</div></div></div><div id="frD" style="font-size:9px;color:var(--mg);margin-top:10px;max-height:200px;overflow-y:auto"></div></div>
             <div id="pipelineSummary" style="display:none;margin:6px 0;padding:10px 16px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);font-size:9px;color:var(--mg);align-items:center;gap:8px">
             <div class="crd" id="editorReviewPane" style="display:none"><div class="crd-t">📝 <b>Redaktor</b> Naczelny</div><div class="sg sg4"><div class="sc"><div class="sv" id="erVerdict">—</div><div class="sl">Werdykt</div></div><div class="sc"><div class="sv" id="erCritical">—</div><div class="sl">Krytyczne</div></div><div class="sc"><div class="sv" id="erArtifacts">—</div><div class="sl">Artefakty</div></div><div class="sc"><div class="sv" id="erLogic">—</div><div class="sl">Logika</div></div></div><div id="erComment" style="font-size:10px;color:var(--mg);margin:8px 0;padding:8px;background:var(--b1);border-radius:4px"></div><div id="erDetails" style="font-size:9px;color:var(--mg);max-height:200px;overflow-y:auto"></div></div>
+
+            <!-- ═══ ENTITY INTELLIGENCE PANEL ═══ -->
+            <div class="crd" id="eiPane" style="display:none">
+              <div class="crd-t"><b>🧬 Entity</b> Intelligence</div>
+              <div id="eiContent" style="font-size:11px"></div>
+            </div>
               <span id="psSEOStatus" style="font-weight:600"></span>
               <span style="color:var(--b3)">→</span>
               <span id="psEditStatus" style="font-weight:600"></span>
@@ -1335,7 +1303,7 @@ async function startWorkflow(){
     document.getElementById('tbQuality').textContent='—';document.getElementById('tbS1').textContent='—';document.getElementById('tbCI').textContent='—';
     document.getElementById('qualityBar').style.display='none';document.getElementById('mainTabsBar').style.display='none';
     const _em=document.getElementById('edMini');if(_em)_em.style.display='none';
-    ['bpC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','edMini','radarPane','batchChartPane','salienceChartPane','kwCoveragePane','wordDistPane','timelinePane','cooccPane','entityCovPane','evalSummaryPane','semDistPane','kpOverlapPane','entityOverlapPane','editorReviewPane'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
+    ['bpC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','edMini','batchChartPane','kwCoveragePane','timelinePane','entityCovPane','evalSummaryPane','editorReviewPane','eiPane'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
     const _edDetR=document.getElementById('edDet');if(_edDetR){_edDetR.innerHTML='';_edDetR.style.display='none';}
     // Reset live status bar
     const _ls=document.getElementById('lsText');if(_ls){_ls.textContent='Przygotowanie...';document.getElementById('lsDetail').textContent='';document.getElementById('lsFill').style.width='0%';document.getElementById('lsPulse').className='ls-pulse';document.getElementById('lsPulse').style.background='';document.getElementById('lsPulse').style.animation='';document.getElementById('lsTimer').textContent='0:00';}
@@ -1380,7 +1348,7 @@ async function startWorkflow(){
         es.addEventListener('project',e=>{const d=JSON.parse(e.data);tb=d.total_batches;log(`Project: ${d.project_id}`);const r=document.getElementById('bRes');r.innerHTML='';for(let i=1;i<=tb;i++)r.innerHTML+=`<div class="bchip pend" id="bc${i}">B${i}</div>`});
         es.addEventListener('h2_plan',e=>{const d=JSON.parse(e.data);document.getElementById('h2C').style.display='';document.getElementById('h2L').innerHTML=d.h2_list.map((h,i)=>`<div style="padding:4px 0;border-bottom:1px solid var(--w5);font-size:15px"><span style="color:var(--orange);font-weight:700">${i+1}.</span> ${esc(h)}</div>`).join('')});
         es.addEventListener('auto_basic_terms',e=>{const d=JSON.parse(e.data);if(d.terms&&d.terms.length){const ta=document.getElementById('basicTerms');ta.value=d.terms.join('\n');ta.rows=Math.min(12,d.terms.length+1);document.getElementById('bsc').style.display=''}});
-        es.addEventListener('s1_data',e=>{s1Data=JSON.parse(e.data);rS1(s1Data);document.getElementById('tbS1').textContent='✓';const _s1Run=document.getElementById('s1Running');if(_s1Run){_s1Run.classList.remove('active');if(_s1Run._timer){clearInterval(_s1Run._timer);_s1Run._timer=null;}}const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}try{initCooccHeatmap(s1Data)}catch(e2){console.warn('cooccHeatmap:',e2)}});
+        es.addEventListener('s1_data',e=>{s1Data=JSON.parse(e.data);rS1(s1Data);document.getElementById('tbS1').textContent='✓';const _s1Run=document.getElementById('s1Running');if(_s1Run){_s1Run.classList.remove('active');if(_s1Run._timer){clearInterval(_s1Run._timer);_s1Run._timer=null;}}const p=document.getElementById('s1P'),b=p.querySelector('.pnl-b'),h=p.querySelector('.pnl-h');if(!b.classList.contains('open')){b.classList.add('open');h.classList.add('open')}});
         es.addEventListener('phrase_hierarchy',e=>{const d=JSON.parse(e.data);if(s1Data&&d.phrase_hierarchy_preview){s1Data.phrase_hierarchy_preview=d.phrase_hierarchy_preview;rS1(s1Data);}});
         es.addEventListener('search_variants',e=>{const d=JSON.parse(e.data);const el=document.getElementById('svC');if(!el)return;el.style.display='';let h='';const cats=[['fleksyjne','🔤'],['peryfrazy','🔄'],['potoczne','💬'],['formalne','📋'],['intencja_info','❓'],['intencja_transakcyjna','💰']];cats.forEach(([k,ic])=>{const v=d[k];if(v&&v.length)h+=`<div style="margin:4px 0"><span style="font-size:11px;color:var(--mg)">${ic} ${k}:</span> ${v.map(x=>`<span class="tag d">${esc(x)}</span>`).join('')}</div>`});const sec=d.secondary||{};if(Object.keys(sec).length){h+=`<div style="margin-top:8px;font-weight:600;font-size:12px">Secondary variants:</div>`;for(const[ent,vars] of Object.entries(sec)){h+=`<div style="margin:3px 0"><span style="color:var(--orange);font-size:12px">${esc(ent)}:</span> ${vars.map(v=>`<span class="tag c">${esc(v)}</span>`).join('')}</div>`}}const total=d.all_flat?d.all_flat.length:0;document.getElementById('svH').textContent=`Search Variants (${total})`;document.getElementById('svB').innerHTML=h;});
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
@@ -1448,7 +1416,7 @@ async function startWorkflow(){
     if(_ps2)_ps2.style.display='flex';updateQualityBar();
     }
   });
-        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';const qb=d.quality_breakdown;if(qb){const barsEl=document.getElementById('frBars');const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=qb[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){barsEl.innerHTML=bh;document.getElementById('frQB').style.display='';}}try{initRadarChart(d)}catch(e){console.warn('radarChart:',e)}try{initKwCoverageChart(d,batchLog)}catch(e){console.warn('kwCoverage:',e)}});
+        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';try{initKwCoverageChart(d,batchLog)}catch(e){console.warn('kwCoverage:',e)}});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
         es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';liveArticle=rawArticle;renderArt(rawArticle);const _ap=document.getElementById('artP');if(_ap)_ap.style.display='';document.getElementById('editorWrap').classList.add('visible');const awc=document.getElementById('artWordCount');if(awc)awc.textContent=(rawArticle.split(/\s+/).filter(Boolean).length).toLocaleString()+' słów';});
         es.addEventListener('article_memory',e=>{memoryData=JSON.parse(e.data)});
@@ -1468,18 +1436,119 @@ async function startWorkflow(){
         });
         es.addEventListener('ymyl_analysis',e=>{ymylAnalysisData=JSON.parse(e.data);renderYmylCard();updateQualityBar()});
         es.addEventListener('ymyl_validation',e=>{ymylValData=JSON.parse(e.data)});
-        es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);salienceData=d;const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`}else{document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:12px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss;updateQualityBar()}const sp=d.subject_position;if(sp&&sp.total_sentences>0){document.getElementById('esSP').style.display='';document.getElementById('spSc').textContent=`${sp.score}/100`;document.getElementById('spSc').style.color=sp.score>=70?G:sp.score>=40?W:R;document.getElementById('spSR').textContent=`${Math.round(sp.subject_ratio*100)}%`;document.getElementById('spSR').style.color=sp.subject_ratio>=0.35?G:sp.subject_ratio>=0.2?W:R;document.getElementById('spH2').textContent=sp.h2_entity_count||0;document.getElementById('sp1st').textContent=sp.first_sentence_has_entity?'✅':'❌';document.getElementById('sp1st').style.color=sp.first_sentence_has_entity?G:R}try{initSalienceChart(d)}catch(e){console.warn('salienceChart:',e)}});
+        es.addEventListener('entity_salience',e=>{const d=JSON.parse(e.data);salienceData=d;const el=document.getElementById('esC');el.style.display='';if(!d.enabled){document.getElementById('esSc').textContent='N/A';document.getElementById('esSal').textContent='brak API';document.getElementById('esDom').textContent='—';document.getElementById('esIss').innerHTML=`<div style="color:var(--mg)">💡 ${esc(d.message||'Ustaw GOOGLE_NLP_API_KEY')}</div>`}else{document.getElementById('esSc').textContent=`${d.score}/100`;document.getElementById('esSc').style.color=d.score>=70?G:d.score>=40?W:R;document.getElementById('esSal').textContent=d.main_salience!=null?d.main_salience.toFixed(2):'?';document.getElementById('esSal').style.color=d.main_salience>=0.25?G:d.main_salience>=0.10?W:R;document.getElementById('esDom').textContent=d.is_dominant?'✅ TAK':'❌ NIE';document.getElementById('esDom').style.color=d.is_dominant?G:R;if(d.entities&&d.entities.length){const el2=document.getElementById('esEnts');el2.style.display='';let h='<div style="font-weight:600;margin-bottom:4px">Top encje (Google NLP):</div><div style="display:grid;grid-template-columns:1fr 60px 60px 40px;gap:2px 6px;font-size:12px"><div style="font-weight:600">Encja</div><div style="font-weight:600">Salience</div><div style="font-weight:600">Typ</div><div style="font-weight:600">KG</div>';d.entities.slice(0,8).forEach(en=>{const isMain=en.name.toLowerCase().includes((d.main_keyword||'').toLowerCase());const clr=isMain?'font-weight:700;color:var(--pr)':'';h+=`<div style="${clr}">${esc(en.name)}</div><div style="${clr}">${en.salience.toFixed(3)}</div><div>${en.type}</div><div>${en.has_kg?'✓':en.has_wikipedia?'W':'—'}</div>`});h+='</div>';el2.innerHTML=h}let iss='';if(d.issues&&d.issues.length)iss+=d.issues.map(i=>`<div style="color:${R};margin-top:4px">⚠️ ${esc(i)}</div>`).join('');if(d.recommendations&&d.recommendations.length)iss+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');document.getElementById('esIss').innerHTML=iss;updateQualityBar()}const sp=d.subject_position;if(sp&&sp.total_sentences>0){document.getElementById('esSP').style.display='';document.getElementById('spSc').textContent=`${sp.score}/100`;document.getElementById('spSc').style.color=sp.score>=70?G:sp.score>=40?W:R;document.getElementById('spSR').textContent=`${Math.round(sp.subject_ratio*100)}%`;document.getElementById('spSR').style.color=sp.subject_ratio>=0.35?G:sp.subject_ratio>=0.2?W:R;document.getElementById('spH2').textContent=sp.h2_entity_count||0;document.getElementById('sp1st').textContent=sp.first_sentence_has_entity?'✅':'❌';document.getElementById('sp1st').style.color=sp.first_sentence_has_entity?G:R}});
         es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss;updateQualityBar()});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
-        es.addEventListener('semantic_distance',e=>{const d=JSON.parse(e.data);semanticDistData=d;try{initSemanticDistChart(d)}catch(e2){console.warn('semDist:',e2)}try{initKeyphraseOverlapChart(d)}catch(e2){console.warn('kpOverlap:',e2)}try{initEntityOverlapChart(d)}catch(e2){console.warn('entOverlap:',e2)}updateQualityBar()});
+        es.addEventListener('semantic_distance',e=>{const d=JSON.parse(e.data);semanticDistData=d;updateQualityBar()});
         es.addEventListener('evaluation_summary',e=>{const d=JSON.parse(e.data);evalSummaryData=d;try{initEvalSummaryPane(d)}catch(e2){console.warn('evalSummary:',e2)}});
-        es.addEventListener('quality_breakdown_update',e=>{const qb=JSON.parse(e.data);if(!finalData)return;finalData.quality_breakdown=Object.assign(finalData.quality_breakdown||{},qb);const labels={keywords:['Keywords',15],humanness:['Humanness',20],grammar:['Grammar',10],structure:['Structure',15],semantic:['Semantic',20],depth:['Depth',10],coherence:['Coherence',10]};let bh='';for(const[k,[label,weight]] of Object.entries(labels)){const v=(finalData.quality_breakdown||{})[k];if(v!=null){const pct=Math.min(100,Math.max(0,v));const clr=pct>=80?G:pct>=60?W:R;bh+=`<div style="color:var(--mg)">${label} <span style="opacity:.5">${weight}%</span></div><div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${clr};border-radius:3px"></div></div><div style="text-align:right;font-weight:600">${Math.round(pct)}</div>`;}}if(bh){document.getElementById('frBars').innerHTML=bh;document.getElementById('frQB').style.display='';}try{initRadarChart(finalData)}catch(e2){console.warn('radarUpdate:',e2)}});
         es.addEventListener('editor_review',e=>{const d=JSON.parse(e.data);document.getElementById('editorReviewPane').style.display='';const vc={'PASS':'var(--gn)','WARN':'var(--yl)','FAIL':'var(--rd)'};document.getElementById('erVerdict').textContent=d.verdict||'?';document.getElementById('erVerdict').style.color=vc[d.verdict]||'var(--mg)';document.getElementById('erCritical').textContent=d.critical_count||0;document.getElementById('erCritical').style.color=d.critical_count>0?'var(--rd)':'var(--gn)';document.getElementById('erArtifacts').textContent=d.artifact_count||0;document.getElementById('erLogic').textContent=d.logic_count||0;document.getElementById('erComment').textContent=d.comment||'';let dt='';if(d.critical&&d.critical.length){dt+='<div style="margin:6px 0;font-weight:600;color:var(--rd)">❌ Błędy krytyczne:</div>';d.critical.forEach(c=>{dt+=`<div style="margin:4px 0;padding:6px;background:rgba(248,113,113,.08);border-radius:4px"><div style="color:var(--rd)">${esc(c.blad||'')}</div><div style="color:var(--mg);font-style:italic">"${esc((c.cytat||'').substring(0,100))}"</div><div style="color:var(--gn)">→ ${esc(c.poprawka||'')}</div></div>`;});}if(d.artifacts&&d.artifacts.length){dt+='<div style="margin:6px 0;font-weight:600;color:var(--yl)">⚠️ Artefakty:</div>';d.artifacts.forEach(a=>{dt+=`<div style="margin:2px 0;color:var(--mg)">"${esc((a.cytat||'').substring(0,80))}" — ${esc(a.blad||'')}</div>`;});}if(d.logic&&d.logic.length){dt+='<div style="margin:6px 0;font-weight:600;color:var(--yl)">🔄 Logika:</div>';d.logic.forEach(l=>{dt+=`<div style="margin:2px 0;color:var(--mg)">${esc(l.opis||'')}</div>`;});}if(d.auto_fixed)dt+='<div style="margin:8px 0;padding:6px;background:rgba(52,211,153,.1);border-radius:4px;color:var(--gn);font-weight:600">🔧 Auto-fix zastosowany</div>';document.getElementById('erDetails').innerHTML=dt;});
+
+        // ═══ ENTITY INTELLIGENCE PANEL ═══
+        es.addEventListener('entity_intelligence',e=>{const d=JSON.parse(e.data);
+          const P=document.getElementById('eiPane');if(!P)return;P.style.display='';
+          const C=document.getElementById('eiContent');if(!C)return;
+          const G='#34d399',W='#fbbf24',R='#f87171',M='var(--mg)';
+          const clr=(v,g,w)=>v>=g?G:v>=w?W:R;
+          const bar=(v,c)=>`<div style="background:var(--b1);border-radius:3px;height:6px;overflow:hidden"><div style="width:${Math.min(100,Math.max(0,v))}%;height:100%;background:${c};border-radius:3px;transition:width .4s"></div></div>`;
+          const tag=(text,ok)=>`<span style="display:inline-block;padding:1px 6px;margin:1px;border-radius:8px;font-size:10px;background:${ok?'rgba(52,211,153,.1)':'rgba(248,113,113,.08)'};color:${ok?G:R};border:1px solid ${ok?G+'33':R+'33'}">${ok?'✓':'✗'} ${esc(text)}</span>`;
+          let h='';
+
+          // ━━━ A. POKRYCIE ENCJI ━━━
+          const sd=d.semantic_distance||{};
+          if(sd.enabled){
+            h+=`<div style="font-weight:700;font-size:12px;margin:8px 0 6px;color:var(--fg)">📊 Pokrycie encji vs konkurencja</div>`;
+            h+=`<div style="display:grid;grid-template-columns:120px 1fr 40px;gap:3px 8px;align-items:center;font-size:10px">`;
+            const dims=[
+              ['Must-mention',sd.must_mention_pct,80,50],
+              ['Keyphrase',sd.keyphrase_coverage,70,40],
+              ['Entity overlap',sd.entity_overlap,60,30],
+              ['N-gram overlap',sd.ngram_overlap,50,25],
+            ];
+            dims.forEach(([label,val,g,w])=>{if(val!=null){const c=clr(val,g,w);h+=`<div style="color:${M}">${label}</div>${bar(val,c)}<div style="text-align:right;font-weight:600;color:${c}">${Math.round(val)}%</div>`}});
+            h+=`</div>`;
+
+            // Must-mention entities list
+            const mmf=sd.must_mention_found||[];const mmm=sd.must_mention_missing||[];
+            if(mmf.length||mmm.length){
+              h+=`<div style="margin:8px 0 4px;font-size:10px;font-weight:600;color:var(--fg)">Encje obowiązkowe <span style="opacity:.5">${mmf.length}/${mmf.length+mmm.length}</span></div>`;
+              h+=`<div style="line-height:1.8">`;
+              mmf.forEach(e=>h+=tag(e,true));
+              mmm.forEach(e=>h+=tag(e,false));
+              h+=`</div>`;
+            }
+
+            // Missing keyphrases
+            const kpm=sd.keyphrase_missing||[];
+            if(kpm.length){
+              h+=`<div style="margin:8px 0 4px;font-size:10px;font-weight:600;color:${W}">Brakujące frazy kluczowe</div>`;
+              h+=`<div style="line-height:1.8">${kpm.map(k=>tag(k,false)).join('')}</div>`;
+            }
+
+            // Entities only in competitors
+            const eoc=sd.entities_only_competitor||[];
+            if(eoc.length){
+              h+=`<div style="margin:8px 0 4px;font-size:10px;font-weight:600;color:${W}">Encje tylko u konkurencji</div>`;
+              h+=`<div style="line-height:1.8">${eoc.map(e=>tag(e,false)).join('')}</div>`;
+            }
+          }
+
+          // ━━━ B. POZYCJA ENCJI ━━━
+          const pl=d.placement||{};const sp=d.subject_position||{};
+          h+=`<div style="font-weight:700;font-size:12px;margin:12px 0 6px;color:var(--fg)">📐 Pozycja encji głównej: <span style="color:var(--orange)">${esc(pl.main_keyword||'')}</span></div>`;
+          h+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;margin-bottom:8px">`;
+          const checks=[
+            [pl.in_first_sentence,'1. zdanie','W pierwszym zdaniu'],
+            [pl.h2_with_entity>0,pl.h2_with_entity+'/'+pl.h2_count+' H2','W nagłówkach H2'],
+            [sp.subject_ratio>=20,(sp.subject_ratio||0)+'% zdań','Jako podmiot'],
+            [pl.density_per_1k>=3&&pl.density_per_1k<=20,pl.density_per_1k+'/1k','Gęstość wzmianek'],
+          ];
+          checks.forEach(([ok,val,label])=>{const c=ok?G:ok===false?R:M;h+=`<div style="background:var(--s2);border-radius:6px;padding:6px;border:1px solid ${c}22"><div style="font-size:14px;font-weight:700;color:${c}">${ok?'✓':'✗'} ${val}</div><div style="font-size:8px;color:${M};margin-top:2px">${label}</div></div>`});
+          h+=`</div>`;
+
+          // ━━━ C. WSPÓŁWYSTĘPOWANIE ━━━
+          const cooc=d.cooccurrence||{};
+          if(cooc.total>0){
+            h+=`<div style="font-weight:700;font-size:12px;margin:10px 0 6px;color:var(--fg)">🔗 Współwystępowanie encji <span style="opacity:.5">${cooc.found}/${cooc.total}</span></div>`;
+            h+=`<div style="display:grid;grid-template-columns:1fr 1fr 30px;gap:2px 6px;font-size:10px;align-items:center">`;
+            (cooc.pairs||[]).forEach(p=>{const c=p.found?G:R;h+=`<div style="color:${M}">${esc(p.e1)}</div><div style="color:${M}">${esc(p.e2)}</div><div style="color:${c};font-weight:700;text-align:center">${p.found?'✓':'✗'}</div>`});
+            h+=`</div>`;
+          }
+
+          // ━━━ D. LUKI ENCYJNE ━━━
+          const gaps=d.entity_gaps||[];
+          if(gaps.length){
+            h+=`<div style="font-weight:700;font-size:12px;margin:10px 0 6px;color:var(--fg)">🕳️ Luki encyjne</div>`;
+            h+=`<div style="line-height:1.8">`;
+            gaps.forEach(g=>{const pclr=g.priority==='high'?R:W;h+=`<span style="display:inline-block;padding:1px 6px;margin:1px;border-radius:8px;font-size:10px;background:${g.covered?'rgba(52,211,153,.08)':'rgba(248,113,113,.06)'};color:${g.covered?G:pclr};border:1px solid ${g.covered?G+'22':pclr+'22'}">${g.covered?'✓':'✗'} ${esc(g.entity)} ${g.priority==='high'?'⚡':''}</span>`});
+            h+=`</div>`;
+          }
+
+          // ━━━ E. NATURALNOŚĆ POLSKIEGO TEKSTU (NKJP) ━━━
+          const pnlp=d.polish_nlp||{};
+          if(pnlp.computed){
+            h+=`<div style="font-weight:700;font-size:12px;margin:12px 0 6px;color:var(--fg)">🇵🇱 Naturalność tekstu polskiego <span style="font-weight:400;font-size:10px;opacity:.6">(normy NKJP)</span></div>`;
+            h+=`<div style="display:grid;grid-template-columns:130px 1fr 50px 40px;gap:3px 6px;align-items:center;font-size:10px">`;
+            h+=`<div style="font-weight:600;color:var(--fg);font-size:9px">Parametr</div><div></div><div style="text-align:center;font-size:9px;color:${M}">Artykuł</div><div style="text-align:center;font-size:9px;color:${M}">Norma</div>`;
+
+            const nlpRows=[
+              ['Diakrytyki',pnlp.diacritics_score||0, pnlp.diacritics_ratio+'%', '6.9%'],
+              ['Dł. wyrazu',pnlp.word_len_score||0, pnlp.avg_word_length+' zn.', '6.0 zn.'],
+              ['Dł. zdania',pnlp.sentence_score||0, pnlp.avg_sentence_length+' sł.', '10–15'],
+              ['FOG-PL',pnlp.fog_score||0, pnlp.fog_pl+' ('+pnlp.fog_level+')', '8–9'],
+              ['Przecinki + „że"',Math.round(pnlp.ze_comma_pct)||0, pnlp.ze_comma_pct+'%', '100%'],
+            ];
+            nlpRows.forEach(([label,score,val,norm])=>{const c=clr(score,80,50);h+=`<div style="color:${M}">${label}</div>${bar(score,c)}<div style="text-align:center;font-weight:600;color:${c}">${val}</div><div style="text-align:center;color:${M};font-size:9px">${norm}</div>`});
+            h+=`</div>`;
+            h+=`<div style="text-align:center;margin-top:6px;padding:4px;background:var(--s2);border-radius:4px"><span style="font-size:10px;color:${M}">Naturalność: </span><span style="font-size:14px;font-weight:700;color:${clr(pnlp.score,80,55)}">${pnlp.score}/100</span></div>`;
+          }
+
+          C.innerHTML=h;
+        });
         es.addEventListener('article_update',e=>{const d=JSON.parse(e.data);if(d.full_text){liveArticle=d.full_text;renderArt(liveArticle);}});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:13px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:12px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:12px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
         es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;if(window._lsTimerInt){clearInterval(window._lsTimerInt);window._lsTimerInt=null;}renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';document.getElementById('doneH').textContent=contentType==='category'?'✓ Opis kategorii gotowy':'✓ Artykuł gotowy';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
         // Fix #47: Ukryj frazy BASIC z panelu + wyczyść pola po zakończeniu workflow
-        try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';const _bt=document.getElementById('basicTerms');if(_bt)_bt.value='';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);try{const _fs=finalData||{};showArtModal(d.word_count,_fs.score,d.timing?d.timing.total_seconds:null)}catch(e2){console.warn('artModal:',e2)}es.close()});
+        try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';const _bt=document.getElementById('basicTerms');if(_bt)_bt.value='';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);try{const _fs=finalData||{};showArtModal(d.word_count,_fs.score,d.timing?d.timing.total_seconds:null)}catch(e2){console.warn('artModal:',e2)}es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
 
         let rr=0;
@@ -1570,7 +1639,7 @@ function renderCompDash(){
     // PANEL 1: PROJECT INTELLIGENCE OVERVIEW
     // ════════════════════════════════════════════
     let p1='';
-    const fr=finalData||{};const qb=fr.quality_breakdown||{};
+    const fr=finalData||{};
     const art=articleData||{};
     const salS=(salienceData&&salienceData.enabled)?salienceData.score:null;
     const spS=salienceData&&salienceData.subject_position?salienceData.subject_position.score:null;
@@ -1592,11 +1661,9 @@ function renderCompDash(){
     p1+=ciStat((temperature||0.7).toFixed(1),'Temp',null);
     p1+=`</div>`;
 
-    // 1B: All metrics radar
+    // 1B: All metrics (real scores only)
     const allScores=[
-        ['Quality',fr.score],['Keywords',qb.keywords],['Humanness',qb.humanness],
-        ['Grammar',qb.grammar],['Structure',qb.structure],['Semantic',qb.semantic],
-        ['Depth',qb.depth],['Coherence',qb.coherence],
+        ['Quality',fr.score],
     ];
     if(salS!=null)allScores.push(['Entity Sal.',salS]);
     if(spS!=null)allScores.push(['Subject Pos.',spS]);
@@ -1785,10 +1852,9 @@ function renderCompDash(){
         ];
         const compPresent=signals.filter(s=>s[2]).length;
         const avgDepth=batchLog.filter(b=>b.accepted).length?Math.round(batchLog.filter(b=>b.accepted).reduce((a,b)=>a+parseFloat(b.depth_score||0),0)/batchLog.filter(b=>b.accepted).length*10)/10:0;
-        p4+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;margin-bottom:10px">`;
+        p4+=`<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;text-align:center;margin-bottom:10px">`;
         p4+=ciStat(`${compPresent}/8`,'Sygnałów konk.',clrV(compPresent/8*100,75,50));
-        p4+=ciStat(avgDepth,'Nasz Depth',clrV(avgDepth*20,75,50));
-        p4+=ciStat(Math.round(qb.depth||0),'Depth Score',clrV(qb.depth||0,80,60));
+        p4+=ciStat(avgDepth,'Śr. Depth batch',clrV(avgDepth*20,75,50));
         p4+=`</div>`;
         p4+=ciGrid('24px 1fr 70px');
         signals.forEach(([icon,label,inComp])=>{p4+=`<div>${icon}</div><div>${label}</div><div style="font-weight:700;color:${inComp?G:M}">${inComp?'✅ w konk.':'—'}</div>`});
@@ -2172,7 +2238,7 @@ function renderArt(text){
     // Sanitize: escape HTML first, then apply safe structural formatting
     let safe=esc(text);
     // Restore safe HTML tags: headings, lists, tables, strong, em
-    safe=safe.replace(/&lt;(\/?(ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i))&gt;/gi,function(_,tag){return '<'+tag+'>'});
+    safe=safe.replace(/&lt;(\/?(h[2-4]|ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i|p|br|a|sup|sub)(\s[^&]*)?)&gt;/gi,function(_,tag){return '<'+tag+'>'});
     let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
     if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
     pv.innerHTML=html;pv.style.display='';
@@ -2184,7 +2250,7 @@ function renderArt(text){
 
 function artToHTML(text){
     let safe=esc(text);
-    safe=safe.replace(/&lt;(\/?(ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i))&gt;/gi,function(_,tag){return '<'+tag+'>'});
+    safe=safe.replace(/&lt;(\/?(h[2-4]|ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i|p|br|a|sup|sub)(\s[^&]*)?)&gt;/gi,function(_,tag){return '<'+tag+'>'});
     let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
     if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
     return html;
@@ -2368,42 +2434,6 @@ function _chartGuard(paneId){
 }
 
 // 1. RADAR — Quality Breakdown
-function initRadarChart(fd){
-  if(!fd||!fd.quality_breakdown){
-    // v51: Show placeholder message when quality data not yet available
-    const pane=document.getElementById('radarPane');
-    if(pane&&!pane.dataset.shown){pane.style.display='';pane.dataset.shown='1';
-      const cw=pane.querySelector('.chart-wrap');
-      if(cw)cw.innerHTML='<div style="color:var(--mg);text-align:center;padding:40px 20px;font-size:12px">Radar pojawi się po zakończeniu Final Review (KROK 9)</div>';}
-    return;
-  }
-  if(!_chartGuard('radarPane'))return;
-  const qb=fd.quality_breakdown;
-  const labels=['Keywords','Humanness','Grammar','Structure','Semantic','Depth','Coherence'];
-  const data=labels.map(l=>qb[l.toLowerCase()]||0);
-  const avg=Math.round(data.reduce((a,b)=>a+b,0)/data.length);
-  document.getElementById('radarPane').style.display='';
-
-  _destroyChart('radar');
-  const ctx=document.getElementById('radarChart');if(!ctx)return;
-  _chartInstances.radar=new Chart(ctx,{
-    type:'radar',
-    data:{labels,datasets:[{
-      data,
-      borderColor:'#fba92c',backgroundColor:'rgba(251,169,44,.15)',
-      borderWidth:2,pointRadius:4,pointBackgroundColor:'#fba92c',pointBorderColor:'#050505',pointBorderWidth:2
-    }]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+'/100'}}},
-      scales:{r:{min:0,max:100,
-        grid:{color:'rgba(255,255,255,.06)'},
-        angleLines:{color:'rgba(255,255,255,.06)'},
-        pointLabels:{color:'#9e9e9e',font:{size:11,weight:'600'}},
-        ticks:{display:false,stepSize:25}
-      }}
-    }
-  });
-}
 
 // 2. BAR — Batch Quality Scores
 function initBatchChart(bl){
@@ -2436,23 +2466,6 @@ function initBatchChart(bl){
 }
 
 // 3. HORIZONTAL BARS — Entity Salience
-function initSalienceChart(sd){
-  if(!sd||!sd.entities||!sd.entities.length)return;
-  document.getElementById('salienceChartPane').style.display='';
-
-  const ents=sd.entities.slice().sort((a,b)=>(b.salience||0)-(a.salience||0)).slice(0,14);
-  const mainKw=(sd.main_keyword||'').toLowerCase();
-  const container=document.getElementById('salienceBarChart');if(!container)return;
-  container.innerHTML=ents.map(e=>{
-    const name=e.name||e.text||e.entity||'?';
-    const sal=e.salience||0;
-    const pct=Math.min(100,Math.round(sal*100));
-    const isMain=name.toLowerCase().includes(mainKw)&&mainKw.length>2;
-    const clr=isMain?'#fba92c':sal>=0.3?'#34d399':sal>=0.1?'#fbbf24':'#565656';
-    const badges=(e.has_kg?'<span style="color:#a78bfa;margin-left:4px" title="Knowledge Graph">◆</span>':'')+(e.has_wikipedia?'<span style="color:#60a5fa;margin-left:2px" title="Wikipedia">W</span>':'');
-    return `<div class="salience-row"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${isMain?'var(--orange)':'rgba(255,255,255,.75)'};font-weight:${isMain?'700':'400'}">${esc(name)}${badges}</div><div class="salience-bar"><div class="salience-fill" style="width:${pct}%;background:${clr}"></div></div><div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mg)">${sal.toFixed(3)}</div></div>`;
-  }).join('');
-}
 
 // 4. DONUT — Keyword Coverage
 function initKwCoverageChart(fd,bl){
@@ -2507,31 +2520,6 @@ function initKwCoverageChart(fd,bl){
 }
 
 // 5. BAR — Word Distribution vs Competitors
-function initWordDistChart(s1,fd){
-  if(!s1||!s1.word_counts||!s1.word_counts.length)return;
-  if(!_chartGuard('wordDistPane'))return;
-  document.getElementById('wordDistPane').style.display='';
-
-  const comps=s1.word_counts.slice(0,10);
-  const ours=fd?fd.word_count||0:0;
-  const rec=s1.recommended_length||0;
-  const labels=comps.map((w,i)=>'C'+(i+1));
-  if(ours)labels.push('Nasz');
-  const data=[...comps];if(ours)data.push(ours);
-  const colors=comps.map(()=>'rgba(158,158,158,.5)');if(ours)colors.push('#fba92c');
-  _destroyChart('wordDist');
-  const ctx=document.getElementById('wordDistChart');if(!ctx)return;
-  _chartInstances.wordDist=new Chart(ctx,{
-    type:'bar',
-    data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#1a1a1a',borderWidth:1,borderRadius:4}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},
-        annotation:rec?{annotations:{recLine:{type:'line',yMin:rec,yMax:rec,borderColor:'#fba92c',borderWidth:1,borderDash:[4,4],label:{content:'Rekomendacja: '+rec,enabled:true,position:'end'}}}}:undefined
-      },
-      scales:{y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#565656'}},x:{grid:{display:false},ticks:{color:'#9e9e9e',font:{size:10}}}}
-    }
-  });
-}
 
 // 6. BAR — Workflow Timeline
 function initTimelineChart(td){
@@ -2562,33 +2550,6 @@ function initTimelineChart(td){
 }
 
 // 7. HEATMAP — Entity Co-occurrence
-function initCooccHeatmap(s1){
-  if(!s1||!s1.entity_seo||!s1.entity_seo.entity_cooccurrence)return;
-  const pairs=s1.entity_seo.entity_cooccurrence;if(!pairs.length)return;
-  document.getElementById('cooccPane').style.display='';
-
-  const entSet=new Set();
-  pairs.forEach(p=>{entSet.add(p.entity_a||p[0]||'');entSet.add(p.entity_b||p[1]||'')});
-  const ents=Array.from(entSet).filter(Boolean).slice(0,10);
-  if(ents.length<2)return;
-  const mx={};ents.forEach(a=>{mx[a]={};ents.forEach(b=>{mx[a][b]=0})});
-  pairs.forEach(p=>{const a=p.entity_a||p[0],b=p.entity_b||p[1],s=p.strength||p.score||p[2]||0.5;if(mx[a]&&mx[a][b]!==undefined){mx[a][b]=s;mx[b][a]=s}});
-  const grid=document.getElementById('cooccGrid');if(!grid)return;
-  const n=ents.length+1;
-  grid.style.gridTemplateColumns=`80px repeat(${ents.length},1fr)`;
-  let html='<div></div>';
-  ents.forEach(e=>{html+=`<div style="font-size:8px;color:var(--mg);text-align:center;padding:4px;writing-mode:vertical-rl;overflow:hidden;max-height:80px">${esc(e.substring(0,12))}</div>`});
-  ents.forEach(a=>{
-    html+=`<div style="font-size:9px;color:var(--mg);padding:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.substring(0,12))}</div>`;
-    ents.forEach(b=>{
-      const v=mx[a][b]||0;
-      const bg=a===b?'var(--s3)':v>=0.7?'rgba(251,169,44,.6)':v>=0.4?'rgba(251,191,36,.35)':v>=0.1?'rgba(52,211,153,.2)':'var(--s3)';
-      const fg=v>=0.5?'var(--white)':'var(--mg)';
-      html+=`<div class="heatmap-cell" style="background:${bg};color:${fg}" title="${esc(a)} ↔ ${esc(b)}: ${v.toFixed(2)}">${a===b?'—':v>0?v.toFixed(1):'·'}</div>`;
-    });
-  });
-  grid.innerHTML=html;
-}
 
 // 8. BAR — Entity Coverage (S1 must-mention vs article text)
 function initEntityCovChart(){
@@ -2622,85 +2583,10 @@ function initEntityCovChart(){
 }
 
 // ═══ SEMANTIC DISTANCE RADAR ═══
-function initSemanticDistChart(d){
-  if(!d||!d.enabled)return;
-  if(!_chartGuard('semDistPane'))return;
-  document.getElementById('semDistPane').style.display='';
-  _destroyChart('semDist');
-  const labels=['Keyphrases','Entity Overlap','Must-Mention','N-gramy'];
-  const _tooltipMap={'Keyphrases':'Frazy kluczowe z top stron Google','Entity Overlap':'Encje (nazwy, pojęcia) z konkurencji','Must-Mention':'Obowiązkowe tematy z analizy SERP','N-gramy':'Częste ciągi 2–4 słów z konkurencji'};
-  const data=[
-    Math.round(d.keyphrase_coverage*100),
-    Math.round(d.entity_overlap*100),
-    Math.round(d.must_mention_pct*100),
-    Math.round(d.ngram_overlap*100)
-  ];
-  const ctx=document.getElementById('semDistChart');if(!ctx)return;
-  _chartInstances.semDist=new Chart(ctx,{
-    type:'radar',
-    data:{labels,datasets:[{
-      data,
-      borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.15)',
-      borderWidth:2,pointRadius:4,pointBackgroundColor:'#a78bfa',pointBorderColor:'#050505',pointBorderWidth:2
-    }]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>{const l=items[0].label;return _tooltipMap[l]||l},label:c=>c.raw+'%'}}},
-      scales:{r:{min:0,max:100,
-        grid:{color:'rgba(255,255,255,.06)'},
-        angleLines:{color:'rgba(255,255,255,.06)'},
-        pointLabels:{color:'#9e9e9e',font:{size:11,weight:'600'}},
-        ticks:{display:false}
-      }}
-    }
-  });
-  // Stats grid below radar
-  const st=document.getElementById('semDistStats');
-  if(st){
-    const clr=v=>v>=70?G:v>=40?W:R;
-    st.innerHTML=`
-      <div class="mehr-stat" title="Procent fraz kluczowych z top stron Google, które pojawiają się w artykule. Im wyższy, tym lepiej artykuł pokrywa tematy istotne dla wyszukiwarki."><div class="v" style="color:${clr(data[0])}">${data[0]}%</div><div class="l">Keyphrases (${d.keyphrases_found}/${d.keyphrases_total})</div></div>
-      <div class="mehr-stat" title="Procent encji (nazw własnych, pojęć, instytucji) z konkurencji, które występują w artykule. Mierzy czy artykuł wspomina te same podmioty co najlepsze wyniki w Google."><div class="v" style="color:${clr(data[1])}">${data[1]}%</div><div class="l">Entity Overlap</div></div>
-      <div class="mehr-stat" title="Procent obowiązkowych tematów/encji, które system uznał za konieczne na podstawie analizy SERP. Brakujące elementy to luki tematyczne widoczne dla algorytmu Google."><div class="v" style="color:${clr(data[2])}">${data[2]}%</div><div class="l">Must-Mention (${(d.must_mention_found||[]).length}/${d.must_mention_total||0})</div></div>
-      <div class="mehr-stat" title="Częste ciągi 2–4 słów występujące u konkurencji (np. 'pozbawienie wolności', 'kodeks karny'). Ich obecność w artykule sygnalizuje Google, że tekst jest na temat."><div class="v" style="color:${clr(data[3])}">${data[3]}%</div><div class="l">N-gramy (${d.ngrams_found||0}/${d.ngrams_total||0})</div></div>
-      <div class="mehr-stat" title="Łączny wynik semantyczny artykułu (0–100). Uwzględnia pokrycie keyphrases, encji, must-mention i n-gramów."><div class="v" style="color:${clr(d.score)};font-size:18px">${d.score}/100</div><div class="l">Composite Score</div></div>
-    `;
-  }
-}
 
 // ═══ KEYPHRASE OVERLAP CHECKLIST ═══
-function initKeyphraseOverlapChart(d){
-  if(!d||!d.enabled)return;
-  const container=document.getElementById('kpOverlapChart');if(!container)return;
-  document.getElementById('kpOverlapPane').style.display='';
-  const pct=d.keyphrases_total?Math.round(d.keyphrases_found/d.keyphrases_total*100):0;
-  const pctClr=pct>=70?'#34d399':pct>=40?'#fbbf24':'#f87171';
-  let html=`<div style="text-align:center;margin-bottom:10px"><span style="font-size:28px;font-weight:800;color:${pctClr}">${pct}%</span><div style="font-size:10px;color:var(--mg)">${d.keyphrases_found}/${d.keyphrases_total} keyphrases w artykule</div></div>`;
-  html+='<div style="display:flex;flex-wrap:wrap;gap:4px">';
-  (d.keyphrases_found_list||[]).forEach(kp=>{html+=`<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.3)">✅ ${esc(kp)}</span>`});
-  (d.keyphrases_missing_list||[]).forEach(kp=>{html+=`<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:rgba(248,113,113,.1);color:#f87171;border:1px solid rgba(248,113,113,.2)">❌ ${esc(kp)}</span>`});
-  html+='</div>';
-  container.innerHTML=html;
-}
 
 // ═══ ENTITY OVERLAP (Article vs Competitors) ═══
-function initEntityOverlapChart(d){
-  if(!d||!d.enabled)return;
-  const container=document.getElementById('entityOverlapChart');if(!container)return;
-  document.getElementById('entityOverlapPane').style.display='';
-  const pct=Math.round(d.entity_overlap*100);
-  const pctClr=pct>=70?'#34d399':pct>=40?'#fbbf24':'#f87171';
-  let html=`<div style="text-align:center;margin-bottom:10px"><span style="font-size:28px;font-weight:800;color:${pctClr}">${pct}%</span><div style="font-size:10px;color:var(--mg)">${d.entities_article} artykuł · ${d.entities_competitor} konkurencja</div></div>`;
-  // Shared entities (green)
-  const shared=d.entities_shared_list||[];
-  if(shared.length){html+=`<div style="font-size:10px;font-weight:600;color:var(--mg);margin:6px 0 3px">Wspólne (${shared.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;shared.forEach(e=>{html+=`<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;background:rgba(52,211,153,.12);color:#34d399;border:1px solid rgba(52,211,153,.25)">${esc(e)}</span>`});html+='</div>';}
-  // Missing from article (red)
-  const missing=d.entities_only_competitor||[];
-  if(missing.length){html+=`<div style="font-size:10px;font-weight:600;color:var(--mg);margin:6px 0 3px">Brakuje w artykule (${missing.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;missing.forEach(e=>{html+=`<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;background:rgba(248,113,113,.1);color:#f87171;border:1px solid rgba(248,113,113,.2)">${esc(e)}</span>`});html+='</div>';}
-  // Unique to article (blue)
-  const unique=d.entities_only_article||[];
-  if(unique.length){html+=`<div style="font-size:10px;font-weight:600;color:var(--mg);margin:6px 0 3px">Unikalne w artykule (${unique.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px">`;unique.forEach(e=>{html+=`<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;background:rgba(96,165,250,.12);color:#60a5fa;border:1px solid rgba(96,165,250,.25)">${esc(e)}</span>`});html+='</div>';}
-  container.innerHTML=html;
-}
 
 // ═══ EVALUATION SUMMARY: At-a-Glance ═══
 function initEvalSummaryPane(d){
@@ -2734,15 +2620,10 @@ function initEvalSummaryPane(d){
 
 // Master init — call after all data is available
 function initAllCharts(){
-  if(finalData)initRadarChart(finalData);
   if(batchLog&&batchLog.length)initBatchChart(batchLog);
-  if(salienceData&&salienceData.entities)initSalienceChart(salienceData);
   if(finalData)initKwCoverageChart(finalData,batchLog);
-  if(s1Data&&finalData)initWordDistChart(s1Data,finalData);
   if(stepTimingData)initTimelineChart(stepTimingData);
-  if(s1Data)initCooccHeatmap(s1Data);
   try{initEntityCovChart()}catch(e){console.warn('entityCov:',e)}
-  if(semanticDistData&&semanticDistData.enabled){try{initSemanticDistChart(semanticDistData)}catch(e){console.warn('semDist:',e)}try{initKeyphraseOverlapChart(semanticDistData)}catch(e){console.warn('kpOverlap:',e)}try{initEntityOverlapChart(semanticDistData)}catch(e){console.warn('entOverlap:',e)}}
   if(evalSummaryData){try{initEvalSummaryPane(evalSummaryData)}catch(e){console.warn('evalSummary:',e)}}
 }
 </script>
