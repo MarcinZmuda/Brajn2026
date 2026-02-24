@@ -1908,6 +1908,48 @@ def _generate_openai(system_prompt, user_prompt, model=None, temperature=None):
     return _llm_call_with_retry(_call)
 
 
+def _generate_paa_fallback(main_keyword: str) -> list:
+    """Generate PAA questions using Claude when SERP providers return none.
+    
+    v59.1: Client-side fallback — backend PAA_FALLBACK requires OPENAI_API_KEY
+    which may not be set. Claude Haiku generates 6-8 realistic PAA questions.
+    """
+    if not ANTHROPIC_API_KEY:
+        return []
+    
+    system = "Jesteś ekspertem Google PAA (People Also Ask). Generujesz realistyczne pytania które Google pokazałby dla danej frazy. Odpowiedz TYLKO tablicą JSON."
+    user = f"""Wygeneruj 6-8 pytań PAA (People Also Ask) dla frazy: "{main_keyword}"
+
+Zasady:
+- Pytania muszą brzmieć jak prawdziwe zapytania użytkowników Google
+- Zaczynaj od: "Czy...", "Jak...", "Ile...", "Co...", "Kiedy...", "Jaki..."
+- Nie powtarzaj frazy głównej dosłownie w każdym pytaniu
+- Pytania powinny pokrywać różne aspekty tematu
+
+Format: ["pytanie 1", "pytanie 2", ...]"""
+    
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, max_retries=1)
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+            temperature=0.8,
+        )
+        text = response.content[0].text.strip()
+        # Parse JSON array
+        clean = text.replace("```json", "").replace("```", "").strip()
+        questions = json.loads(clean)
+        if isinstance(questions, list) and len(questions) >= 3:
+            logger.info(f"[PAA_FALLBACK] ✅ Claude generated {len(questions)} PAA questions for '{main_keyword}'")
+            return [{"question": q, "source": "claude_fallback"} if isinstance(q, str) else q for q in questions[:8]]
+    except Exception as e:
+        logger.warning(f"[PAA_FALLBACK] Claude fallback failed: {str(e)[:100]}")
+    
+    return []
+
+
 def generate_faq_text(paa_data, pre_batch=None, engine="claude", openai_model=None, temperature=None):
     """Generate FAQ section using optimized prompts.
     
@@ -2643,6 +2685,14 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         paa_debug = s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or []
         if not paa_debug:
             yield emit("log", {"msg": f"⚠️ PAA: brak pytań w s1.paa={len(s1.get('paa') or [])}, s1.paa_questions={len(s1.get('paa_questions') or [])}, serp.paa_questions={len(serp_analysis.get('paa_questions') or [])}"})
+            # v59.1: Client-side PAA fallback — generate with Claude when SERP has none
+            paa_fallback = _generate_paa_fallback(main_keyword)
+            if paa_fallback:
+                s1["paa"] = paa_fallback
+                paa_debug = paa_fallback
+                yield emit("log", {"msg": f"🤖 PAA fallback: Claude wygenerował {len(paa_fallback)} pytań"})
+            else:
+                yield emit("log", {"msg": "⚠️ PAA fallback: nie udało się wygenerować pytań"})
         else:
             yield emit("log", {"msg": f"✅ PAA: {len(paa_debug)} pytań z SERP"})
         yield emit("s1_data", {
@@ -3223,6 +3273,29 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             filtered_entity_seo["entities"] = _filter_entities(filtered_entity_seo["entities"])
         if "must_mention_entities" in filtered_entity_seo:
             filtered_entity_seo["must_mention_entities"] = _filter_entities(filtered_entity_seo["must_mention_entities"])
+
+        # v59.1 FIX: Normalize all entity lists to dicts before backend
+        # Backend final_review calls .get() on entities — crashes on bare strings
+        # Error: "'str' object has no attribute 'get'"
+        def _normalize_ent_list(lst):
+            if not lst:
+                return lst
+            return [
+                e if isinstance(e, dict) else {"text": str(e), "type": "CONCEPT"}
+                for e in lst
+            ]
+        
+        clean_entities = _normalize_ent_list(clean_entities)
+        clean_must_mention = _normalize_ent_list(clean_must_mention)
+        concept_entities = _normalize_ent_list(concept_entities)
+        if ai_topical:
+            ai_topical = _normalize_ent_list(ai_topical)
+        if ai_named:
+            ai_named = _normalize_ent_list(ai_named)
+        for _key in ("top_entities", "entities", "must_mention_entities",
+                      "topical_entities", "named_entities", "concept_entities"):
+            if _key in filtered_entity_seo and isinstance(filtered_entity_seo[_key], list):
+                filtered_entity_seo[_key] = _normalize_ent_list(filtered_entity_seo[_key])
 
         # Wyciagnij synonimy encji głównej z entity_seo (zapisane z topical entity generator)
         _entity_synonyms = filtered_entity_seo.get("entity_synonyms", [])
