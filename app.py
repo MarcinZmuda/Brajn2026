@@ -3764,13 +3764,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 _aov = s1.get("ai_overview") or serp_analysis.get("ai_overview") or ""
                 _sint = s1.get("search_intent") or serp_analysis.get("search_intent") or ""
                 _comp_titles = serp_analysis.get("competitor_titles", [])[:5]
-                if _fs or _aov:
-                    _serp_for_intro["featured_snippet"] = _fs
-                    _serp_for_intro["ai_overview"] = _aov
-                    _serp_for_intro["search_intent"] = _sint
-                    _serp_for_intro["competitor_titles"] = _comp_titles
-                    pre_batch["serp_enrichment"] = _serp_for_intro
-                    yield emit("log", {"msg": f"📰 INTRO SERP: snippet={'✅' if _fs else '❌'}, AI overview={'✅' if _aov else '❌'}, intent={_sint[:40] if _sint else '?'}"})
+                _comp_snippets = serp_analysis.get("competitor_snippets", [])[:5]
+                _paa = (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or [])[:5]
+                # ALWAYS inject — not just when snippet/AIO exist
+                _serp_for_intro["featured_snippet"] = _fs
+                _serp_for_intro["ai_overview"] = _aov
+                _serp_for_intro["search_intent"] = _sint
+                _serp_for_intro["competitor_titles"] = _comp_titles
+                _serp_for_intro["competitor_snippets"] = _comp_snippets
+                _serp_for_intro["paa_questions"] = _paa
+                pre_batch["serp_enrichment"] = _serp_for_intro
+                yield emit("log", {"msg": f"📰 INTRO SERP: snippet={'✅' if _fs else '❌'}, AI overview={'✅' if _aov else '❌'}, titles={len(_comp_titles)}, PAA={len(_paa)}, intent={_sint[:40] if _sint else '?'}"})
 
             # ═══ v60: Inject refinement chips for all batches ═══
             _chips = s1.get("refinement_chips") or serp_analysis.get("refinement_chips") or []
@@ -3981,6 +3985,12 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     "has_snippet": bool((pre_batch.get("serp_enrichment") or {}).get("featured_snippet")),
                     "has_ai_overview": bool((pre_batch.get("serp_enrichment") or {}).get("ai_overview")),
                     "search_intent": (pre_batch.get("serp_enrichment") or {}).get("search_intent", ""),
+                    "snippet_preview": str((pre_batch.get("serp_enrichment") or {}).get("featured_snippet", ""))[:150],
+                    "ai_overview_preview": str(
+                        (lambda a: a if isinstance(a, str) else (a.get("text", "") if isinstance(a, dict) else str(a)))(
+                            (pre_batch.get("serp_enrichment") or {}).get("ai_overview", "")
+                        )
+                    )[:200],
                 } if batch_type in ("INTRO", "intro") else {},
                 # v45 flags
                 "has_causal_context": bool(enhanced_data.get("causal_context")),
