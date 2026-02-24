@@ -1335,7 +1335,7 @@ Zaplanuj H2 tak, by każda fraza miała naturalną sekcję:
 
 {phrases_text}""")
 
-    # H2 scaling
+    # H2 scaling — driven by target length, not arbitrary thresholds
     length_analysis = s1_data.get("length_analysis") or {}
     rec_length = length_analysis.get("recommended") or s1_data.get("recommended_length") or 0
     median_length = length_analysis.get("median") or s1_data.get("median_length") or 0
@@ -1344,14 +1344,11 @@ Zaplanuj H2 tak, by każda fraza miała naturalną sekcję:
         fast_note = "Tryb fast: DOKŁADNIE 3 sekcje + FAQ."
     else:
         target = rec_length or (median_length * 2) or 1500
-        if target <= 1000:
-            h2_range, h2_min, h2_max = "5-6", 5, 6
-        elif target <= 2000:
-            h2_range, h2_min, h2_max = "6-8", 6, 8
-        elif target <= 3500:
-            h2_range, h2_min, h2_max = "7-9", 7, 9
-        else:
-            h2_range, h2_min, h2_max = "8-12", 8, 12
+        # ~250 words per H2 section + intro → derive count from length
+        _raw_h2 = max(3, min(12, target // 250))
+        h2_min = max(3, _raw_h2 - 1)
+        h2_max = _raw_h2 + 1
+        h2_range = f"{h2_min}-{h2_max}"
         fast_note = f"Tryb standard: {h2_range} sekcji + FAQ. Max {h2_max + 1} H2 łącznie."
 
     h2_hint_rule = ("Uwzględnij frazy H2 użytkownika." if user_h2_hints
