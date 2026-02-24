@@ -130,16 +130,49 @@ _CATEGORY_STYLE = {
     "finanse": (
         "GĘSTOŚĆ DANYCH: Min. 2 konkretne liczby (kwota, %, stawka) na akapit.\n"
         "  Wyliczenie > opis. Tabelka > pięć zdań prozy.\n"
+        "FAKT + INTERPRETACJA: po każdej liczbie dodaj co ona znaczy dla czytelnika.\n"
+        "  ❌ 'Oprocentowanie wynosi 7,5 %' → ✅ 'Oprocentowanie 7,5 % — przy kredycie 300 000 zł to rata ok. 2 100 zł/mies.'\n"
+        "  Interpretuj TYLKO gdy dane wynikają z kontekstu — nie wymyślaj obliczeń.\n"
         "ZAKAZANE: zdania komentujące bez danych ('ta sytuacja', 'ten problem')."
     ),
     "prawo": (
         "PRZEPISY: podawaj numery artykułów, widełki kar, konkretne terminy.\n"
         "  ❌ 'Sąd może orzec karę' → ✅ 'Grozi grzywna 5 000–30 000 zł lub zakaz na 3–15 lat (art. 178a § 1 k.k.)'\n"
-        "  Gdy SERP podaje sygnatury/orzeczenia → użyj ich."
+        "  Gdy SERP podaje sygnatury/orzeczenia → użyj ich.\n"
+        "CASE STUDY: min. 1 typowa sytuacja na sekcję H2.\n"
+        "  Używaj archetypów (Kowalski, kierowca, właściciel mieszkania) — NIE wymyślaj sygnatur ani kwot.\n"
+        "  ❌ 'Art. 212 KK penalizuje zniesławienie.' → ✅ 'Jeśli sąsiad napisze pod postem, że kradniesz prąd — ryzykuje zarzut z art. 212 KK.'\n"
+        "PODMIOT: Sąd zasądza. Inwestor składa. Dłużnik płaci.\n"
+        "  ❌ 'Można złożyć wniosek' → ✅ 'Wierzyciel składa wniosek'\n"
+        "  ❌ 'Należy pamiętać' → ✅ 'Sąd bierze pod uwagę'"
     ),
     "medycyna": (
         "PRECYZJA: dawki, nazwy substancji, mechanizmy — nie ogólniki.\n"
-        "  ❌ 'Lek pomaga na ból' → ✅ 'Ibuprofen 400 mg co 6–8 h łagodzi ból w ciągu 30–60 min.'"
+        "  ❌ 'Lek pomaga na ból' → ✅ 'Ibuprofen 400 mg co 6–8 h łagodzi ból w ciągu 30–60 min.'\n"
+        "MECHANIZM > OBIETNICA: opisuj procesy biologiczne, nie efekty marketingowe.\n"
+        "  ❌ 'Krem nawilża skórę' → ✅ 'Kwas hialuronowy wiąże cząsteczki wody w naskórku, tworząc barierę okluzyjną.'\n"
+        "  ❌ 'Skuteczny składnik' → ✅ 'Retinol przyspiesza odnowę komórkową naskórka'\n"
+        "ZAKAZ przymiotników oceniających: 'skuteczny', 'najlepszy', 'rewolucyjny', 'cudowny'.\n"
+        "  Zamiast oceny → mechanizm działania lub dane (czas, dawka, częstotliwość).\n"
+        "  NIE cytuj wyników badań, których nie masz w źródłach — opisz mechanizm."
+    ),
+    "uroda": (
+        "MECHANIZM > MARKETING: opisuj procesy skórne, nie obietnice.\n"
+        "  ❌ 'Krem cudownie nawilża' → ✅ 'Ceramidy odbudowują barierę lipidową naskórka, ograniczając TEWL.'\n"
+        "NAZEWNICTWO: przy każdym zabiegu/produkcie podaj substancję czynną.\n"
+        "  ❌ 'peeling chemiczny' → ✅ 'peeling z kwasem glikolowym 30 %'\n"
+        "  ❌ 'serum na zmarszczki' → ✅ 'serum z retinalem 0,05 %'\n"
+        "ZAKAZ przymiotników oceniających: 'rewolucyjny', 'cudowny', 'najlepszy', 'kultowy'.\n"
+        "  Zamiast oceny → mechanizm + czas efektu: 'Retinol widocznie wygładza po 8–12 tygodniach.'"
+    ),
+    "technologia": (
+        "PORÓWNANIE DO STANDARDU: każdy parametr odnieś do tego, co czytelnik zna.\n"
+        "  ❌ 'Wi-Fi 7 oferuje 46 Gbps' → ✅ 'Wi-Fi 7 (46 Gbps) — 4× szybciej niż popularne Wi-Fi 6.'\n"
+        "  ❌ 'Chip ma 3 nm proces' → ✅ '3 nm vs dotychczasowe 5 nm — 25 % mniej energii przy tej samej mocy.'\n"
+        "  Porównuj do POPRZEDNIEJ GENERACJI, nie do abstrakcyjnych liczb.\n"
+        "SCENARIUSZ UŻYCIA: po specyfikacji pokaż co to zmienia w praktyce.\n"
+        "  ❌ 'Przepustowość 10 Gbps' → ✅ 'Taka przepustowość pozwala na stabilny streaming 8K na 3 urządzeniach jednocześnie.'\n"
+        "GĘSTOŚĆ: min. 1 parametr techniczny + 1 scenariusz na akapit."
     ),
 }
 
@@ -184,12 +217,19 @@ STYL: Fakt + co to znaczy w portfelu/kalendarzu czytelnika.
   ŹLE: "Sąd może orzec grzywnę, ograniczenie wolności oraz karę pozbawienia wolności."
   DOBRZE: "Najczęściej kończy się grzywną i zakazem na 3 lata — ale recydywa oznacza więzienie bez zawieszenia."
   NIE buduj napięcia dramatycznymi krótkimi zdaniami. To poradnik, nie thriller.
-  ŹLE: "Ta sytuacja zmienia budżet." "Ten problem wraca." "Ceny rosną."
-  DOBRZE: "Przestój ekipy przez brak decyzji kosztuje 500–800 zł dziennie."
 
-RYTM: średnia 15–22 słów. Mieszaj zdania, ale naturalnie — bez sztucznych krótkich puentów.
-NIE zaczynaj 2+ zdań w akapicie od tego samego wzorca.
+RYTM: mieszaj długość zdań. Nie pisz trzech zdań o podobnej długości pod rząd.
+  Czasem użyj zdania 5-słowowego. Czasem rozwiń myśl na 25 słów.
+  Naturalny rytm = różnorodność, nie formuła.
 Podmiot konkretny (inwestor, ekipa, hydraulik) + czynność + LICZBA/FAKT.
+NIE zaczynaj 2+ zdań w akapicie od tego samego wzorca.
+
+JEDNOSTKI: zawsze spacja przed jednostką. Tysiące oddzielaj spacją.
+  ✅ 10 m², 2 500 zł, 120 kg, 15 cm  ❌ 10m², 2500zł, 120kg, 15cm
+
+KOŃCZENIE SEKCJI: ostatnie zdanie sekcji H2 = konkretny fakt, NIE morał.
+  ❌ 'Dlatego tak ważne jest, aby...' / 'Pamiętajmy, że...' / 'Warto zatem...'
+  ✅ 'Czas oczekiwania na decyzję: 14–30 dni roboczych.' / 'Koszt łączny: ok. 8 500 zł.'
 
 OTWIERANIE SEKCJI: Każda sekcja H2 MUSI zaczynać się INNYM zdaniem.
   ⛔ ZAKAZANY WZORZEC: "[Fraza główna] zaczyna się od..." / "[Fraza główna] rzadko..." / "[Fraza główna] najłatwiej..."
@@ -212,32 +252,44 @@ NAZWY FIRM I PLATFORM: nie używaj nazw własnych.
 
     # ═══ 3. ENTITY SEO ═══
     parts.append("""<encje>
-Encja główna w KAŻDEJ sekcji (nie musi być w pierwszym zdaniu — naturalność > SEO).
-Powiązane encje w tym samym akapicie (kolokacja).
-Spójna forma nazwy — nie zmieniaj między sekcjami.
-Encje z danych (user prompt) wplataj w treść — nie twórz listy encji.
+SALIENCE — encja główna MUSI dominować w tekście:
+  PODMIOT > DOPEŁNIENIE: encja główna = podmiot zdania (kto/co?), nie peryferia.
+    ✅ „Jazda po alkoholu skutkuje..." / „Retinol przyspiesza..."
+    ❌ „Ważnym aspektem jest jazda po alkoholu" / „W przypadku retinolu..."
+  POZYCJA: encja główna w pierwszym zdaniu akapitu = wyższa salience.
+  KOLOKACJA: powiązane encje w TYM SAMYM akapicie.
+  SPÓJNA FORMA: nie przeskakuj między wariantami nazwy.
+
+NIE LISTUJ ENCJI — OPISUJ RELACJE:
+  ❌ „art. 178a KK, zakaz prowadzenia, świadczenie pieniężne" (lista)
+  ✅ „Art. 178a KK penalizuje jazdę zakazem prowadzenia od 3 lat i świadczeniem od 5000 zł" (relacja)
+  Używaj fraz: „reguluje", „prowadzi do", „jest typem", „zapobiega", „został wprowadzony przez".
+
+CZYSTOŚĆ TEMATYCZNA: każda sekcja H2 = JEDEN podtemat, wyczerpany do końca.
+  Nie mieszaj 2 podtematów. Nie wracaj do podtematu omówionego we wcześniejszym H2.
+
+POLISEMIA: gdy encja wieloznaczna — doprecyzuj kontekst przy PIERWSZYM użyciu.
+
+INFORMATION GAIN: w każdej sekcji H2 dodaj MIN 1 element którego NIE MA w danych z konkurencji:
+  unikatowe porównanie, wyjątek od reguły, praktyczna wskazówka, mało znany fakt.
 </encje>""")
 
     # ═══ 4. ANTY-AI ═══
     parts.append("""<anty_ai>
-ZAKAZANE WZORCE (typowe dla AI, łatwe do wykrycia):
+ZAKAZANE WZORCE (typowe dla AI):
   Frazesy: "warto zauważyć/pamiętać/podkreślić", "należy podkreślić",
     "kluczowe jest", "istotne jest", "podsumowując", "w tym kontekście".
-  Zombie zdania (brak podmiotu): "Istotnym elementem jest..." "Zlekceważone prowadzą do..."
-    → Kto? Co? Zawsze nazwij podmiot: "Nieleczone objawy prowadzą do..."
-  Sztuczne łączniki: "W odniesieniu do", "Ma to na celu", "Proces ten", "Jest to".
-  Nadmiar przymiotników: "kluczowy", "istotny", "zasadniczy", "fundamentalny"
-    → max 1 na akapit. Lepiej: pokaż DLACZEGO coś jest ważne zamiast pisać że jest.
-  Schemat "[W + rzeczownik] + [bierne] + bo + [wyjaśnienie]" → złam go.
+  Wypełniacze: "w świetle obowiązujących przepisów", "zgodnie z literą prawa",
+    "nie bez znaczenia jest fakt", "trzeba mieć na uwadze", "jak sama nazwa wskazuje".
+  Morały: "dlatego tak ważne jest, aby", "pamiętajmy, że", "warto zatem".
+  Łączniki: "W odniesieniu do", "Ma to na celu", "Proces ten", "Jest to".
+  Zombie zdania: "Istotnym elementem jest..." → Kto? Co? Nazwij podmiot.
+  Przymiotniki: max 1× "kluczowy/istotny/zasadniczy" na akapit.
 
 PUSTE PRZEBIEGI (AI slop — ZERO TOLERANCJI):
-  ❌ "Ta sytuacja zmienia budżet." → KTÓRE koszty? ILE?
-  ❌ "Ten problem wychodzi przy..." → JAKI problem? Podaj konkret.
-  ❌ "Ten aspekt najmocniej odczuwa się..." → pusty zaimek + ogólnik.
-  ❌ "Różnica kilku decyzji zmienia budżet o dziesiątki procent" → JAKIE decyzje? ILE procent?
-  TEST: Czy zdanie da się zastąpić słowem "coś"? Jeśli tak — to slop. Podaj KONKRET.
-  NIGDY nie używaj "ta sytuacja/ten problem/ta kwestia/ten aspekt/omawiany temat"
-    jako podmiotu zdania. Zamiast zaimka → nazwij CO KONKRETNIE.
+  NIGDY "ta sytuacja/ten problem/ta kwestia/ten aspekt/omawiany temat" jako podmiot.
+  TEST: Czy zdanie da się zastąpić słowem "coś"? Jeśli tak — podaj KONKRET.
+  ❌ "Różnica kilku decyzji zmienia budżet o dziesiątki procent" → JAKIE? ILE?
 </anty_ai>""")
 
     # ═══ 5. ŹRÓDŁA ═══
@@ -251,13 +303,7 @@ Nie wymyślaj liczb, dat, sygnatur, nazw badań. Nie znasz → pomiń.
         parts.append("""<zrodla>
 Wiedza z: stron SERP, Wikipedia, danych liczbowych (podane).
 Nie wymyślaj liczb, dat, nazw badań. Brak danych → opisz ogólnie.
-
-DANE ZE STRON SERP = TWOJE ŹRÓDŁO. Wykorzystuj je aktywnie:
-  Gdy SERP podaje cenę (np. "układanie płytek: 90–140 zł/m²") → PRZEPISZ widełki.
-  Gdy SERP ma tabelę cen → odtwórz ją jako <table> z własnymi nagłówkami.
-  Gdy SERP podaje kalkulację → zrób własną analogiczną (inna kwota/metraż OK).
-  NIE streszczaj "90–140 zł/m²" jako "kilkadziesiąt złotych".
-  NIE zamieniaj ceny na metaforę ("wciąga budżet jak odkurzacz").
+Gdy SERP podaje cenę/stawkę → PRZEPISZ widełki. Nie streszczaj liczb słowami.
 </zrodla>""")
 
     # ═══ 5b. STYL KATEGORII ═══
@@ -265,33 +311,42 @@ DANE ZE STRON SERP = TWOJE ŹRÓDŁO. Wykorzystuj je aktywnie:
     if cat_style:
         parts.append(f"<styl_kategorii>\n{cat_style}\n</styl_kategorii>")
 
-    # ═══ 6. PRZYKŁAD ═══
-    parts.append("""<przyklad>
-TAK (konkrety + liczby):
-"Granica jest prosta: do 0,5 promila to wykroczenie, powyżej — przestępstwo.
-Typowy kierowca złapany pierwszy raz z wynikiem tuż ponad próg dostanie
-grzywnę i zakaz na 3 lata."
-
-TAK (koszty — kalkulacja per pomieszczenie):
-"Panele laminowane z montażem: 50–150 zł/m². Salon 30 m² to 1 500–4 500 zł
-za samą podłogę plus 300–500 zł na listwy i podkłady. Łazienka 8 m² z płytkami
-gresowymi (80–140 zł/m²) i hydroizolacją zamknie się w 1 200–1 800 zł za materiał.
-Łącznie podłogi w domu 100 m²: ok. 7 000–9 000 zł z akcesoriami."
-
-TAK (tabela — robocizna):
-<table>
-<tr><th>Usługa</th><th>Cena od</th><th>Cena do</th></tr>
-<tr><td>Malowanie ścian z gruntowaniem</td><td>20 zł/m²</td><td>25 zł/m²</td></tr>
-<tr><td>Układanie płytek</td><td>90 zł/m²</td><td>140 zł/m²</td></tr>
-<tr><td>Montaż paneli</td><td>60 zł/m²</td><td>75 zł/m²</td></tr>
-</table>
-
-NIE (puste przebiegi, brak danych, AI slop):
-"Wykończenie domu zaczyna się od sprawdzenia, co obejmuje stan deweloperski
-na papierze. Koszt wykończenia rośnie, gdy w umowie gotowe oznacza tylko tynki.
-Ta sytuacja zmienia budżet, zanim pojawi się pierwszy kolor na ścianie."
-↑ trzy zdania, ZERO liczb, "ta sytuacja" = pusty zaimek. Takie zdania USUŃ.
-</przyklad>""")
+    # ═══ 6. PRZYKŁAD (per-kategoria) ═══
+    _EXAMPLES = {
+        "prawo": (
+            'TAK: "Granica jest prosta: do 0,5 promila to wykroczenie, powyżej — przestępstwo.\n'
+            'Typowy kierowca złapany pierwszy raz z wynikiem tuż ponad próg dostanie\n'
+            'grzywnę i zakaz na 3 lata."\n\n'
+            'NIE: "Sytuacja prawna kierowcy ulega zmianie w zależności od okoliczności.\n'
+            'Ten aspekt jest szczególnie istotny w kontekście aktualnych regulacji."\n'
+            '↑ dwa zdania, ZERO konkretów. Usuń.'
+        ),
+        "budownictwo": (
+            'TAK: "Panele laminowane z montażem: 50–150 zł/m². Salon 30 m² to 1 500–4 500 zł\n'
+            'za samą podłogę plus 300–500 zł na listwy i podkłady."\n\n'
+            'TAK (tabela):\n'
+            '<table>\n'
+            '<tr><th>Usługa</th><th>Cena od</th><th>Cena do</th></tr>\n'
+            '<tr><td>Malowanie ścian</td><td>20 zł/m²</td><td>25 zł/m²</td></tr>\n'
+            '<tr><td>Układanie płytek</td><td>90 zł/m²</td><td>140 zł/m²</td></tr>\n'
+            '</table>\n\n'
+            'NIE: "Wykończenie domu zaczyna się od sprawdzenia stanu deweloperskiego.\n'
+            'Ta sytuacja zmienia budżet."\n'
+            '↑ ZERO liczb, pusty zaimek. Usuń.'
+        ),
+        "medycyna": (
+            'TAK: "Ibuprofen 400 mg co 6–8 h łagodzi ból w ciągu 30–60 min.\n'
+            'Kwas hialuronowy wiąże cząsteczki wody w naskórku, tworząc barierę okluzyjną."\n\n'
+            'NIE: "Lek skutecznie pomaga na dolegliwości. Ten problem jest powszechny."\n'
+            '↑ brak dawki, mechanizmu, nazwy substancji. Usuń.'
+        ),
+    }
+    _default_example = (
+        'TAK: Zdanie z konkretną liczbą, stawką lub faktem.\n'
+        'NIE: Zdanie ogólnikowe bez danych — "ta sytuacja", "ten problem" = do usunięcia.'
+    )
+    example_text = _EXAMPLES.get(detected_category, _default_example)
+    parts.append(f"<przyklad>\n{example_text}\n</przyklad>")
 
     return "\n\n".join(parts)
 
@@ -458,14 +513,13 @@ def _fmt_keywords(pre_batch):
 
     # ── CAUTION ──
     caution_raw = keyword_limits.get("caution_keywords") or []
-    caution_lines = []
+    caution_names = []
     for c in caution_raw:
         if isinstance(c, dict):
-            name = c.get("keyword", "")
-            line = f'  • "{name}" max 1×'
-            caution_lines.append(line)
+            caution_names.append(c.get("keyword", ""))
         else:
-            caution_lines.append(f'  • "{c}" max 1×')
+            caution_names.append(str(c))
+    caution_names = [n for n in caution_names if n]
 
     # ── SOFT CAPS ──
     soft_notes = []
@@ -495,9 +549,8 @@ def _fmt_keywords(pre_batch):
     if stop_lines:
         parts.append("\n🛑 STOP — nie używaj (przekroczone):")
         parts.extend(stop_lines)
-    if caution_lines:
-        parts.append("\n⚠️ OSTROŻNIE — max 1× lub pomiń:")
-        parts.extend(caution_lines)
+    if caution_names:
+        parts.append(f"\n⚠️ OSTROŻNIE (max 1× każda): {', '.join(caution_names)}")
     if soft_notes:
         parts.append("")
         parts.extend(soft_notes)
@@ -563,14 +616,6 @@ def _fmt_article_memory(article_memory):
             for r in avoid_rep[:8]:
                 parts.append(f'  ❌ "{r}"')
 
-        phrases_used = article_memory.get("phrases_used") or {}
-        if phrases_used:
-            high_use = [(k, v) for k, v in phrases_used.items() if isinstance(v, (int, float)) and v >= 3]
-            if high_use:
-                parts.append("\nFrazy już często użyte (ogranicz):")
-                for name, count in high_use[:8]:
-                    parts.append(f'  • "{name}" (już {count}×)')
-
     elif isinstance(article_memory, str):
         parts.append(_word_trim(article_memory, 1500))
 
@@ -611,100 +656,87 @@ NIE dodawaj komentarzy. TYLKO treść artykułu."""
 # ════════════════════════════════════════════════════════════
 
 def _fmt_entity_context_v2(pre_batch):
+    """v2.3: Smart S1 context — per-H2 filtered data from _build_batch_s1_context."""
     parts = []
+    s1_ctx = pre_batch.get("_s1_context") or {}
 
     _raw_main = pre_batch.get("main_keyword") or {}
     main_name = _raw_main.get("keyword", "") if isinstance(_raw_main, dict) else str(_raw_main)
     _entity_seo = (pre_batch.get("s1_data") or {}).get("entity_seo") or \
         pre_batch.get("entity_seo") or {}
 
+    # ── Block 1: Synonyms (static — needed for anaphora in every batch) ──
     if main_name:
         synonyms = _entity_seo.get("entity_synonyms", [])[:5]
         if synonyms:
-            parts.append(f"═══ ENCJE ═══\nSynonimy głównej frazy: {', '.join(str(s) for s in synonyms)}")
+            parts.append(f"═══ ENCJE ═══\nSynonimy: {', '.join(str(s) for s in synonyms)}")
         else:
             parts.append("═══ ENCJE ═══")
 
-        multi_syns = _entity_seo.get("multi_entity_synonyms", {})
-        if multi_syns:
-            syn_lines = []
-            for ent, syns in list(multi_syns.items())[:5]:
-                syn_lines.append(f'  "{ent}" → {", ".join(syns[:3])}')
-            if syn_lines:
-                parts.append("Synonimy encji:\n" + "\n".join(syn_lines))
+    # ── Block 2: Lead entity + concepts for THIS section ──
+    lead = s1_ctx.get("lead_entity")
+    concepts = s1_ctx.get("concepts", [])
+    e_gaps = s1_ctx.get("entity_gaps", [])
 
-    must_concepts = pre_batch.get("_must_cover_concepts") or []
-    if must_concepts:
-        names = []
-        for c in must_concepts[:10]:
-            n = c.get("text", c) if isinstance(c, dict) else str(c)
-            if n:
-                names.append(n)
-        if names:
-            parts.append(f"Encje do uwzględnienia (jeśli merytorycznie zasadne): {', '.join(names)}")
+    concept_parts = []
+    if lead and lead.lower() != main_name.lower():
+        concept_parts.append(f"🎯 Encja wiodąca sekcji: {lead}")
+    all_to_weave = concepts[:]
+    for g in e_gaps:
+        if g not in all_to_weave:
+            all_to_weave.append(f"{g} [luka]")
+    if all_to_weave:
+        concept_parts.append(f"Wpleć: {', '.join(all_to_weave[:6])}")
+    if concept_parts:
+        parts.append("\n".join(concept_parts))
 
-    cooc_pairs = pre_batch.get("_cooccurrence_pairs") or []
-    if cooc_pairs:
-        pair_strs = []
-        for pair in cooc_pairs[:6]:
-            if isinstance(pair, dict):
-                e1 = pair.get("entity1", pair.get("source", ""))
-                e2 = pair.get("entity2", pair.get("target", ""))
-                if e1 and e2:
-                    pair_strs.append(f"{e1} + {e2}")
-        if pair_strs:
-            parts.append(f"Pary w tym samym akapicie: {' | '.join(pair_strs)}")
-
-    first_para = pre_batch.get("_first_paragraph_entities") or []
-    if first_para:
-        fp_names = []
-        for ent in first_para[:5]:
-            name = ent.get("entity", ent.get("text", ent)) if isinstance(ent, dict) else str(ent)
-            if name:
-                fp_names.append(name)
-        if fp_names:
-            parts.append(f"Pierwszy akapit — wprowadź: {', '.join(fp_names)}")
-
-    eav_triples = pre_batch.get("_eav_triples") or []
-    if eav_triples:
-        eav_lines = ["Fakty do wykorzystania (jeśli pasują do sekcji):"]
-        primary = [e for e in eav_triples if e.get("is_primary")]
-        secondary = [e for e in eav_triples if not e.get("is_primary")]
-        if primary:
-            e = primary[0]
-            eav_lines.append(f'  🎯 {e.get("entity","")} → {e.get("attribute","")} → {e.get("value","")}')
-        for e in secondary[:8]:
-            eav_lines.append(f'  • {e.get("entity","")} → {e.get("attribute","")} → {e.get("value","")}')
+    # ── Block 3: EAV facts (filtered per H2) ──
+    eav = s1_ctx.get("eav", [])
+    if eav:
+        eav_lines = ["Fakty (wpleć w zdania, nie listuj):"]
+        for e in eav[:5]:
+            marker = "🎯" if e.get("is_primary") else "•"
+            eav_lines.append(f'  {marker} {e.get("entity","")} → {e.get("attribute","")} → {e.get("value","")}')
         parts.append("\n".join(eav_lines))
 
-    svo_triples = pre_batch.get("_svo_triples") or []
-    if svo_triples:
-        svo_lines = ["Relacje (użyj jeśli naturalnie pasują):"]
-        for t in svo_triples[:10]:
+    # ── Block 4: SVO relations (filtered per H2 — NEW in article prompt) ──
+    svo = s1_ctx.get("svo", [])
+    if svo:
+        svo_lines = ["Relacje (opisz swoimi słowami):"]
+        for t in svo[:3]:
             ctx = f' [{t.get("context","")}]' if t.get("context") else ""
-            svo_lines.append(f'  {t.get("subject","")} → {t.get("verb","")} → {t.get("object","")}{ctx}')
+            svo_lines.append(f'  • {t.get("subject","")} → {t.get("verb","")} → {t.get("object","")}{ctx}')
         parts.append("\n".join(svo_lines))
 
-    h2_ents = pre_batch.get("_h2_entities") or []
-    if h2_ents:
-        names = [e.get("entity", e.get("text", e)) if isinstance(e, dict) else str(e) for e in h2_ents[:6]]
-        names = [n for n in names if n]
-        if names:
-            parts.append(f"Encje tej sekcji: {', '.join(names)}")
+    # ── Block 5: Causal chains (NEW — first time in article prompt) ──
+    causal = s1_ctx.get("causal", [])
+    if causal:
+        causal_lines = ["Łańcuchy przyczynowe (użyj do wyjaśniania DLACZEGO):"]
+        for c in causal[:2]:
+            if isinstance(c, dict):
+                text = c.get("chain", c.get("text", str(c)))
+            else:
+                text = str(c)
+            causal_lines.append(f"  ⛓️ {_word_trim(text, 150)}")
+        parts.append("\n".join(causal_lines))
 
-    gaps = pre_batch.get("_entity_gaps") or []
-    high_gaps = [g for g in gaps if g.get("priority") == "high"]
-    if high_gaps:
-        gap_names = [g.get("entity", "") for g in high_gaps[:4]]
-        gap_names = [n for n in gap_names if n]
-        if gap_names:
-            parts.append(f"Luki (rozważ wplecenie): {', '.join(gap_names)}")
+    # ── Block 6: Content gaps for THIS section (NEW) ──
+    gaps = s1_ctx.get("gaps", [])
+    if gaps:
+        parts.append(f"Luki TOP10 (information gain): {', '.join(gaps[:3])}")
 
+    # ── Block 7: Co-occurrence pairs for THIS section ──
+    cooc = s1_ctx.get("cooc", [])
+    if cooc:
+        parts.append(f"Encje razem w akapicie: {' | '.join(cooc[:4])}")
+
+    # ── Block 8: Information gain (from master API, per-batch) ──
     enhanced = pre_batch.get("enhanced") or {}
     info_gain = enhanced.get("information_gain", "")
     if info_gain:
         parts.append(f"Przewaga nad konkurencją: {_word_trim(info_gain, 200)}")
 
+    # ── Block 9: Semantic angle (from master API, per-batch) ──
     plan = pre_batch.get("semantic_batch_plan") or {}
     if plan:
         h2_coverage = plan.get("h2_coverage") or {}
@@ -714,6 +746,24 @@ def _fmt_entity_context_v2(pre_batch):
                 if angle:
                     parts.append(f"Kąt sekcji: {angle}")
                     break
+
+    # ── Fallback: if _s1_context empty, use old static fields ──
+    if not s1_ctx:
+        must_concepts = pre_batch.get("_must_cover_concepts") or []
+        old_eav = pre_batch.get("_eav_triples") or []
+        old_gaps = pre_batch.get("_entity_gaps") or []
+        if must_concepts:
+            names = [c.get("text", c) if isinstance(c, dict) else str(c) for c in must_concepts[:8]]
+            parts.append(f"Wpleć: {', '.join(n for n in names if n)}")
+        if old_eav:
+            eav_lines = ["Fakty (wpleć w zdania):"]
+            for e in old_eav[:4]:
+                eav_lines.append(f'  • {e.get("entity","")} → {e.get("attribute","")} → {e.get("value","")}')
+            parts.append("\n".join(eav_lines))
+        if old_gaps:
+            gap_names = [g.get("entity", "") for g in old_gaps if g.get("priority") == "high"][:3]
+            if gap_names:
+                parts.append(f"Luki: {', '.join(gap_names)}")
 
     return "\n\n".join(parts) if parts else ""
 
@@ -1056,42 +1106,16 @@ def _fmt_entity_salience(pre_batch):
 
 
 def _fmt_natural_polish(pre_batch):
-    """Anti-stuffing + fleksja — keyword-specific spacing and anaphora rules.
-    Generic anti-AI patterns moved to system prompt <anty_ai>.
+    """Anti-stuffing + fleksja — consolidated v2.2.
+    Removed per-keyword spacing table (LLM can't count words).
+    Kept: fleksja, anaphora, FAQ rotation, stuffing test.
     """
-    keywords_info = pre_batch.get("keywords") or {}
-    must_kw = keywords_info.get("basic_must_use") or []
-    ext_kw = keywords_info.get("extended_this_batch") or []
-
-    all_kw = []
-    for kw in must_kw + ext_kw:
-        if isinstance(kw, dict):
-            name = kw.get("keyword", "")
-            kw_type = kw.get("type", "BASIC").upper()
-        elif isinstance(kw, str):
-            name = kw
-            kw_type = "BASIC"
-        else:
-            continue
-        if name:
-            all_kw.append((name, kw_type))
-    if not all_kw:
-        return ""
-
-    SPACING = {"MAIN": 60, "BASIC": 80, "EXTENDED": 120}
     parts = ["═══ ANTY-STUFFING ═══"]
 
     parts.append(
-        "FLEKSJA: Odmiany = jedno użycie. System zaliczy każdy przypadek.\n"
-        "  Max 2× ta sama fraza w jednym akapicie. Rozkładaj RÓWNOMIERNIE."
+        "FLEKSJA: Odmiany = jedno użycie. Max 2× ta sama fraza w jednym akapicie.\n"
+        "Rozkładaj frazy RÓWNOMIERNIE po tekście — nie skupiaj w jednym akapicie."
     )
-
-    spacing_lines = []
-    for name, kw_type in all_kw[:8]:
-        spacing = SPACING.get(kw_type, 80)
-        spacing_lines.append(f'  • "{name}": min {spacing} słów odstępu')
-    if spacing_lines:
-        parts.append("ODSTĘPY:\n" + "\n".join(spacing_lines))
 
     # Dynamic anaphora ban for main entity
     _raw_main = pre_batch.get("main_keyword") or {}
@@ -1100,31 +1124,14 @@ def _fmt_natural_polish(pre_batch):
         _entity_seo = (pre_batch.get("s1_data") or {}).get("entity_seo") or pre_batch.get("entity_seo") or {}
         _dynamic_synonyms = _entity_seo.get("entity_synonyms", [])
         if _dynamic_synonyms and len(_dynamic_synonyms) >= 2:
-            synonyms = ", ".join(str(s) for s in _dynamic_synonyms[:7])
+            synonyms = ", ".join(str(s) for s in _dynamic_synonyms[:5])
         else:
-            _must = _entity_seo.get("must_mention_entities", [])
-            _must_names = [str(e.get("entity", e) if isinstance(e, dict) else e) for e in _must[:4]]
-            _must_names = [n for n in _must_names if n and n.lower() != _main_name.lower()]
-            if _must_names:
-                synonyms = ", ".join(_must_names[:4])
-            else:
-                synonyms = "konkretny podmiot z kontekstu (inwestor, ekipa, wykonawca, sąd)"
-        parts.append(f"ANTY-ANAPHORA [{_main_name}] MAX 2 ZDANIA Z RZĘDU.\nPrzy 3. zdaniu zmień podmiot na: {synonyms}\nNIGDY nie używaj 'ta sytuacja/ten problem/ta kwestia/ten aspekt' jako podmiotu.")
+            synonyms = "konkretny podmiot z kontekstu (inwestor, ekipa, wykonawca, sąd)"
+        parts.append(f"ANTY-ANAPHORA [{_main_name}] MAX 2 ZDANIA Z RZĘDU → zmień na: {synonyms}")
 
-    # Multi-entity synonyms map — skip, _fmt_entity_context_v2 already shows these
-    # Only output anaphora rules and spacing here
-
-    # FAQ-specific anaphora
     parts.append(
-        "FAQ: każde pytanie MUSI zaczynać się INNYM słowem.\n"
-        "  Rotuj: Czy, Kiedy, Jak, Co, Ile, Dlaczego, W jakich, Od kiedy."
-    )
-
-    # Anti-stuffing test
-    parts.append(
-        "TEST: Usunięcie frazy NIE zmienia sensu zdania = stuffing.\n"
-        "  ❌ powtórzenie frazy bez nowej informacji\n"
-        "  ✅ fraza + fakt którego bez niej nie da się powiedzieć"
+        "FAQ: każde pytanie zaczynaj INNYM słowem (Czy, Kiedy, Jak, Co, Ile, Dlaczego).\n"
+        "TEST STUFFINGU: usunięcie frazy NIE zmienia sensu = stuffing → usuń powtórzenie."
     )
 
     return "\n".join(parts)
