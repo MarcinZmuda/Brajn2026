@@ -1604,12 +1604,62 @@ def _clean_batch_text(text):
     if not text:
         return text
 
+    # Step 0: v59.1 FIX — Strip markdown bold **text** → text
+    # Claude sometimes outputs **bold** despite "Zero markdown" instruction
+    text = _re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+
+    # Step 0b: v59.1 FIX — Split headings glued to paragraph text
+    # Pattern: "...decyzje procesowe. H3: Co w praktyce" → add line break
+    text = _re.sub(
+        r'([.!?…"»])\s*(h[23]:)',
+        r'\1\n\n\2',
+        text,
+        flags=_re.IGNORECASE
+    )
+    
+    # Step 0c: v59.1 FIX — Heading title merged with paragraph on same line
+    # "h3: Zakaz i utrata uprawnień Sądowy zakaz prowadzenia pojazdów potrafi..."
+    # Headings = 5-15 words, no periods inside. Split at boundary.
+    _ABBREVS = {'art', 'pkt', 'ust', 'nr', 'ok', 'dr', 'prof', 'mgr', 'inż',
+                'np', 'tj', 'itd', 'itp', 'ww', 'jw', 'tzn', 'tzw',
+                'tab', 'rys', 'zob', 'k', 'p', 'c', 'w', 'a', 'o',
+                'k.k', 'k.c', 'k.p', 'k.w', 'k.p.a', 'k.r.o', 'k.p.c'}
+    def _split_heading_from_para(m):
+        tag = m.group(1)    # "h3" / "H3"
+        rest = m.group(2).strip()
+        # Strategy 1: ". X" or "? X" (sentence boundary) — skip abbreviations
+        for _sp in _re.finditer(r'([.!?])\s+([A-ZĄĆĘŁŃÓŚŹŻ])', rest):
+            _pos = _sp.start()
+            if _pos < 15 or _pos > 120:
+                continue
+            # Skip periods after abbreviations (art., pkt., k.k.) or numbers (178.)
+            _word_before = rest[:_pos + 1].rsplit(None, 1)[-1].rstrip('.').lower() if rest[:_pos + 1].strip() else ""
+            if _word_before in _ABBREVS or _re.match(r'^\d+$', _word_before):
+                continue
+            title = rest[:_pos + 1].strip()
+            para = rest[_pos + 1:].strip()
+            return f'{tag}: {title}\n{para}'
+        # Strategy 2: "lowercase Uppercase" (word case boundary)
+        split2 = _re.search(r'([a-ząćęłńóśźż])\s+([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]{2,})', rest)
+        if split2 and 30 <= split2.start() <= 120:
+            title = rest[:split2.start() + 1].strip()
+            para = rest[split2.start() + 1:].strip()
+            return f'{tag}: {title}\n{para}'
+        return m.group(0)
+    
+    text = _re.sub(
+        r'^(h[23]):\s*(.{80,})$',
+        _split_heading_from_para,
+        text,
+        flags=_re.MULTILINE | _re.IGNORECASE
+    )
+
     # Step 1: Fix malformed tags (reuse existing: code fences, <p.>→<p>, case normalization)
     text = _normalize_html_tags(text)
 
-    # Step 2: Convert h2:/h3: prefix format → HTML tags
-    text = _re.sub(r'^h2:\s*(.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE)
-    text = _re.sub(r'^h3:\s*(.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
+    # Step 2: Convert h2:/h3: prefix format → HTML tags (case-insensitive: H2:/H3: too)
+    text = _re.sub(r'^h2:\s*(.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE | _re.IGNORECASE)
+    text = _re.sub(r'^h3:\s*(.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE | _re.IGNORECASE)
 
     # Step 3: Convert markdown ## headers → HTML tags
     text = _re.sub(r'^###\s+(.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
