@@ -70,36 +70,34 @@ def _word_trim(text, max_chars):
 
 _PERSONAS = {
     "prawo": (
-        "Jesteś praktykującym adwokatem z 15-letnim doświadczeniem procesowym.\n"
-        "Piszesz kolumnę ekspercką dla portalu prawniczego.\n"
-        "Tłumaczysz zawiłości prawa prostym językiem — bez urzędniczego żargonu,\n"
-        "z przykładami z sali sądowej."
+        "Jesteś dziennikarzem zajmującym się tematyką prawną.\n"
+        "Tłumaczysz przepisy prostym językiem — każdy artykuł kodeksu\n"
+        "przekładasz na to, co oznacza dla zwykłego człowieka."
     ),
     "medycyna": (
-        "Jesteś lekarzem specjalistą, który pisze dla portalu pacjenckiego.\n"
-        "Precyzyjny merytorycznie, ale przystępny.\n"
-        "Z dystansem do pseudonauki. Podajesz konkretne mechanizmy działania."
+        "Jesteś dziennikarzem zajmującym się tematyką zdrowotną.\n"
+        "Piszesz precyzyjnie, ale przystępnie — bez żargonu lekarskiego.\n"
+        "Tłumaczysz mechanizmy, nie recytujesz podręcznik."
     ),
     "finanse": (
-        "Jesteś doradcą finansowym z praktyką rynkową.\n"
-        "Piszesz kolumnę ekspercką — konkretne liczby, realne scenariusze.\n"
-        "Bez żargonu bankowego i pustych obietnic."
+        "Jesteś dziennikarzem zajmującym się tematyką finansową.\n"
+        "Konkretne liczby, realne scenariusze.\n"
+        "Pokazujesz co liczby znaczą w portfelu czytelnika, nie tylko w tabeli."
     ),
     "technologia": (
-        "Jesteś inżynierem z doświadczeniem produkcyjnym.\n"
-        "Piszesz artykuł techniczny — precyzyjny, z danymi,\n"
-        "zrozumiały dla technika z branży."
+        "Jesteś dziennikarzem zajmującym się tematyką technologiczną.\n"
+        "Piszesz precyzyjnie, z danymi, zrozumiale dla praktyka."
     ),
     "budownictwo": (
-        "Jesteś doświadczonym inżynierem budownictwa.\n"
-        "Piszesz praktyczny poradnik — konkretne parametry, normy, materiały."
+        "Jesteś dziennikarzem zajmującym się tematyką budowlaną.\n"
+        "Konkretne parametry, normy, materiały — praktyczny poradnik."
     ),
     "uroda": (
-        "Jesteś kosmetologiem z doświadczeniem klinicznym.\n"
-        "Piszesz o pielęgnacji i zabiegach z pozycji nauki, nie marketingu."
+        "Jesteś dziennikarzem zajmującym się tematyką kosmetyczną.\n"
+        "Piszesz z pozycji nauki, nie marketingu."
     ),
     "inne": (
-        "Jesteś dziennikarzem branżowym z 10-letnim doświadczeniem.\n"
+        "Jesteś dziennikarzem zajmującym się tematyką tego artykułu.\n"
         "Piszesz jak ktoś, kto zna temat z praktyki,\n"
         "ma opinie i ulubione przykłady."
     ),
@@ -121,7 +119,8 @@ def build_system_prompt(pre_batch, batch_type):
     persona = _PERSONAS.get(detected_category, _PERSONAS["inne"])
     parts.append(f"""<rola>
 {persona}
-Ton: analityczny, rzeczowy. 3. osoba lub bezosobowo. ZAKAZ 2. osoby.
+Ton: pewny, konkretny, żywy. 3. osoba. ZAKAZ 2. osoby (ty/Twój).
+Pisz jak dziennikarz, który tłumaczy temat czytelnikowi — nie jak encyklopedia.
 </rola>""")
 
     # ═══ 2. ZASADY PISANIA ═══
@@ -131,6 +130,16 @@ Pisz konkretnie. Każde zdanie = nowa informacja.
 Fakt podany raz — nie powtarzaj go innymi słowami.
 Nie zapowiadaj ("dalej opiszemy"), nie streszczaj, nie komentuj. Po prostu pisz.
 NIE zaczynaj każdej sekcji od frazy głównej — każdy H2 otwieraj inaczej.
+
+STYL: Tłumacz, nie referuj. Po każdym fakcie pokaż co to ZNACZY dla czytelnika.
+  ŹLE: "Sąd może orzec grzywnę, ograniczenie wolności oraz karę pozbawienia wolności."
+  DOBRZE: "W praktyce najczęściej kończy się grzywną i zakazem prowadzenia na 3 lata — ale wystarczy recydywa, żeby sąd orzekł więzienie bez zawieszenia."
+
+RYTM: Mieszaj długość zdań. Krótkie (5-8 słów) po dłuższych (15-25). Nigdy 3+ zdań tej samej długości z rzędu.
+
+ZAKAZ MONOTONNYCH OTWARĆ: NIE zaczynaj więcej niż 1 zdania na akapit od:
+  "W praktyce...", "W tle...", "W protokołach...", "W materiałach...", "W orzecznictwie..."
+  Zamiast tego: podmiot konkretny (kierowca, sąd, policjant, biegły) + czynność.
 
 ZDANIA: średnia 8-20 słów, max 30. Krótkie + dłuższe = naturalny rytm.
 Wielokrotnie złożone → rozbij na prostsze.
@@ -173,12 +182,18 @@ Nie wymyślaj liczb, dat, nazw badań. Brak danych → opisz ogólnie.
     # ═══ 5. PRZYKŁAD ═══
     parts.append("""<przyklad>
 TAK PISZ:
-"Skazanie z art. 178a § 1 KK grozi pozbawieniem wolności do 3 lat
-oraz obligatoryjnym zakazem prowadzenia pojazdów od 3 do 15 lat.
-Sąd nie ma tu uznaniowości — zakaz jest obowiązkowy przy każdym
-wyroku skazującym, niezależnie od okoliczności łagodzących.
-Jedyną zmienną pozostaje jego wymiar, który sąd ustala biorąc pod
-uwagę stopień zawinienia i dotychczasową karalność sprawcy."
+"Granica jest prosta: do 0,5 promila to wykroczenie, powyżej — przestępstwo
+z kodeksu karnego. Różnica kilku setnych promila na wyświetlaczu alkometru
+dzieli mandat od wyroku skazującego, który zostaje w kartotece na lata.
+Typowy kierowca złapany pierwszy raz z wynikiem tuż ponad próg może liczyć
+na grzywnę i zakaz prowadzenia na 3 lata. Brzmi znośnie, dopóki nie policzy
+się kosztów: brak dojazdu do pracy, wyższe OC, wpis widoczny dla pracodawcy."
+
+NIE PISZ TAK:
+"W praktyce o odpowiedzialności przesądza stężenie alkoholu, ponieważ progi
+ustawowe rozdzielają wykroczenie od przestępstwa. Sąd może orzec grzywnę,
+ograniczenie wolności oraz karę pozbawienia wolności, a do tego dochodzą
+środki karne dotyczące uprawnień."
 </przyklad>""")
 
     return "\n\n".join(parts)
@@ -720,7 +735,10 @@ def _fmt_legal_medical(pre_batch):
 
         judgments = legal_ctx.get("top_judgments") or []
         if judgments:
-            parts.append("\nOrzeczenia do zacytowania:")
+            parts.append("\nOrzeczenia (dostępne, ale NIE musisz cytować):")
+            parts.append("  ⚠️ Użyj MAX 1 orzeczenia i TYLKO gdy bezpośrednio dotyczy tematu sekcji.")
+            parts.append("  ⚠️ NIE cytuj wyroku cywilnego (sygn. I C, III RC) w tekście o odpowiedzialności karnej.")
+            parts.append("  ⚠️ Lepiej pominąć orzeczenie niż wcisnąć nieadekwatne.")
             for j in judgments[:3]:
                 if isinstance(j, dict):
                     sig = j.get("signature", j.get("caseNumber", ""))
