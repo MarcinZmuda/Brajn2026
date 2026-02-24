@@ -251,6 +251,7 @@
         .art h2{color:var(--orange);font-size:20px;margin:26px 0 10px;font-weight:700;letter-spacing:-.3px;padding-bottom:6px;border-bottom:1px solid var(--w5)}.art h2:first-child{margin-top:0}
         .art h3{color:var(--white);font-size:17px;margin:18px 0 8px;font-weight:600}
         .art p{color:rgba(255,255,255,.72);margin-bottom:14px}
+        .art table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}.art th,.art td{border:1px solid var(--b2);padding:8px 12px;text-align:left;color:rgba(255,255,255,.72)}.art th{background:var(--s2);color:var(--white);font-weight:600}
 
         .exp{display:flex;gap:8px;margin-top:14px}
         .btn-e{flex:1;padding:11px;border-radius:var(--rs);border:1px solid var(--b1);background:var(--s1);color:var(--white);font-size:14px;font-weight:600;cursor:pointer;text-align:center;text-decoration:none;transition:all .15s;font-family:inherit}
@@ -2101,8 +2102,8 @@ function renderArt(text){
     const pv=document.getElementById('artP');
     // Sanitize: escape HTML first, then apply safe structural formatting
     let safe=esc(text);
-    // Restore safe HTML tags: headings, lists, strong, em
-    safe=safe.replace(/&lt;(\/?(ul|ol|li|strong|em|b|i))&gt;/gi,function(_,tag){return '<'+tag+'>'});
+    // Restore safe HTML tags: headings, lists, tables, strong, em
+    safe=safe.replace(/&lt;(\/?(ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i))&gt;/gi,function(_,tag){return '<'+tag+'>'});
     let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
     if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
     pv.innerHTML=html;pv.style.display='';
