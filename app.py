@@ -2732,9 +2732,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "entity_placement": backend_entity_placement if isinstance(backend_entity_placement, dict) else {},
                 # v48.0: Cleanup info
                 "cleanup_method": cleanup_stats.get("method", "unknown"),
-                # v2.3: Synonimy z search_variants (jedno LLM call zamiast 3)
-                "entity_synonyms": (search_variants.get("peryfrazy", []) + 
-                                     search_variants.get("fleksyjne", []))[:8],
+                # v2.3: Synonimy — wypełniane po _generate_search_variants (patrz niżej)
+                "entity_synonyms": [],
                 # v57.1: Multi-entity synonyms usunięte — secondary warianty 
                 # są teraz w search_variants.secondary
                 "multi_entity_synonyms": {},
@@ -2763,10 +2762,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "competitive_summary": s1.get("_competitive_summary", ""),
             # v57: Entity gap analysis — missing entities before writing
             "entity_gaps": entity_gaps,
-            # v2.3: Entity variant dictionary — alternatives for top entities
-            "entity_variant_dict": entity_variant_dict,
-            # v2.3: Search variants — all ways Poles search for this topic
-            "search_variants": search_variants,
+            # v2.3: Entity variant dict + search variants — populated later
+            "entity_variant_dict": {},
+            "search_variants": {},
         })
 
         # ═══ v2.3: SERP Features panel — AI Overview, Featured Snippet, competitor snippets ═══
@@ -3348,6 +3346,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 yield emit("search_variants", search_variants)
             else:
                 yield emit("log", {"msg": "⚠️ Warianty wyszukiwania: brak danych"})
+
+        # v2.3: Backfill entity_synonyms from search_variants
+        if search_variants:
+            _sv_synonyms = (search_variants.get("peryfrazy", []) + search_variants.get("fleksyjne", []))[:8]
+            if _sv_synonyms:
+                filtered_entity_seo["entity_synonyms"] = _sv_synonyms
+
         # Fix #59: Oblicz target_length z recommended_length S1 zamiast hardcode 3500/2000
         if content_type == "category":
             # Category descriptions: 200-500 (parent) or 500-1200 (subcategory)
