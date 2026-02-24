@@ -1597,40 +1597,31 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
 # TEXT POST-PROCESSING: strip duplicate headers, clean artifacts
 # ============================================================
 def _clean_batch_text(text):
-    """Remove duplicate ## headers when h2: format exists, strip markdown artifacts."""
+    """Normalize batch output to consistent HTML format.
+    Converts h2:/h3: prefixes and markdown ## to <h2>/<h3> tags.
+    Keeps all HTML tags intact (display renders HTML)."""
     if not text:
         return text
 
-    # Step 1: Normalize malformed tags (reuse existing function — handles code fences, <p.>→<p>, case)
+    # Step 1: Fix malformed tags (reuse existing: code fences, <p.>→<p>, case normalization)
     text = _normalize_html_tags(text)
 
-    # Step 2: Convert <h2>/<h3> → h2:/h3: format (display expects h2: prefix)
-    # NOTE: Do NOT call _strip_html_for_analysis — it strips <strong>/<em> from production text
-    text = _re.sub(r'<h2[^>]*>\s*', 'h2: ', text, flags=_re.IGNORECASE)
-    text = _re.sub(r'\s*</h2>', '', text, flags=_re.IGNORECASE)
-    text = _re.sub(r'<h3[^>]*>\s*', 'h3: ', text, flags=_re.IGNORECASE)
-    text = _re.sub(r'\s*</h3>', '', text, flags=_re.IGNORECASE)
-    # Strip structural wrapper tags only — keep inline formatting (<strong>, <em>, <a>) and tables
-    text = _re.sub(r'</?(?:p|li|ul|ol|div|span|br|hr|blockquote)[^>]*/?>',  '', text, flags=_re.IGNORECASE)
+    # Step 2: Convert h2:/h3: prefix format → HTML tags
+    text = _re.sub(r'^h2:\s*(.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE)
+    text = _re.sub(r'^h3:\s*(.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
+
+    # Step 3: Convert markdown ## headers → HTML tags
+    text = _re.sub(r'^###\s+(.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
+    text = _re.sub(r'^##\s+(.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE)
+
+    # Step 4: Convert markdown bold-only lines → <h3> (GPT artifact)
+    text = _re.sub(r'^\*\*([^*]+)\*\*$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
+
+    # Step 5: Clean whitespace
     text = _re.sub(r'\n{3,}', '\n\n', text)
     text = _re.sub(r'  +', ' ', text)
-    
-    lines = text.split("\n")
-    has_h2_prefix = any(l.strip().startswith("h2:") for l in lines)
-    has_h3_prefix = any(l.strip().startswith("h3:") for l in lines)
-    cleaned = []
-    for line in lines:
-        stripped = line.strip()
-        # Remove ## headers if h2: format is already used
-        if has_h2_prefix and stripped.startswith("## ") and not stripped.startswith("## h2:"):
-            continue
-        if has_h3_prefix and stripped.startswith("### ") and not stripped.startswith("### h3:"):
-            continue
-        # Remove stray markdown bold headers
-        if has_h2_prefix and _re.match(r'^\*\*[^*]+\*\*$', stripped):
-            continue
-        cleaned.append(line)
-    return "\n".join(cleaned)
+
+    return text.strip()
 
 
 def _normalize_html_tags(text):
@@ -4345,13 +4336,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         article_text = ed_corrected
                         yield emit("log", {"msg": f"📝 Export: użyto tekst po editorial review ({ed_wc} słów)"})
                         
-                        # v59 FIX: Strip <p></p> tags from editorial output.
-                        # Editorial review sometimes wraps paragraphs in <p> tags or converts
-                        # h2: markers to <h2> tags. These HTML tags then contaminate ALL
-                        # downstream processors: sentence_length_retry, grammar_checker,
-                        # LanguageTool (which scores 0/100 treating <p> as abbreviation).
-                        # Strip <p> tags here; keep h2:/h3: markers for structure.
-                        article_text = _strip_html_for_analysis(article_text)
+                        # v59→v65 FIX: Keep article_text in HTML format for frontend.
+                        # Create stripped copy ONLY for analysis tools (LanguageTool, grammar).
+                        _analysis_text = _strip_html_for_analysis(article_text)
                         # v59 FIX: DISABLED post-editorial sentence_length_retry.
                         # Reason: sentence_length_retry sends text[:4000] to Haiku (~700 words).
                         # Full article is 2000-3000 words → Haiku only sees 30% → produces garbage.
@@ -4359,21 +4346,23 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         # Post-editorial retry was the root cause of the degradation chain:
                         #   editorial 2336 words → Haiku chops to 8.8 avg → grammar 58 false positives → 37/100
                         try:
-                            sl_post = check_sentence_length(article_text)
+                            sl_post = check_sentence_length(_analysis_text)
                             if sl_post["needs_retry"]:
                                 yield emit("log", {"msg": f"ℹ️ Post-editorial: śr. {sl_post['avg_len']} słów/zdanie (skip retry — per-batch retry wystarczy)"})
                         except Exception as _sl_err:
                             yield emit("log", {"msg": f"⚠️ Post-editorial sentence check error: {str(_sl_err)[:60]}"})
 
                         # Fix #64: Post-editorial anaphora check na całym artykule
+                        # Analysis tools need stripped text (h2: format), but final article stays HTML.
                         try:
-                            _an_final = check_anaphora(article_text, main_entity=main_keyword)
+                            _an_final = check_anaphora(_analysis_text, main_entity=main_keyword)
                             if _an_final["needs_fix"]:
                                 yield emit("log", {"msg": f"🔁 Post-editorial anaphora: {_an_final['anaphora_count']}× seria — naprawiam..."})
-                                article_text_an = anaphora_retry(article_text, main_entity=main_keyword, h2="cały artykuł")
-                                _an_check = check_anaphora(article_text_an, main_entity=main_keyword)
-                                if len(article_text_an) > 100:
-                                    article_text = article_text_an
+                                _an_fixed = anaphora_retry(_analysis_text, main_entity=main_keyword, h2="cały artykuł")
+                                _an_check = check_anaphora(_an_fixed, main_entity=main_keyword)
+                                if len(_an_fixed) > 100:
+                                    _analysis_text = _an_fixed
+                                    article_text = _clean_batch_text(_an_fixed)  # back to HTML
                                     remaining_runs = _an_check["anaphora_count"]
                                     if remaining_runs == 0:
                                         yield emit("log", {"msg": "✅ Post-editorial anaphora — pełna korekta"})
@@ -4385,9 +4374,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         # v55.1 Fix A: Grammar auto-fix AFTER all post-editorial processing
                         try:
                             from grammar_checker import auto_fix as grammar_auto_fix
-                            gfix = grammar_auto_fix(article_text)
+                            gfix = grammar_auto_fix(_analysis_text)
                             if gfix["grammar_fixes"] > 0 or gfix["phrases_removed"]:
-                                article_text = gfix["corrected"]
+                                _analysis_text = gfix["corrected"]
+                                article_text = _clean_batch_text(gfix["corrected"])  # back to HTML
                                 yield emit("log", {"msg": f"✅ Grammar auto-fix: {gfix['grammar_fixes']} poprawek, {len(gfix['phrases_removed'])} fraz AI usunięto"})
                         except ImportError:
                             pass
@@ -4408,6 +4398,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             # ═══ ENTITY SALIENCE: Google NLP API validation ═══
             full_text = article_text
+            _full_text_clean = _strip_html_for_analysis(full_text) if full_text else full_text
             salience_result = {}
             nlp_entities = []
             subject_pos = {}
@@ -4418,7 +4409,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # Subject position analysis: always runs (free, no API)
             if full_text:
                 try:
-                    subject_pos = analyze_subject_position(full_text, main_keyword)
+                    subject_pos = analyze_subject_position(_full_text_clean, main_keyword)
                     sp_score = subject_pos.get("score", 0)
                     sr = subject_pos.get("subject_ratio", 0)
                     yield emit("log", {"msg": (
@@ -4434,7 +4425,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             style_metrics = {}
             if full_text:
                 try:
-                    style_metrics = analyze_style_consistency(full_text)
+                    style_metrics = analyze_style_consistency(_full_text_clean)
                     st_score = style_metrics.get("score", 0)
                     yield emit("log", {"msg": (
                         f"🎭 Anti-Frankenstein: score {st_score}/100 | "
@@ -4462,7 +4453,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             polish_nlp = {}
             if full_text and POLISH_NLP_AVAILABLE:
                 try:
-                    polish_nlp = validate_polish_text(full_text)
+                    polish_nlp = validate_polish_text(_full_text_clean)
                     pn_score = polish_nlp.get("score", 0)
                     m = polish_nlp.get("metrics", {})
                     yield emit("log", {"msg": (
