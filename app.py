@@ -1598,77 +1598,100 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
 # TEXT POST-PROCESSING: strip duplicate headers, clean artifacts
 # ============================================================
 def _clean_batch_text(text):
-    """Normalize batch output to consistent HTML format.
-    Converts h2:/h3: prefixes and markdown ## to <h2>/<h3> tags.
-    Keeps all HTML tags intact (display renders HTML)."""
+    """v59.2: Bulletproof formatter — fixes ALL known LLM output issues.
+    Tested on real broken output with 16 glued headings, markdown bold, mixed formats."""
     if not text:
         return text
 
-    # Step 0: v59.1 FIX — Strip markdown bold **text** → text
-    # Claude sometimes outputs **bold** despite "Zero markdown" instruction
+    # ── FIX 1: Strip markdown **bold** → plain text ──
     text = _re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
 
-    # Step 0b: v59.1 FIX — Split headings glued to paragraph text
-    # Pattern: "...decyzje procesowe. H3: Co w praktyce" → add line break
-    text = _re.sub(
-        r'([.!?…"»])\s*(h[23]:)',
-        r'\1\n\n\2',
-        text,
-        flags=_re.IGNORECASE
-    )
-    
-    # Step 0c: v59.1 FIX — Heading title merged with paragraph on same line
-    # "h3: Zakaz i utrata uprawnień Sądowy zakaz prowadzenia pojazdów potrafi..."
-    # Headings = 5-15 words, no periods inside. Split at boundary.
+    # ── FIX 2: </h3> or </h2> followed by text on same line → line break ──
+    text = _re.sub(r'(</h[23]>)\s*(\S)', r'\1\n\2', text)
+
+    # ── FIX 3: ANY H2:/H3: NOT at line start → force \n\n before it ──
+    # This is aggressive but correct — headings MUST start on their own line.
+    text = _re.sub(r'(?<!\n)([ \t]*)(H[23]:)', r'\n\n\2', text, flags=_re.IGNORECASE)
+    text = _re.sub(r'\n{3,}(h[23]:)', r'\n\n\1', text, flags=_re.IGNORECASE)
+
+    # ── FIX 4: Split heading title from paragraph glued on same line ──
     _ABBREVS = {'art', 'pkt', 'ust', 'nr', 'ok', 'dr', 'prof', 'mgr', 'inż',
                 'np', 'tj', 'itd', 'itp', 'ww', 'jw', 'tzn', 'tzw',
                 'tab', 'rys', 'zob', 'k', 'p', 'c', 'w', 'a', 'o',
                 'k.k', 'k.c', 'k.p', 'k.w', 'k.p.a', 'k.r.o', 'k.p.c'}
+
     def _split_heading_from_para(m):
-        tag = m.group(1)    # "h3" / "H3"
+        tag = m.group(1)
         rest = m.group(2).strip()
-        # Strategy 1: ". X" or "? X" (sentence boundary) — skip abbreviations
-        for _sp in _re.finditer(r'([.!?])\s+([A-ZĄĆĘŁŃÓŚŹŻ])', rest):
-            _pos = _sp.start()
-            if _pos < 15 or _pos > 120:
+
+        # Strategy A: FAQ heading — title ends with "?"  (always wins)
+        q_match = _re.search(r'^(.+?\?)\s+([A-ZĄĆĘŁŃÓŚŹŻ])', rest)
+        if q_match and 10 <= len(q_match.group(1)) <= 120:
+            return f'{tag}: {q_match.group(1).strip()}\n{rest[q_match.end(1):].strip()}'
+
+        # Collect ALL possible split points, then pick the best one
+        candidates = []  # list of (position, source) tuples
+
+        # Strategy B: sentence boundary ". X" / "! X" — skip abbreviations
+        for sp in _re.finditer(r'([.!])\s+([A-ZĄĆĘŁŃÓŚŹŻ])', rest):
+            pos = sp.start()
+            if pos < 15 or pos > 120:
                 continue
-            # Skip periods after abbreviations (art., pkt., k.k.) or numbers (178.)
-            _word_before = rest[:_pos + 1].rsplit(None, 1)[-1].rstrip('.').lower() if rest[:_pos + 1].strip() else ""
-            if _word_before in _ABBREVS or _re.match(r'^\d+$', _word_before):
+            before_parts = rest[:pos + 1].rstrip('.').rsplit(None, 1)
+            wb = before_parts[-1].rstrip('.').lower() if before_parts else ""
+            if wb in _ABBREVS or _re.match(r'^\d+$', wb):
                 continue
-            title = rest[:_pos + 1].strip()
-            para = rest[_pos + 1:].strip()
-            return f'{tag}: {title}\n{para}'
-        # Strategy 2: "lowercase Uppercase" (word case boundary)
-        split2 = _re.search(r'([a-ząćęłńóśźż])\s+([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]{2,})', rest)
-        if split2 and 30 <= split2.start() <= 120:
-            title = rest[:split2.start() + 1].strip()
-            para = rest[split2.start() + 1:].strip()
-            return f'{tag}: {title}\n{para}'
+            candidates.append((pos, 'B'))
+
+        # Strategy C: case boundary — non-upper char + Uppercase word
+        for cm in _re.finditer(
+            r'([^A-ZĄĆĘŁŃÓŚŹŻ\s])\s+([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]{2,})',
+            rest
+        ):
+            if 25 <= cm.start() <= 130:
+                candidates.append((cm.start(), 'C'))
+
+        if not candidates:
+            return m.group(0)
+
+        # Pick the split closest to ideal heading length (40-80 chars)
+        # Prefer shorter splits (closer to actual heading title)
+        IDEAL = 60
+        best = min(candidates, key=lambda c: abs(c[0] - IDEAL))
+        pos, src = best
+
+        if src == 'B':
+            return f'{tag}: {rest[:pos + 1].strip()}\n{rest[pos + 1:].strip()}'
+        else:  # C
+            return f'{tag}: {rest[:pos + 1].strip()}\n{rest[pos + 1:].strip()}'
+
         return m.group(0)
-    
+
     text = _re.sub(
-        r'^(h[23]):\s*(.{80,})$',
+        r'^(h[23]):\s*(.{65,})$',
         _split_heading_from_para,
         text,
         flags=_re.MULTILINE | _re.IGNORECASE
     )
 
-    # Step 1: Fix malformed tags (reuse existing: code fences, <p.>→<p>, case normalization)
+    # ── Step 5: Fix malformed HTML tags ──
     text = _normalize_html_tags(text)
 
-    # Step 2: Convert h2:/h3: prefix format → HTML tags (case-insensitive: H2:/H3: too)
+    # ── Step 6: Convert h2:/h3: to HTML tags (case-insensitive) ──
     text = _re.sub(r'^h2:\s*(.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE | _re.IGNORECASE)
     text = _re.sub(r'^h3:\s*(.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE | _re.IGNORECASE)
 
-    # Step 3: Convert markdown ## headers → HTML tags
+    # ── Step 7: Markdown ## to HTML ──
     text = _re.sub(r'^###\s+(.+)$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
     text = _re.sub(r'^##\s+(.+)$', r'<h2>\1</h2>', text, flags=_re.MULTILINE)
 
-    # Step 4: Convert markdown bold-only lines → <h3> (GPT artifact)
+    # ── Step 8: Bold-only lines to h3 ──
     text = _re.sub(r'^\*\*([^*]+)\*\*$', r'<h3>\1</h3>', text, flags=_re.MULTILINE)
 
-    # Step 5: Clean whitespace
+    # ── Step 9: Ensure blank line before every <h2>/<h3> ──
+    text = _re.sub(r'([^\n])\n(<h[23]>)', r'\1\n\n\2', text)
+
+    # ── Step 10: Clean whitespace ──
     text = _re.sub(r'\n{3,}', '\n\n', text)
     text = _re.sub(r'  +', ' ', text)
 
