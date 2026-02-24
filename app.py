@@ -568,277 +568,181 @@ Przykłady dla "jazda po alkoholu":
 To są FAKTY MERYTORYCZNE które MUSZĄ znaleźć się w artykule — nie styl, nie encje ogólne."""
 
 
-def _parse_synonym_lines(raw: str) -> list:
-    """Parse synonym response lines into clean list."""
-    synonyms = [
-        line.strip().strip("-•·0123456789.").strip()
-        for line in raw.splitlines()
-        if line.strip() and len(line.strip()) > 2
-    ]
-    return [s for s in synonyms if 1 <= len(s.split()) <= 4][:6]
-
-
-def _find_keyword_synonyms(main_keyword: str, clean_ngrams: list = None, 
-                           clean_semantic_kp: list = None, clean_entities: list = None) -> list:
+# ═══ v2.3: SEARCH VARIANT GENERATOR ═══
+def _generate_search_variants(main_keyword: str, secondary_keywords: list = None) -> dict:
+    """Generate all natural Polish search variants — main keyword + secondary.
+    
+    ONE LLM call replaces: _derive_entity_synonyms, _generate_entity_variants,
+    _find_keyword_synonyms.
+    
+    Returns:
+    {
+        "fleksyjne": ["jazdy po alkoholu", ...],
+        "peryfrazy": ["prowadzenie pod wpływem alkoholu", ...],
+        "potoczne": ["jazda po pijaku", ...],
+        "formalne": ["kierowanie pojazdem w stanie nietrzeźwości", ...],
+        "intencja_info": ["co grozi za jazdę po alkoholu", ...],
+        "intencja_transakcyjna": ["adwokat jazda po alkoholu", ...],
+        "all_flat": [... all unique main variants ...],
+        "secondary": {
+            "blokada alkoholowa": ["blokadą alkoholową", "alkolock", ...],
+            "art 178a": ["artykuł 178a kk", "przepis o jeździe po alkoholu", ...],
+            ...
+        }
+    }
+    
+    Cost: ~$0.002-0.004 (one gpt-4.1-mini or Haiku call)
     """
-    v60 FIX: Find synonyms of main_keyword among existing S1 data.
-    
-    Example: main_keyword = "jazda po alkoholu"
-    If n-grams contain "jazda pod wpływem alkoholu" or "prowadzenie po alkoholu",
-    these are natural synonyms — no LLM call needed.
-    
-    Logic: A phrase is a synonym candidate if:
-    - It shares ≥50% of words with main_keyword (by word set overlap)
-    - OR it contains the main_keyword's core noun/verb stem
-    - AND it's not identical to main_keyword
-    - AND it's 2-6 words long
-    """
-    if not main_keyword:
-        return []
-    
-    main_words = set(main_keyword.lower().split())
-    main_lower = main_keyword.lower().strip()
-    # Core words = words ≥ 4 chars (skip prepositions like "po", "do", "na")
-    core_words = {w for w in main_words if len(w) >= 4}
-    
-    candidates = set()
-    
-    # Scan n-grams
-    for ng in (clean_ngrams or []):
-        if not isinstance(ng, dict):
-            continue
-        text = ng.get("ngram", "").strip()
-        if not text or text.lower() == main_lower:
-            continue
-        _check_synonym_candidate(text, main_words, core_words, main_lower, candidates)
-    
-    # Scan semantic keyphrases
-    for kp in (clean_semantic_kp or []):
-        if isinstance(kp, dict):
-            text = kp.get("phrase", "").strip()
-        elif isinstance(kp, str):
-            text = kp.strip()
-        else:
-            continue
-        if not text or text.lower() == main_lower:
-            continue
-        _check_synonym_candidate(text, main_words, core_words, main_lower, candidates)
-    
-    # Scan entities
-    for ent in (clean_entities or []):
-        if not isinstance(ent, dict):
-            continue
-        text = (ent.get("text") or ent.get("entity") or ent.get("display_text") or "").strip()
-        if not text or text.lower() == main_lower:
-            continue
-        _check_synonym_candidate(text, main_words, core_words, main_lower, candidates)
-    
-    result = sorted(candidates)[:5]  # Max 5 keyword-derived synonyms
-    if result:
-        logger.info(f"[KEYWORD_SYNONYMS] Found {len(result)} keyword synonyms for '{main_keyword}': {result}")
-    return result
-
-
-def _check_synonym_candidate(text: str, main_words: set, core_words: set, 
-                              main_lower: str, candidates: set):
-    """Check if a phrase qualifies as a keyword synonym."""
-    text_lower = text.lower().strip()
-    text_words = set(text_lower.split())
-    word_count = len(text_words)
-    
-    # Must be 2-6 words
-    if word_count < 2 or word_count > 6:
-        return
-    
-    # Must not be identical
-    if text_lower == main_lower:
-        return
-    
-    # Check word overlap
-    overlap = main_words & text_words
-    overlap_ratio = len(overlap) / max(len(main_words), 1)
-    
-    # ≥50% word overlap = synonym candidate
-    if overlap_ratio >= 0.5 and len(overlap) >= 2:
-        candidates.add(text)
-        return
-    
-    # OR: shares ≥2 core words (≥4 chars each)
-    core_overlap = core_words & text_words
-    if len(core_overlap) >= 2:
-        candidates.add(text)
-        return
-
-
-def _derive_entity_synonyms(main_keyword: str, secondary_entities: list = None, 
-                            clean_ngrams: list = None, clean_semantic_kp: list = None,
-                            clean_entities: list = None) -> list:
-    """
-    Fix #64: Generuj podmiotowe zamienniki encji głównej.
-    
-    v60: First mines synonyms from existing S1 keyword data (zero cost),
-    then fills remaining slots via LLM (Haiku/OpenAI).
-    
-    Fallback chain: Keyword mining → Claude Haiku → OpenAI gpt-4.1-mini → empty list.
-    """
-    if not main_keyword:
-        return []
-    
-    # v60: First, mine synonyms from existing keywords
-    keyword_synonyms = _find_keyword_synonyms(
-        main_keyword, clean_ngrams, clean_semantic_kp, clean_entities
-    )
-    
-    # If we found ≥3 keyword synonyms, that's enough — skip LLM
-    if len(keyword_synonyms) >= 3:
-        logger.info(f"[ENTITY_SYNONYMS] Keyword mining sufficient: {keyword_synonyms}")
-        return keyword_synonyms
-
-    prompt = (
-        f"Fraza: \"{main_keyword}\"\n\n"
-        f"Podaj dokładnie 5 krótkich polskich słów lub wyrażeń (max 3 słowa każde), "
-        f"którymi można zastąpić tę frazę jako PODMIOT zdania — czyli hiperonimy opisujące czym ona JEST.\n\n"
-        f"Zasady:\n"
-        f"- Nie powtarzaj frazy ani jej części\n"
-        f"- Tylko naturalne polskie określenia używane w tej dziedzinie\n"
-        f"- Każde określenie w osobnej linii, bez numerów ani myślników\n"
-        f"- Zero komentarzy, tylko lista\n\n"
-        f"Przykład dla 'jazda po alkoholu': przestępstwo, czyn, wykroczenie, delikt, naruszenie\n"
-        f"Przykład dla 'rak piersi': choroba, nowotwór, schorzenie, diagnoza, guz\n"
-        f"Przykład dla 'rejestr spadkowy': system, baza danych, narzędzie, serwis, wyszukiwarka"
-    )
-
-    # Try 1: Claude Haiku
-    if ANTHROPIC_API_KEY:
-        try:
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            resp = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=80,
-                temperature=0,
-                messages=[{"role": "user", "content": prompt}],
-                timeout=10.0
-            )
-            synonyms = _parse_synonym_lines(resp.content[0].text.strip())
-            if synonyms:
-                # v60: Merge keyword synonyms + LLM synonyms, deduplicate
-                merged = list(dict.fromkeys(keyword_synonyms + synonyms))[:8]
-                logger.info(f"[ENTITY_SYNONYMS] Haiku OK + {len(keyword_synonyms)} keyword: {merged}")
-                return merged
-        except Exception as e:
-            logger.warning(f"[ENTITY_SYNONYMS] Haiku failed: {e}")
-
-    # Try 2: OpenAI gpt-4.1-mini fallback
-    if OPENAI_API_KEY and OPENAI_AVAILABLE:
-        try:
-            import openai as _openai
-            _client = _openai.OpenAI(api_key=OPENAI_API_KEY)
-            resp = _client.chat.completions.create(
-                model="gpt-4.1-mini",
-                max_tokens=80,
-                temperature=0,
-                messages=[{"role": "user", "content": prompt}],
-                timeout=10.0
-            )
-            raw = resp.choices[0].message.content.strip()
-            synonyms = _parse_synonym_lines(raw)
-            if synonyms:
-                merged = list(dict.fromkeys(keyword_synonyms + synonyms))[:8]
-                logger.info(f"[ENTITY_SYNONYMS] OpenAI fallback OK + {len(keyword_synonyms)} keyword: {merged}")
-                return merged
-        except Exception as e:
-            logger.warning(f"[ENTITY_SYNONYMS] OpenAI fallback failed: {e}")
-
-    if keyword_synonyms:
-        logger.info(f"[ENTITY_SYNONYMS] LLM failed, using keyword synonyms only: {keyword_synonyms}")
-        return keyword_synonyms
-    logger.warning(f"[ENTITY_SYNONYMS] All providers failed for '{main_keyword}'")
-    return []
-
-
-def _derive_multi_entity_synonyms(entities: list, main_keyword: str = "") -> dict:
-    """
-    Generate synonyms for multiple entities in a SINGLE LLM call.
-    Returns dict: {entity_name: [synonym1, synonym2, ...], ...}
-    Fallback chain: Claude Haiku → OpenAI gpt-4.1-mini.
-    """
-    if not entities:
+    if not main_keyword or len(main_keyword) < 3:
         return {}
 
-    # Take top 5 entities
-    top_entities = [str(e) for e in entities[:5] if e]
-    if not top_entities:
-        return {}
+    # Build secondary section
+    sec_list = []
+    if secondary_keywords:
+        main_lower = main_keyword.lower().strip()
+        seen = {main_lower}
+        for kw in secondary_keywords:
+            name = (kw.get("keyword", "") if isinstance(kw, dict) else str(kw)).strip()
+            if name and name.lower() not in seen:
+                sec_list.append(name)
+                seen.add(name.lower())
+        sec_list = sec_list[:8]
 
-    entity_list = "\n".join(f"{i+1}. {e}" for i, e in enumerate(top_entities))
+    sec_block = ""
+    sec_json_hint = ""
+    if sec_list:
+        sec_numbered = "\n".join(f"  {i+1}. {s}" for i, s in enumerate(sec_list))
+        sec_block = (
+            f"\n\nDodatkowo, dla każdej z poniższych fraz podaj 3-5 wariantów "
+            f"(fleksja + peryfrazy, naturalnie wymiennych w tekście):\n{sec_numbered}"
+        )
+        sec_json_hint = ', "secondary": {"fraza1": ["wariant1", "wariant2"], ...}'
+
     prompt = (
-        f"Dla każdej z poniższych fraz podaj 3-4 krótkie polskie synonimy/hiperonimy "
-        f"(max 3 słowa każdy), którymi można zastąpić tę frazę jako PODMIOT zdania.\n\n"
-        f"Frazy:\n{entity_list}\n\n"
-        f"Format odpowiedzi (dokładnie):\n"
-        f"1. synonim1, synonim2, synonim3\n"
-        f"2. synonim1, synonim2, synonim3\n\n"
-        f"Zasady:\n"
-        f"- Nie powtarzaj frazy ani jej części jako synonimu\n"
-        f"- Tylko naturalne polskie określenia\n"
-        f"- Zero komentarzy, tylko lista"
+        f'Podaj wszystkie naturalne warianty frazy "{main_keyword}", '
+        f'które Polak mógłby wpisać w Google.\n\n'
+        f'Uwzględnij:\n'
+        f'- warianty fleksyjne (odmiana przez przypadki, liczby)\n'
+        f'- peryfrazy (dłuższe/krótsze sposoby powiedzenia tego samego)\n'
+        f'- warianty potoczne i formalne\n'
+        f'- frazy z intencją informacyjną (pytania, "co to", "ile", "jak")\n'
+        f'- frazy z intencją transakcyjną (szukanie usługi/produktu)\n\n'
+        f'Zasady:\n'
+        f'- Tylko REALNE frazy które ludzie wpisują w Google\n'
+        f'- Każda kategoria: 3-6 fraz\n'
+        f'- NIE powtarzaj oryginalnej frazy bez zmian\n'
+        f'- NIE wymyślaj sztucznych wariantów'
+        f'{sec_block}\n\n'
+        f'Odpowiedz TYLKO jako JSON (bez komentarzy, bez markdown):\n'
+        f'{{"fleksyjne": ["..."], "peryfrazy": ["..."], "potoczne": ["..."], '
+        f'"formalne": ["..."], "intencja_info": ["..."], "intencja_transakcyjna": ["..."]{sec_json_hint}}}'
     )
 
-    def _parse_multi(raw: str) -> dict:
+    def _parse_variants(raw: str) -> dict:
+        raw = raw.strip().replace("```json", "").replace("```", "").strip()
+        start = raw.find("{")
+        end = raw.rfind("}") + 1
+        if start >= 0 and end > start:
+            raw = raw[start:end]
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        if not isinstance(data, dict):
+            return {}
+
+        main_lower = main_keyword.lower().strip()
         result = {}
-        for line in raw.strip().splitlines():
-            line = line.strip()
-            if not line:
+        all_flat = []
+
+        for key in ("fleksyjne", "peryfrazy", "potoczne", "formalne",
+                     "intencja_info", "intencja_transakcyjna"):
+            variants = data.get(key, [])
+            if not isinstance(variants, list):
                 continue
-            # Match "1. syn1, syn2, syn3" or "1) syn1, syn2"
-            m = _re.match(r'^(\d+)[.)]\s*(.+)$', line)
-            if m:
-                idx = int(m.group(1)) - 1
-                if 0 <= idx < len(top_entities):
-                    syns = [s.strip().strip("-•·").strip() for s in m.group(2).split(",")]
-                    syns = [s for s in syns if s and len(s) > 1 and len(s.split()) <= 4][:4]
-                    if syns:
-                        result[top_entities[idx]] = syns
+            clean = [str(v).strip() for v in variants
+                     if str(v).strip() and str(v).strip().lower() != main_lower
+                     and 3 <= len(str(v).strip()) <= 120]
+            if clean:
+                result[key] = clean[:6]
+                all_flat.extend(clean[:6])
+
+        # Deduplicated flat list
+        seen = set()
+        unique_flat = []
+        for v in all_flat:
+            vl = v.lower()
+            if vl not in seen:
+                seen.add(vl)
+                unique_flat.append(v)
+        result["all_flat"] = unique_flat
+
+        # Parse secondary keywords
+        sec_data = data.get("secondary", {})
+        if isinstance(sec_data, dict) and sec_data:
+            sec_result = {}
+            for key, variants in sec_data.items():
+                key_clean = str(key).strip()
+                # Match by name or by index ("1", "2")
+                matched_name = key_clean
+                if key_clean.isdigit():
+                    idx = int(key_clean) - 1
+                    if 0 <= idx < len(sec_list):
+                        matched_name = sec_list[idx]
+                if isinstance(variants, list):
+                    clean = [str(v).strip() for v in variants
+                             if str(v).strip() and len(str(v).strip()) >= 3
+                             and str(v).strip().lower() != matched_name.lower()]
+                    if clean:
+                        sec_result[matched_name] = clean[:6]
+            if sec_result:
+                result["secondary"] = sec_result
+
         return result
 
-    # Try 1: Claude Haiku
-    if ANTHROPIC_API_KEY:
-        try:
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            resp = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=200,
-                temperature=0,
-                messages=[{"role": "user", "content": prompt}],
-                timeout=12.0
-            )
-            result = _parse_multi(resp.content[0].text.strip())
-            if result:
-                logger.info(f"[MULTI_SYNONYMS] Haiku OK: {len(result)} entities")
-                return result
-        except Exception as e:
-            logger.warning(f"[MULTI_SYNONYMS] Haiku failed: {e}")
-
-    # Try 2: OpenAI gpt-4.1-mini
+    # Try OpenAI (cheapest)
     if OPENAI_API_KEY and OPENAI_AVAILABLE:
         try:
             import openai as _openai
             _client = _openai.OpenAI(api_key=OPENAI_API_KEY)
             resp = _client.chat.completions.create(
                 model="gpt-4.1-mini",
-                max_tokens=200,
-                temperature=0,
+                max_tokens=800 if sec_list else 500,
+                temperature=0.3,
                 messages=[{"role": "user", "content": prompt}],
-                timeout=12.0
+                timeout=15.0
             )
-            result = _parse_multi(resp.choices[0].message.content.strip())
+            raw = resp.choices[0].message.content.strip()
+            result = _parse_variants(raw)
             if result:
-                logger.info(f"[MULTI_SYNONYMS] OpenAI OK: {len(result)} entities")
+                total = len(result.get("all_flat", []))
+                sec_count = len(result.get("secondary", {}))
+                logger.info(f"[SEARCH_VARIANTS] ✅ OpenAI: {total} main + {sec_count} secondary dla '{main_keyword}'")
                 return result
         except Exception as e:
-            logger.warning(f"[MULTI_SYNONYMS] OpenAI failed: {e}")
+            logger.warning(f"[SEARCH_VARIANTS] OpenAI error: {e}")
 
-    logger.warning(f"[MULTI_SYNONYMS] All providers failed")
+    # Fallback: Claude Haiku
+    if ANTHROPIC_API_KEY:
+        try:
+            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            resp = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=800 if sec_list else 500,
+                temperature=0.3,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=15.0
+            )
+            result = _parse_variants(resp.content[0].text.strip())
+            if result:
+                total = len(result.get("all_flat", []))
+                sec_count = len(result.get("secondary", {}))
+                logger.info(f"[SEARCH_VARIANTS] ✅ Haiku: {total} main + {sec_count} secondary dla '{main_keyword}'")
+                return result
+        except Exception as e:
+            logger.warning(f"[SEARCH_VARIANTS] Haiku error: {e}")
+
+    logger.warning(f"[SEARCH_VARIANTS] All providers failed for '{main_keyword}'")
     return {}
 
 
@@ -2828,16 +2732,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "entity_placement": backend_entity_placement if isinstance(backend_entity_placement, dict) else {},
                 # v48.0: Cleanup info
                 "cleanup_method": cleanup_stats.get("method", "unknown"),
-                # Podmiotowe zamienniki encji głównej — keyword mining + Haiku/OpenAI (Fix #64 anty-anaphora)
-                "entity_synonyms": _derive_entity_synonyms(
-                    main_keyword, 
-                    clean_ngrams=clean_ngrams,
-                    clean_semantic_kp=clean_semantic_kp,
-                    clean_entities=clean_entities,
-                ),
-                # v57.1: Multi-entity synonyms WYŁĄCZONE — generujemy synonimy TYLKO
-                # dla hasła głównego. Synonimy encji pobocznych (stan nietrzeźwości → Pijaństwo)
-                # były słabe jakościowo i nie wnosiły wartości SEO.
+                # v2.3: Synonimy z search_variants (jedno LLM call zamiast 3)
+                "entity_synonyms": (search_variants.get("peryfrazy", []) + 
+                                     search_variants.get("fleksyjne", []))[:8],
+                # v57.1: Multi-entity synonyms usunięte — secondary warianty 
+                # są teraz w search_variants.secondary
                 "multi_entity_synonyms": {},
             },
             # v47.0: Placement instruction (top-level for easy access)
@@ -2864,7 +2763,56 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "competitive_summary": s1.get("_competitive_summary", ""),
             # v57: Entity gap analysis — missing entities before writing
             "entity_gaps": entity_gaps,
+            # v2.3: Entity variant dictionary — alternatives for top entities
+            "entity_variant_dict": entity_variant_dict,
+            # v2.3: Search variants — all ways Poles search for this topic
+            "search_variants": search_variants,
         })
+
+        # ═══ v2.3: SERP Features panel — AI Overview, Featured Snippet, competitor snippets ═══
+        _fs = s1.get("featured_snippet") or serp_analysis.get("featured_snippet")
+        _aio = s1.get("ai_overview") or serp_analysis.get("ai_overview")
+        _comp_snippets = serp_analysis.get("competitor_snippets", [])[:10]
+        _related = s1.get("related_searches") or serp_analysis.get("related_searches") or []
+        _chips = s1.get("refinement_chips") or serp_analysis.get("refinement_chips") or []
+        _paa = (s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or [])[:10]
+        _paa_unanswered = ({} if not isinstance(s1.get("content_gaps"), dict) else s1.get("content_gaps")).get("paa_unanswered", [])
+
+        yield emit("serp_features", {
+            "featured_snippet": {
+                "exists": bool(_fs),
+                "title": (_fs or {}).get("title", ""),
+                "answer": (_fs or {}).get("answer", ""),
+                "source": (_fs or {}).get("source", ""),
+                "displayed_link": (_fs or {}).get("displayed_link", ""),
+            } if _fs else None,
+            "ai_overview": {
+                "exists": bool(_aio),
+                "text": (_aio or {}).get("text", ""),
+                "sources": (_aio or {}).get("sources", [])[:5],
+                "block_count": len((_aio or {}).get("text_blocks", [])),
+            } if _aio else None,
+            "paa": {
+                "total": len(_paa),
+                "unanswered": len(_paa_unanswered),
+                "questions": [q if isinstance(q, str) else q.get("question", q.get("text", str(q))) for q in _paa],
+                "unanswered_questions": [q if isinstance(q, str) else q.get("question", q.get("text", str(q))) for q in _paa_unanswered],
+            },
+            "competitor_snippets": [
+                {"title": c.get("title", ""), "snippet": c.get("snippet", c.get("description", "")), "url": c.get("url", "")}
+                for c in _comp_snippets if isinstance(c, dict)
+            ][:10],
+            "related_searches": _related[:8],
+            "refinement_chips": _chips[:8],
+        })
+        _serp_parts = []
+        if _fs: _serp_parts.append("snippet ✅")
+        if _aio: _serp_parts.append(f"AI overview ✅ ({len((_aio or {}).get('text', ''))} ch)")
+        _serp_parts.append(f"PAA {len(_paa)} ({len(_paa_unanswered)} bez odp.)")
+        if _comp_snippets: _serp_parts.append(f"snippety {len(_comp_snippets)}")
+        if _related: _serp_parts.append(f"related {len(_related)}")
+        if _chips: _serp_parts.append(f"chips {len(_chips)}")
+        yield emit("log", {"msg": f"🔍 SERP features: {' | '.join(_serp_parts)}"})
 
         # ═══ ENTITY SALIENCE: Build instructions from topical entities (primary) ═══
         # v48.0: Topical entities first, then NER, then fallback
@@ -3378,6 +3326,28 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         if _entity_synonyms:
             yield emit("log", {"msg": f"🔄 Synonimy głównej frazy: {', '.join(str(s) for s in _entity_synonyms[:5])}"})
 
+        # ═══ v2.3: SEARCH VARIANT GENERATOR ═══
+        search_variants = {}
+        entity_variant_dict = {}
+        if content_type != "category":
+            yield emit("log", {"msg": "🔎 Generuję warianty wyszukiwania..."})
+            # Collect secondary keywords from must_cover_concepts
+            _sec_kws = []
+            for c in (must_cover_concepts or [])[:6]:
+                name = (_extract_text(c) if isinstance(c, dict) else str(c)).strip()
+                if name and name.lower() != main_keyword.lower():
+                    _sec_kws.append(name)
+            search_variants = _generate_search_variants(main_keyword, secondary_keywords=_sec_kws)
+            if search_variants:
+                _sv_total = len(search_variants.get("all_flat", []))
+                _sv_cats = [k for k in search_variants if k not in ("all_flat", "secondary") and search_variants[k]]
+                # Build entity_variant_dict from secondary variants
+                entity_variant_dict = search_variants.get("secondary", {})
+                _sec_count = len(entity_variant_dict)
+                yield emit("log", {"msg": f"🔎 Warianty: {_sv_total} main + {_sec_count} secondary w {len(_sv_cats)} kategoriach"})
+                yield emit("search_variants", search_variants)
+            else:
+                yield emit("log", {"msg": "⚠️ Warianty wyszukiwania: brak danych"})
         # Fix #59: Oblicz target_length z recommended_length S1 zamiast hardcode 3500/2000
         if content_type == "category":
             # Category descriptions: 200-500 (parent) or 500-1200 (subcategory)
@@ -3864,6 +3834,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if entity_gaps:
                 pre_batch["_entity_gaps"] = entity_gaps
 
+            # ═══ v2.3: Inject entity variant dictionary ═══
+            if entity_variant_dict:
+                pre_batch["_entity_variants"] = entity_variant_dict
+
             # ═══ ENTITY CONTENT PLAN — inject lead entity for this batch/H2 ═══
             if _entity_content_plan and batch_num <= len(_entity_content_plan):
                 pre_batch["_section_lead_entity"] = _entity_content_plan[batch_num - 1]
@@ -3956,6 +3930,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 main_kw=main_keyword,
             )
             pre_batch["_s1_context"] = _s1_ctx
+            pre_batch["_search_variants"] = search_variants
             _ctx_items = sum(len(v) if isinstance(v, list) else (1 if v else 0) for v in _s1_ctx.values())
             yield emit("log", {"msg": f"🎯 S1 context: {_ctx_items} items matched to H2"})
 
@@ -4013,6 +3988,23 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "has_backend_placement": bool(backend_placement_instruction),
                 "has_cooccurrence": bool(backend_cooccurrence_pairs),
                 "has_concepts": bool(must_cover_concepts or concept_instruction),
+                # v2.3: S1 smart context per H2
+                "s1_context": {
+                    "lead_entity": _s1_ctx.get("lead_entity", ""),
+                    "eav_count": len(_s1_ctx.get("eav", [])),
+                    "eav_preview": [f'{e.get("entity","")}: {e.get("value","")}' for e in _s1_ctx.get("eav", [])[:3]],
+                    "svo_count": len(_s1_ctx.get("svo", [])),
+                    "svo_preview": [f'{s.get("subject","")} → {s.get("verb","")} → {s.get("object","")}' for s in _s1_ctx.get("svo", [])[:2]],
+                    "causal_count": len(_s1_ctx.get("causal", [])),
+                    "causal_preview": [
+                        (c.get("chain", c.get("text", str(c)))[:80] if isinstance(c, dict) else str(c)[:80])
+                        for c in _s1_ctx.get("causal", [])[:2]
+                    ],
+                    "gaps": _s1_ctx.get("gaps", [])[:3],
+                    "concepts": _s1_ctx.get("concepts", [])[:5],
+                    "cooc": _s1_ctx.get("cooc", [])[:4],
+                    "entity_gaps": _s1_ctx.get("entity_gaps", [])[:3],
+                } if _s1_ctx else {},
             })
 
             # 6c: Generate text
@@ -4166,11 +4158,30 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                             else:
                                 yield emit("log", {"msg": f"⚠️ Anaphora nie poprawiona, zostawiam oryginał"})
 
-                    # ── Sentence length — only LOG, no rewrite (lightweight check) ──
+                    # ── Sentence length — per-batch retry (batches ~400 words = OK for Haiku) ──
                     sl = check_sentence_length(text)
-                    if sl["needs_retry"]:
+                    if sl["needs_retry"] and not _post_rewrite_done:
                         comma_info = f", {sl.get('comma_count', 0)} zdań z 3+ przecinkami" if sl.get("comma_count", 0) > 0 else ""
-                        yield emit("log", {"msg": f"ℹ️ Zdania długie (śr. {sl['avg_len']} słów{comma_info}) — pominięto rewrite (limit 1 post-fix)"})
+                        yield emit("log", {"msg": f"✂️ Zdania długie (śr. {sl['avg_len']} słów{comma_info}) — rozbijam..."})
+                        text_fixed = sentence_length_retry(
+                            text, h2=current_h2,
+                            avg_len=sl["avg_len"],
+                            long_count=sl["long_count"],
+                            comma_count=sl.get("comma_count", 0)
+                        )
+                        if text_fixed and text_fixed != text and len(text_fixed) > len(text) * 0.7:
+                            sl_after = check_sentence_length(text_fixed)
+                            if sl_after["avg_len"] < sl["avg_len"] or sl_after.get("comma_count", 0) < sl.get("comma_count", 0):
+                                text = text_fixed
+                                _post_rewrite_done = True
+                                yield emit("log", {"msg": f"✅ Zdania rozbite: śr. {sl['avg_len']}→{sl_after['avg_len']} słów, przecinki: {sl.get('comma_count',0)}→{sl_after.get('comma_count',0)}"})
+                            else:
+                                yield emit("log", {"msg": f"⚠️ Sentence retry nie poprawił — zostawiam oryginał"})
+                        else:
+                            yield emit("log", {"msg": f"⚠️ Sentence retry zwrócił garbage — zostawiam oryginał"})
+                    elif sl["needs_retry"]:
+                        comma_info = f", {sl.get('comma_count', 0)} zdań z 3+ przecinkami" if sl.get("comma_count", 0) > 0 else ""
+                        yield emit("log", {"msg": f"ℹ️ Zdania długie (śr. {sl['avg_len']} słów{comma_info}) — skip (anaphora już poprawiła)"})
 
                     # Fix #56: Update globalny licznik głównego keywordu
                     if text and main_keyword:
@@ -4302,7 +4313,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             paa_data_check = paa_check.get("data") if paa_check.get("ok") else None
             paa_has_section = isinstance(paa_data_check, dict) and paa_data_check.get("paa_section")
             if not paa_has_section:
-                yield emit("log", {"msg": "Brak FAQ, analizuję PAA i generuję..."})
+                yield emit("log", {"msg": f"Brak sekcji FAQ w artykule — generuję z {len(s1.get('paa') or s1.get('paa_questions') or [])} pytań PAA..."})
                 paa_analyze = brajen_call("get", f"/api/project/{project_id}/paa/analyze")
                 if paa_analyze["ok"] and paa_analyze.get("data"):
                     # Fetch pre_batch for FAQ context (stop keywords, style, memory)
