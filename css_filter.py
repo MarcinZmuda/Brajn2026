@@ -329,6 +329,8 @@ _BRAND_PATTERNS = {
     "pzu", "warta", "ergo hestia", "allianz", "generali", "axa",
     # Tech / general
     "allegro", "amazon", "google", "microsoft", "apple", "samsung",
+    # Marketplaces / classifieds / platforms
+    "olx", "vinted", "otomoto", "gratka", "gumtree", "sprzedajemy",
     # Legal entity suffixes
     "s.a.", "sp. z o.o.", "sp.j.", "s.c.",
 }
