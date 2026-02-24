@@ -1608,6 +1608,7 @@ def _clean_batch_text(text):
 def _normalize_html_tags(text):
     """v56: Safety net — normalize malformed HTML tags in any text.
     Strips code fences, fixes <p.>→<p>, <H2>→<h2>, etc.
+    v2.3: Also strips stray/unwanted HTML tags (e.g. <Tt>, <Span>, <Font>).
     Called before emitting article text to frontend."""
     if not text:
         return text
@@ -1624,6 +1625,15 @@ def _normalize_html_tags(text):
     _t = _re_norm.sub(r'</p[.,;:]+>', '</p>', _t, flags=_re_norm.IGNORECASE)
     _t = _re_norm.sub(r'<(h[2-6])[.,;:]+>', r'<\1>', _t, flags=_re_norm.IGNORECASE)
     _t = _re_norm.sub(r'</(h[2-6])[.,;:]+>', r'</\1>', _t, flags=_re_norm.IGNORECASE)
+    # v2.3: Strip non-allowed HTML tags (keeps content, removes tag)
+    _ALLOWED_TAGS = {'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'table', 'thead', 'tbody',
+                     'tr', 'th', 'td', 'strong', 'em', 'b', 'i', 'p', 'br', 'a', 'sup', 'sub'}
+    def _strip_bad_tag(m):
+        tag_name = _re_norm.match(r'</?(\w+)', m.group(0))
+        if tag_name and tag_name.group(1).lower() in _ALLOWED_TAGS:
+            return m.group(0)
+        return ''  # strip the tag, keep nothing
+    _t = _re_norm.sub(r'</?[a-zA-Z][a-zA-Z0-9]*(?:\s[^>]*)?\s*/?>', _strip_bad_tag, _t)
     def _lower(m):
         return m.group(0).lower()
     _t = _re_norm.sub(r'</?[A-Z][A-Z0-9]*(?:\s[^>]*)?\s*/?>', _lower, _t)
@@ -2177,6 +2187,169 @@ def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
     }
 
 
+# ============================================================
+# v2.3: REDAKTOR NACZELNY — final expert review + auto-fix
+# ============================================================
+
+_EDITOR_REVIEW_PROMPT = """Jesteś redaktorem naczelnym pisma o tematyce: {category}.
+Przeczytaj artykuł na temat: „{keyword}"
+
+SZUKAJ WYŁĄCZNIE:
+1. BŁĘDY KRYTYCZNE (fakty, prawo, medycyna):
+   - Błędne numery artykułów / paragrafów / ustaw
+   - Pomylone nazwy ustaw (np. „ustawa o ochronie konsumenta" zamiast „Kodeks wykroczeń")
+   - Złe jednostki (np. promile zamiast mg/dm³ w kontekście wydychanego powietrza)
+   - Zmyślone dane, daty, sygnatury orzeczeń
+   - Sprzeczności wewnętrzne (np. raz „2 lata" a dalej „3 lata" za to samo)
+2. ARTEFAKTY TECHNICZNE:
+   - Pozostałości HTML (<Tt>, <Span>, <Font> itp.)
+   - Urwane zdania, lorem ipsum, placeholder tekst
+   - Zdania bez sensu / niedokończone
+3. BŁĘDY LOGIKI / STRUKTURY:
+   - Powtórzenia tego samego faktu w różnych sekcjach
+   - Sprzeczne informacje między sekcjami
+
+NIE oceniaj: stylu, SEO, długości, „ciekawości" tekstu. Tylko TWARDE BŁĘDY.
+
+Odpowiedz TYLKO JSON (bez markdown):
+{{
+  "krytyczne": [
+    {{"cytat": "fragment z artykułu (max 50 słów)", "blad": "co jest źle", "poprawka": "jak powinno być"}}
+  ],
+  "artefakty": [
+    {{"cytat": "fragment", "blad": "opis"}}
+  ],
+  "logika": [
+    {{"opis": "co jest sprzeczne/powtórzone"}}
+  ],
+  "ocena": "PASS|WARN|FAIL",
+  "komentarz": "1-2 zdania podsumowania (max 100 słów)"
+}}
+
+Jeśli artykuł jest OK → krytyczne=[], artefakty=[], logika=[], ocena="PASS".
+
+ARTYKUŁ:
+{article}"""
+
+_EDITOR_FIX_PROMPT = """Popraw poniższy artykuł. Napraw TYLKO wymienione błędy — nie zmieniaj niczego innego.
+Zachowaj DOKŁADNIE tę samą strukturę (h2:, h3:, listy, tabele). Nie dodawaj nowych sekcji.
+
+BŁĘDY DO NAPRAWY:
+{errors}
+
+ARTYKUŁ:
+{article}
+
+Zwróć CAŁY poprawiony artykuł (bez komentarzy, bez markdown)."""
+
+
+def _editor_in_chief_review(article_text, main_keyword, detected_category="inne"):
+    """v2.3: Final expert review — catches hallucinated legal refs, wrong facts, HTML artifacts.
+    Returns dict with errors found and optionally auto-fixed text."""
+    if not ANTHROPIC_API_KEY or not article_text or len(article_text) < 200:
+        return {"ran": False, "reason": "no_api_key_or_short_text"}
+
+    import anthropic as _anth
+    import json as _json
+    _category_names = {
+        "prawo": "prawo i przepisy",
+        "medycyna": "medycyna i zdrowie",
+        "finanse": "finanse i ekonomia",
+        "budownictwo": "budownictwo i nieruchomości",
+        "technologia": "technologia i IT",
+        "inne": "tematyka ogólna",
+    }
+    cat_name = _category_names.get(detected_category, detected_category or "tematyka ogólna")
+
+    # Strip HTML for cleaner analysis
+    clean_text = _strip_html_for_analysis(article_text) if article_text else article_text
+
+    try:
+        client = _anth.Anthropic(api_key=ANTHROPIC_API_KEY, max_retries=1)
+
+        # Step 1: Review
+        review_prompt = _EDITOR_REVIEW_PROMPT.format(
+            category=cat_name,
+            keyword=main_keyword,
+            article=clean_text[:12000]  # ~3000 words max
+        )
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,  # Sonnet — needs good reasoning
+            max_tokens=2000,
+            temperature=0,
+            messages=[{"role": "user", "content": review_prompt}]
+        )
+
+        raw = response.content[0].text.strip()
+        # Parse JSON
+        json_match = _re.search(r'\{[\s\S]*\}', raw)
+        if not json_match:
+            logger.warning(f"[EDITOR] No JSON in response: {raw[:200]}")
+            return {"ran": True, "parse_error": True, "raw": raw[:500]}
+
+        review = _json.loads(json_match.group())
+        critical = review.get("krytyczne", [])
+        artifacts = review.get("artefakty", [])
+        logic = review.get("logika", [])
+        verdict = review.get("ocena", "PASS")
+        comment = review.get("komentarz", "")
+
+        result = {
+            "ran": True,
+            "critical_count": len(critical),
+            "artifact_count": len(artifacts),
+            "logic_count": len(logic),
+            "critical": critical[:10],
+            "artifacts": artifacts[:5],
+            "logic": logic[:5],
+            "verdict": verdict,
+            "comment": comment,
+            "fixed_text": None,
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+        }
+
+        # Step 2: Auto-fix if critical errors found
+        if critical and len(critical) > 0:
+            errors_desc = "\n".join(
+                f"{i+1}. CYTAT: \"{e.get('cytat', '')}\"\n   BŁĄD: {e.get('blad', '')}\n   POPRAWKA: {e.get('poprawka', '')}"
+                for i, e in enumerate(critical[:8])
+            )
+            # Add artifacts too
+            if artifacts:
+                errors_desc += "\n\nARTEFAKTY DO USUNIĘCIA:\n" + "\n".join(
+                    f"- \"{a.get('cytat', '')}\" → {a.get('blad', '')}"
+                    for a in artifacts[:5]
+                )
+
+            fix_prompt = _EDITOR_FIX_PROMPT.format(
+                errors=errors_desc,
+                article=article_text[:12000]  # original with HTML
+            )
+
+            fix_response = client.messages.create(
+                model=ANTHROPIC_MODEL,
+                max_tokens=8000,
+                temperature=0,
+                messages=[{"role": "user", "content": fix_prompt}]
+            )
+
+            fixed = fix_response.content[0].text.strip()
+            # Basic validation — fixed text should be similar length
+            if fixed and len(fixed) > len(article_text) * 0.7:
+                result["fixed_text"] = fixed
+                result["fix_tokens"] = fix_response.usage.input_tokens + fix_response.usage.output_tokens
+            else:
+                logger.warning(f"[EDITOR] Fix text too short ({len(fixed)} vs {len(article_text)})")
+
+        return result
+
+    except Exception as e:
+        logger.warning(f"[EDITOR] Review failed: {e}")
+        return {"ran": False, "error": str(e)[:200]}
+
+
 def _compute_grade(quality_score, salience_score, semantic_score, style_score=None):
     """Compute letter grade from available scores (A+ through D)."""
     scores = []
@@ -2308,6 +2481,36 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         raw_must_mention = entity_seo.get("must_mention_entities", [])[:15]
         raw_ngrams = (s1.get("ngrams") or s1.get("hybrid_ngrams") or [])[:60]
         serp_analysis = s1.get("serp_analysis") or {}
+
+        # v2.3: Extract competitor first paragraphs/intros for lead generation
+        _serp_competitors = serp_analysis.get("competitors", s1.get("competitors", []))
+        _competitor_intros = []
+        if _serp_competitors and isinstance(_serp_competitors, list):
+            _comp0 = _serp_competitors[0] if _serp_competitors else {}
+            _comp_keys = sorted(_comp0.keys())[:20] if isinstance(_comp0, dict) else []
+            logger.info(f"[COMP_DEBUG] competitors[0] keys: {_comp_keys}")
+            yield emit("log", {"msg": f"🔍 Competitors structure: {len(_serp_competitors)} items, keys: {_comp_keys[:12]}"})
+            for _comp in _serp_competitors[:5]:
+                if not isinstance(_comp, dict):
+                    continue
+                # Try common field names for intro/content/first paragraph
+                _intro_text = (
+                    _comp.get("first_paragraph") or _comp.get("intro") or
+                    _comp.get("intro_text") or _comp.get("opening") or
+                    _comp.get("lead") or _comp.get("first_paragraphs") or
+                    _comp.get("content_preview") or _comp.get("excerpt") or
+                    _comp.get("text") or _comp.get("content") or ""
+                )
+                if isinstance(_intro_text, list):
+                    _intro_text = " ".join(str(p) for p in _intro_text[:2])
+                _intro_text = str(_intro_text).strip()[:500]
+                if len(_intro_text) > 50:
+                    _comp_title = _comp.get("title", _comp.get("url", ""))[:60]
+                    _competitor_intros.append({"title": _comp_title, "intro": _intro_text})
+            if _competitor_intros:
+                logger.info(f"[COMP_INTRO] Extracted {len(_competitor_intros)} competitor intros")
+                yield emit("log", {"msg": f"📝 Wyciągnięto {len(_competitor_intros)} akapitów wstępnych z konkurencji"})
+
         raw_h2_patterns = (s1.get("competitor_h2_patterns") or serp_analysis.get("competitor_h2_patterns") or [])[:30]
 
         # v48.0: Claude already cleaned, lightweight safety net only
@@ -2687,6 +2890,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "serp_competitors": (s1.get("serp_analysis") or {}).get("competitors", s1.get("competitors", []))[:10],
             "competitor_titles": serp_analysis.get("competitor_titles", [])[:10],
             "competitor_snippets": serp_analysis.get("competitor_snippets", [])[:10],
+            "competitor_intros": _competitor_intros,  # v2.3: first paragraphs from scraped pages
             # Competitor structure
             "h2_patterns_count": len(clean_h2_patterns),
             "competitor_h2_patterns": clean_h2_patterns,
@@ -2838,6 +3042,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # v50.7 FIX 46: Run LOCALLY (Haiku) instead of broken brajen_call to master-seo-api
         # 🆕 Fix #13 v4.2: Use _detect_ymyl (pre-filter + master enrichment) instead of _detect_ymyl_local
         ymyl_data = _detect_ymyl(main_keyword)
+        _detected_category = ymyl_data.get("category", "general")  # v2.3: stored for Redaktor Naczelny
         is_legal = ymyl_data.get("is_legal", False)
         is_medical = ymyl_data.get("is_medical", False)
         is_finance = ymyl_data.get("is_finance", False)
@@ -3772,9 +3977,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 _serp_for_intro["search_intent"] = _sint
                 _serp_for_intro["competitor_titles"] = _comp_titles
                 _serp_for_intro["competitor_snippets"] = _comp_snippets
+                _serp_for_intro["competitor_intros"] = _competitor_intros  # v2.3: first paragraphs from competitor pages
                 _serp_for_intro["paa_questions"] = _paa
                 pre_batch["serp_enrichment"] = _serp_for_intro
-                yield emit("log", {"msg": f"📰 INTRO SERP: snippet={'✅' if _fs else '❌'}, AI overview={'✅' if _aov else '❌'}, titles={len(_comp_titles)}, PAA={len(_paa)}, intent={_sint[:40] if _sint else '?'}"})
+                yield emit("log", {"msg": f"📰 INTRO SERP: snippet={'✅' if _fs else '❌'}, AI overview={'✅' if _aov else '❌'}, titles={len(_comp_titles)}, PAA={len(_paa)}, intros={len(_competitor_intros)}, intent={_sint[:40] if _sint else '?'}"})
 
             # ═══ v60: Inject refinement chips for all batches ═══
             _chips = s1.get("refinement_chips") or serp_analysis.get("refinement_chips") or []
@@ -4426,6 +4632,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("step", {"step": 9, "name": "Final Review", "status": "running"})
         yield emit("log", {"msg": "GET /final_review..."})
         final_score = None
+        _backend_qb = {}  # v2.3: stored for local quality override
         final_result = brajen_call("get", f"/api/project/{project_id}/final_review", timeout=HEAVY_REQUEST_TIMEOUT)
         if final_result["ok"]:
             final = final_result["data"]
@@ -4466,6 +4673,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # Issues = overuse + H3 + other issues from API
             issues = (final.get("issues") or final.get("all_issues") or [])
 
+            # v2.3: Store for local quality override later
+            _backend_qb = _extract_quality_breakdown(final)
+
             yield emit("final_review", {
                 "score": final_score,
                 "status": final_status,
@@ -4485,7 +4695,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "stuffing": (final.get("validations") or {}).get("missing_keywords", {}).get("stuffing", [])[:5],
                 "priority_to_add": (final.get("validations") or {}).get("missing_keywords", {}).get("priority_to_add", {}).get("to_add_by_claude", [])[:5],
                 # P5: Quality breakdown — multi-path extraction
-                "quality_breakdown": _extract_quality_breakdown(final),
+                "quality_breakdown": _backend_qb,  # v2.3: stored above for local override
                 "density": final.get("density") or final.get("keyword_density"),
                 "word_count": final.get("word_count") or final.get("total_words"),
                 "basic_coverage": final.get("basic_coverage"),
@@ -4578,6 +4788,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         yield emit("log", {"msg": "POST /editorial_review, to może chwilę potrwać..."})
 
         editorial_result = {"ok": False}  # v50.7: safety init for FIX 41
+        editorial_score = None  # v2.3: init for local quality breakdown
         editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review", json_data={}, timeout=HEAVY_REQUEST_TIMEOUT)
         if editorial_result["ok"]:
             ed = editorial_result["data"]
@@ -4653,7 +4864,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # ─── KROK 11: Export ───
         step_start(11)
-        yield emit("step", {"step": 11, "name": "Export", "status": "running"})
+        yield emit("step", {"step": 12, "name": "Export", "status": "running"})
 
         # Safe defaults for variables used in EVALUATION SUMMARY (outside if full_result block)
         full_text = None
@@ -5098,6 +5309,165 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         except Exception as eval_err:
             logger.warning(f"Evaluation summary failed: {eval_err}")
 
+        # ═══ v2.3: LOCAL QUALITY BREAKDOWN OVERRIDE ═══
+        # Backend often returns null for semantic/depth/coherence — compute locally
+        try:
+            _local_qb = dict(_backend_qb)  # copy
+            _updated_dims = []
+
+            # Semantic: from semantic_dist_result (entity coverage + keyphrase + must-mention + ngram)
+            if _local_qb.get("semantic") is None and semantic_dist_result.get("enabled"):
+                _local_qb["semantic"] = semantic_dist_result["score"]
+                _updated_dims.append(f"semantic={_local_qb['semantic']}")
+
+            # Depth: avg of batch depth scores, fallback to causal+EAV coverage
+            if _local_qb.get("depth") is None:
+                _batch_depths = [b.get("depth_score") for b in accepted_batches_log
+                                 if b.get("depth_score") is not None and isinstance(b.get("depth_score"), (int, float))]
+                if _batch_depths:
+                    _avg_depth = sum(_batch_depths) / len(_batch_depths)
+                    # depth_score from API is often 0-10, normalize to 0-100
+                    if all(d <= 10 for d in _batch_depths):
+                        _avg_depth = _avg_depth * 10
+                    _local_qb["depth"] = round(min(100, max(0, _avg_depth)))
+                    _updated_dims.append(f"depth={_local_qb['depth']}(avg/{len(_batch_depths)})")
+
+            # Coherence: from style analysis (transition/flow score) or editorial
+            if _local_qb.get("coherence") is None:
+                if st_score is not None:
+                    # style score is 0-10 from editorial → scale to 0-100
+                    _coh = round(min(100, st_score * 10)) if st_score <= 10 else round(min(100, st_score))
+                    _local_qb["coherence"] = _coh
+                    _updated_dims.append(f"coherence={_coh}(style)")
+                elif editorial_score is not None and isinstance(editorial_score, (int, float)):
+                    _coh = round(min(100, editorial_score * 10)) if editorial_score <= 10 else round(min(100, editorial_score))
+                    _local_qb["coherence"] = _coh
+                    _updated_dims.append(f"coherence={_coh}(editorial)")
+
+            # Humanness: from salience_score or style_metrics
+            if _local_qb.get("humanness") is None:
+                if sal_score is not None and isinstance(sal_score, (int, float)):
+                    _hum = round(min(100, sal_score))
+                    _local_qb["humanness"] = _hum
+                    _updated_dims.append(f"humanness={_hum}(salience)")
+
+            # Grammar: from editorial grammar fixes — fewer fixes = higher score
+            if _local_qb.get("grammar") is None:
+                # Heuristic: start at 85, lose 3 pts per grammar fix (capped)
+                _gram_fixes = 0
+                try:
+                    if editorial_result.get("ok"):
+                        _ed = editorial_result["data"]
+                        _gram_fixes = (_ed.get("grammar_correction") or {}).get("fixes", 0)
+                except Exception:
+                    pass
+                _gram_score = max(50, 90 - _gram_fixes * 3)
+                _local_qb["grammar"] = _gram_score
+                _updated_dims.append(f"grammar={_gram_score}({_gram_fixes}fixes)")
+
+            # Keywords: from final_review basic_coverage or entity_coverage
+            if _local_qb.get("keywords") is None:
+                _bc = None
+                if final_result.get("ok"):
+                    _fr = final_result["data"]
+                    if _fr.get("status") == "EXISTS" and "final_review" in _fr:
+                        _fr = _fr["final_review"]
+                    _bc = _fr.get("basic_coverage")
+                if _bc is not None and isinstance(_bc, (int, float)):
+                    _local_qb["keywords"] = round(min(100, max(0, _bc)))
+                    _updated_dims.append(f"keywords={_local_qb['keywords']}(basic_cov)")
+                elif semantic_dist_result.get("enabled"):
+                    _kp_cov = semantic_dist_result.get("keyphrase_coverage", 0)
+                    _local_qb["keywords"] = round(min(100, _kp_cov * 100))
+                    _updated_dims.append(f"keywords={_local_qb['keywords']}(kp_cov)")
+
+            # Structure: from H3 issues count
+            if _local_qb.get("structure") is None:
+                _h3_issues_count = 0
+                if final_result.get("ok"):
+                    _fr = final_result["data"]
+                    if _fr.get("status") == "EXISTS" and "final_review" in _fr:
+                        _fr = _fr["final_review"]
+                    _h3_issues_count = len((_fr.get("validations") or {}).get("h3_length", {}).get("issues", []))
+                _struct = max(55, 90 - _h3_issues_count * 5)
+                _local_qb["structure"] = _struct
+                _updated_dims.append(f"structure={_struct}({_h3_issues_count}h3_issues)")
+
+            if _updated_dims:
+                yield emit("quality_breakdown_update", _local_qb)
+                yield emit("log", {"msg": f"📊 Radar local: {', '.join(_updated_dims)}"})
+                logger.info(f"[RADAR_LOCAL] updated: {_updated_dims}")
+        except Exception as qb_err:
+            logger.warning(f"Quality breakdown local override failed: {qb_err}")
+
+        # ═══ v2.3: REDAKTOR NACZELNY — final expert review ═══
+        try:
+            _editor_article = article_text or full_text or ""
+            if _editor_article and len(_editor_article) > 300:
+                yield emit("log", {"msg": "📝 Redaktor Naczelny — recenzja ekspercka..."})
+                yield emit("step", {"step": 11, "name": "Redaktor Naczelny", "status": "running"})
+
+                editor_result = _editor_in_chief_review(
+                    _editor_article, main_keyword, _detected_category
+                )
+
+                if editor_result.get("ran"):
+                    _crit = editor_result.get("critical_count", 0)
+                    _art = editor_result.get("artifact_count", 0)
+                    _logic = editor_result.get("logic_count", 0)
+                    _verdict = editor_result.get("verdict", "?")
+                    _comment = editor_result.get("comment", "")
+
+                    yield emit("editor_review", {
+                        "verdict": _verdict,
+                        "comment": _comment,
+                        "critical_count": _crit,
+                        "artifact_count": _art,
+                        "logic_count": _logic,
+                        "critical": editor_result.get("critical", []),
+                        "artifacts": editor_result.get("artifacts", []),
+                        "logic": editor_result.get("logic", []),
+                        "auto_fixed": editor_result.get("fixed_text") is not None,
+                        "tokens": editor_result.get("input_tokens", 0) + editor_result.get("output_tokens", 0),
+                    })
+
+                    _status_emoji = {"PASS": "✅", "WARN": "⚠️", "FAIL": "❌"}.get(_verdict, "❓")
+                    yield emit("log", {"msg": f"{_status_emoji} Redaktor: {_verdict} | {_crit} krytycznych, {_art} artefaktów, {_logic} logiki | {_comment[:120]}"})
+
+                    # Auto-fix: replace article if critical errors were found and fixed
+                    if editor_result.get("fixed_text"):
+                        _fixed = _clean_batch_text(editor_result["fixed_text"])
+                        _fixed = _normalize_html_tags(_fixed)
+
+                        # Validate fix didn't corrupt text
+                        _orig_wc = len(_editor_article.split())
+                        _fix_wc = len(_fixed.split())
+                        if _fix_wc >= _orig_wc * 0.85 and _fix_wc <= _orig_wc * 1.15:
+                            article_text = _fixed
+                            full_text = _fixed
+                            yield emit("article_update", {"full_text": _fixed})
+                            yield emit("log", {"msg": f"🔧 Auto-fix: {_crit} błędów poprawionych ({_orig_wc}→{_fix_wc} słów)"})
+
+                            # Re-submit fixed article to Brajn
+                            try:
+                                brajen_call("post", f"/api/project/{project_id}/batch_simple", {"text": _fixed})
+                                yield emit("log", {"msg": "📤 Poprawiony artykuł przesłany do Brajn"})
+                            except Exception:
+                                pass
+                        else:
+                            yield emit("log", {"msg": f"⚠️ Auto-fix odrzucony: {_fix_wc} słów vs {_orig_wc} oryginał (>15% różnicy)"})
+
+                    yield emit("step", {"step": 11, "name": "Redaktor Naczelny", "status": "done",
+                                        "detail": f"{_verdict} | {_crit} krytycznych"})
+                else:
+                    _reason = editor_result.get("reason", editor_result.get("error", "?"))
+                    yield emit("log", {"msg": f"⚠️ Redaktor Naczelny pominięty: {_reason}"})
+                    yield emit("step", {"step": 11, "name": "Redaktor Naczelny", "status": "warning",
+                                        "detail": f"Pominięty: {_reason[:60]}"})
+        except Exception as editor_err:
+            logger.warning(f"Editor-in-chief review failed: {editor_err}")
+            yield emit("log", {"msg": f"⚠️ Redaktor Naczelny error: {str(editor_err)[:100]}"})
+
         # Export HTML
         export_result = brajen_call("get", f"/api/project/{project_id}/export/html")
         if export_result["ok"]:
@@ -5123,7 +5493,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             job["export_docx"] = export_path
 
         step_done(10)
-        yield emit("step", {"step": 11, "name": "Export", "status": "done",
+        yield emit("step", {"step": 12, "name": "Export", "status": "done",
                             "detail": "HTML + DOCX gotowe"})
 
         # ─── DONE ───
