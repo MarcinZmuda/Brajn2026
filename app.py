@@ -1606,6 +1606,9 @@ def _clean_batch_text(text):
     # ── FIX 1: Strip markdown **bold** → plain text ──
     text = _re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
 
+    # ── FIX 1b: Unit spacing — "10m²" → "10 m²", "2500zł" → "2500 zł" ──
+    text = _re.sub(r'(\d)(m[²³]|m2|cm|mm|km|zł|PLN|kg|mg|ml|l|ha|h|min|szt)', r'\1 \2', text)
+
     # ── FIX 2: </h3> or </h2> followed by text on same line → line break ──
     text = _re.sub(r'(</h[23]>)\s*(\S)', r'\1\n\2', text)
 
@@ -3553,6 +3556,147 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # - Batch 1 (INTRO): always main keyword
         # - Batch N (H2): pick secondary entity whose text overlaps most with H2 title
         # - Fallback: cycle through secondary entities in order (1, 2, 3…)
+        # ═══ v2.3: SMART S1 DISTRIBUTOR — match S1 data to current H2 ═══
+        def _h2_relevance(text, h2_words):
+            """Score how relevant a text is to H2 by word overlap."""
+            if not text or not h2_words:
+                return 0
+            text_words = set(text.lower().split())
+            # Remove very common Polish words
+            _stop = {"w", "z", "i", "na", "do", "dla", "po", "od", "o", "się", "to", "jest",
+                     "jak", "co", "czy", "nie", "za", "a", "lub", "oraz", "przez", "przy"}
+            text_words -= _stop
+            overlap = len(h2_words & text_words)
+            # Partial: substring match + Polish stem match (first 4 chars)
+            partial = 0
+            for tw in text_words:
+                for hw in h2_words:
+                    if len(tw) > 3 and len(hw) > 3:
+                        if tw in hw or hw in tw:
+                            partial += 1
+                        elif tw[:4] == hw[:4]:  # Polish stem match: kara/kary/karze
+                            partial += 1
+            return overlap * 3 + partial
+
+        def _build_batch_s1_context(current_h2, batch_num, batch_type,
+                                     eav_triples, svo_triples, causal_chains, causal_singles,
+                                     content_gaps, must_cover, entity_gaps, cooc_pairs,
+                                     entity_plan, main_kw):
+            """Build per-batch S1 context — only data relevant to current H2.
+            
+            Returns dict with keys: eav, svo, causal, gaps, concepts, cooc, lead_entity.
+            Each value is a filtered/scored subset of the full S1 data.
+            """
+            _stop = {"w", "z", "i", "na", "do", "dla", "po", "od", "o", "się", "to", "jest",
+                     "jak", "co", "czy", "nie", "za", "a", "lub", "oraz", "przez", "przy"}
+            h2_words = set(current_h2.lower().split()) - _stop
+            # Also include main keyword words for INTRO
+            if batch_type in ("INTRO", "intro"):
+                h2_words |= set(main_kw.lower().split()) - _stop
+
+            ctx = {}
+
+            # ── EAV: score each triple, take top 4 + always include primary ──
+            if eav_triples:
+                scored = []
+                primary = None
+                for eav in eav_triples:
+                    text = f"{eav.get('entity','')} {eav.get('attribute','')} {eav.get('value','')}"
+                    score = _h2_relevance(text, h2_words)
+                    if eav.get("is_primary"):
+                        primary = eav
+                    else:
+                        scored.append((score, eav))
+                scored.sort(key=lambda x: -x[0])
+                result = []
+                if primary:
+                    result.append(primary)
+                result.extend([eav for _, eav in scored[:4] if _ > 0])
+                # If nothing matched, take top 2 anyway (always useful)
+                if not result and scored:
+                    result = [eav for _, eav in scored[:2]]
+                ctx["eav"] = result
+
+            # ── SVO: score and take top 3 matching ──
+            if svo_triples:
+                scored = []
+                for svo in svo_triples:
+                    text = f"{svo.get('subject','')} {svo.get('verb','')} {svo.get('object','')} {svo.get('context','')}"
+                    score = _h2_relevance(text, h2_words)
+                    scored.append((score, svo))
+                scored.sort(key=lambda x: -x[0])
+                ctx["svo"] = [svo for s, svo in scored[:3] if s > 0]
+
+            # ── Causal chains: score and take top 2 matching ──
+            all_causal = (causal_chains or []) + (causal_singles or [])
+            if all_causal:
+                scored = []
+                for chain in all_causal:
+                    if isinstance(chain, dict):
+                        text = chain.get("chain", chain.get("text", str(chain)))
+                    else:
+                        text = str(chain)
+                    score = _h2_relevance(text, h2_words)
+                    scored.append((score, chain))
+                scored.sort(key=lambda x: -x[0])
+                ctx["causal"] = [c for s, c in scored[:2] if s > 0]
+
+            # ── Content gaps: filter subtopic/depth by H2 relevance ──
+            if content_gaps and isinstance(content_gaps, dict):
+                subtopic = content_gaps.get("subtopic_missing", [])
+                depth = content_gaps.get("depth_missing", [])
+                matched_gaps = []
+                for item in (subtopic + depth)[:15]:
+                    text = item.get("topic", item.get("text", str(item))) if isinstance(item, dict) else str(item)
+                    if _h2_relevance(text, h2_words) > 0:
+                        matched_gaps.append(text)
+                ctx["gaps"] = matched_gaps[:3]
+
+            # ── Must-cover concepts: filter by H2 relevance ──
+            if must_cover:
+                scored = []
+                for c in must_cover:
+                    name = c.get("text", c) if isinstance(c, dict) else str(c)
+                    score = _h2_relevance(name, h2_words)
+                    scored.append((score, name))
+                scored.sort(key=lambda x: -x[0])
+                # Take top-matching + any with score 0 only if batch has room
+                matched = [n for s, n in scored if s > 0][:5]
+                if len(matched) < 2 and scored:
+                    # Include some even if no direct match (spread coverage)
+                    unmatched = [n for s, n in scored if s == 0]
+                    # Round-robin: each batch gets different unmatched concepts
+                    start = ((batch_num - 1) * 2) % max(1, len(unmatched))
+                    matched.extend(unmatched[start:start+2])
+                ctx["concepts"] = matched[:5]
+
+            # ── Entity gaps: filter by H2 relevance ──
+            if entity_gaps:
+                matched = []
+                for g in entity_gaps:
+                    name = g.get("entity", "") if isinstance(g, dict) else str(g)
+                    if _h2_relevance(name, h2_words) > 0:
+                        matched.append(name)
+                ctx["entity_gaps"] = matched[:3]
+
+            # ── Co-occurrence pairs: filter by H2 ──
+            if cooc_pairs:
+                matched = []
+                for pair in cooc_pairs:
+                    if isinstance(pair, dict):
+                        e1 = pair.get("entity1", pair.get("source", ""))
+                        e2 = pair.get("entity2", pair.get("target", ""))
+                        text = f"{e1} {e2}"
+                        if _h2_relevance(text, h2_words) > 0:
+                            matched.append(f"{e1} + {e2}")
+                ctx["cooc"] = matched[:4]
+
+            # ── Lead entity from content plan ──
+            if entity_plan and batch_num <= len(entity_plan):
+                ctx["lead_entity"] = entity_plan[batch_num - 1]
+
+            return ctx
+
         def _build_entity_content_plan(h2_list, main_kw, secondary_entities):
             """Returns list[str]: lead entity name per batch (index 0 = batch 1)."""
             plan = []
@@ -3794,6 +3938,27 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
             yield emit("log", {"msg": f"Typ: {batch_type} | H2: {current_h2}"})
             yield emit("log", {"msg": f"MUST: {len(must_kw)} | EXTENDED: {len(ext_kw)} | STOP: {len(stop_kw)}"})
+
+            # ═══ v2.3: SMART S1 CONTEXT — distribute S1 data per H2 ═══
+            _s1_ctx = _build_batch_s1_context(
+                current_h2=current_h2,
+                batch_num=batch_num,
+                batch_type=batch_type,
+                eav_triples=topical_gen_eav,
+                svo_triples=topical_gen_svo,
+                causal_chains=clean_causal_chains,
+                causal_singles=clean_causal_singles,
+                content_gaps=(s1.get("content_gaps") or {}),
+                must_cover=must_cover_concepts,
+                entity_gaps=entity_gaps,
+                cooc_pairs=backend_cooccurrence_pairs,
+                entity_plan=_entity_content_plan,
+                main_kw=main_keyword,
+            )
+            pre_batch["_s1_context"] = _s1_ctx
+            _ctx_items = sum(len(v) if isinstance(v, list) else (1 if v else 0) for v in _s1_ctx.values())
+            yield emit("log", {"msg": f"🎯 S1 context: {_ctx_items} items matched to H2"})
+
 
             # Emit batch instructions for UI display
             caution_kw = (pre_batch.get("keyword_limits") or {}).get("caution_keywords", [])
