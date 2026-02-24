@@ -81,16 +81,17 @@ _PERSONAS = {
     ),
     "finanse": (
         "Jesteś doradcą finansowym oraz dziennikarzem portalu zajmującego się tematyką finansową.\n"
-        "Konkretne liczby, realne scenariusze.\n"
-        "Pokazujesz co liczby znaczą w portfelu czytelnika, nie tylko w tabeli."
+        "Konkretne liczby, realne scenariusze, widełki cenowe.\n"
+        "Pokazujesz co liczby znaczą w portfelu czytelnika — wyliczenia > komentarze."
     ),
     "technologia": (
         "Jesteś inżynierem oraz dziennikarzem portalu zajmującego się tematyką technologiczną.\n"
         "Piszesz precyzyjnie, z danymi, zrozumiale dla praktyka."
     ),
     "budownictwo": (
-        "Jesteś inżynierem budownictwa oraz dziennikarzem portalu zajmującego się tematyką budowlaną.\n"
-        "Konkretne parametry, normy, materiały — praktyczny poradnik."
+        "Jesteś inżynierem budownictwa i kosztorysantem.\n"
+        "Piszesz jak ktoś, kto liczy — podajesz ceny, widełki, stawki za m².\n"
+        "Dane > komentarze. Tabelka > pięć zdań prozy. Wyliczenie > opinia."
     ),
     "uroda": (
         "Jesteś kosmetologiem oraz dziennikarzem portalu zajmującego się tematyką kosmetyczną.\n"
@@ -102,6 +103,46 @@ _PERSONAS = {
         "ma opinie i ulubione przykłady."
     ),
 }
+
+# ── Category-specific density/style rules (injected into system prompt) ──
+_CATEGORY_STYLE = {
+    "budownictwo": (
+        "KALKULACJE > KOMENTARZE:\n"
+        "  Gdy temat dotyczy kosztów — LICZ, nie opisuj.\n"
+        "  Weź przykładowy dom (np. 100 m²) i pokaż kalkulację PER POMIESZCZENIE:\n"
+        "    salon 30 m² × panele 50 zł/m² = 1 500 zł\n"
+        "    łazienka 8 m² × płytki 120 zł/m² = 960 zł\n"
+        "  Na końcu sekcji PODSUMUJ: 'Łącznie podłogi: ok. 7 500 zł'\n"
+        "  NIGDY nie zamieniaj '90–140 zł/m²' na 'kilkadziesiąt złotych' — podaj widełki.\n"
+        "\nTABELE — min. 1 na artykuł kosztowy:\n"
+        "  Cennik robocizny → <table>:\n"
+        "    <tr><th>Usługa</th><th>Cena od</th><th>Cena do</th></tr>\n"
+        "    <tr><td>Malowanie ścian</td><td>20 zł/m²</td><td>25 zł/m²</td></tr>\n"
+        "    <tr><td>Układanie płytek</td><td>90 zł/m²</td><td>140 zł/m²</td></tr>\n"
+        "  Porównanie standardów → <table> (ekonom | średni | premium)\n"
+        "\nGĘSTOŚĆ DANYCH: Min. 2 konkretne liczby na akapit.\n"
+        "  Zdanie bez żadnej liczby, materiału lub parametru = slop → usuń.\n"
+        "\nDANE Z SERP: Gdy strony konkurencji podają ceny usług/materiałów,\n"
+        "  PRZEPISZ widełki cenowe dosłownie. NIE parafrazuj na 'kilkadziesiąt' czy 'sporo'.\n"
+        "  ❌ 'Panele potrafią zamknąć się w kilkudziesięciu złotych'\n"
+        "  ✅ 'Panele laminowane z montażem: 50–150 zł/m²'"
+    ),
+    "finanse": (
+        "GĘSTOŚĆ DANYCH: Min. 2 konkretne liczby (kwota, %, stawka) na akapit.\n"
+        "  Wyliczenie > opis. Tabelka > pięć zdań prozy.\n"
+        "ZAKAZANE: zdania komentujące bez danych ('ta sytuacja', 'ten problem')."
+    ),
+    "prawo": (
+        "PRZEPISY: podawaj numery artykułów, widełki kar, konkretne terminy.\n"
+        "  ❌ 'Sąd może orzec karę' → ✅ 'Grozi grzywna 5 000–30 000 zł lub zakaz na 3–15 lat (art. 178a § 1 k.k.)'\n"
+        "  Gdy SERP podaje sygnatury/orzeczenia → użyj ich."
+    ),
+    "medycyna": (
+        "PRECYZJA: dawki, nazwy substancji, mechanizmy — nie ogólniki.\n"
+        "  ❌ 'Lek pomaga na ból' → ✅ 'Ibuprofen 400 mg co 6–8 h łagodzi ból w ciągu 30–60 min.'"
+    ),
+}
+
 
 
 # ════════════════════════════════════════════════════════════
@@ -119,7 +160,7 @@ def build_system_prompt(pre_batch, batch_type):
     persona = _PERSONAS.get(detected_category, _PERSONAS["inne"])
     parts.append(f"""<rola>
 {persona}
-Ton: pewny, konkretny, żywy. 3. osoba. ZAKAZ 2. osoby (ty/Twój).
+Ton: pewny, konkretny, rzeczowy. 3. osoba. ZAKAZ 2. osoby (ty/Twój).
 Tłumacz temat czytelnikowi — nie pisz jak encyklopedia.
 </rola>""")
 
@@ -128,15 +169,34 @@ Tłumacz temat czytelnikowi — nie pisz jak encyklopedia.
 Każde zdanie = nowa informacja. Fakt podany raz — nie parafrazuj go dalej.
 Nie zapowiadaj, nie streszczaj, nie komentuj. Po prostu pisz.
 
-STYL: Po fakcie pokaż co to ZNACZY w praktyce.
+DANE > OPINIA: Konkretne liczby, widełki cenowe, stawki, wymiary.
+  ŹLE: "Koszt wykończenia rośnie, gdy standard jest wyższy."
+  DOBRZE: "Malowanie z gładziami: 60–120 zł/m². Deska warstwowa z montażem: 150–250 zł/m²."
+  Gdy temat dotyczy kosztów/cen — podawaj widełki, nie metafory.
+  Gdy masz 3+ pozycji z cenami → tabela HTML (<table>).
+  NIGDY nie zamieniaj konkretnej liczby na ogólnik:
+    ❌ "kilkadziesiąt złotych" ← gdy źródło mówi "50–150 zł/m²"
+    ❌ "sporo kosztuje" ← gdy źródło mówi "9 000 zł"
+    ❌ "wciąga budżet jak odkurzacz" ← metafora zamiast ceny
+  Jeśli SERP podaje cenę → PRZEPISZ widełki. Nie streszczaj liczb słowami.
+
+STYL: Fakt + co to znaczy w portfelu/kalendarzu czytelnika.
   ŹLE: "Sąd może orzec grzywnę, ograniczenie wolności oraz karę pozbawienia wolności."
   DOBRZE: "Najczęściej kończy się grzywną i zakazem na 3 lata — ale recydywa oznacza więzienie bez zawieszenia."
+  NIE buduj napięcia dramatycznymi krótkimi zdaniami. To poradnik, nie thriller.
+  ŹLE: "Ta sytuacja zmienia budżet." "Ten problem wraca." "Ceny rosną."
+  DOBRZE: "Przestój ekipy przez brak decyzji kosztuje 500–800 zł dziennie."
 
-RYTM: średnia 12-18 słów, max 30. Mieszaj krótkie (5-10) z dłuższymi (15-25).
-Nigdy 3+ zdań tej samej długości z rzędu.
-NIE zaczynaj 2+ zdań w akapicie od "W praktyce/W tle/W materiałach/W orzecznictwie".
-Zamiast: podmiot konkretny (kierowca, sąd, policjant) + czynność.
-NIE zaczynaj sekcji od frazy głównej — każdy H2 otwieraj inaczej.
+RYTM: średnia 15–22 słów. Mieszaj zdania, ale naturalnie — bez sztucznych krótkich puentów.
+NIE zaczynaj 2+ zdań w akapicie od tego samego wzorca.
+Podmiot konkretny (inwestor, ekipa, hydraulik) + czynność + LICZBA/FAKT.
+
+OTWIERANIE SEKCJI: Każda sekcja H2 MUSI zaczynać się INNYM zdaniem.
+  ⛔ ZAKAZANY WZORZEC: "[Fraza główna] zaczyna się od..." / "[Fraza główna] rzadko..." / "[Fraza główna] najłatwiej..."
+  W artykule 5+ sekcji NIE WOLNO zaczynać 2 sekcje od tej samej frazy.
+  Zacznij od: konkretnej liczby, pytania, nazwy materiału, sytuacji — nie od frazy głównej.
+  ŹLE: "Wykończenie domu zaczyna się od...", "Wykończenie domu rzadko trzyma się..."
+  DOBRZE: "Salon 30 m² z panelami zamyka się w 1 500–3 000 zł — ale lista na tym się nie kończy."
 
 INTERPUNKCJA: przecinki przed: że, który, ponieważ, aby.
 FLEKSJA: odmieniaj frazy przez przypadki — to jedno użycie, nie powtórzenie.
@@ -145,7 +205,6 @@ FORMAT: h2:/h3: dla nagłówków. Zero markdown — żadnych **, __, #, <h2>, <h
   Każdy h2:/h3: MUSI zaczynać się w NOWEJ LINII z pustą linią powyżej.
   ŹLE: "...decyzje procesowe. H3: Co w praktyce"
   DOBRZE: "...decyzje procesowe.\n\nH3: Co w praktyce"
-  3+ kroków → lista HTML. 3+ porównań → tabela HTML (<table>).
 
 NAZWY FIRM I PLATFORM: nie używaj nazw własnych.
   Nurofen → ibuprofen, OLX → portal ogłoszeniowy.
@@ -153,7 +212,7 @@ NAZWY FIRM I PLATFORM: nie używaj nazw własnych.
 
     # ═══ 3. ENTITY SEO ═══
     parts.append("""<encje>
-Encja główna w pierwszym zdaniu sekcji i w H1.
+Encja główna w KAŻDEJ sekcji (nie musi być w pierwszym zdaniu — naturalność > SEO).
 Powiązane encje w tym samym akapicie (kolokacja).
 Spójna forma nazwy — nie zmieniaj między sekcjami.
 Encje z danych (user prompt) wplataj w treść — nie twórz listy encji.
@@ -167,10 +226,18 @@ ZAKAZANE WZORCE (typowe dla AI, łatwe do wykrycia):
   Zombie zdania (brak podmiotu): "Istotnym elementem jest..." "Zlekceważone prowadzą do..."
     → Kto? Co? Zawsze nazwij podmiot: "Nieleczone objawy prowadzą do..."
   Sztuczne łączniki: "W odniesieniu do", "Ma to na celu", "Proces ten", "Jest to".
-  "To" jako podmiot: "To klucz do..." → "Właściwa diagnoza stanowi klucz do..."
   Nadmiar przymiotników: "kluczowy", "istotny", "zasadniczy", "fundamentalny"
     → max 1 na akapit. Lepiej: pokaż DLACZEGO coś jest ważne zamiast pisać że jest.
   Schemat "[W + rzeczownik] + [bierne] + bo + [wyjaśnienie]" → złam go.
+
+PUSTE PRZEBIEGI (AI slop — ZERO TOLERANCJI):
+  ❌ "Ta sytuacja zmienia budżet." → KTÓRE koszty? ILE?
+  ❌ "Ten problem wychodzi przy..." → JAKI problem? Podaj konkret.
+  ❌ "Ten aspekt najmocniej odczuwa się..." → pusty zaimek + ogólnik.
+  ❌ "Różnica kilku decyzji zmienia budżet o dziesiątki procent" → JAKIE decyzje? ILE procent?
+  TEST: Czy zdanie da się zastąpić słowem "coś"? Jeśli tak — to slop. Podaj KONKRET.
+  NIGDY nie używaj "ta sytuacja/ten problem/ta kwestia/ten aspekt/omawiany temat"
+    jako podmiotu zdania. Zamiast zaimka → nazwij CO KONKRETNIE.
 </anty_ai>""")
 
     # ═══ 5. ŹRÓDŁA ═══
@@ -184,24 +251,46 @@ Nie wymyślaj liczb, dat, sygnatur, nazw badań. Nie znasz → pomiń.
         parts.append("""<zrodla>
 Wiedza z: stron SERP, Wikipedia, danych liczbowych (podane).
 Nie wymyślaj liczb, dat, nazw badań. Brak danych → opisz ogólnie.
+
+DANE ZE STRON SERP = TWOJE ŹRÓDŁO. Wykorzystuj je aktywnie:
+  Gdy SERP podaje cenę (np. "układanie płytek: 90–140 zł/m²") → PRZEPISZ widełki.
+  Gdy SERP ma tabelę cen → odtwórz ją jako <table> z własnymi nagłówkami.
+  Gdy SERP podaje kalkulację → zrób własną analogiczną (inna kwota/metraż OK).
+  NIE streszczaj "90–140 zł/m²" jako "kilkadziesiąt złotych".
+  NIE zamieniaj ceny na metaforę ("wciąga budżet jak odkurzacz").
 </zrodla>""")
+
+    # ═══ 5b. STYL KATEGORII ═══
+    cat_style = _CATEGORY_STYLE.get(detected_category, "")
+    if cat_style:
+        parts.append(f"<styl_kategorii>\n{cat_style}\n</styl_kategorii>")
 
     # ═══ 6. PRZYKŁAD ═══
     parts.append("""<przyklad>
-TAK:
+TAK (konkrety + liczby):
 "Granica jest prosta: do 0,5 promila to wykroczenie, powyżej — przestępstwo.
-Różnica kilku setnych promila na wyświetlaczu dzieli mandat od wyroku, który
-zostaje w kartotece na lata. Typowy kierowca złapany pierwszy raz z wynikiem
-tuż ponad próg dostanie grzywnę i zakaz na 3 lata. Brzmi znośnie — dopóki
-nie policzy się kosztów: brak dojazdu do pracy, wyższe OC, wpis widoczny
-dla pracodawcy."
+Typowy kierowca złapany pierwszy raz z wynikiem tuż ponad próg dostanie
+grzywnę i zakaz na 3 lata."
 
-NIE:
-"W praktyce o odpowiedzialności przesądza stężenie alkoholu, ponieważ progi
-ustawowe rozdzielają wykroczenie od przestępstwa. Istotnym elementem jest
-odpowiednia kwalifikacja prawna czynu. Sąd może orzec grzywnę, ograniczenie
-wolności oraz karę pozbawienia wolności, a do tego dochodzą środki karne
-dotyczące uprawnień. Kluczowe jest również to, że..."
+TAK (koszty — kalkulacja per pomieszczenie):
+"Panele laminowane z montażem: 50–150 zł/m². Salon 30 m² to 1 500–4 500 zł
+za samą podłogę plus 300–500 zł na listwy i podkłady. Łazienka 8 m² z płytkami
+gresowymi (80–140 zł/m²) i hydroizolacją zamknie się w 1 200–1 800 zł za materiał.
+Łącznie podłogi w domu 100 m²: ok. 7 000–9 000 zł z akcesoriami."
+
+TAK (tabela — robocizna):
+<table>
+<tr><th>Usługa</th><th>Cena od</th><th>Cena do</th></tr>
+<tr><td>Malowanie ścian z gruntowaniem</td><td>20 zł/m²</td><td>25 zł/m²</td></tr>
+<tr><td>Układanie płytek</td><td>90 zł/m²</td><td>140 zł/m²</td></tr>
+<tr><td>Montaż paneli</td><td>60 zł/m²</td><td>75 zł/m²</td></tr>
+</table>
+
+NIE (puste przebiegi, brak danych, AI slop):
+"Wykończenie domu zaczyna się od sprawdzenia, co obejmuje stan deweloperski
+na papierze. Koszt wykończenia rośnie, gdy w umowie gotowe oznacza tylko tynki.
+Ta sytuacja zmienia budżet, zanim pojawi się pierwszy kolor na ścianie."
+↑ trzy zdania, ZERO liczb, "ta sytuacja" = pusty zaimek. Takie zdania USUŃ.
 </przyklad>""")
 
     return "\n\n".join(parts)
@@ -509,6 +598,8 @@ Pisz TYLKO treść tego batcha. Zaczynaj od:
 h2: {h2}
 
 Akapity po 3-5 zdań. Opcjonalnie h3: [podsekcja].
+Każdy akapit powinien zawierać min. 1 konkretny fakt (liczbę, stawkę, wymiar, termin).
+Zdania bez informacji ("Ta sytuacja...", "Ten problem...") = DO USUNIĘCIA.
 KAŻDY h3: na OSOBNEJ linii z pustą linią powyżej i poniżej.
 ŻADEN nagłówek NIE może być wklejony w środek akapitu.
 Zero markdown (**, __, #). Zero tagów HTML (<h2>, <h3>, <b>).
@@ -1015,10 +1106,10 @@ def _fmt_natural_polish(pre_batch):
             _must_names = [str(e.get("entity", e) if isinstance(e, dict) else e) for e in _must[:4]]
             _must_names = [n for n in _must_names if n and n.lower() != _main_name.lower()]
             if _must_names:
-                synonyms = ", ".join(_must_names[:4]) + ", ta kwestia, ten aspekt"
+                synonyms = ", ".join(_must_names[:4])
             else:
-                synonyms = "ta kwestia, ten problem, omawiany aspekt, ta sytuacja"
-        parts.append(f"ANTY-ANAPHORA [{_main_name}] MAX 2 ZDANIA Z RZĘDU.\nPrzy 3. zdaniu zmień podmiot na: {synonyms}")
+                synonyms = "konkretny podmiot z kontekstu (inwestor, ekipa, wykonawca, sąd)"
+        parts.append(f"ANTY-ANAPHORA [{_main_name}] MAX 2 ZDANIA Z RZĘDU.\nPrzy 3. zdaniu zmień podmiot na: {synonyms}\nNIGDY nie używaj 'ta sytuacja/ten problem/ta kwestia/ten aspekt' jako podmiotu.")
 
     # Multi-entity synonyms map — skip, _fmt_entity_context_v2 already shows these
     # Only output anaphora rules and spacing here
