@@ -379,7 +379,11 @@ def _apply_clean_data(s1_data: dict, clean: dict, main_keyword: str) -> dict:
     if not isinstance(ts, dict):
         ts = {}
     ts["must_cover"] = topical[:8]
-    ts["should_cover"] = named[:5]
+    # Filter brand names from should_cover — editorial would insert them verbatim
+    from css_filter import _is_brand_entity
+    _named_clean = [n for n in named if not _is_brand_entity(
+        n.get("text", n) if isinstance(n, dict) else str(n))]
+    ts["should_cover"] = _named_clean[:5]
     entity_seo["topical_summary"] = ts
 
     result["entity_seo"] = entity_seo
