@@ -141,7 +141,10 @@ NIE zaczynaj sekcji od frazy głównej — każdy H2 otwieraj inaczej.
 INTERPUNKCJA: przecinki przed: że, który, ponieważ, aby.
 FLEKSJA: odmieniaj frazy przez przypadki — to jedno użycie, nie powtórzenie.
 
-FORMAT: h2:/h3: dla nagłówków. Zero markdown.
+FORMAT: h2:/h3: dla nagłówków. Zero markdown — żadnych **, __, #, <h2>, <h3>.
+  Każdy h2:/h3: MUSI zaczynać się w NOWEJ LINII z pustą linią powyżej.
+  ŹLE: "...decyzje procesowe. H3: Co w praktyce"
+  DOBRZE: "...decyzje procesowe.\n\nH3: Co w praktyce"
   3+ kroków → lista HTML. 3+ porównań → tabela HTML (<table>).
 
 NAZWY FIRM I PLATFORM: nie używaj nazw własnych.
@@ -505,7 +508,10 @@ Pisz TYLKO treść tego batcha. Zaczynaj od:
 
 h2: {h2}
 
-Akapity po 3-5 zdań, opcjonalnie h3: [podsekcja].
+Akapity po 3-5 zdań. Opcjonalnie h3: [podsekcja].
+KAŻDY h3: na OSOBNEJ linii z pustą linią powyżej i poniżej.
+ŻADEN nagłówek NIE może być wklejony w środek akapitu.
+Zero markdown (**, __, #). Zero tagów HTML (<h2>, <h3>, <b>).
 NIE dodawaj komentarzy. TYLKO treść artykułu."""
 
 
@@ -1186,6 +1192,8 @@ h3: [Pytanie, 5-10 słów]
 → Zdanie 2-3: rozwinięcie
 → Zdanie 4: praktyczna wskazówka
 
+Zero markdown (**, __, #). Zero tagów HTML (<h3>, <b>, <strong>).
+Każdy h3: na OSOBNEJ linii z pustą linią powyżej.
 Napisz 4-6 pytań. TYLKO treść.""")
 
     return "\n\n".join(sections)
@@ -1426,7 +1434,8 @@ LISTY HTML: 3+ elementów → lista.
 SPACING: MAIN ~60 słów, BASIC ~80, EXTENDED ~120.
 ANTI-AI: zakaz fraz kliszowych.
 LINKI: 3–8 kontekstowych na 300–500 słów.
-FORMAT: h2:/h3:. Zero markdown.
+FORMAT: h2:/h3:. Zero markdown (**, __, #). Zero tagów HTML (<h2>, <h3>).
+  Każdy h2:/h3: na OSOBNEJ linii z pustą linią powyżej.
 </rules>""")
 
     parts.append("""<examples>
