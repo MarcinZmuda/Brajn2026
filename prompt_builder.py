@@ -120,29 +120,23 @@ def build_system_prompt(pre_batch, batch_type):
     parts.append(f"""<rola>
 {persona}
 Ton: pewny, konkretny, żywy. 3. osoba. ZAKAZ 2. osoby (ty/Twój).
-Pisz jak dziennikarz, który tłumaczy temat czytelnikowi — nie jak encyklopedia.
+Tłumacz temat czytelnikowi — nie pisz jak encyklopedia.
 </rola>""")
 
     # ═══ 2. ZASADY PISANIA ═══
-    # Jedno miejsce — cel, styl, anty-AI, zdania. Zero powtórzeń.
     parts.append(f"""<zasady>
-Pisz konkretnie. Każde zdanie = nowa informacja.
-Fakt podany raz — nie powtarzaj go innymi słowami.
-Nie zapowiadaj ("dalej opiszemy"), nie streszczaj, nie komentuj. Po prostu pisz.
-NIE zaczynaj każdej sekcji od frazy głównej — każdy H2 otwieraj inaczej.
+Każde zdanie = nowa informacja. Fakt podany raz — nie parafrazuj go dalej.
+Nie zapowiadaj, nie streszczaj, nie komentuj. Po prostu pisz.
 
-STYL: Tłumacz, nie referuj. Po każdym fakcie pokaż co to ZNACZY dla czytelnika.
+STYL: Po fakcie pokaż co to ZNACZY w praktyce.
   ŹLE: "Sąd może orzec grzywnę, ograniczenie wolności oraz karę pozbawienia wolności."
-  DOBRZE: "W praktyce najczęściej kończy się grzywną i zakazem prowadzenia na 3 lata — ale wystarczy recydywa, żeby sąd orzekł więzienie bez zawieszenia."
+  DOBRZE: "Najczęściej kończy się grzywną i zakazem na 3 lata — ale recydywa oznacza więzienie bez zawieszenia."
 
-RYTM: Mieszaj długość zdań. Krótkie (5-8 słów) po dłuższych (15-25). Nigdy 3+ zdań tej samej długości z rzędu.
-
-ZAKAZ MONOTONNYCH OTWARĆ: NIE zaczynaj więcej niż 1 zdania na akapit od:
-  "W praktyce...", "W tle...", "W protokołach...", "W materiałach...", "W orzecznictwie..."
-  Zamiast tego: podmiot konkretny (kierowca, sąd, policjant, biegły) + czynność.
-
-ZDANIA: średnia 8-20 słów, max 30. Krótkie + dłuższe = naturalny rytm.
-Wielokrotnie złożone → rozbij na prostsze.
+RYTM: średnia 12-18 słów, max 30. Mieszaj krótkie (5-10) z dłuższymi (15-25).
+Nigdy 3+ zdań tej samej długości z rzędu.
+NIE zaczynaj 2+ zdań w akapicie od "W praktyce/W tle/W materiałach/W orzecznictwie".
+Zamiast: podmiot konkretny (kierowca, sąd, policjant) + czynność.
+NIE zaczynaj sekcji od frazy głównej — każdy H2 otwieraj inaczej.
 
 INTERPUNKCJA: przecinki przed: że, który, ponieważ, aby.
 FLEKSJA: odmieniaj frazy przez przypadki — to jedno użycie, nie powtórzenie.
@@ -150,28 +144,38 @@ FLEKSJA: odmieniaj frazy przez przypadki — to jedno użycie, nie powtórzenie.
 FORMAT: h2:/h3: dla nagłówków. Zero markdown.
   3+ kroków → lista HTML. 3+ porównań → tabela HTML (<table>).
 
-NAZWY FIRM, MAREK I PLATFORM: nie używaj nazw własnych firm i serwisów.
-  Nurofen → ibuprofen, Karcher → myjka ciśnieniowa, OLX → portal ogłoszeniowy.
-
-ZAKAZANE FRAZY: "warto zauważyć/pamiętać/podkreślić", "należy podkreślić/pamiętać",
-  "kluczowe jest", "istotne jest", "w tym kontekście", "podsumowując",
-  "w przedmiotowej sprawie", "na kanwie niniejszego", placeholdery.
+NAZWY FIRM I PLATFORM: nie używaj nazw własnych.
+  Nurofen → ibuprofen, OLX → portal ogłoszeniowy.
 </zasady>""")
 
     # ═══ 3. ENTITY SEO ═══
     parts.append("""<encje>
-1. KOLOKACJA: powiązane encje w tym samym akapicie.
-2. NAZEWNICTWO: spójna forma nazwy w całym tekście.
-3. HIERARCHIA: encja główna w pierwszym zdaniu i w H1.
+Encja główna w pierwszym zdaniu sekcji i w H1.
+Powiązane encje w tym samym akapicie (kolokacja).
+Spójna forma nazwy — nie zmieniaj między sekcjami.
+Encje z danych (user prompt) wplataj w treść — nie twórz listy encji.
 </encje>""")
 
-    # ═══ 4. ŹRÓDŁA ═══
+    # ═══ 4. ANTY-AI ═══
+    parts.append("""<anty_ai>
+ZAKAZANE WZORCE (typowe dla AI, łatwe do wykrycia):
+  Frazesy: "warto zauważyć/pamiętać/podkreślić", "należy podkreślić",
+    "kluczowe jest", "istotne jest", "podsumowując", "w tym kontekście".
+  Zombie zdania (brak podmiotu): "Istotnym elementem jest..." "Zlekceważone prowadzą do..."
+    → Kto? Co? Zawsze nazwij podmiot: "Nieleczone objawy prowadzą do..."
+  Sztuczne łączniki: "W odniesieniu do", "Ma to na celu", "Proces ten", "Jest to".
+  "To" jako podmiot: "To klucz do..." → "Właściwa diagnoza stanowi klucz do..."
+  Nadmiar przymiotników: "kluczowy", "istotny", "zasadniczy", "fundamentalny"
+    → max 1 na akapit. Lepiej: pokaż DLACZEGO coś jest ważne zamiast pisać że jest.
+  Schemat "[W + rzeczownik] + [bierne] + bo + [wyjaśnienie]" → złam go.
+</anty_ai>""")
+
+    # ═══ 5. ŹRÓDŁA ═══
     if is_ymyl:
         parts.append("""<zrodla>
 YMYL — zero tolerancji dla zmyśleń.
 Wiedza WYŁĄCZNIE z: stron SERP (podane), przepisów (podane), Wikipedia (podane).
-Nie wymyślaj liczb, dat, sygnatur, nazw badań.
-Nie znasz → pomiń zdanie.
+Nie wymyślaj liczb, dat, sygnatur, nazw badań. Nie znasz → pomiń.
 </zrodla>""")
     else:
         parts.append("""<zrodla>
@@ -179,21 +183,22 @@ Wiedza z: stron SERP, Wikipedia, danych liczbowych (podane).
 Nie wymyślaj liczb, dat, nazw badań. Brak danych → opisz ogólnie.
 </zrodla>""")
 
-    # ═══ 5. PRZYKŁAD ═══
+    # ═══ 6. PRZYKŁAD ═══
     parts.append("""<przyklad>
-TAK PISZ:
-"Granica jest prosta: do 0,5 promila to wykroczenie, powyżej — przestępstwo
-z kodeksu karnego. Różnica kilku setnych promila na wyświetlaczu alkometru
-dzieli mandat od wyroku skazującego, który zostaje w kartotece na lata.
-Typowy kierowca złapany pierwszy raz z wynikiem tuż ponad próg może liczyć
-na grzywnę i zakaz prowadzenia na 3 lata. Brzmi znośnie, dopóki nie policzy
-się kosztów: brak dojazdu do pracy, wyższe OC, wpis widoczny dla pracodawcy."
+TAK:
+"Granica jest prosta: do 0,5 promila to wykroczenie, powyżej — przestępstwo.
+Różnica kilku setnych promila na wyświetlaczu dzieli mandat od wyroku, który
+zostaje w kartotece na lata. Typowy kierowca złapany pierwszy raz z wynikiem
+tuż ponad próg dostanie grzywnę i zakaz na 3 lata. Brzmi znośnie — dopóki
+nie policzy się kosztów: brak dojazdu do pracy, wyższe OC, wpis widoczny
+dla pracodawcy."
 
-NIE PISZ TAK:
+NIE:
 "W praktyce o odpowiedzialności przesądza stężenie alkoholu, ponieważ progi
-ustawowe rozdzielają wykroczenie od przestępstwa. Sąd może orzec grzywnę,
-ograniczenie wolności oraz karę pozbawienia wolności, a do tego dochodzą
-środki karne dotyczące uprawnień."
+ustawowe rozdzielają wykroczenie od przestępstwa. Istotnym elementem jest
+odpowiednia kwalifikacja prawna czynu. Sąd może orzec grzywnę, ograniczenie
+wolności oraz karę pozbawienia wolności, a do tego dochodzą środki karne
+dotyczące uprawnień. Kluczowe jest również to, że..."
 </przyklad>""")
 
     return "\n\n".join(parts)
@@ -239,6 +244,7 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
         lambda: _fmt_keywords(pre_batch),
         lambda: _fmt_legal_medical(pre_batch),
         lambda: _fmt_entity_context_v2(pre_batch),
+        lambda: _fmt_natural_polish(pre_batch),
         lambda: _fmt_continuation(pre_batch),
         lambda: _fmt_article_memory(article_memory),
         lambda: _fmt_serp_enrichment_v2(pre_batch),
@@ -384,7 +390,6 @@ def _fmt_keywords(pre_batch):
 
     # ── BUILD ──
     parts = ["═══ FRAZY KLUCZOWE ═══"]
-    parts.append("Frazy to TEMATY — pisz naturalnie, nie wpychaj kilku w jedno zdanie.\n")
 
     if _kw_force_ban and main_kw:
         parts.append(f'⛔ STOP: Fraza "{main_kw}" jest PRZEKROCZONA — nie używaj w tym batchu.\n')
@@ -664,9 +669,8 @@ def _fmt_intro_guidance_v2(pre_batch, batch_type):
 
     parts = ["═══ LEAD (WSTĘP) ═══", "120-200 słów. NIE zaczynaj od h2:."]
     if kw_name:
-        parts.append(f'Zdanie 1: bezpośrednia odpowiedź — czym jest "{kw_name}".')
-    parts.append("Zdania 2-3: kontekst praktyczny (dlaczego to ważne, co z tego wynika).")
-    parts.append("Zdanie 4: konkretny fakt lub praktyczna konsekwencja — NIE zapowiadaj co będzie dalej.")
+        parts.append(f'Zacznij od sedna: czym jest "{kw_name}" i dlaczego czytelnik powinien czytać dalej.')
+    parts.append("Kontekst praktyczny + konkretny fakt. NIE zapowiadaj co będzie dalej.")
 
     search_intent = serp.get("search_intent", "")
     if search_intent:
@@ -861,14 +865,12 @@ def _fmt_style(pre_batch):
     style = pre_batch.get("style_instructions") or pre_batch.get("style_instructions_v39") or {}
     if not style:
         return ""
-    parts = ["═══ STYL ═══"]
+    parts = ["═══ STYL (dodatkowy) ═══"]
     if isinstance(style, dict):
-        tone = style.get("tone", "")
-        if tone:
-            parts.append(f'Ton: {tone}')
+        # Skip 'tone' — system prompt already sets tone to avoid conflicts
         forbidden = style.get("forbidden_phrases") or style.get("avoid_phrases") or []
         if forbidden:
-            parts.append(f'ZAKAZANE: {", ".join(f"{f}" for f in forbidden[:8])}')
+            parts.append(f'Unikaj też: {", ".join(f"{f}" for f in forbidden[:8])}')
     elif isinstance(style, str):
         parts.append(_word_trim(style, 500))
     return "\n".join(parts) if len(parts) > 1 else ""
@@ -957,8 +959,8 @@ def _fmt_entity_salience(pre_batch):
 
 
 def _fmt_natural_polish(pre_batch):
-    """Anti-stuffing + fleksja — used by category prompt.
-    Full version with anaphora rules, synonym map, naturalness test.
+    """Anti-stuffing + fleksja — keyword-specific spacing and anaphora rules.
+    Generic anti-AI patterns moved to system prompt <anty_ai>.
     """
     keywords_info = pre_batch.get("keywords") or {}
     must_kw = keywords_info.get("basic_must_use") or []
@@ -980,21 +982,19 @@ def _fmt_natural_polish(pre_batch):
         return ""
 
     SPACING = {"MAIN": 60, "BASIC": 80, "EXTENDED": 120}
-    parts = ["═══ NATURALNY POLSKI, ANTY-STUFFING ═══"]
+    parts = ["═══ ANTY-STUFFING ═══"]
 
     parts.append(
-        "🔄 FLEKSJA: Odmiany frazy liczą się jako jedno użycie!\n"
-        '   "zespół turnera" = "zespołu turnera" = "zespołem turnera"\n'
-        "   Pisz naturalnie, używaj różnych przypadków gramatycznych.\n"
-        "   NIE MUSISZ powtarzać frazy w mianowniku. System zaliczy każdą odmianę."
+        "FLEKSJA: Odmiany = jedno użycie. System zaliczy każdy przypadek.\n"
+        "  Max 2× ta sama fraza w jednym akapicie. Rozkładaj RÓWNOMIERNIE."
     )
 
     spacing_lines = []
     for name, kw_type in all_kw[:8]:
         spacing = SPACING.get(kw_type, 80)
-        spacing_lines.append(f'  • "{name}" ({kw_type}): min {spacing} słów między powtórzeniami')
+        spacing_lines.append(f'  • "{name}": min {spacing} słów odstępu')
     if spacing_lines:
-        parts.append("📏 ODSTĘPY MIĘDZY POWTÓRZENIAMI:\n" + "\n".join(spacing_lines))
+        parts.append("ODSTĘPY:\n" + "\n".join(spacing_lines))
 
     # Dynamic anaphora ban for main entity
     _raw_main = pre_batch.get("main_keyword") or {}
@@ -1012,53 +1012,22 @@ def _fmt_natural_polish(pre_batch):
                 synonyms = ", ".join(_must_names[:4]) + ", ta kwestia, ten aspekt"
             else:
                 synonyms = "ta kwestia, ten problem, omawiany aspekt, ta sytuacja"
-        parts.append("ANTY-ANAPHORA [" + _main_name + "] MAX 2 ZDANIA Z RZEDU.\nPrzy 3. zdaniu zmien podmiot na: " + synonyms)
+        parts.append(f"ANTY-ANAPHORA [{_main_name}] MAX 2 ZDANIA Z RZĘDU.\nPrzy 3. zdaniu zmień podmiot na: {synonyms}")
 
-    # Multi-entity synonyms map
-    _multi_syns = _entity_seo.get("multi_entity_synonyms", {}) if _main_name else {}
-    if _multi_syns:
-        syn_lines = []
-        for ent, syns in list(_multi_syns.items())[:5]:
-            syn_lines.append(f'  "{ent}" → {", ".join(syns[:3])}')
-        parts.append(
-            "📖 MAPA SYNONIMÓW (używaj zamiast powtórzeń):\n" + "\n".join(syn_lines)
-        )
+    # Multi-entity synonyms map — skip, _fmt_entity_context_v2 already shows these
+    # Only output anaphora rules and spacing here
 
+    # FAQ-specific anaphora
     parts.append(
-        "⚠️ ZASADY:\n"
-        "  • Max 2× ta sama fraza w jednym akapicie\n"
-        "  • Rozkładaj frazy RÓWNOMIERNIE w tekście (nie grupuj na początku/końcu)\n"
-        "  • Zamiast powtórzenia użyj: synonimu, zaimka, opisu ('ta choroba', 'omawiany zespół')\n"
-        "  • Podmiot → dopełnienie → synonim → kolejny akapit → ponownie fraza"
+        "FAQ: każde pytanie MUSI zaczynać się INNYM słowem.\n"
+        "  Rotuj: Czy, Kiedy, Jak, Co, Ile, Dlaczego, W jakich, Od kiedy."
     )
 
-    # Fix #64 Layer 3 — global anaphora rules (FAQ + zero-subject + pronoun 'To')
+    # Anti-stuffing test
     parts.append(
-        "🔄 ANTY-ANAPHORA GLOBALNA:\n"
-        "  • FAQ/sekcja pytań: każde pytanie MUSI zaczynać się INNYM słowem.\n"
-        "    Rotuj: 'Czy', 'Kiedy', 'Jak', 'Co zrobić gdy', 'Ile', 'Dlaczego', 'W jakich', 'Od kiedy'.\n"
-        "    NIE pisz 4+ pytań z rzędu zaczynających się od tego samego słowa.\n"
-        "  • NIE zaczynaj zdania od imiesłowu bez podmiotu:\n"
-        "    ŹLE: 'Zlekceważone prowadzą do...' / 'Nieleczone skutkują...'\n"
-        "    DOBRZE: 'Nieleczone objawy prowadzą do...' / 'Zlekceważone symptomy skutkują...'\n"
-        "  • NIE używaj 'To' jako podmiotu zdania:\n"
-        "    ŹLE: 'To klucz do...' / 'To podstawa...' / 'To pierwszy krok...'\n"
-        "    DOBRZE: 'Badanie słuchu stanowi klucz do...' / 'Właściwa diagnoza to podstawa...'"
-    )
-
-    # v57: Anti-stuffing naturalness check
-    parts.append(
-        "🚫 NATURALNOŚĆ — TEST CZYTELNIKA:\n"
-        "  Przed użyciem frazy kluczowej zadaj sobie pytanie:\n"
-        "  'Czy ekspert powiedziałby to w rozmowie, czy tylko pisze się to pod SEO?'\n"
-        "  ❌ STUFFING: 'Detektyw Warszawa obsługuje w województwie mazowieckim.' (Warszawa zbędne)\n"
-        "  ❌ STUFFING: 'Witaminy na skórę to temat o witaminach na skórę.' (tautologia)\n"
-        "  ❌ STUFFING: 'Bariera lipidowa skóry chroni barierę lipidową.' (powtórzenie bez treści)\n"
-        "  ✅ NATURALNIE: 'Bariera lipidowa chroni naskórek przed utratą wody.' (fakt + funkcja)\n"
-        "  ✅ NATURALNIE: 'Ceramidy odbudowują strukturę bariery ochronnej skóry.' (synonim + mechanizm)\n"
-        "\n"
-        "  REGUŁA: Jeśli usunięcie frazy kluczowej NIE zmienia sensu zdania = stuffing.\n"
-        "  Każde użycie frazy musi WNOSIĆ informację, nie tylko 'karmić algorytm'."
+        "TEST: Usunięcie frazy NIE zmienia sensu zdania = stuffing.\n"
+        "  ❌ powtórzenie frazy bez nowej informacji\n"
+        "  ✅ fraza + fakt którego bez niej nie da się powiedzieć"
     )
 
     return "\n".join(parts)
