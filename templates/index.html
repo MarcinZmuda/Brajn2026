@@ -383,6 +383,32 @@
         .qb-lbl{font-size:11px;color:var(--mg);text-transform:uppercase;letter-spacing:.5px}
         .qb-bar{height:2px;background:var(--b2);border-radius:1px;margin-top:3px;overflow:hidden}
         .qb-fill{height:100%;border-radius:1px}
+    /* ═══ Article Complete Modal ═══ */
+    .art-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;pointer-events:none}
+    .art-modal-overlay.show{opacity:1;pointer-events:all}
+    .art-modal{background:var(--bg);border-radius:12px;width:min(900px,92vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5);transform:translateY(20px);transition:transform .3s}
+    .art-modal-overlay.show .art-modal{transform:translateY(0)}
+    .art-modal-head{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--b1)}
+    .art-modal-head h2{margin:0;font-size:20px;flex:1;color:var(--pr)}
+    .art-modal-stats{display:flex;gap:12px;font-size:13px;color:var(--mg)}
+    .art-modal-stats span{background:var(--bg2);padding:3px 10px;border-radius:6px}
+    .art-modal-actions{display:flex;gap:8px;padding:12px 24px;border-bottom:1px solid var(--b1);background:var(--bg2)}
+    .art-modal-actions button{padding:6px 16px;border-radius:6px;border:1px solid var(--b1);background:var(--bg);color:var(--lg);cursor:pointer;font-size:13px;transition:all .15s}
+    .art-modal-actions button:hover{background:var(--pr);color:#fff;border-color:var(--pr)}
+    .art-modal-actions button.pri{background:var(--pr);color:#fff;border-color:var(--pr)}
+    .art-modal-actions button.pri:hover{opacity:.85}
+    .art-modal-body{overflow-y:auto;padding:24px 32px;flex:1;line-height:1.75;font-size:15px;color:var(--lg)}
+    .art-modal-body h2{font-size:22px;color:var(--pr);margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--b1);font-weight:700}
+    .art-modal-body h3{font-size:17px;color:var(--orange);margin:20px 0 8px;font-weight:600}
+    .art-modal-body p{margin:0 0 14px}
+    .art-modal-body ul,.art-modal-body ol{margin:8px 0 14px;padding-left:24px}
+    .art-modal-body li{margin:4px 0}
+    .art-modal-body table{width:100%;border-collapse:collapse;margin:12px 0 16px;font-size:14px}
+    .art-modal-body th{background:var(--bg2);padding:8px 12px;text-align:left;font-weight:600;border:1px solid var(--b1)}
+    .art-modal-body td{padding:8px 12px;border:1px solid var(--b1)}
+    .art-modal-close{width:36px;height:36px;border-radius:50%;border:1px solid var(--b1);background:var(--bg2);color:var(--mg);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+    .art-modal-close:hover{background:var(--rd);color:#fff;border-color:var(--rd)}
+    .copy-ok{color:var(--gn)!important;font-weight:600}
     </style>
 </head>
 <body>
@@ -749,7 +775,7 @@
         <div id="tabCI" class="main-tab-panel" style="display:none;padding:16px 20px"><button class="mabtn" onclick="switchTab('workflow')" style="margin-bottom:12px;display:flex;align-items:center;gap:6px">← Workflow</button>
             <div class="pnl" id="ciP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('ciP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('ciP')}"><span>📊 Competitive Intelligence Dashboard</span><span class="arr">▼</span></div><div class="pnl-b open" id="ciB"></div></div>
         </div><!-- /tabCI -->
-            <div class="done" id="doneB" style="display:none"><h2 id="doneH">✓ Artykuł gotowy</h2><p id="doneD"></p></div>
+            <div class="done" id="doneB" style="display:none"><h2 id="doneH">✓ Artykuł gotowy</h2><p id="doneD"></p><button onclick="showArtModal()" style="margin-top:8px;padding:8px 20px;border-radius:8px;border:none;background:var(--pr);color:#fff;cursor:pointer;font-size:14px;font-weight:600">📄 Pokaż artykuł</button></div>
             <div class="exp" id="expB" style="display:none"><a class="btn-e pri" id="exH">HTML</a><a class="btn-e" id="exD">DOCX</a></div>
             </div>
             <div style="margin-top:16px"><span class="lbl">Logi <button class="tbtn" onclick="tog('logC')">pokaż</button></span></div>
@@ -1281,6 +1307,7 @@ async function startWorkflow(){
     document.getElementById('chatHist').innerHTML=`<div class="chat-msg ai">${contentType==='category'?'Opis kategorii gotowy':'Artykuł gotowy'}! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>`;
     document.getElementById('valResult').classList.remove('vis');
     rawArticle='';selTxt='';s1Data=null;batchLog=[];finalData=null;salienceData=null;styleData=null;memoryData=null;articleData=null;editorialData=null;stepTimingData=null;paaData=null;ymylCtxData=null;ymylAnalysisData=null;ymylValData=null;liveArticle='';semanticDistData=null;evalSummaryData=null;
+    try{closeArtModal()}catch(e){}
     log(`Start: "${kw}" [${contentType}] [${mode}] [${engine}] [temp=${temperature}]`);
     // Start live status timer
     const _lsTimerEl=document.getElementById('lsTimer');
@@ -1413,7 +1440,7 @@ async function startWorkflow(){
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:13px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:12px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:12px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
         es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;if(window._lsTimerInt){clearInterval(window._lsTimerInt);window._lsTimerInt=null;}renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';document.getElementById('doneH').textContent=contentType==='category'?'✓ Opis kategorii gotowy':'✓ Artykuł gotowy';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
         // Fix #47: Ukryj frazy BASIC z panelu + wyczyść pola po zakończeniu workflow
-        try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';const _bt=document.getElementById('basicTerms');if(_bt)_bt.value='';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
+        try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';const _bt=document.getElementById('basicTerms');if(_bt)_bt.value='';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initWordDistChart(s1Data,finalData)}catch(e2){console.warn('wordDistChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);try{const _fs=finalData||{};showArtModal(d.word_count,_fs.score,d.timing?d.timing.total_seconds:null)}catch(e2){console.warn('artModal:',e2)}es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
 
         let rr=0;
@@ -2112,6 +2139,57 @@ function renderArt(text){
     pv.innerHTML=html;pv.style.display='';
 }
 
+function artToHTML(text){
+    let safe=esc(text);
+    safe=safe.replace(/&lt;(\/?(ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i))&gt;/gi,function(_,tag){return '<'+tag+'>'});
+    let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
+    if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
+    return html;
+}
+
+function showArtModal(wordCount,score,seconds){
+    const text=rawArticle||liveArticle||'';
+    if(!text)return;
+    const html=artToHTML(text);
+    document.getElementById('amBody').innerHTML=html;
+    document.getElementById('amWords').textContent=(wordCount||text.split(/\s+/).filter(Boolean).length)+' słów';
+    document.getElementById('amScore').textContent=score?score+'/100':'';
+    document.getElementById('amTime').textContent=seconds?Math.round(seconds)+'s':'';
+    document.getElementById('artModal').classList.add('show');
+    document.body.style.overflow='hidden';
+}
+function closeArtModal(){
+    document.getElementById('artModal').classList.remove('show');
+    document.body.style.overflow='';
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('artModal').classList.contains('show'))closeArtModal();});
+function _amFlash(){
+    const m=document.getElementById('amCopyMsg');
+    m.style.display='inline';setTimeout(()=>m.style.display='none',2500);
+}
+function copyArtRich(){
+    const html=document.getElementById('amBody').innerHTML;
+    const text=document.getElementById('amBody').innerText;
+    if(navigator.clipboard&&navigator.clipboard.write){
+        const blob=new Blob([html],{type:'text/html'});
+        const blobTxt=new Blob([text],{type:'text/plain'});
+        navigator.clipboard.write([new ClipboardItem({'text/html':blob,'text/plain':blobTxt})]).then(()=>_amFlash()).catch(()=>{
+            navigator.clipboard.writeText(text).then(()=>_amFlash());
+        });
+    }else{
+        navigator.clipboard.writeText(text).then(()=>_amFlash());
+    }
+}
+function copyArtPlain(){
+    const text=rawArticle||liveArticle||'';
+    navigator.clipboard.writeText(text).then(()=>_amFlash()).catch(()=>alert('Błąd kopiowania'));
+}
+function copyArtHTML(){
+    const text=rawArticle||liveArticle||'';
+    const html=artToHTML(text);
+    navigator.clipboard.writeText(html).then(()=>_amFlash()).catch(()=>alert('Błąd kopiowania'));
+}
+
 function copyArticle(){
     const text = rawArticle || liveArticle || '';
     if(!text){alert('Brak artykułu do skopiowania.');return;}
@@ -2625,5 +2703,26 @@ function initAllCharts(){
   if(evalSummaryData){try{initEvalSummaryPane(evalSummaryData)}catch(e){console.warn('evalSummary:',e)}}
 }
 </script>
+<!-- ═══ Article Complete Modal ═══ -->
+<div class="art-modal-overlay" id="artModal" onclick="if(event.target===this)closeArtModal()">
+  <div class="art-modal">
+    <div class="art-modal-head">
+      <h2>✅ Artykuł gotowy</h2>
+      <div class="art-modal-stats">
+        <span id="amWords">—</span>
+        <span id="amScore">—</span>
+        <span id="amTime">—</span>
+      </div>
+      <button class="art-modal-close" onclick="closeArtModal()" title="Zamknij">✕</button>
+    </div>
+    <div class="art-modal-actions">
+      <button class="pri" onclick="copyArtRich()">📋 Kopiuj z formatowaniem</button>
+      <button onclick="copyArtPlain()">📄 Kopiuj tekst</button>
+      <button onclick="copyArtHTML()">🔖 Kopiuj HTML</button>
+      <span id="amCopyMsg" style="font-size:12px;color:var(--gn);align-self:center;display:none">✓ Skopiowano!</span>
+    </div>
+    <div class="art-modal-body" id="amBody"></div>
+  </div>
+</div>
 </body>
 </html>
