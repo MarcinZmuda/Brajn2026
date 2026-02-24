@@ -1267,9 +1267,9 @@ RETRY_DELAYS = [5, 15, 30]
 # v50.7 FIX 48: Auto-retry for transient LLM API errors (429 quota, 529 overloaded, 503 unavailable)
 LLM_RETRY_MAX = 3
 LLM_RETRY_DELAYS = [10, 30, 60]  # seconds between retries (429/503)
-LLM_RETRY_DELAYS_529 = [5, 15]   # krótkie dla 529 — fail fast, przejdź do fallback modelu
+LLM_RETRY_DELAYS_529 = [5, 15, 30, 60]   # 529 = overloaded — longer backoff before giving up
 LLM_RETRYABLE_CODES = {429, 503, 529}
-LLM_529_MAX_RETRIES = 2  # max 2 retry dla 529 zamiast 3 — szybsze przełączenie na Haiku
+LLM_529_MAX_RETRIES = 4  # 4 retry dla 529 — daje Anthropic czas na odciążenie
 
 # Circuit breaker: max total LLM retries per workflow to prevent retry storms
 # brajen_call(3 retries) × _llm_call_with_retry(3 retries) × batch loop(4 attempts) = 36 max
@@ -1297,7 +1297,8 @@ def _llm_call_with_retry(fn, *args, **kwargs):
     Does NOT retry on: 400 (bad request), 401 (auth), 404, etc.
     """
     last_error = None
-    for attempt in range(LLM_RETRY_MAX + 1):
+    _max_attempts = max(LLM_RETRY_MAX, LLM_529_MAX_RETRIES) + 1
+    for attempt in range(_max_attempts):
         try:
             return fn(*args, **kwargs)
         except Exception as e:
@@ -1699,7 +1700,7 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
     )
 
     # v52.4: _generate_claude ma pełny fallback chain (Sonnet→Haiku na 529)
-    # _llm_call_with_retry bez fallback powoduje crash zamiast przełączenia modelu
+    # v59.1: OpenAI fallback — H2 plan jest krytyczny, nie może crashować workflow
     try:
         response_text = _generate_claude(
             system_prompt=system_prompt,
@@ -1707,7 +1708,19 @@ def generate_h2_plan(main_keyword, mode, s1_data, basic_terms, extended_terms, u
             temperature=0.5,
         )
     except Exception as e:
-        raise RuntimeError(f"H2 plan generation failed: {e}") from e
+        err_str = str(e).lower()
+        if OPENAI_API_KEY and OPENAI_AVAILABLE and ("529" in err_str or "overload" in err_str or "503" in err_str):
+            logger.warning(f"[H2_PLAN] Claude 529/503 — fallback to OpenAI ({OPENAI_MODEL}): {str(e)[:100]}")
+            try:
+                response_text = _generate_openai(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=0.5,
+                )
+            except Exception as e2:
+                raise RuntimeError(f"H2 plan generation failed (Claude + OpenAI): Claude={e}, OpenAI={e2}") from e2
+        else:
+            raise RuntimeError(f"H2 plan generation failed: {e}") from e
     
     # Parse JSON response
     h2_list = None
