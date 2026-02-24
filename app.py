@@ -3603,6 +3603,49 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             else:
                 current_h2 = h2_structure[min(batch_num-1, len(h2_structure)-1)]
 
+            # ═══ KEYWORD DISTRIBUTION: use API remaining counts to prioritize ═══
+            # Brajn API tracks per-keyword usage (actual/target_max/remaining).
+            # Problem: API sends ALL basic keywords as MUST to every batch.
+            # Fix: keep only high-remaining keywords as MUST, demote rest to EXTENDED.
+            _kw_dict = pre_batch.get("keywords") or {}
+            _all_must = _kw_dict.get("basic_must_use", [])
+            _MAX_MUST_PER_BATCH = 3  # main + 2 others max
+
+            if _all_must and len(_all_must) > _MAX_MUST_PER_BATCH:
+                _raw_main_kw = pre_batch.get("main_keyword") or {}
+                _main_name = (_raw_main_kw.get("keyword", "") if isinstance(_raw_main_kw, dict)
+                              else str(_raw_main_kw)).lower().strip()
+
+                _main_kws = []
+                _scoreable = []
+                for kw in _all_must:
+                    kw_name = (kw.get("keyword", "") if isinstance(kw, dict) else str(kw)).lower().strip()
+                    if kw_name == _main_name:
+                        _main_kws.append(kw)
+                        continue
+                    if isinstance(kw, dict):
+                        actual = kw.get("actual", kw.get("actual_uses", kw.get("current_count", 0))) or 0
+                        target_max = kw.get("target_max", 0) or 0
+                        remaining = kw.get("remaining", kw.get("remaining_max", 0))
+                        if not remaining and target_max:
+                            remaining = max(0, int(target_max) - int(actual))
+                        _scoreable.append((int(remaining) if remaining else 99, kw))
+                    else:
+                        _scoreable.append((99, kw))  # no data = assume needed
+
+                # Sort by remaining desc: keywords most needing coverage first
+                _scoreable.sort(key=lambda x: -x[0])
+                _slots = _MAX_MUST_PER_BATCH - len(_main_kws)
+                _keep_must = [kw for _, kw in _scoreable[:_slots]]
+                _demote = [kw for _, kw in _scoreable[_slots:]]
+
+                if _demote:
+                    _kw_dict["basic_must_use"] = _main_kws + _keep_must
+                    _existing_ext = _kw_dict.get("extended_this_batch", [])
+                    _kw_dict["extended_this_batch"] = _existing_ext + _demote
+                    pre_batch["keywords"] = _kw_dict
+                    yield emit("log", {"msg": f"🔄 KW dist: {len(_all_must)} → MUST {len(_main_kws) + len(_keep_must)}, EXT +{len(_demote)}"})
+
             must_kw = (pre_batch.get("keywords") or {}).get("basic_must_use", [])
             ext_kw = (pre_batch.get("keywords") or {}).get("extended_this_batch", [])
             stop_kw = (pre_batch.get("keyword_limits") or {}).get("stop_keywords", [])
