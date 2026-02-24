@@ -453,6 +453,12 @@ def _fmt_batch_header(pre_batch, h2, batch_type):
     batch_number = pre_batch.get("batch_number", 1)
     total_batches = pre_batch.get("total_planned_batches", 1)
     batch_length = pre_batch.get("batch_length") or {}
+
+    # INTRO: fixed length, no section header
+    if batch_type in ("INTRO", "intro"):
+        return f"""═══ BATCH {batch_number}/{total_batches}: INTRO ═══
+Długość: 120-200 słów"""
+
     min_w = batch_length.get("min_words", 350)
     max_w = batch_length.get("max_words", 500)
 
@@ -463,13 +469,10 @@ def _fmt_batch_header(pre_batch, h2, batch_type):
         if suggested:
             length_hint = f"\nSugerowana długość tej sekcji: ~{suggested} słów."
 
-    h2_instruction = ""
-    if batch_type not in ("INTRO", "intro"):
-        h2_instruction = f"\nZaczynaj DOKŁADNIE od: h2: {h2}"
-
     return f"""═══ BATCH {batch_number}/{total_batches}: {batch_type} ═══
-Sekcja H2: "{h2}"
-Długość: {min_w}-{max_w} słów{length_hint}{h2_instruction}"""
+Sekcja H2: {h2}
+Długość: {min_w}-{max_w} słów{length_hint}
+Zaczynaj DOKŁADNIE od: h2: {h2}"""
 
 
 def _parse_target_max(target_total_str):
@@ -880,15 +883,87 @@ def _fmt_intro_guidance_v2(pre_batch, batch_type):
     kw_name = main_kw.get("keyword", "") if isinstance(main_kw, dict) else str(main_kw)
     serp = pre_batch.get("serp_enrichment") or {}
 
-    parts = ["═══ LEAD (WSTĘP) ═══", "120-200 słów. NIE zaczynaj od h2:."]
+    parts = ["═══ LEAD (WSTĘP) ═══"]
+    parts.append("120-200 słów. NIE zaczynaj od h2:. Lead nie ma nagłówka.")
     if kw_name:
         parts.append(f'Zacznij od sedna: czym jest "{kw_name}" i dlaczego czytelnik powinien czytać dalej.')
-    parts.append("Kontekst praktyczny + konkretny fakt. NIE zapowiadaj co będzie dalej.")
+    parts.append("Kontekst praktyczny + konkretny fakt liczbowy w PIERWSZYM akapicie.")
+    parts.append("NIE zapowiadaj co będzie dalej. NIE pisz 'w tym artykule dowiesz się'.")
 
     search_intent = serp.get("search_intent", "")
     if search_intent:
-        parts.append(f"Intencja: {search_intent}")
+        parts.append(f"Intencja wyszukiwania: {search_intent}")
 
+    # ── Priority 1: Featured Snippet ──
+    fs = serp.get("featured_snippet", "")
+    fs_text = ""
+    if fs:
+        fs_text = fs if isinstance(fs, str) else (fs.get("text", "") if isinstance(fs, dict) else str(fs))
+    if fs_text and len(fs_text) > 20:
+        parts.append(f"\n📋 Google Featured Snippet (PRZELICYTUJ tę odpowiedź — daj więcej faktów i konkretów):")
+        parts.append(f"  \"{fs_text[:300]}\"")
+
+    # ── Priority 2: AI Overview ──
+    aio = serp.get("ai_overview", "")
+    aio_text = ""
+    if aio:
+        aio_text = aio if isinstance(aio, str) else (aio.get("text", "") if isinstance(aio, dict) else str(aio))
+    if aio_text and len(aio_text) > 20:
+        parts.append(f"\n🤖 Google AI Overview (Twój lead MUSI być bardziej konkretny):")
+        parts.append(f"  \"{aio_text[:400]}\"")
+
+    # ── Fallback: when NO snippet AND NO AI overview ──
+    if not (fs_text and len(fs_text) > 20) and not (aio_text and len(aio_text) > 20):
+        parts.append("\n⚠️ Brak Featured Snippet i AI Overview — zbuduj lead z tych danych:")
+
+        # Competitor titles → what angle works
+        comp_titles = serp.get("competitor_titles", [])
+        if comp_titles:
+            titles_str = ", ".join(
+                str(t.get("title", t) if isinstance(t, dict) else t)[:60]
+                for t in comp_titles[:5] if t
+            )
+            if titles_str:
+                parts.append(f"  📰 Top wyniki Google: {titles_str}")
+                parts.append("  → Twój lead musi odpowiedzieć na pytanie lepiej niż te tytuły.")
+
+        # Competitor snippets → what Google shows
+        comp_snippets = serp.get("competitor_snippets", [])
+        if comp_snippets:
+            snippet_texts = []
+            for sn in comp_snippets[:3]:
+                txt = sn.get("snippet", sn) if isinstance(sn, dict) else str(sn)
+                if txt and len(str(txt)) > 20:
+                    snippet_texts.append(str(txt)[:100])
+            if snippet_texts:
+                parts.append(f"  📝 Meta opisy konkurencji:")
+                for st in snippet_texts:
+                    parts.append(f"    • {st}")
+
+        # PAA → the first question is often the core user intent
+        paa = serp.get("paa_questions", [])
+        if paa:
+            paa_texts = []
+            for q in paa[:3]:
+                qt = q.get("question", q) if isinstance(q, dict) else str(q)
+                if qt and len(str(qt)) > 5:
+                    paa_texts.append(str(qt))
+            if paa_texts:
+                parts.append(f"  ❓ Ludzie pytają: {' | '.join(paa_texts)}")
+                parts.append("  → Lead powinien odpowiedzieć na PIERWSZE pytanie w 1-2 zdaniach.")
+
+        # S1 context — key facts
+        s1_ctx = pre_batch.get("_s1_context") or {}
+        eav = s1_ctx.get("eav", [])
+        if eav:
+            facts = []
+            for e in eav[:3]:
+                if isinstance(e, dict):
+                    facts.append(f"{e.get('entity','')}: {e.get('value','')}")
+            if facts:
+                parts.append(f"  📊 Fakty do wplecenia: {', '.join(facts)}")
+
+    # ── Custom intro guidance (from master API) ──
     guidance = pre_batch.get("intro_guidance", "")
     if guidance:
         if isinstance(guidance, dict):
