@@ -916,6 +916,17 @@ def _fmt_intro_guidance_v2(pre_batch, batch_type):
     if not (fs_text and len(fs_text) > 20) and not (aio_text and len(aio_text) > 20):
         parts.append("\n⚠️ Brak Featured Snippet i AI Overview — zbuduj lead z tych danych:")
 
+        # v2.3: Competitor first paragraphs — strongest fallback signal
+        comp_intros = serp.get("competitor_intros", [])
+        if comp_intros:
+            parts.append("  📖 Pierwsze akapity konkurencji (PRZELICYTUJ — daj więcej konkretów):")
+            for ci in comp_intros[:3]:
+                _title = ci.get("title", "")[:50]
+                _intro = ci.get("intro", "")[:250]
+                if _intro:
+                    parts.append(f"    [{_title}]: \"{_intro}\"")
+            parts.append("  → Twój lead musi być LEPSZY: bardziej konkretny, z liczbami, od razu do sedna.")
+
         # Competitor titles → what angle works
         comp_titles = serp.get("competitor_titles", [])
         if comp_titles:
@@ -1000,6 +1011,20 @@ def _fmt_legal_medical(pre_batch):
         parts.append("═══ KONTEKST PRAWNY (YMYL) ═══")
         parts.append("NIE wymyślaj sygnatur, dat orzeczeń ani numerów artykułów.")
         parts.append("Placeholder 'odpowiednich przepisów' → zawsze podaj konkretny art.")
+        parts.append("""⚠️ KRYTYCZNE ZASADY DLA TREŚCI PRAWNYCH:
+  1. SPRAWDŹ NAZWĘ USTAWY — nie mylij ustaw:
+     ❌ „Art. 87 ustawy o ochronie konkurencji i konsumentów" ← TO INNA USTAWA
+     ✅ „Art. 87 § 1 Kodeksu wykroczeń"
+  2. SPRAWDŹ NUMER ARTYKUŁU — nie zaokrąglaj:
+     ❌ „Art. 178 k.k." ← to zaostrzenie karalności, nie samodzielny typ czynu
+     ✅ „Art. 178a § 1 k.k." ← prowadzenie w stanie nietrzeźwości
+  3. PODAWAJ PEŁNĄ SYGNATURĘ z paragrafem (§):
+     ❌ „Art. 178 Kodeksu karnego"
+     ✅ „Art. 178a § 1 k.k."
+  4. NIE MIESZAJ JEDNOSTEK: promile (‰) = krew, mg/dm³ = wydychane powietrze.
+  5. Jeśli NIE masz pewności co do numeru artykułu — POMIŃ go. Lepiej ogólnik niż błąd.
+  6. Każdą podstawę prawną podawaj w formacie: „Art. X § Y [skrót ustawy]".""")
+
 
         wiki_arts = pre_batch.get("legal_wiki_articles") or []
         if wiki_arts:
