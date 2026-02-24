@@ -130,6 +130,7 @@ Ton: analityczny, rzeczowy. 3. osoba lub bezosobowo. ZAKAZ 2. osoby.
 Pisz konkretnie. Każde zdanie = nowa informacja.
 Fakt podany raz — nie powtarzaj go innymi słowami.
 Nie zapowiadaj ("dalej opiszemy"), nie streszczaj, nie komentuj. Po prostu pisz.
+NIE zaczynaj każdej sekcji od frazy głównej — każdy H2 otwieraj inaczej.
 
 ZDANIA: średnia 8-20 słów, max 30. Krótkie + dłuższe = naturalny rytm.
 Wielokrotnie złożone → rozbij na prostsze.
@@ -140,8 +141,10 @@ FLEKSJA: odmieniaj frazy przez przypadki — to jedno użycie, nie powtórzenie.
 FORMAT: h2:/h3: dla nagłówków. Zero markdown.
   3+ kroków → lista HTML. 3+ porównań → tabela HTML (<table>).
 
-NAZWY FIRM I MAREK: nie używaj nazw handlowych — zastąp opisem generycznym.
-  Nurofen → ibuprofen, Karcher → myjka ciśnieniowa, Thermomix → robot kuchenny.
+NAZWY FIRM, MAREK I PLATFORM: nie używaj nazw własnych firm i serwisów.
+  Nurofen → ibuprofen, Karcher → myjka ciśnieniowa, OLX → portal ogłoszeniowy.
+
+ZAKAZANE FRAZY: "warto zauważyć/pamiętać/podkreślić", "należy podkreślić/pamiętać",
   "kluczowe jest", "istotne jest", "w tym kontekście", "podsumowując",
   "w przedmiotowej sprawie", "na kanwie niniejszego", placeholdery.
 </zasady>""")
@@ -366,8 +369,7 @@ def _fmt_keywords(pre_batch):
 
     # ── BUILD ──
     parts = ["═══ FRAZY KLUCZOWE ═══"]
-    parts.append("Frazy to TEMATY do poruszenia — NIE szablony do wklejania.")
-    parts.append("Pisz naturalnie. Fraza może pojawić się w odmienionym szyku.\n")
+    parts.append("Frazy to TEMATY — pisz naturalnie, nie wpychaj kilku w jedno zdanie.\n")
 
     if _kw_force_ban and main_kw:
         parts.append(f'⛔ STOP: Fraza "{main_kw}" jest PRZEKROCZONA — nie używaj w tym batchu.\n')
@@ -501,8 +503,10 @@ def _fmt_entity_context_v2(pre_batch):
 
     if main_name:
         synonyms = _entity_seo.get("entity_synonyms", [])[:5]
-        syn_str = f' (synonimy: {", ".join(str(s) for s in synonyms)})' if synonyms else ""
-        parts.append(f"═══ ENCJE ═══\nGłówna: {main_name}{syn_str}")
+        if synonyms:
+            parts.append(f"═══ ENCJE ═══\nSynonimy głównej frazy: {', '.join(str(s) for s in synonyms)}")
+        else:
+            parts.append("═══ ENCJE ═══")
 
         multi_syns = _entity_seo.get("multi_entity_synonyms", {})
         if multi_syns:
@@ -620,8 +624,17 @@ def _fmt_serp_enrichment_v2(pre_batch):
         if q_strs:
             parts.append("Pytania PAA (odpowiedz na 1-2):\n  " + "\n  ".join(q_strs))
     if lsi:
-        lsi_names = [l.get("keyword", l) if isinstance(l, dict) else l for l in lsi[:8]]
-        parts.append(f"LSI: {', '.join(str(n) for n in lsi_names)}")
+        # Deduplicate: skip LSI keywords already in EXTENDED
+        _ext_kws = pre_batch.get("keywords", {}).get("extended_this_batch", [])
+        _ext_names = {(k.get("keyword", k) if isinstance(k, dict) else str(k)).lower().strip()
+                      for k in _ext_kws}
+        lsi_names = []
+        for l in lsi[:8]:
+            name = l.get("keyword", l) if isinstance(l, dict) else l
+            if str(name).lower().strip() not in _ext_names:
+                lsi_names.append(str(name))
+        if lsi_names:
+            parts.append(f"LSI: {', '.join(lsi_names)}")
 
     return "\n".join(parts) if len(parts) > 1 else ""
 
@@ -678,14 +691,8 @@ def _fmt_legal_medical(pre_batch):
 
     if legal_ctx and legal_ctx.get("active"):
         parts.append("═══ KONTEKST PRAWNY (YMYL) ═══")
-        parts.append("MUSISZ:")
-        parts.append("  1. Cytować realne przepisy — ALE TYLKO pasujące do gałęzi prawa artykułu")
-        parts.append("  2. NIE wymyślać sygnatur ani dat orzeczeń")
-        parts.append("")
-        parts.append("🚫 BŁĘDY KRYTYCZNE:")
-        parts.append("  • JEDNOSTKI: mg/100 ml → BŁĄD. Używaj: promile (‰) lub mg/dm³")
-        parts.append("  • KARA 178a §1: do 2 lat → BŁĄD. Prawidłowo: do 3 lat (nowelizacja 2023)")
-        parts.append("  • PLACEHOLDER 'odpowiednich przepisów' → zawsze podaj konkretny art.")
+        parts.append("NIE wymyślaj sygnatur, dat orzeczeń ani numerów artykułów.")
+        parts.append("Placeholder 'odpowiednich przepisów' → zawsze podaj konkretny art.")
 
         wiki_arts = pre_batch.get("legal_wiki_articles") or []
         if wiki_arts:
@@ -696,12 +703,6 @@ def _fmt_legal_medical(pre_batch):
                     parts.append(f"  {w['extract'][:300]}")
                     parts.append(f"  Źródło: {w['url']}")
                     parts.append("")
-
-        parts.append("⚠️ WERYFIKACJA ORZECZEŃ:")
-        parts.append("  • II K, III K, AKa = KARNA")
-        parts.append("  • I C, II C, ACa = CYWILNA")
-        parts.append("  • I P, II P = PRACY")
-        parts.append("  ❌ NIE cytuj wyroku cywilnego w artykule o prawie KARNYM")
 
         legal_enrich = ymyl_enrich.get("legal", {})
         if legal_enrich.get("articles"):
