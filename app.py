@@ -2080,6 +2080,119 @@ def _fuzzy_phrase_in_text(phrase, text_lower, _text_stems=None):
     return True
 
 
+
+# ============================================================
+# v2.4: POLISH TEXT NATURALNESS — stats from NKJP corpus data
+# Reference: Moździerz 2020 (90k words), IPI PAN (25M words),
+# IFJ PAN 2023 (240 literary works), Jasnopis (SWPS+PAN)
+# ============================================================
+_PL_DIACRITICS = set("ąęćłńóśźżĄĘĆŁŃÓŚŹŻ")
+_PL_VOWELS = set("aeiouyąęóAEIOUYĄĘÓ")
+
+def _compute_polish_text_stats(text: str) -> dict:
+    """Compute Polish-specific naturalness metrics against NKJP corpus norms."""
+    if not text or len(text) < 200:
+        return {"computed": False}
+
+    import re
+    # Clean HTML
+    clean = re.sub(r"<[^>]+>", " ", text)
+    clean = re.sub(r"\s+", " ", clean).strip()
+
+    chars = [c for c in clean if c.isalpha()]
+    char_count = len(chars)
+    if char_count < 50:
+        return {"computed": False}
+
+    # 1. Diacritics ratio (NKJP norm: 6.9% ±1%)
+    diac_count = sum(1 for c in chars if c in _PL_DIACRITICS)
+    diac_ratio = diac_count / char_count if char_count else 0
+
+    # 2. Vowel ratio (NKJP norm: 35-38%)
+    vowel_count = sum(1 for c in chars if c in _PL_VOWELS)
+    vowel_ratio = vowel_count / char_count if char_count else 0
+
+    # 3. Word length (NKJP norm: 6.0 chars ±0.5)
+    words = clean.split()
+    word_lengths = [len(w.strip(".,;:!?\"'()[]{}–—-")) for w in words if len(w.strip(".,;:!?\"'()[]{}–—-")) > 0]
+    avg_word_len = sum(word_lengths) / len(word_lengths) if word_lengths else 0
+
+    # 4. Sentence length (norm: 10-15 words for publicystyka)
+    sentences = re.split(r'[.!?]+', clean)
+    sentences = [s.strip() for s in sentences if len(s.strip().split()) >= 3]
+    sent_lengths = [len(s.split()) for s in sentences]
+    avg_sent_len = sum(sent_lengths) / len(sent_lengths) if sent_lengths else 0
+
+    # 5. FOG-PL (Gunning adapted: hard words = 4+ syllables in Polish)
+    def _count_syllables_pl(word):
+        """Count Polish syllables (vowel nuclei)."""
+        w = word.lower()
+        count = 0
+        prev_vowel = False
+        for ch in w:
+            is_v = ch in "aeiouyąęó"
+            if is_v and not prev_vowel:
+                count += 1
+            prev_vowel = is_v
+        return max(1, count)
+
+    hard_words = sum(1 for w in word_lengths
+                     if _count_syllables_pl(words[word_lengths.index(w)] if w < len(words) else "x") >= 4)
+    # Safer: count syllables from actual words
+    hard_count = 0
+    for w in words:
+        clean_w = w.strip(".,;:!?\"'()[]{}–—-")
+        if clean_w and _count_syllables_pl(clean_w) >= 4:
+            hard_count += 1
+    total_words = len(words)
+    fog_pl = 0.4 * ((total_words / max(len(sentences), 1)) + 100 * (hard_count / max(total_words, 1))) if total_words else 0
+
+    # 6. Comma density (NKJP: comma > letter "b", ~1.5% of chars)
+    all_chars = len(clean)
+    comma_count = clean.count(",")
+    comma_ratio = comma_count / all_chars if all_chars else 0
+
+    # 7. "że" comma check (100% obligatory in Polish)
+    ze_total = len(re.findall(r'\bże\b', clean, re.IGNORECASE))
+    ze_with_comma = len(re.findall(r',\s*że\b', clean, re.IGNORECASE))
+    ze_comma_pct = ze_with_comma / ze_total if ze_total > 0 else 1.0
+
+    # Scoring
+    diac_score = max(0, 100 - abs(diac_ratio - 0.069) * 1000)  # penalty per 0.1% deviation
+    word_len_score = max(0, 100 - abs(avg_word_len - 6.0) * 50)  # penalty per 0.5 char
+    sent_len_ok = 8 <= avg_sent_len <= 18
+    sent_score = 100 if sent_len_ok else max(0, 100 - abs(avg_sent_len - 13) * 5)
+    fog_score = 100 if 7 <= fog_pl <= 12 else max(0, 100 - abs(fog_pl - 9.5) * 8)
+
+    composite = round(diac_score * 0.25 + word_len_score * 0.2 + sent_score * 0.2 +
+                       fog_score * 0.2 + (ze_comma_pct * 100) * 0.15)
+
+    return {
+        "computed": True,
+        "score": min(100, max(0, composite)),
+        # Raw values
+        "diacritics_ratio": round(diac_ratio * 100, 2),  # %
+        "diacritics_target": 6.9,
+        "vowel_ratio": round(vowel_ratio * 100, 1),
+        "avg_word_length": round(avg_word_len, 2),
+        "avg_word_length_target": 6.0,
+        "avg_sentence_length": round(avg_sent_len, 1),
+        "sentence_count": len(sent_lengths),
+        "fog_pl": round(fog_pl, 1),
+        "fog_level": ("szkoła podst." if fog_pl < 7 else "publicystyka" if fog_pl < 10
+                       else "liceum" if fog_pl < 13 else "studia" if fog_pl < 16 else "specjalistyczny"),
+        "comma_ratio": round(comma_ratio * 100, 2),
+        "ze_comma_pct": round(ze_comma_pct * 100, 1),
+        "ze_total": ze_total,
+        "hard_words_pct": round(hard_count / max(total_words, 1) * 100, 1),
+        # Scores per dimension
+        "diacritics_score": round(diac_score),
+        "word_len_score": round(word_len_score),
+        "sentence_score": round(sent_score),
+        "fog_score": round(fog_score),
+    }
+
+
 def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
                                 concept_entities, clean_must_mention,
                                 clean_ngrams, nlp_entities):
@@ -3161,6 +3274,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "legal": {},
             "medical": {},
         }
+        judgments_clean = []  # v2.4: init before conditional block
         if legal_context:
             judgments_raw = legal_context.get("top_judgments") or []
             judgments_clean = []
@@ -5314,6 +5428,121 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"🎯 Ocena: {grade} | Quality: {_q_score} | Salience: {_sal_score} | Semantic: {_sem_score} | Style: {_st_score}"})
         except Exception as eval_err:
             logger.warning(f"Evaluation summary failed: {eval_err}")
+
+        # ═══ v2.4: ENTITY INTELLIGENCE PANEL — real metrics only ═══
+        try:
+            _ei_text = full_text or article_text or ""
+            if _ei_text and len(_ei_text) > 200:
+                yield emit("log", {"msg": "🧬 Entity Intelligence: analiza encji i naturalności tekstu..."})
+
+                # A. Polish NLP stats (NKJP-based)
+                _pl_stats = _compute_polish_text_stats(_ei_text)
+
+                # B. Entity placement: main keyword in text
+                _ei_lower = _ei_text.lower()
+                _kw_lower = main_keyword.lower().strip()
+                _kw_mentions = _ei_lower.count(_kw_lower) if _kw_lower else 0
+                _word_count_ei = len(_ei_text.split())
+                _entity_density = round(_kw_mentions / max(_word_count_ei, 1) * 1000, 1)  # per 1000 words
+
+                # First sentence check
+                import re as _re_ei
+                _first_sent = _re_ei.split(r'[.!?]', _ei_text, maxsplit=1)[0] if _ei_text else ""
+                _kw_in_first_sent = _kw_lower in _first_sent.lower() if _kw_lower else False
+
+                # H2 headings with main entity
+                _h2_matches = _re_ei.findall(r'<h2[^>]*>(.*?)</h2>', _ei_text, _re_ei.IGNORECASE)
+                _h2_with_entity = sum(1 for h in _h2_matches if _kw_lower in h.lower())
+
+                # C. Semantic distance data (already computed)
+                _sd = semantic_dist_result if semantic_dist_result.get("enabled") else {}
+
+                # D. Subject position data (already computed)
+                _sp = subject_pos if subject_pos else {}
+
+                # E. Co-occurrence pairs check
+                _cooc_data = []
+                _cooc_pairs = backend_cooccurrence_pairs if backend_cooccurrence_pairs else []
+                for pair in _cooc_pairs[:10]:
+                    if isinstance(pair, dict):
+                        e1 = str(pair.get("entity_1", pair.get("e1", ""))).lower()
+                        e2 = str(pair.get("entity_2", pair.get("e2", ""))).lower()
+                    elif isinstance(pair, (list, tuple)) and len(pair) >= 2:
+                        e1, e2 = str(pair[0]).lower(), str(pair[1]).lower()
+                    else:
+                        continue
+                    if e1 and e2:
+                        found = e1 in _ei_lower and e2 in _ei_lower
+                        _cooc_data.append({"e1": e1[:30], "e2": e2[:30], "found": found})
+
+                _cooc_found = sum(1 for c in _cooc_data if c["found"])
+                _cooc_total = len(_cooc_data)
+
+                # F. Entity gaps (from S1)
+                _entity_gaps_list = []
+                try:
+                    _eg_raw = s1.get("entity_gaps", []) if s1 else []
+                    for gap in (_eg_raw or [])[:8]:
+                        if isinstance(gap, dict):
+                            _g_name = gap.get("entity", gap.get("item", gap.get("name", "")))
+                            _g_prio = gap.get("priority", "medium")
+                            if _g_name:
+                                _in_art = str(_g_name).lower() in _ei_lower
+                                _entity_gaps_list.append({"entity": str(_g_name)[:40], "priority": _g_prio, "covered": _in_art})
+                except Exception:
+                    pass
+
+                yield emit("entity_intelligence", {
+                    # A. Polish NLP naturalness
+                    "polish_nlp": _pl_stats,
+                    # B. Entity placement
+                    "placement": {
+                        "main_keyword": main_keyword,
+                        "mentions": _kw_mentions,
+                        "density_per_1k": _entity_density,
+                        "in_first_sentence": _kw_in_first_sent,
+                        "h2_count": len(_h2_matches),
+                        "h2_with_entity": _h2_with_entity,
+                    },
+                    # C. Semantic distance
+                    "semantic_distance": {
+                        "enabled": bool(_sd.get("enabled")),
+                        "score": _sd.get("score"),
+                        "keyphrase_coverage": round((_sd.get("keyphrase_coverage", 0)) * 100, 1),
+                        "keyphrase_found": _sd.get("keyphrases_found", 0),
+                        "keyphrase_total": _sd.get("keyphrases_total", 0),
+                        "keyphrase_missing": _sd.get("keyphrases_missing_list", [])[:8],
+                        "entity_overlap": round((_sd.get("entity_overlap", 0)) * 100, 1),
+                        "entities_shared": _sd.get("entities_shared_list", [])[:10],
+                        "entities_only_competitor": _sd.get("entities_only_competitor", [])[:8],
+                        "must_mention_pct": round((_sd.get("must_mention_pct", 0)) * 100, 1),
+                        "must_mention_found": _sd.get("must_mention_found", [])[:8],
+                        "must_mention_missing": _sd.get("must_mention_missing", [])[:8],
+                        "ngram_overlap": round((_sd.get("ngram_overlap", 0)) * 100, 1),
+                    },
+                    # D. Subject position
+                    "subject_position": {
+                        "score": _sp.get("score"),
+                        "subject_ratio": round((_sp.get("subject_ratio", 0)) * 100, 1) if _sp.get("subject_ratio") else None,
+                        "first_sentence_has_entity": _sp.get("first_sentence_has_entity"),
+                        "h2_entity_count": _sp.get("h2_entity_count"),
+                        "total_sentences": _sp.get("total_sentences"),
+                        "sentences_with_entity": _sp.get("sentences_with_entity"),
+                    },
+                    # E. Co-occurrence
+                    "cooccurrence": {
+                        "found": _cooc_found,
+                        "total": _cooc_total,
+                        "pairs": _cooc_data[:8],
+                    },
+                    # F. Entity gaps
+                    "entity_gaps": _entity_gaps_list[:8],
+                    # G. Style (already computed)
+                    "style_score": st_score,
+                })
+                yield emit("log", {"msg": f"🧬 Entity Intelligence: PL={_pl_stats.get('score', '?')}/100 | mentions={_kw_mentions} | cooc={_cooc_found}/{_cooc_total}"})
+        except Exception as ei_err:
+            logger.warning(f"Entity intelligence panel failed: {ei_err}")
 
         # ═══ v2.3: REDAKTOR NACZELNY — final expert review ═══
         try:
