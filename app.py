@@ -2193,6 +2193,83 @@ def _compute_polish_text_stats(text: str) -> dict:
     }
 
 
+def _compute_text_dimensions(pl_stats: dict, style: dict) -> dict:
+    """Compute 3 composite text quality dimensions from existing metrics.
+    
+    Spójność (Coherence): How well text flows between sections.
+      - transition_ratio (20-35% ideal) → 40%
+      - cv_paragraphs (<0.5 ideal) → 30%
+      - repetition_ratio (<8% ideal) → 30%
+    
+    Płynność (Fluency): Sentence rhythm and readability.
+      - cv_sentences (0.25-0.5 ideal) → 35%
+      - avg_sentence_length (10-18 ideal for Polish) → 25%
+      - repetition_ratio (<8%) → 20%
+      - fog_score from pl_stats → 20%
+    
+    Naturalność (Naturalness): How human/native the text sounds.
+      - polish_nlp composite (NKJP norms) → 60%
+      - passive_ratio (<20% ideal) → 20%
+      - style score → 20%
+    """
+    def _dim(val, low, high, invert=False):
+        """Score 0-100: how well val fits [low, high] range."""
+        if val is None:
+            return 50
+        if invert:
+            return max(0, min(100, 100 - val * 100)) if val <= 1 else 0
+        if low <= val <= high:
+            return 100
+        if val < low:
+            dist = (low - val) / max(low, 0.01)
+            return max(0, round(100 - dist * 100))
+        else:
+            dist = (val - high) / max(high, 0.01)
+            return max(0, round(100 - dist * 80))
+
+    # --- Spójność (Coherence) ---
+    tr = style.get("transition_ratio")
+    tr_sc = _dim(tr, 0.10, 0.35) if tr is not None else 50
+
+    cv_p = style.get("cv_paragraphs")
+    cvp_sc = _dim(cv_p, 0.0, 0.50) if cv_p is not None else 50
+
+    rep = style.get("repetition_ratio")
+    rep_sc = max(0, round(100 - (rep or 0) * 500)) if rep is not None else 50  # 0%→100, 20%→0
+
+    spojnosc = round(tr_sc * 0.4 + cvp_sc * 0.3 + rep_sc * 0.3)
+
+    # --- Płynność (Fluency) ---
+    cv_s = style.get("cv_sentences")
+    cvs_sc = _dim(cv_s, 0.25, 0.50) if cv_s is not None else 50
+
+    avg_sl = style.get("avg_sentence_length")
+    sl_sc = _dim(avg_sl, 10, 18) if avg_sl is not None else 50
+
+    fog_sc = pl_stats.get("fog_score", 50) if pl_stats else 50
+
+    plynnosc = round(cvs_sc * 0.35 + sl_sc * 0.25 + rep_sc * 0.20 + fog_sc * 0.20)
+
+    # --- Naturalność (Naturalness) ---
+    pl_composite = pl_stats.get("score", 50) if pl_stats else 50
+
+    pas = style.get("passive_ratio")
+    pas_sc = _dim(pas, 0.0, 0.20) if pas is not None else 50
+
+    sty_sc = style.get("score", 50) if style.get("score") else 50
+
+    naturalnosc = round(pl_composite * 0.60 + pas_sc * 0.20 + sty_sc * 0.20)
+
+    return {
+        "spojnosc": {"score": min(100, max(0, spojnosc)), "label": "Spójność",
+                     "components": {"transitions": tr_sc, "paragraph_cv": cvp_sc, "no_repetition": rep_sc}},
+        "plynnosc": {"score": min(100, max(0, plynnosc)), "label": "Płynność",
+                     "components": {"sentence_cv": cvs_sc, "sentence_length": sl_sc, "no_repetition": rep_sc, "readability": fog_sc}},
+        "naturalnosc": {"score": min(100, max(0, naturalnosc)), "label": "Naturalność",
+                        "components": {"polish_nlp": pl_composite, "low_passive": pas_sc, "style": round(sty_sc)}},
+    }
+
+
 def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
                                 concept_entities, clean_must_mention,
                                 clean_ngrams, nlp_entities):
@@ -3855,6 +3932,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # ═══ AI MIDDLEWARE: Track accepted batches for memory ═══
         accepted_batches_log = []
+        _style_anchor = ""  # v2.5: voice continuity — representative sentences from INTRO
 
         # ═══ ENTITY CONTENT PLAN — assign lead entity per batch/H2 ═══
         # Each H2 section gets ONE lead entity as "paragraph subject opener".
@@ -4388,6 +4466,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         if article_memory.get("topics_covered"):
                             yield emit("log", {"msg": f"🧠 Lokalna pamięć: {len(article_memory.get('topics_covered', []))} tematów"})
                 
+                # ═══ v2.5: VOICE CONTINUITY — inject style reference into pre_batch ═══
+                if batch_num > 1 and accepted_batches_log:
+                    _prev_text = accepted_batches_log[-1].get("text", "")
+                    if _prev_text:
+                        # Extract last 3 sentences for smooth transition
+                        import re as _re_vc
+                        _prev_sents = [s.strip() for s in _re_vc.split(r'(?<=[.!?])\s+', _prev_text) if len(s.strip()) > 15]
+                        _last_3 = _prev_sents[-3:] if len(_prev_sents) >= 3 else _prev_sents
+                        pre_batch["_voice_last_sentences"] = "\n".join(_last_3)
+                    if _style_anchor:
+                        pre_batch["_voice_style_anchor"] = _style_anchor
+
                 text = generate_batch_text(
                     pre_batch, current_h2, batch_type,
                     article_memory, engine=engine, openai_model=effective_openai_model,
@@ -4613,6 +4703,20 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 else:
                     # Exceeded but smart retry not applicable — simple retry
                     yield emit("log", {"msg": f"🔄 Retry: exceeded keywords, próba {attempt + 2}/{max_attempts}"})
+
+            # ═══ v2.5: VOICE CONTINUITY — extract style anchor from INTRO ═══
+            if batch_accepted and accepted_batches_log:
+                _last_text = accepted_batches_log[-1].get("text", "")
+
+                # Extract style anchor from batch 1 (INTRO) — best sentences for voice reference
+                if batch_num == 1 and _last_text and not _style_anchor:
+                    import re as _re_sa
+                    _sents = [s.strip() for s in _re_sa.split(r'(?<=[.!?])\s+', _last_text) if len(s.strip()) > 30]
+                    # Pick 3 most "characteristic" sentences (not too short, not too long)
+                    _good = [s for s in _sents if 40 < len(s) < 200 and not s.startswith("h2:") and not s.startswith("h3:")]
+                    _style_anchor = "\n".join(_good[:3])
+                    if _style_anchor:
+                        yield emit("log", {"msg": f"🎨 Kotwica stylu z INTRO: {len(_good[:3])} zdań referencyjnych"})
 
             # Save FAQ if applicable
             if batch_type == "FAQ" and batch_accepted:
@@ -5439,6 +5543,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if _ei_text and len(_ei_text) > 200:
                 yield emit("log", {"msg": "🧬 Entity Intelligence: analiza encji i naturalności tekstu..."})
 
+                # Safe access to variables from earlier blocks
+                try:
+                    _style_m = style_metrics
+                except (NameError, UnboundLocalError):
+                    _style_m = {}
+                try:
+                    _st_sc = st_score
+                except (NameError, UnboundLocalError):
+                    _st_sc = None
+
                 # A. Polish NLP stats (NKJP-based)
                 _pl_stats = _compute_polish_text_stats(_ei_text)
 
@@ -5459,10 +5573,16 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 _h2_with_entity = sum(1 for h in _h2_matches if _kw_lower in h.lower())
 
                 # C. Semantic distance data (already computed)
-                _sd = semantic_dist_result if semantic_dist_result.get("enabled") else {}
+                try:
+                    _sd = semantic_dist_result if semantic_dist_result.get("enabled") else {}
+                except (NameError, UnboundLocalError):
+                    _sd = {}
 
                 # D. Subject position data (already computed)
-                _sp = subject_pos if isinstance(subject_pos, dict) else {}
+                try:
+                    _sp = subject_pos if isinstance(subject_pos, dict) else {}
+                except (NameError, UnboundLocalError):
+                    _sp = {}
 
                 # E. Co-occurrence pairs check — safe access
                 _cooc_data = []
@@ -5551,8 +5671,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     },
                     # F. Entity gaps
                     "entity_gaps": _entity_gaps_list[:8],
-                    # G. Style (already computed)
-                    "style_score": st_score,
+                    # G. Style consistency (Anti-Frankenstein data)
+                    "style": {
+                        "score": _st_sc if isinstance(_st_sc, (int, float)) else None,
+                        "cv_sentences": _style_m.get("cv_sentences") if _style_m else None,
+                        "cv_paragraphs": _style_m.get("cv_paragraphs") if _style_m else None,
+                        "passive_ratio": _style_m.get("passive_ratio") if _style_m else None,
+                        "transition_ratio": _style_m.get("transition_ratio") if _style_m else None,
+                        "repetition_ratio": _style_m.get("repetition_ratio") if _style_m else None,
+                        "avg_sentence_length": _style_m.get("avg_sentence_length") if _style_m else None,
+                        "issues": (_style_m.get("issues") or [])[:5] if _style_m else [],
+                    },
+                    # H. Composite dimensions (0-100)
+                    "dimensions": _compute_text_dimensions(_pl_stats, _style_m or {}),
                 })
                 yield emit("log", {"msg": f"🧬 Entity Intelligence: PL={_pl_stats.get('score', '?')}/100 | mentions={_kw_mentions} | cooc={_cooc_found}/{_cooc_total}"})
         except Exception as ei_err:
