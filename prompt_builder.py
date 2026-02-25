@@ -91,37 +91,60 @@ def _find_variants(keyword, variant_dict):
 
 _PERSONAS = {
     "prawo": (
-        "Jesteś prawnikiem oraz dziennikarzem portalu zajmującego się tematyką prawną.\n"
-        "Tłumaczysz przepisy zrozumiałym językiem.\n"
-        "Piszesz precyzyjnie, ale przystępnie."
+        "Jesteś Lead SEO Content Architect. Lata spędzone w redakcjach dużych portali "
+        "nauczyły Cię jednego: robotyczne formuły SEO zabijają tekst. Teraz łączysz "
+        "głębokie rozumienie ludzkiej narracji z techniką, która dominuje algorytmicznie.\n"
+        "Twoja specjalizacja: prawo. Znasz przepisy od podszewki, bo pracowałeś "
+        "z prawnikami procesowymi. Tłumaczysz artykuły kodeksów sytuacjami z życia.\n"
+        "Twoja misja: czytelnik ma ZAPOMNIEĆ, że czyta zoptymalizowany tekst."
     ),
     "medycyna": (
-        "Jesteś lekarzem oraz dziennikarzem portalu zajmującego się tematyką zdrowotną.\n"
-        "Piszesz precyzyjnie, ale przystępnie — bez żargonu lekarskiego.\n"
-        "Tłumaczysz mechanizmy, nie recytujesz podręcznik."
+        "Jesteś Lead SEO Content Architect. Lata spędzone w redakcjach dużych portali "
+        "nauczyły Cię jednego: robotyczne formuły SEO zabijają tekst. Teraz łączysz "
+        "głębokie rozumienie ludzkiej narracji z techniką, która dominuje algorytmicznie.\n"
+        "Twoja specjalizacja: medycyna. Tłumaczysz mechanizmy ciała analogiami "
+        "— jak gąbka, jak filtr, jak termostat. Nauka zamiast marketingu.\n"
+        "Twoja misja: czytelnik ma ZAPOMNIEĆ, że czyta zoptymalizowany tekst."
     ),
     "finanse": (
-        "Jesteś doradcą finansowym oraz dziennikarzem portalu zajmującego się tematyką finansową.\n"
-        "Konkretne liczby, realne scenariusze, widełki cenowe.\n"
-        "Pokazujesz co liczby znaczą w portfelu czytelnika — wyliczenia > komentarze."
+        "Jesteś Lead SEO Content Architect. Lata spędzone w redakcjach dużych portali "
+        "nauczyły Cię jednego: robotyczne formuły SEO zabijają tekst. Teraz łączysz "
+        "głębokie rozumienie ludzkiej narracji z techniką, która dominuje algorytmicznie.\n"
+        "Twoja specjalizacja: finanse. Każdą liczbę przekładasz na portfel czytelnika. "
+        "Wyliczenie > komentarz. Rata > oprocentowanie.\n"
+        "Twoja misja: czytelnik ma ZAPOMNIEĆ, że czyta zoptymalizowany tekst."
     ),
     "technologia": (
-        "Jesteś inżynierem oraz dziennikarzem portalu zajmującego się tematyką technologiczną.\n"
-        "Piszesz precyzyjnie, z danymi, zrozumiale dla praktyka."
+        "Jesteś Lead SEO Content Architect. Lata spędzone w redakcjach dużych portali "
+        "nauczyły Cię jednego: robotyczne formuły SEO zabijają tekst. Teraz łączysz "
+        "głębokie rozumienie ludzkiej narracji z techniką, która dominuje algorytmicznie.\n"
+        "Twoja specjalizacja: technologia. Parametr + co zmienia w praktyce. "
+        "Porównujesz do poprzedniej generacji, nie do abstrakcji.\n"
+        "Twoja misja: czytelnik ma ZAPOMNIEĆ, że czyta zoptymalizowany tekst."
     ),
     "budownictwo": (
-        "Jesteś inżynierem budownictwa i kosztorysantem.\n"
-        "Piszesz jak ktoś, kto liczy — podajesz ceny, widełki, stawki za m².\n"
-        "Dane > komentarze. Tabelka > pięć zdań prozy. Wyliczenie > opinia."
+        "Jesteś Lead SEO Content Architect. Lata spędzone w redakcjach dużych portali "
+        "nauczyły Cię jednego: robotyczne formuły SEO zabijają tekst. Teraz łączysz "
+        "głębokie rozumienie ludzkiej narracji z techniką, która dominuje algorytmicznie.\n"
+        "Twoja specjalizacja: budownictwo. Liczysz zamiast opisywać — salon 30 m² × "
+        "panele 50 zł/m² = 1 500 zł. Tabelka > pięć zdań prozy.\n"
+        "Twoja misja: czytelnik ma ZAPOMNIEĆ, że czyta zoptymalizowany tekst."
     ),
     "uroda": (
-        "Jesteś kosmetologiem oraz dziennikarzem portalu zajmującego się tematyką kosmetyczną.\n"
-        "Piszesz z pozycji nauki, nie marketingu."
+        "Jesteś Lead SEO Content Architect. Lata spędzone w redakcjach dużych portali "
+        "nauczyły Cię jednego: robotyczne formuły SEO zabijają tekst. Teraz łączysz "
+        "głębokie rozumienie ludzkiej narracji z techniką, która dominuje algorytmicznie.\n"
+        "Twoja specjalizacja: kosmetologia. Mechanizm działania zamiast obietnic — "
+        "retinol przyspiesza odnowę naskórka, efekt po 8-12 tygodniach.\n"
+        "Twoja misja: czytelnik ma ZAPOMNIEĆ, że czyta zoptymalizowany tekst."
     ),
     "inne": (
-        "Jesteś ekspertem oraz dziennikarzem portalu zajmującego się tematyką tego artykułu.\n"
-        "Piszesz jak ktoś, kto zna temat z praktyki,\n"
-        "ma opinie i ulubione przykłady."
+        "Jesteś Lead SEO Content Architect. Lata spędzone w redakcjach dużych portali "
+        "nauczyły Cię jednego: robotyczne formuły SEO zabijają tekst. Teraz łączysz "
+        "głębokie rozumienie ludzkiej narracji z techniką, która dominuje algorytmicznie.\n"
+        "Masz ulubione przykłady, konkretne liczby i zero tolerancji dla pustosłowia. "
+        "Piszesz jak ktoś, kto tłumaczy temat znajomemu — mądremu, ale spoza branży.\n"
+        "Twoja misja: czytelnik ma ZAPOMNIEĆ, że czyta zoptymalizowany tekst."
     ),
 }
 
@@ -210,179 +233,79 @@ def build_system_prompt(pre_batch, batch_type):
     detected_category = pre_batch.get("detected_category", "")
     is_ymyl = detected_category in ("prawo", "medycyna", "finanse")
 
-    # ═══ 1. ROLA ═══
+    # ═══ 1. PERSONA (silna tożsamość narracyjna) ═══
     persona = _PERSONAS.get(detected_category, _PERSONAS["inne"])
-    parts.append(f"""<rola>
+    parts.append(f"""<persona>
 {persona}
-Ton: pewny, konkretny, rzeczowy. 3. osoba. ZAKAZ 2. osoby (ty/Twój).
-Tłumacz temat czytelnikowi — nie pisz jak encyklopedia.
-</rola>""")
+Pisz w 3. osobie. Każde zdanie wnosi nową informację.
+</persona>""")
 
-    # ═══ 2. ZASADY PISANIA ═══
-    parts.append(f"""<zasady>
-Każde zdanie = nowa informacja. Fakt podany raz — nie parafrazuj go dalej.
-Nie zapowiadaj, nie streszczaj, nie komentuj. Po prostu pisz.
+    # ═══ 2. CZTERY REGUŁY STYLU (pozytywne — co ROBIĆ) ═══
+    parts.append("""<styl>
+Cztery zasady dobrego tekstu:
 
-DANE > OPINIA: Konkretne liczby, widełki cenowe, stawki, wymiary.
-  ŹLE: "Koszt wykończenia rośnie, gdy standard jest wyższy."
-  DOBRZE: "Malowanie z gładziami: 60–120 zł/m². Deska warstwowa z montażem: 150–250 zł/m²."
-  Gdy temat dotyczy kosztów/cen — podawaj widełki, nie metafory.
-  Gdy masz 3+ pozycji z cenami → tabela HTML (<table>).
-  NIGDY nie zamieniaj konkretnej liczby na ogólnik:
-    ❌ "kilkadziesiąt złotych" ← gdy źródło mówi "50–150 zł/m²"
-    ❌ "sporo kosztuje" ← gdy źródło mówi "9 000 zł"
-    ❌ "wciąga budżet jak odkurzacz" ← metafora zamiast ceny
-  Jeśli SERP podaje cenę → PRZEPISZ widełki. Nie streszczaj liczb słowami.
+1. KONKRETNY PODMIOT + STRONA CZYNNA
+   Sąd zasądza. Inwestor składa. Kierowca ryzykuje.
+   Każde zdanie ma bohatera i konkretny fakt (liczbę, stawkę, termin).
 
-STYL: Fakt + co to znaczy w portfelu/kalendarzu czytelnika.
-  ŹLE: "Sąd może orzec grzywnę, ograniczenie wolności oraz karę pozbawienia wolności."
-  DOBRZE: "Najczęściej kończy się grzywną i zakazem na 3 lata — ale recydywa oznacza więzienie bez zawieszenia."
-  NIE buduj napięcia dramatycznymi krótkimi zdaniami. To poradnik, nie thriller.
+2. FAKT → CO TO ZNACZY DLA CZYTELNIKA
+   Podaj liczbę, potem od razu pokaż jej skutek:
+   "Oprocentowanie 7,5% — przy kredycie 300 000 zł to rata ok. 2 100 zł/mies."
+   Gdy masz 3+ pozycji z cenami → tabela HTML.
 
-RYTM: mieszaj długość zdań. Nie pisz trzech zdań o podobnej długości pod rząd.
-  Czasem użyj zdania 5-słowowego. Czasem rozwiń myśl na 25 słów.
-  Naturalny rytm = różnorodność, nie formuła.
+3. RÓŻNORODNOŚĆ I PŁYNNOŚĆ
+   Mieszaj zdania krótkie (6 słów) z dłuższymi (18 słów).
+   Każdą sekcję H2 otwieraj inaczej. Łącz sekcje mostami —
+   ostatnie zdanie otwiera drzwi do następnej sekcji.
+   Łącz zdania w akapicie: "tymczasem", "z kolei", "w efekcie", "stąd".
+   Akapit = mini-narracja: teza → rozwinięcie → wniosek.
 
-ZDANIA PROSTE > ZŁOŻONE:
-  Max 2 przecinki w zdaniu. Zdanie z 3+ przecinkami = za złożone → rozbij.
-  ❌ „Sąd, który rozpatruje sprawę, może orzec zakaz, jeśli uzna, że kierowca stanowił zagrożenie."
-  ✅ „Sąd może orzec zakaz prowadzenia. Warunkiem jest uznanie, że kierowca stanowił zagrożenie."
-  Zdanie > 22 słów → sprawdź, czy da się rozbić na dwa krótsze.
-  ZAKAZ wielokrotnie złożonych: „X, który Y, ponieważ Z, a także W" → rozbij na 2-3 zdania.
-  Jedno zdanie = jedna myśl. Dwa fakty = dwa zdania.
+4. WYJAŚNIAJ ANALOGIĄ
+   Termin fachowy + natychmiastowe "czyli...":
+   "trwały rozkład pożycia — czyli sytuacja, w której małżonkowie
+   nie dzielą łoża, stołu ani budżetu"
 
-LISTY I TABELE:
-  W całym artykule użyj 1-2 list wypunktowanych (<ul><li>) tam, gdzie naturalnie pasują: wyliczanie warunków, kroków, wymagań.
-  Opcjonalnie 1 tabela (<table>) gdy porównujesz 2+ warianty lub zestawiasz dane liczbowe.
-  Nie nadużywaj — większość treści to akapity prozą. Lista ≠ zamiennik akapitu.
-Podmiot konkretny (inwestor, ekipa, hydraulik) + czynność + LICZBA/FAKT.
-NIE zaczynaj 2+ zdań w akapicie od tego samego wzorca.
+Format: h2:/h3: dla nagłówków. Akapity prozą. Zero markdown.
+Odmień frazy przez przypadki — to naturalniejsze niż mianownik.
+Przecinek zawsze przed: że, który, aby, ponieważ, jednak.
+</styl>""")
 
-JEDNOSTKI: zawsze spacja przed jednostką. Tysiące oddzielaj spacją.
-  ✅ 10 m², 2 500 zł, 120 kg, 15 cm  ❌ 10m², 2500zł, 120kg, 15cm
-
-KOŃCZENIE SEKCJI: ostatnie zdanie sekcji H2 = konkretny fakt, NIE morał.
-  ❌ 'Dlatego tak ważne jest, aby...' / 'Pamiętajmy, że...' / 'Warto zatem...'
-  ✅ 'Czas oczekiwania na decyzję: 14–30 dni roboczych.' / 'Koszt łączny: ok. 8 500 zł.'
-
-OTWIERANIE SEKCJI: Każda sekcja H2 MUSI zaczynać się INNYM zdaniem.
-  ⛔ ZAKAZANY WZORZEC: "[Fraza główna] zaczyna się od..." / "[Fraza główna] rzadko..." / "[Fraza główna] najłatwiej..."
-  W artykule 5+ sekcji NIE WOLNO zaczynać 2 sekcje od tej samej frazy.
-  Zacznij od: konkretnej liczby, pytania, nazwy materiału, sytuacji — nie od frazy głównej.
-  ŹLE: "Wykończenie domu zaczyna się od...", "Wykończenie domu rzadko trzyma się..."
-  DOBRZE: "Salon 30 m² z panelami zamyka się w 1 500–3 000 zł — ale lista na tym się nie kończy."
-
-INTERPUNKCJA: przecinki przed: że, który, ponieważ, aby.
-FLEKSJA: odmieniaj frazy przez przypadki — to jedno użycie, nie powtórzenie.
-
-FORMAT: h2:/h3: dla nagłówków. Zero markdown — żadnych **, __, #, <h2>, <h3>.
-  Każdy h2:/h3: MUSI zaczynać się w NOWEJ LINII z pustą linią powyżej.
-  ŹLE: "...decyzje procesowe. H3: Co w praktyce"
-  DOBRZE: "...decyzje procesowe.\n\nH3: Co w praktyce"
-
-NAZWY FIRM I PLATFORM: nie używaj nazw własnych.
-  Nurofen → ibuprofen, OLX → portal ogłoszeniowy.
-</zasady>""")
-
-    # ═══ 3. ENTITY SEO ═══
-    parts.append("""<encje>
-SALIENCE — encja główna MUSI dominować w tekście:
-  PODMIOT > DOPEŁNIENIE: encja główna = podmiot zdania (kto/co?), nie peryferia.
-    ✅ „Jazda po alkoholu skutkuje..." / „Retinol przyspiesza..."
-    ❌ „Ważnym aspektem jest jazda po alkoholu" / „W przypadku retinolu..."
-  POZYCJA: encja główna w pierwszym zdaniu akapitu = wyższa salience.
-  KOLOKACJA: powiązane encje w TYM SAMYM akapicie.
-  SPÓJNA FORMA: nie przeskakuj między wariantami nazwy.
-
-NIE LISTUJ ENCJI — OPISUJ RELACJE:
-  ❌ „art. 178a KK, zakaz prowadzenia, świadczenie pieniężne" (lista)
-  ✅ „Art. 178a KK penalizuje jazdę zakazem prowadzenia od 3 lat i świadczeniem od 5000 zł" (relacja)
-  Używaj fraz: „reguluje", „prowadzi do", „jest typem", „zapobiega", „został wprowadzony przez".
-
-CZYSTOŚĆ TEMATYCZNA: każda sekcja H2 = JEDEN podtemat, wyczerpany do końca.
-  Nie mieszaj 2 podtematów. Nie wracaj do podtematu omówionego we wcześniejszym H2.
-
-POLISEMIA: gdy encja wieloznaczna — doprecyzuj kontekst przy PIERWSZYM użyciu.
-
-INFORMATION GAIN: w każdej sekcji H2 dodaj MIN 1 element którego NIE MA w danych z konkurencji:
-  unikatowe porównanie, wyjątek od reguły, praktyczna wskazówka, mało znany fakt.
-</encje>""")
-
-    # ═══ 4. ANTY-AI ═══
-    parts.append("""<anty_ai>
-ZAKAZANE WZORCE (typowe dla AI):
-  Frazesy: "warto zauważyć/pamiętać/podkreślić", "należy podkreślić",
-    "kluczowe jest", "istotne jest", "podsumowując", "w tym kontekście".
-  Wypełniacze: "w świetle obowiązujących przepisów", "zgodnie z literą prawa",
-    "nie bez znaczenia jest fakt", "trzeba mieć na uwadze", "jak sama nazwa wskazuje".
-  Morały: "dlatego tak ważne jest, aby", "pamiętajmy, że", "warto zatem".
-  Łączniki: "W odniesieniu do", "Ma to na celu", "Proces ten", "Jest to".
-  Zombie zdania: "Istotnym elementem jest..." → Kto? Co? Nazwij podmiot.
-  Przymiotniki: max 1× "kluczowy/istotny/zasadniczy" na akapit.
-
-PUSTE PRZEBIEGI (AI slop — ZERO TOLERANCJI):
-  NIGDY "ta sytuacja/ten problem/ta kwestia/ten aspekt/omawiany temat" jako podmiot.
-  TEST: Czy zdanie da się zastąpić słowem "coś"? Jeśli tak — podaj KONKRET.
-  ❌ "Różnica kilku decyzji zmienia budżet o dziesiątki procent" → JAKIE? ILE?
-</anty_ai>""")
-
-    # ═══ 5. ŹRÓDŁA ═══
+    # ═══ 3. ŹRÓDŁA ═══
     if is_ymyl:
         parts.append("""<zrodla>
-YMYL — zero tolerancji dla zmyśleń.
-Wiedza WYŁĄCZNIE z: stron SERP (podane), przepisów (podane), Wikipedia (podane).
-Nie wymyślaj liczb, dat, sygnatur, nazw badań. Nie znasz → pomiń.
-</zrodla>""")
-    else:
-        parts.append("""<zrodla>
-Wiedza z: stron SERP, Wikipedia, danych liczbowych (podane).
-Nie wymyślaj liczb, dat, nazw badań. Brak danych → opisz ogólnie.
-Gdy SERP podaje cenę/stawkę → PRZEPISZ widełki. Nie streszczaj liczb słowami.
+YMYL — wiedza wyłącznie z podanych źródeł (SERP, przepisy, Wikipedia).
+Brak danych → pomiń temat. Nie wymyślaj liczb, dat, sygnatur.
 </zrodla>""")
 
-    # ═══ 5b. STYL KATEGORII ═══
+    # ═══ 4. STYL KATEGORII ═══
     cat_style = _CATEGORY_STYLE.get(detected_category, "")
     if cat_style:
-        parts.append(f"<styl_kategorii>\n{cat_style}\n</styl_kategorii>")
+        parts.append(f"<kategoria>\n{cat_style}\n</kategoria>")
 
-    # ═══ 6. PRZYKŁAD (per-kategoria) ═══
+    # ═══ 5. PRZYKŁAD (tylko dobry — bez złego) ═══
     _EXAMPLES = {
         "prawo": (
-            'TAK: "Granica jest prosta: do 0,5 promila to wykroczenie, powyżej — przestępstwo.\n'
+            '"Granica jest prosta: do 0,5 promila to wykroczenie, powyżej — przestępstwo.\n'
             'Typowy kierowca złapany pierwszy raz z wynikiem tuż ponad próg dostanie\n'
-            'grzywnę i zakaz na 3 lata."\n\n'
-            'NIE: "Sytuacja prawna kierowcy ulega zmianie w zależności od okoliczności.\n'
-            'Ten aspekt jest szczególnie istotny w kontekście aktualnych regulacji."\n'
-            '↑ dwa zdania, ZERO konkretów. Usuń.'
+            'grzywnę i zakaz na 3 lata. Recydywa oznacza więzienie bez zawieszenia."'
         ),
         "budownictwo": (
-            'TAK: "Panele laminowane z montażem: 50–150 zł/m². Salon 30 m² to 1 500–4 500 zł\n'
-            'za samą podłogę plus 300–500 zł na listwy i podkłady."\n\n'
-            'TAK (tabela):\n'
-            '<table>\n'
-            '<tr><th>Usługa</th><th>Cena od</th><th>Cena do</th></tr>\n'
-            '<tr><td>Malowanie ścian</td><td>20 zł/m²</td><td>25 zł/m²</td></tr>\n'
-            '<tr><td>Układanie płytek</td><td>90 zł/m²</td><td>140 zł/m²</td></tr>\n'
-            '</table>\n\n'
-            'NIE: "Wykończenie domu zaczyna się od sprawdzenia stanu deweloperskiego.\n'
-            'Ta sytuacja zmienia budżet."\n'
-            '↑ ZERO liczb, pusty zaimek. Usuń.'
+            '"Panele laminowane z montażem: 50–150 zł/m². Salon 30 m² to 1 500–4 500 zł\n'
+            'za samą podłogę plus 300–500 zł na listwy i podkłady."'
         ),
         "medycyna": (
-            'TAK: "Ibuprofen 400 mg co 6–8 h łagodzi ból w ciągu 30–60 min.\n'
-            'Kwas hialuronowy wiąże cząsteczki wody w naskórku, tworząc barierę okluzyjną."\n\n'
-            'NIE: "Lek skutecznie pomaga na dolegliwości. Ten problem jest powszechny."\n'
-            '↑ brak dawki, mechanizmu, nazwy substancji. Usuń.'
+            '"Ibuprofen 400 mg co 6–8 h łagodzi ból w ciągu 30–60 min.\n'
+            'Kwas hialuronowy wiąże cząsteczki wody w naskórku — jak gąbka pod prysznicem."'
         ),
     }
     _default_example = (
-        'TAK: Zdanie z konkretną liczbą, stawką lub faktem.\n'
-        'NIE: Zdanie ogólnikowe bez danych — "ta sytuacja", "ten problem" = do usunięcia.'
+        'Zdanie z konkretną liczbą, stawką lub faktem — i od razu co to znaczy dla czytelnika.'
     )
     example_text = _EXAMPLES.get(detected_category, _default_example)
-    parts.append(f"<przyklad>\n{example_text}\n</przyklad>")
+    parts.append(f"<przyklad>\nTak brzmi dobry tekst:\n{example_text}\n</przyklad>")
 
     return "\n\n".join(parts)
+
 
 
 # ════════════════════════════════════════════════════════════
@@ -422,14 +345,10 @@ def build_user_prompt(pre_batch, h2, batch_type, article_memory=None):
 
     formatters = [
         lambda: _fmt_batch_header(pre_batch, h2, batch_type),
-        lambda: _fmt_keywords(pre_batch),
+        lambda: _fmt_tematy(pre_batch),
+        lambda: _fmt_kontekst(pre_batch, article_memory),
         lambda: _fmt_legal_medical(pre_batch),
-        lambda: _fmt_entity_context_v2(pre_batch),
-        lambda: _fmt_natural_polish(pre_batch),
-        lambda: _fmt_continuation(pre_batch),
-        lambda: _fmt_article_memory(article_memory),
         lambda: _fmt_serp_enrichment_v2(pre_batch),
-        lambda: _fmt_h2_remaining(pre_batch),
         lambda: _fmt_intro_guidance_v2(pre_batch, batch_type),
         lambda: _fmt_output_format(h2, batch_type),
     ]
@@ -498,6 +417,12 @@ def _fmt_keywords(pre_batch):
     _main_kw_budget_exhausted = (_kw_global_remaining is not None and _kw_global_remaining == 0)
     _raw_main_kw = pre_batch.get("main_keyword") or {}
     main_kw = _raw_main_kw.get("keyword", "") if isinstance(_raw_main_kw, dict) else str(_raw_main_kw)
+
+    # v2.5: Priority rule header (concise — full rules in system prompt <encje_i_frazy>)
+    header = (
+        "═══ FRAZY DO WPLECENIA ═══\n"
+        "Frazy = TEMATY do opisania, nie stringi do wklejenia. Odmień naturalnie."
+    )
 
     # ── MUST USE ──
     must_raw = keywords_info.get("basic_must_use", [])
@@ -594,13 +519,13 @@ def _fmt_keywords(pre_batch):
         must_lines = [l for l in must_lines if main_kw.lower() not in l.lower()]
 
     # ── BUILD ──
-    parts = ["═══ FRAZY KLUCZOWE ═══"]
+    parts = [header]
 
     if _kw_force_ban and main_kw:
         parts.append(f'⛔ STOP: Fraza "{main_kw}" jest PRZEKROCZONA — nie używaj w tym batchu.\n')
 
     if must_lines:
-        parts.append("TEMATY OBOWIĄZKOWE (poruszyj w treści):")
+        parts.append("TEMATY OBOWIĄZKOWE (poruszyj w treści — odmień naturalnie):")
         parts.extend(must_lines)
     if ext_lines:
         parts.append("\nTEMATY DODATKOWE (wpleć jeśli pasują):")
@@ -640,10 +565,180 @@ def _fmt_continuation(pre_batch):
         parts.append(f'  Ostatnie zdanie: "{ending_preview}"')
     if last_topic:
         parts.append(f'  Temat: {last_topic}')
-    parts.append("\nZacznij PŁYNNIE: nawiąż do poprzedniego wątku, ale nie powtarzaj zakończenia.")
+
+    parts.append("""
+PŁYNNE PRZEJŚCIE (krytyczne — czytelnik nie wie o batchach):
+  Zacznij od zdania NAWIĄZUJĄCEGO do ostatniego tematu — potem przejdź do nowego H2.
+  ❌ Nagłe „H2: Nowy temat" bez mostu.
+  ✅ Jedno zdanie łączące → potem H2.
+  Utrzymaj TEN SAM ton i rejestr co dotychczasowy tekst.
+  Nie zmieniaj stylu — kontynuujesz artykuł, nie zaczynasz nowy.
+  Sprawdź ostatnie zdanie powyżej — nie powtórz jego treści ani struktury.""")
     if transition_hint:
         parts.append(f'Sugerowane przejście: {transition_hint}')
     return "\n".join(parts)
+
+
+def _fmt_tematy(pre_batch):
+    """v2.6: Write-first approach — themes to cover, not strings to insert.
+    Model writes naturally, backend validates counts AFTER via submitBatchSimple.
+    No counts, no anti-stuffing rules, no anaphora rules."""
+    parts = []
+
+    # 1. Themes to cover (from keywords — stripped of counts)
+    keywords_info = pre_batch.get("keywords") or {}
+    must_raw = keywords_info.get("basic_must_use", [])
+    ext_raw = keywords_info.get("extended_this_batch", [])
+
+    must_names = []
+    for kw in must_raw:
+        name = kw.get("keyword", kw) if isinstance(kw, dict) else str(kw)
+        if name:
+            must_names.append(name)
+
+    ext_names = []
+    for kw in ext_raw:
+        name = kw.get("keyword", kw) if isinstance(kw, dict) else str(kw)
+        if name and name not in must_names:
+            ext_names.append(name)
+
+    all_themes = must_names + ext_names
+    if all_themes:
+        parts.append("Poruszyj: " + ", ".join(all_themes))
+
+    # 2. Avoid list (stop_keywords — exceeded, hard ban)
+    keyword_limits = pre_batch.get("keyword_limits") or {}
+    stop_raw = keyword_limits.get("stop_keywords") or []
+    stop_names = []
+    for s in stop_raw:
+        name = s.get("keyword", s) if isinstance(s, dict) else str(s)
+        if name:
+            stop_names.append(name)
+    if stop_names:
+        parts.append("Unikaj (wyczerpane): " + ", ".join(stop_names))
+
+    # 3. Entity context — lead entity, concepts, synonyms
+    s1_ctx = pre_batch.get("_s1_context") or {}
+    lead = s1_ctx.get("lead_entity")
+    if lead:
+        parts.append(f"Encja wiodąca: {lead}")
+
+    sv = pre_batch.get("_search_variants") or {}
+    peryfrazy = sv.get("peryfrazy", [])
+    fleksyjne = sv.get("fleksyjne", [])
+    synonyms = peryfrazy + fleksyjne
+    if synonyms:
+        parts.append(f"Synonimy i odmiany: {', '.join(synonyms[:6])}")
+
+    # 4. Facts (EAV) — concrete data to weave in
+    eav = s1_ctx.get("eav", [])
+    if eav:
+        facts = [f"{e.get('entity','')} → {e.get('attribute','')} → {e.get('value','')}" for e in eav[:4]]
+        parts.append("Fakty: " + " | ".join(facts))
+
+    # 5. Relations (SVO) — describe in own words
+    svo = s1_ctx.get("svo", [])
+    if svo:
+        rels = [f"{t.get('subject','')} → {t.get('verb','')} → {t.get('object','')}" for t in svo[:3]]
+        parts.append("Relacje: " + " | ".join(rels))
+
+    # 6. Co-occurrence (pairs that should appear together)
+    cooc = s1_ctx.get("cooc", [])
+    if cooc:
+        parts.append(f"Razem w akapicie: {' | '.join(cooc[:4])}")
+
+    # 7. Information gain — unique angle
+    enhanced = pre_batch.get("enhanced") or {}
+    info_gain = enhanced.get("information_gain", "")
+    if info_gain:
+        parts.append(f"Przewaga nad konkurencją: {_word_trim(info_gain, 150)}")
+
+    # 8. Causal chains
+    causal = s1_ctx.get("causal", [])
+    if causal:
+        for c in causal[:2]:
+            text = c.get("chain", c.get("text", str(c))) if isinstance(c, dict) else str(c)
+            parts.append(f"Łańcuch: {_word_trim(text, 120)}")
+
+    # 9. Content gaps
+    gaps = s1_ctx.get("gaps", [])
+    if gaps:
+        parts.append(f"Luki do wypełnienia: {', '.join(gaps[:3])}")
+
+    # 10. First paragraph + H2 entities (from entity_salience)
+    first_para = pre_batch.get("_first_paragraph_entities") or []
+    if first_para and not lead:
+        fp = [e.get("entity", e) if isinstance(e, dict) else str(e) for e in first_para[:3]]
+        parts.append(f"Pierwszy akapit: {', '.join(fp)}")
+
+    # 11. Semantic angle
+    plan = pre_batch.get("semantic_batch_plan") or {}
+    if plan:
+        for _, info in (plan.get("h2_coverage") or {}).items():
+            if isinstance(info, dict) and info.get("semantic_angle"):
+                parts.append(f"Kąt: {info['semantic_angle']}")
+                break
+
+    # Fallback: old static fields
+    if not s1_ctx:
+        must_concepts = pre_batch.get("_must_cover_concepts") or []
+        if must_concepts:
+            names = [c.get("text", c) if isinstance(c, dict) else str(c) for c in must_concepts[:6]]
+            parts.append(f"Pojęcia: {', '.join(n for n in names if n)}")
+
+    if not parts:
+        return ""
+
+    return "═══ TEMATY TEJ SEKCJI ═══\n" + "\n".join(parts)
+
+def _fmt_kontekst(pre_batch, article_memory=None):
+    """v2.6: Merged voice continuity + continuation + article memory.
+    Just data, minimal instructions — persona handles the rest."""
+    parts = []
+
+    # 1. Style anchor (from INTRO — the voice of this article)
+    style_anchor = pre_batch.get("_voice_style_anchor", "")
+    if style_anchor:
+        parts.append(f'Twój głos w tym artykule:\n"""\n{style_anchor}\n"""')
+
+    # 2. Previous section ending (for smooth transition)
+    last_sents = pre_batch.get("_voice_last_sentences", "")
+    continuation = pre_batch.get("continuation_v39") or {}
+    cont_ctx = (pre_batch.get("enhanced") or {}).get("continuation_context") or {}
+    last_h2 = cont_ctx.get("last_h2") or continuation.get("last_h2", "")
+    last_ending = cont_ctx.get("last_paragraph_ending") or continuation.get("last_paragraph_ending", "")
+
+    if last_sents or last_ending:
+        prev = last_sents or (last_ending[:150] if last_ending else "")
+        if last_h2:
+            parts.append(f'Poprzednia sekcja: "{last_h2}"')
+        parts.append(f'Ostatnie zdania:\n"""\n{prev}\n"""\nKontynuuj tym samym głosem.')
+
+    transition_hint = continuation.get("transition_hint", "")
+    if transition_hint:
+        parts.append(f"Sugerowane przejście: {transition_hint}")
+
+    # 3. Article memory (what's already written — don't repeat)
+    if article_memory:
+        mem = article_memory if isinstance(article_memory, dict) else {}
+        topics = mem.get("topics_covered") or mem.get("covered_topics") or []
+        facts = (mem.get("key_facts_used") or []) + (mem.get("key_points") or [])
+
+        if topics:
+            topic_names = [t.get("topic", t.get("h2", t)) if isinstance(t, dict) else str(t) for t in topics[:8]]
+            parts.append(f"Już omówione: {', '.join(topic_names)}")
+        if facts:
+            parts.append(f"Użyte fakty: {', '.join(str(f)[:60] for f in facts[:6])}")
+
+    # 4. Remaining H2s (don't overlap)
+    h2_remaining = pre_batch.get("h2_remaining") or []
+    if h2_remaining:
+        parts.append(f"Pozostałe sekcje: {', '.join(h2_remaining[:5])}")
+
+    if not parts:
+        return ""
+
+    return "═══ KONTEKST ═══\n" + "\n".join(parts)
 
 
 def _fmt_article_memory(article_memory):
@@ -693,26 +788,9 @@ def _fmt_h2_remaining(pre_batch):
 
 def _fmt_output_format(h2, batch_type):
     if batch_type in ("INTRO", "intro"):
-        return """═══ FORMAT ODPOWIEDZI ═══
-Pisz TYLKO treść leadu. NIE zaczynaj od "h2:". Lead nie ma nagłówka.
-120-200 słów. Frazę główną wpleć w PIERWSZE zdanie.
-NIE dodawaj komentarzy, meta-tekstu. TYLKO treść leadu."""
+        return "Lead artykułu, 120-200 słów. Frazę główną wpleć w pierwsze zdanie.\nFormat: h2:/h3:, zero markdown. Tylko treść."
 
-    return f"""═══ FORMAT ODPOWIEDZI ═══
-Pisz TYLKO treść tego batcha. Zaczynaj od:
-
-h2: {h2}
-
-Akapity po 3-5 zdań. Opcjonalnie h3: [podsekcja].
-Gdy masz 3+ warunków/kroków/wymagań → lista <ul><li> (max 1-2 listy w artykule).
-Gdy porównujesz dane liczbowe → tabela <table> (max 1 w artykule).
-Każdy akapit powinien zawierać min. 1 konkretny fakt (liczbę, stawkę, wymiar, termin).
-Zdania bez informacji ("Ta sytuacja...", "Ten problem...") = DO USUNIĘCIA.
-Zdanie z 3+ przecinkami = za złożone → rozbij na dwa zdania.
-KAŻDY h3: na OSOBNEJ linii z pustą linią powyżej i poniżej.
-ŻADEN nagłówek NIE może być wklejony w środek akapitu.
-Zero markdown (**, __, #). Zero tagów HTML (<h2>, <h3>, <b>).
-NIE dodawaj komentarzy. TYLKO treść artykułu."""
+    return f"Zaczynaj od:\n\nh2: {h2}\n\nFormat: h2:/h3:, zero markdown. Tylko treść artykułu."
 
 
 # ════════════════════════════════════════════════════════════
@@ -833,6 +911,21 @@ def _fmt_entity_context_v2(pre_batch):
             gap_names = [g.get("entity", "") for g in old_gaps if g.get("priority") == "high"][:3]
             if gap_names:
                 parts.append(f"Luki: {', '.join(gap_names)}")
+
+    # ── Block 10: First paragraph + H2 entities (absorbed from _fmt_entity_salience) ──
+    first_para_ents = pre_batch.get("_first_paragraph_entities") or []
+    if first_para_ents and not s1_ctx.get("lead_entity"):
+        fp_names = [ent.get("entity", ent.get("text", ent)) if isinstance(ent, dict) else str(ent) for ent in first_para_ents[:4]]
+        fp_names = [n for n in fp_names if n]
+        if fp_names:
+            parts.append(f"Pierwszy akapit — wpleć: {', '.join(fp_names)}")
+
+    h2_ents = pre_batch.get("_h2_entities") or []
+    if h2_ents and not s1_ctx.get("concepts"):
+        h2_names = [ent.get("entity", ent.get("text", ent)) if isinstance(ent, dict) else str(ent) for ent in h2_ents[:6]]
+        h2_names = [n for n in h2_names if n]
+        if h2_names:
+            parts.append(f"Encje sekcji: {', '.join(h2_names)}")
 
     return "\n\n".join(parts) if parts else ""
 
@@ -1272,12 +1365,13 @@ def _fmt_entity_salience(pre_batch):
 
 
 def _fmt_natural_polish(pre_batch):
-    """Anti-stuffing + fleksja — v2.3: uses search_variants for richer variation."""
+    """Anti-stuffing + fleksja — v2.5: collocation protection + voice continuity."""
     parts = ["═══ ANTY-STUFFING ═══"]
 
     parts.append(
         "FLEKSJA: Odmiany = jedno użycie. Max 2× ta sama fraza w jednym akapicie.\n"
-        "Rozkładaj frazy RÓWNOMIERNIE po tekście — nie skupiaj w jednym akapicie."
+        "Rozkładaj frazy RÓWNOMIERNIE — nie skupiaj w jednym akapicie.\n"
+        "Lepiej 1× poprawnie niż 3× w zmutowanej formie."
     )
 
     # Dynamic anaphora with search variants
@@ -1798,16 +1892,11 @@ def build_category_user_prompt(pre_batch, h2, batch_type, article_memory=None, c
 
     formatters = [
         lambda: _fmt_batch_header(pre_batch, h2, batch_type),
-        lambda: _fmt_keywords(pre_batch),
+        lambda: _fmt_tematy(pre_batch),
         lambda: _fmt_smart_instructions(pre_batch),
         lambda: _fmt_semantic_plan(pre_batch, h2),
-        lambda: _fmt_coverage_density(pre_batch),
-        lambda: _fmt_continuation(pre_batch),
-        lambda: _fmt_article_memory(article_memory),
-        lambda: _fmt_h2_remaining(pre_batch),
-        lambda: _fmt_entity_salience(pre_batch),
+        lambda: _fmt_kontekst(pre_batch, article_memory),
         lambda: _fmt_serp_enrichment(pre_batch),
-        lambda: _fmt_natural_polish(pre_batch),
         lambda: _fmt_style(pre_batch),
         lambda: _fmt_output_format(h2, batch_type),
     ]
