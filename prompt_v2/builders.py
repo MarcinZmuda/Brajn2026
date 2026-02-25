@@ -28,7 +28,7 @@ from prompt_v2.constants import (
     PERSONAS, CONSTITUTION, POLISH_RULES, FORBIDDEN_SHORT,
     WRITING_RULES, ENTITY_RULES, SOURCES_YMYL, SOURCES_GENERAL,
     CATEGORY_STYLE, CATEGORY_EXAMPLES, DEFAULT_EXAMPLE,
-    REAL_WORLD_ANCHORS,
+    VOICE_PRESETS, VOICE_ALLOW_SECOND_PERSON,
 )
 from prompt_v2.style_samples import format_samples_block
 from prompt_v2.config import feature_enabled
@@ -135,7 +135,20 @@ def build_system_prompt(pre_batch, batch_type):
 
     # ═══ 1. PERSONA (skrócona) ═══
     persona = PERSONAS.get(detected_category, PERSONAS["inne"])
-    parts.append(f"<tożsamość>\n{persona}\nTon: pewny, konkretny, rzeczowy. 3. osoba. ZAKAZ 2. osoby (ty/Twój).\n</tożsamość>")
+
+    # UI voice preset (AUTO jeśli brak)
+    voice_key = (pre_batch.get("voice_preset") or "auto").strip() or "auto"
+    voice_text = VOICE_PRESETS.get(voice_key, "")
+
+    allow_2nd = voice_key in VOICE_ALLOW_SECOND_PERSON
+    tone_line = (
+        "Ton: pewny, konkretny, rzeczowy. 3. osoba. ZAKAZ 2. osoby (ty/Twój)."
+        if not allow_2nd
+        else "Ton: chłodny i konkretny. 2. osoba DOZWOLONA tylko w trybie instrukcji."
+    )
+
+    identity = f"{persona}\n\n<glos>\n{voice_text}\n</glos>" if voice_text else persona
+    parts.append(f"<tożsamość>\n{identity}\n{tone_line}\n</tożsamość>")
 
     # ═══ 2. KONSTYTUCJA (NOWE — pozytywne zasady) ═══
     if feature_enabled("positive_constitution"):
@@ -143,9 +156,6 @@ def build_system_prompt(pre_batch, batch_type):
 
     # ═══ 3. ZASADY PISANIA (zachowane z v1, skompresowane) ═══
     parts.append(WRITING_RULES)
-
-    # ═══ 3.5 PRAKTYKA (anty-encyklopedia) ═══
-    parts.append(REAL_WORLD_ANCHORS)
 
     # ═══ 4. REGUŁY POLSZCZYZNY (NOWE — po polsku!) ═══
     if feature_enabled("polish_language_block"):
