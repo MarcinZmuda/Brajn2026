@@ -26,12 +26,11 @@ from flask import (
 )
 import requests as http_requests
 import anthropic
-from prompt_v2.integration import (
+from prompt_builder import (
     build_system_prompt, build_user_prompt,
     build_faq_system_prompt, build_faq_user_prompt,
     build_h2_plan_system_prompt, build_h2_plan_user_prompt,
-    build_category_system_prompt, build_category_user_prompt,
-    get_api_params,
+    build_category_system_prompt, build_category_user_prompt
 )
 
 # Optional: OpenAI
@@ -1505,13 +1504,6 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
 def _clean_batch_text(text):
     """v59.2: Bulletproof formatter — fixes ALL known LLM output issues.
     Tested on real broken output with 16 glued headings, markdown bold, mixed formats."""
-
-    # ═══ v2: Strip <thinking> blocks and <article_section> tags ═══
-    import re as _re_v2
-    # Remove entire <thinking>...</thinking> block (Claude planning step)
-    text = _re_v2.sub(r'<thinking>.*?</thinking>', '', text, flags=_re_v2.DOTALL).strip()
-    # Remove <article_section> wrapper tags (keep content)
-    text = text.replace('<article_section>', '').replace('</article_section>', '').strip()
     if not text:
         return text
 
@@ -1799,15 +1791,9 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
         # Web search: only for YMYL content (legal/medical/finance)
         use_web_search = is_ymyl and ymyl_intensity == "full"
         
-        # ═══ v2: Use recommended temperature per batch type ═══
-        v2_params = get_api_params(batch_type)
-        effective_temp = temperature  # User override takes priority
-        if effective_temp is None and v2_params.get("version") == "v2":
-            effective_temp = v2_params["temperature"]
-        
         return _generate_claude(system_prompt, user_prompt,
                                 effort=effort, web_search=use_web_search,
-                                temperature=effective_temp)
+                                temperature=temperature)
 
 
 def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False, temperature=None):
@@ -1831,13 +1817,7 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False, 
         kwargs = {
             "model": ANTHROPIC_MODEL,
             "max_tokens": 4000,
-            "system": [
-                {
-                    "type": "text",
-                    "text": system_prompt,
-                    "cache_control": {"type": "ephemeral"}
-                }
-            ],
+            "system": system_prompt,
             "messages": [{"role": "user", "content": user_prompt}],
         }
         
@@ -3954,12 +3934,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         accepted_batches_log = []
         _style_anchor = ""  # v2.5: voice continuity — representative sentences from INTRO
 
-        # ═══ v2: Entity tracker — tracks which entities introduced in which batch ═══
-        _entity_tracker = {
-            "entities": {},      # {name: {"introduced_in": batch_num, "count": N}}
-            "terminology": {},   # {old_form: replacement}
-        }
-
         # ═══ ENTITY CONTENT PLAN — assign lead entity per batch/H2 ═══
         # Each H2 section gets ONE lead entity as "paragraph subject opener".
         # Prevents every akapit from starting with the same main keyword.
@@ -4504,10 +4478,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     if _style_anchor:
                         pre_batch["_voice_style_anchor"] = _style_anchor
 
-                    # ═══ v2: Inject entity tracker ═══
-                    if _entity_tracker and _entity_tracker.get("entities"):
-                        pre_batch["_entity_tracker"] = _entity_tracker
-
                 text = generate_batch_text(
                     pre_batch, current_h2, batch_type,
                     article_memory, engine=engine, openai_model=effective_openai_model,
@@ -4742,27 +4712,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 if batch_num == 1 and _last_text and not _style_anchor:
                     import re as _re_sa
                     _sents = [s.strip() for s in _re_sa.split(r'(?<=[.!?])\s+', _last_text) if len(s.strip()) > 30]
-                    # v2: Pick sentences that best represent the article style:
-                    # - Not headers (h2:/h3:)
-                    # - Have at least one number or specific fact (good anchor)
-                    # - Between 40-200 chars (not too short/long)
-                    _good = []
-                    _ok = []
-                    for s in _sents:
-                        if s.startswith("h2:") or s.startswith("h3:"):
-                            continue
-                        if len(s) < 40 or len(s) > 200:
-                            continue
-                        # Prefer sentences with numbers (more concrete = better anchor)
-                        if any(c.isdigit() for c in s):
-                            _good.append(s)
-                        else:
-                            _ok.append(s)
-                    # Take best: numbered sentences first, then ok sentences
-                    _selected = (_good + _ok)[:3]
-                    _style_anchor = "\n".join(_selected)
+                    # Pick 3 most "characteristic" sentences (not too short, not too long)
+                    _good = [s for s in _sents if 40 < len(s) < 200 and not s.startswith("h2:") and not s.startswith("h3:")]
+                    _style_anchor = "\n".join(_good[:3])
                     if _style_anchor:
-                        yield emit("log", {"msg": f"🎨 v2 Kotwica stylu z INTRO: {len(_selected)} zdań ({len(_good)} z liczbami)"})
+                        yield emit("log", {"msg": f"🎨 Kotwica stylu z INTRO: {len(_good[:3])} zdań referencyjnych"})
 
             # Save FAQ if applicable
             if batch_type == "FAQ" and batch_accepted:
