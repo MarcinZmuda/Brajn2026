@@ -485,7 +485,14 @@
         </div>
         <label class="lbl" for="mainKeyword">Keyword</label>
         <input type="text" id="mainKeyword" placeholder="np. od czego zacząć przeprowadzkę">
-        <div class="lbl">Tryb</div>
+        
+        <label class="lbl" for="voicePreset">Persona / styl</label>
+        <select id="voicePreset">
+            <option value="auto" selected>AUTO (system dobiera)</option>
+            <option value="lifestyle">Lifestyle (high-end vibe)</option>
+            <option value="prawo_rodzinne">Prawo rodzinne (legal-grade)</option>
+        </select>
+<div class="lbl">Tryb</div>
         <div class="modes">
             <div class="mbtn on" data-mode="standard" onclick="selMode('standard')"><strong>Standard</strong><small>6–9 batchy</small></div>
             <div class="mbtn" data-mode="fast" onclick="selMode('fast')"><strong>Fast</strong><small>3 batche</small></div>
@@ -1321,7 +1328,8 @@ async function startWorkflow(){
     window._lsTimerInt=setInterval(()=>{const s=Math.round((Date.now()-window._lsTimerStart)/1000);const m=Math.floor(s/60);const ss=String(s%60).padStart(2,'0');if(_lsTimerEl)_lsTimerEl.textContent=m+':'+ss;},1000);
 
     try{
-        const payload={main_keyword:kw,mode:mode,engine:engine,openai_model:engine==='openai'?openaiModel:null,temperature:temperature,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci,content_type:contentType};
+        const voicePreset=(document.getElementById('voicePreset')?.value||'auto');
+        const payload={voice_preset:voicePreset,main_keyword:kw,mode:mode,engine:engine,openai_model:engine==='openai'?openaiModel:null,temperature:temperature,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci,content_type:contentType};
         if(contentType==='category'){
             payload.category_type=catType;
             payload.store_name=(document.getElementById('catStoreName').value||'').trim();
