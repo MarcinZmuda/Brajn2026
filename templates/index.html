@@ -1543,6 +1543,48 @@ async function startWorkflow(){
             h+=`<div style="text-align:center;margin-top:6px;padding:4px;background:var(--s2);border-radius:4px"><span style="font-size:10px;color:${M}">Naturalność: </span><span style="font-size:14px;font-weight:700;color:${clr(pnlp.score,80,55)}">${pnlp.score}/100</span></div>`;
           }
 
+          // ━━━ F. SPÓJNOŚĆ / PŁYNNOŚĆ / NATURALNOŚĆ ━━━
+          const qDims=d.dimensions||{};
+          const dimList=[
+            ['🔗 Spójność', qDims.spojnosc],
+            ['🌊 Płynność', qDims.plynnosc],
+            ['🇵🇱 Naturalność', qDims.naturalnosc],
+          ];
+          const hasDims=dimList.some(([,v])=>v&&v.score!=null);
+          if(hasDims){
+            h+=`<div style="font-weight:700;font-size:12px;margin:12px 0 6px;color:var(--fg)">📊 Wymiary jakości tekstu</div>`;
+            h+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">`;
+            dimList.forEach(([label,dim])=>{
+              if(!dim)return;
+              const s=dim.score||0;const c=clr(s,75,50);
+              h+=`<div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid ${c}22">`;
+              h+=`<div style="font-size:9px;color:${M};margin-bottom:4px">${label}</div>`;
+              h+=`<div style="font-size:22px;font-weight:700;color:${c}">${s}</div>`;
+              h+=bar(s,c);
+              // Components breakdown
+              const comp=dim.components||{};
+              const cKeys=Object.keys(comp);
+              if(cKeys.length){
+                h+=`<div style="margin-top:6px;font-size:8px;color:${M};text-align:left">`;
+                cKeys.forEach(k=>{
+                  const v=comp[k];const vc=clr(v,75,50);
+                  const lbl=k.replace(/_/g,' ');
+                  h+=`<div style="display:flex;justify-content:space-between;margin:1px 0"><span>${lbl}</span><span style="color:${vc};font-weight:600">${Math.round(v)}</span></div>`;
+                });
+                h+=`</div>`;
+              }
+              h+=`</div>`;
+            });
+            h+=`</div>`;
+          }
+
+          // ━━━ G. STYLE ISSUES ━━━
+          const sty=d.style||{};
+          if(sty.issues&&sty.issues.length){
+            h+=`<div style="font-weight:700;font-size:12px;margin:10px 0 6px;color:var(--fg)">⚠️ Problemy stylistyczne</div>`;
+            sty.issues.forEach(i=>{h+=`<div style="font-size:10px;color:${W};margin:2px 0;padding:3px 6px;background:rgba(251,191,36,.06);border-radius:4px">⚠️ ${esc(i)}</div>`});
+          }
+
           C.innerHTML=h;
         });
         es.addEventListener('article_update',e=>{const d=JSON.parse(e.data);if(d.full_text){liveArticle=d.full_text;renderArt(liveArticle);}});
