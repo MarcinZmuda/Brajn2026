@@ -26,7 +26,7 @@ import logging
 
 from prompt_v2.constants import (
     PERSONAS, CONSTITUTION, POLISH_RULES, FORBIDDEN_SHORT,
-    WRITING_RULES, ENTITY_RULES, SOURCES_YMYL, SOURCES_GENERAL,
+    WRITING_RULES, REAL_WORLD_ANCHORS, ENTITY_RULES, SOURCES_YMYL, SOURCES_GENERAL,
     CATEGORY_STYLE, CATEGORY_EXAMPLES, DEFAULT_EXAMPLE,
 )
 from prompt_v2.style_samples import format_samples_block
@@ -142,6 +142,9 @@ def build_system_prompt(pre_batch, batch_type):
 
     # ═══ 3. ZASADY PISANIA (zachowane z v1, skompresowane) ═══
     parts.append(WRITING_RULES)
+
+    # ═══ 3.5 PRAKTYKA (anty-sztuczność) ═══
+    parts.append(REAL_WORLD_ANCHORS)
 
     # ═══ 4. REGUŁY POLSZCZYZNY (NOWE — po polsku!) ═══
     if feature_enabled("polish_language_block"):
