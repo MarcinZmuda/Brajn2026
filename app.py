@@ -2601,7 +2601,7 @@ def _compute_grade(quality_score, salience_score, semantic_score, style_score=No
 # ============================================================
 # WORKFLOW ORCHESTRATOR (SSE)
 # ============================================================
-def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None, temperature=None, content_type="article", category_data=None):
+def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None, temperature=None, content_type="article", category_data=None, voice_preset="auto"):
     """
     Full BRAJEN workflow as a generator yielding SSE events.
     Follows PROMPT_v45_2.md EXACTLY:
@@ -4187,6 +4187,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if not isinstance(pre_batch, dict):
                 logger.warning(f"[BATCH] pre_batch is {type(pre_batch).__name__}, forcing empty dict")
                 pre_batch = {}
+            batch_type = pre_batch.get("batch_type", "CONTENT")
+            # UI voice preset (AUTO jeśli brak)
+            pre_batch["voice_preset"] = voice_preset or "auto"
             batch_type = pre_batch.get("batch_type", "CONTENT")
             
             # ═══ BATCH 1 = INTRO: First batch must always be introduction ═══
@@ -5991,6 +5994,7 @@ def start_workflow():
     extended_terms = [t.strip() for t in (data.get("extended_terms") or []) if t.strip()]
     custom_instructions = (data.get("custom_instructions") or "").strip()
     engine = data.get("engine", "claude")  # "claude" or "openai"
+    voice_preset = (data.get("voice_preset") or "auto").strip() or "auto"
     openai_model_override = data.get("openai_model")  # per-session model override
     user_temperature = data.get("temperature")  # 0.0-1.0 or None
     if user_temperature is not None:
@@ -6024,6 +6028,7 @@ def start_workflow():
         "main_keyword": main_keyword,
         "mode": mode,
         "engine": engine,
+        "voice_preset": voice_preset,
         "openai_model": openai_model_override,
         "temperature": user_temperature,
         "h2_structure": h2_list,
@@ -6095,7 +6100,8 @@ def stream_workflow(job_id):
             openai_model=data.get("openai_model"),
             temperature=data.get("temperature"),
             content_type=data.get("content_type", "article"),
-            category_data=data.get("category_data")
+            category_data=data.get("category_data"),
+            voice_preset=data.get("voice_preset","auto")
         )
 
     return Response(
