@@ -2452,15 +2452,16 @@ ARTYKUŁ:
 
 Zwróć CAŁY poprawiony artykuł (bez komentarzy, bez markdown)."""
 
-
 def _editor_in_chief_review(article_text, main_keyword, detected_category="inne"):
-    """v2.3: Final expert review — catches hallucinated legal refs, wrong facts, HTML artifacts.
-    Returns dict with errors found and optionally auto-fixed text."""
+    """v2.4: Final expert review — hardened JSON parsing (never breaks workflow)."""
+
     if not ANTHROPIC_API_KEY or not article_text or len(article_text) < 200:
         return {"ran": False, "reason": "no_api_key_or_short_text"}
 
     import anthropic as _anth
     import json as _json
+    import re as _re
+
     _category_names = {
         "prawo": "prawo i przepisy",
         "medycyna": "medycyna i zdrowie",
@@ -2469,36 +2470,49 @@ def _editor_in_chief_review(article_text, main_keyword, detected_category="inne"
         "technologia": "technologia i IT",
         "inne": "tematyka ogólna",
     }
+
     cat_name = _category_names.get(detected_category, detected_category or "tematyka ogólna")
 
-    # Strip HTML for cleaner analysis
     clean_text = _strip_html_for_analysis(article_text) if article_text else article_text
 
     try:
         client = _anth.Anthropic(api_key=ANTHROPIC_API_KEY, max_retries=1)
 
-        # Step 1: Review
         review_prompt = _EDITOR_REVIEW_PROMPT.format(
             category=cat_name,
             keyword=main_keyword,
-            article=clean_text[:12000]  # ~3000 words max
+            article=clean_text[:12000]
         )
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL,  # Sonnet — needs good reasoning
+            model=ANTHROPIC_MODEL,
             max_tokens=2000,
             temperature=0,
             messages=[{"role": "user", "content": review_prompt}]
         )
 
         raw = response.content[0].text.strip()
-        # Parse JSON
-        json_match = _re.search(r'\{[\s\S]*\}', raw)
+
+        # ─────────────────────────
+        # SAFE JSON EXTRACTION
+        # ─────────────────────────
+        json_match = _re.search(r"\{[\s\S]*\}", raw)
+
         if not json_match:
             logger.warning(f"[EDITOR] No JSON in response: {raw[:200]}")
             return {"ran": True, "parse_error": True, "raw": raw[:500]}
 
-        review = _json.loads(json_match.group())
+        json_block = json_match.group()
+
+        try:
+            review = _json.loads(json_block)
+        except _json.JSONDecodeError as je:
+            logger.warning(f"[EDITOR] JSON decode error: {je}")
+            return {"ran": True, "parse_error": True, "raw": json_block[:500]}
+
+        if not isinstance(review, dict):
+            return {"ran": True, "parse_error": True}
+
         critical = review.get("krytyczne", [])
         artifacts = review.get("artefakty", [])
         logic = review.get("logika", [])
@@ -2516,36 +2530,42 @@ def _editor_in_chief_review(article_text, main_keyword, detected_category="inne"
             "verdict": verdict,
             "comment": comment,
             "fixed_text": None,
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
+            "input_tokens": getattr(response.usage, "input_tokens", 0),
+            "output_tokens": getattr(response.usage, "output_tokens", 0),
         }
 
-        # Step 2: Auto-fix if critical errors or artifacts found
-        if (critical and len(critical) > 0) or (artifacts and len(artifacts) > 0):
+        # ─────────────────────────
+        # AUTO-FIX
+        # ─────────────────────────
+        if critical or artifacts:
+
             errors_desc = ""
+
             if critical:
                 errors_desc += "\n".join(
-                    f"{i+1}. CYTAT: \"{e.get('cytat', '')}\"\n   BŁĄD: {e.get('blad', '')}\n   POPRAWKA: {e.get('poprawka', '')}"
+                    f"{i+1}. CYTAT: \"{e.get('cytat','')}\"\n"
+                    f"   BŁĄD: {e.get('blad','')}\n"
+                    f"   POPRAWKA: {e.get('poprawka','')}"
                     for i, e in enumerate(critical[:8])
                 )
-            # Add artifacts too
+
             if artifacts:
                 if errors_desc:
                     errors_desc += "\n\n"
                 errors_desc += "ARTEFAKTY DO USUNIĘCIA:\n" + "\n".join(
-                    f"- \"{a.get('cytat', '')}\" → {a.get('blad', '')}"
+                    f"- \"{a.get('cytat','')}\" → {a.get('blad','')}"
                     for a in artifacts[:5]
                 )
-            # Add logic issues
+
             if logic:
                 errors_desc += "\n\nPROBLEMY LOGICZNE:\n" + "\n".join(
-                    f"- {l.get('opis', '')}"
+                    f"- {l.get('opis','')}"
                     for l in logic[:5]
                 )
 
             fix_prompt = _EDITOR_FIX_PROMPT.format(
                 errors=errors_desc,
-                article=article_text[:12000]  # original with HTML
+                article=article_text[:12000]
             )
 
             fix_response = client.messages.create(
@@ -2556,19 +2576,23 @@ def _editor_in_chief_review(article_text, main_keyword, detected_category="inne"
             )
 
             fixed = fix_response.content[0].text.strip()
-            # Basic validation — fixed text should be similar length
+
             if fixed and len(fixed) > len(article_text) * 0.7:
                 result["fixed_text"] = fixed
-                result["fix_tokens"] = fix_response.usage.input_tokens + fix_response.usage.output_tokens
+                result["fix_tokens"] = (
+                    getattr(fix_response.usage, "input_tokens", 0)
+                    + getattr(fix_response.usage, "output_tokens", 0)
+                )
             else:
-                logger.warning(f"[EDITOR] Fix text too short ({len(fixed)} vs {len(article_text)})")
+                logger.warning(
+                    f"[EDITOR] Fix text too short ({len(fixed)} vs {len(article_text)})"
+                )
 
         return result
 
     except Exception as e:
-        logger.warning(f"[EDITOR] Review failed: {e}")
+        logger.warning(f"[EDITOR] Review failed safely: {e}")
         return {"ran": False, "error": str(e)[:200]}
-
 
 def _compute_grade(quality_score, salience_score, semantic_score, style_score=None):
     """Compute letter grade from available scores (A+ through D)."""
