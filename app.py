@@ -3195,14 +3195,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"⚖️ Temat prawny YMYL, przepisy: {arts_str}. Pobieram orzeczenia..."})
             
             # v47.2: Pass Claude's article hints to SAOS search
+            # v2.4: Short timeout (30s) — SAOS is often down; don't block article generation
             lc = brajen_call("post", "/api/legal/get_context", {
                 "main_keyword": main_keyword,
                 "force_enable": True,  # Claude already classified, skip keyword gate
                 "article_hints": articles,  # art. 178a k.k. etc.
                 "search_queries": legal_hints.get("search_queries", []),
-            })
+            }, timeout=30)
             if lc["ok"]:
                 legal_context = lc["data"]
+                yield emit("log", {"msg": f"✅ Orzeczenia pobrane"})
+            else:
+                yield emit("log", {"msg": f"⚠️ SAOS/legal niedostępny — kontynuuję bez orzeczeń"})
             
             # Wikipedia enrichment for legal articles
             _wiki_articles = []
@@ -5458,30 +5462,40 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 _sd = semantic_dist_result if semantic_dist_result.get("enabled") else {}
 
                 # D. Subject position data (already computed)
-                _sp = subject_pos if subject_pos else {}
+                _sp = subject_pos if isinstance(subject_pos, dict) else {}
 
-                # E. Co-occurrence pairs check
+                # E. Co-occurrence pairs check — safe access
                 _cooc_data = []
-                _cooc_pairs = backend_cooccurrence_pairs if backend_cooccurrence_pairs else []
-                for pair in _cooc_pairs[:10]:
-                    if isinstance(pair, dict):
-                        e1 = str(pair.get("entity_1", pair.get("e1", ""))).lower()
-                        e2 = str(pair.get("entity_2", pair.get("e2", ""))).lower()
-                    elif isinstance(pair, (list, tuple)) and len(pair) >= 2:
-                        e1, e2 = str(pair[0]).lower(), str(pair[1]).lower()
-                    else:
-                        continue
-                    if e1 and e2:
-                        found = e1 in _ei_lower and e2 in _ei_lower
-                        _cooc_data.append({"e1": e1[:30], "e2": e2[:30], "found": found})
+                try:
+                    _cooc_pairs = backend_cooccurrence_pairs
+                except (NameError, UnboundLocalError):
+                    _cooc_pairs = []
+                for pair in (_cooc_pairs or [])[:10]:
+                    try:
+                        if isinstance(pair, dict):
+                            e1 = str(pair.get("entity_1", pair.get("e1", ""))).lower()
+                            e2 = str(pair.get("entity_2", pair.get("e2", ""))).lower()
+                        elif isinstance(pair, (list, tuple)) and len(pair) >= 2:
+                            e1, e2 = str(pair[0]).lower(), str(pair[1]).lower()
+                        else:
+                            continue
+                        if e1 and e2:
+                            found = e1 in _ei_lower and e2 in _ei_lower
+                            _cooc_data.append({"e1": e1[:30], "e2": e2[:30], "found": found})
+                    except Exception:
+                        pass
 
                 _cooc_found = sum(1 for c in _cooc_data if c["found"])
                 _cooc_total = len(_cooc_data)
 
-                # F. Entity gaps (from S1)
+                # F. Entity gaps (from S1) — safe access
                 _entity_gaps_list = []
                 try:
-                    _eg_raw = s1.get("entity_gaps", []) if s1 else []
+                    try:
+                        _s1_ref = s1 if s1 else {}
+                    except (NameError, UnboundLocalError):
+                        _s1_ref = {}
+                    _eg_raw = _s1_ref.get("entity_gaps", []) if isinstance(_s1_ref, dict) else []
                     for gap in (_eg_raw or [])[:8]:
                         if isinstance(gap, dict):
                             _g_name = gap.get("entity", gap.get("item", gap.get("name", "")))
