@@ -21,14 +21,14 @@ def build_system_prompt(topic, main_entity, persona="inne"):
     # Zasady pisania
     parts.append(WRITING_RULES)
 
-    # Zasady leada (NOWE – zawsze aktywne)
+    # Zasady leada (zawsze aktywne)
     parts.append(LEAD_RULES)
 
     # Element praktyczny
     parts.append(REAL_WORLD_ANCHORS)
 
     # Persona
-    persona_text = PERSONAS.get(persona, PERSONAS["inne"])
+    persona_text = PERSONAS.get(persona, PERSONAS.get("inne", ""))
     parts.append(f"<persona>{persona_text}</persona>")
 
     # Kontekst artykułu
@@ -40,3 +40,13 @@ Encja główna: {main_entity}
 """)
 
     return "\n\n".join(parts)
+
+
+# ─────────────────────────────────────────
+# 🔧 BACKWARD COMPATIBILITY FIX
+# ─────────────────────────────────────────
+# Starsze moduły importują build_user_prompt.
+# Alias zapobiega crashowi Render.
+
+def build_user_prompt(*args, **kwargs):
+    return build_system_prompt(*args, **kwargs)
