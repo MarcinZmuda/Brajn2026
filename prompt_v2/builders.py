@@ -7,10 +7,11 @@ from prompt_v2.constants import (
 )
 
 
-def build_system_prompt(topic, main_entity, persona="inne"):
+def build_system_prompt(topic="", main_entity="", persona="inne", **kwargs):
     """
     Buduje pełny system prompt.
     Lead rules są zawsze dołączane.
+    Defaults i **kwargs dla kompatybilności z pustymi wywołaniami.
     """
 
     parts = []
