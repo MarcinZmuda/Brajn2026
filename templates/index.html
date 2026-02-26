@@ -741,7 +741,7 @@
             </div>
 <div style="position:relative">
   <div id="artP" style="display:none"></div>
-  <div id="artBuildingOverlay" style="display:none;position:absolute;inset:0;pointer-events:none;z-index:2;display:flex;align-items:center;justify-content:center;opacity:.08">
+  <div id="artBuildingOverlay" style="display:none;position:absolute;inset:0;pointer-events:none;z-index:2;align-items:center;justify-content:center;opacity:.08">
     <div style="font-size:80px;animation:artSpin 3s linear infinite;transform-origin:center;user-select:none">⏳</div>
   </div>
 </div>
@@ -2363,6 +2363,8 @@ function renderArt(text){
     let safe=esc(text);
     // Restore safe HTML tags: headings, lists, tables, strong, em
     safe=safe.replace(/&lt;(\/?(h[2-4]|ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i|p|br|a|sup|sub)(\s[^&]*)?)&gt;/gi,function(_,tag){return '<'+tag+'>'});
+    // Restore text-level &gt; and &lt; (e.g. "> 0.5‰" in tables) — safe because content is AI-generated
+    safe=safe.replace(/&gt;/g,'>').replace(/&lt;/g,'<');
     let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
     if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
     pv.innerHTML=html;pv.style.display='';
@@ -2375,6 +2377,7 @@ function renderArt(text){
 function artToHTML(text){
     let safe=esc(text);
     safe=safe.replace(/&lt;(\/?(h[2-4]|ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i|p|br|a|sup|sub)(\s[^&]*)?)&gt;/gi,function(_,tag){return '<'+tag+'>'});
+    safe=safe.replace(/&gt;/g,'>').replace(/&lt;/g,'<');
     let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
     if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
     return html;
