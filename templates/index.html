@@ -160,6 +160,7 @@
         .pg-fill{height:100%;background:linear-gradient(90deg,var(--orange),#fcd34d);border-radius:2px;transition:width .5s ease;box-shadow:0 0 8px rgba(251,169,44,.3)}
         /* Long-step progress bars */
         @keyframes indeterminate{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}
+        @keyframes artSpin{0%{opacity:.4;transform:rotate(0deg)}25%{opacity:.12}50%{opacity:.4;transform:rotate(180deg)}75%{opacity:.12}100%{opacity:.4;transform:rotate(360deg)}}
         .long-step-bar{margin-top:8px;display:none}
         .long-step-bar.active{display:block}
         .long-step-bar .lsb-track{width:100%;height:2px;background:var(--s3);border-radius:2px;overflow:hidden;position:relative}
@@ -667,8 +668,7 @@
               </div>
               <div class="ls-timer" id="lsTimer">0:00</div>
             </div>
-                        <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
-            <!-- Fix #39: S1 Running state — pasek postępu jak editorial -->
+                        <!-- Fix #39: S1 Running state — pasek postępu jak editorial -->
             <div class="ed-running-state" id="s1Running">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                 <div style="display:flex;align-items:center">
@@ -683,6 +683,7 @@
               <div style="margin-top:8px;font-size:8px;color:var(--mg)">Analiza SERP, n-gramów, encji i konkurencji — zwykle 30–60 sekund</div>
             </div>
             <div class="pnl" id="s1P" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('s1P')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('s1P')}"><span>📊 Analiza S1 — Pełna mapa tematu</span><span class="arr">▼</span></div><div class="pnl-b" id="s1B" style="max-height:900px"></div></div>
+            <div class="crd" id="h2C" style="display:none"><div class="crd-t"><b>Plan</b> H2</div><div id="h2L"></div></div>
             <div id="sourcesBox" style="display:none;border:1px solid var(--b1);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--s1)"></div>
             <div class="pnl" id="biP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('biP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('biP')}"><span>🎯 Pre-batch info</span><span class="arr">▼</span></div><div class="pnl-b" id="biB"></div></div>
             <div class="pnl" id="svC" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('svC')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('svC')}"><span id="svH">🔎 Search Variants</span><span class="arr">▼</span></div><div class="pnl-b" id="svB"></div></div>
@@ -738,7 +739,12 @@
               <button class="tbtn" id="btnCopyArt" onclick="copyArticle()" style="background:var(--gn);color:#fff;border:none">📋 Kopiuj</button>
               <span id="copyArtMsg" style="font-size:9px;color:var(--gn);display:none">✓ Skopiowano!</span>
             </div>
-<div class="art" id="artP" style="display:none"></div>
+<div style="position:relative">
+  <div id="artP" style="display:none"></div>
+  <div id="artBuildingOverlay" style="display:none;position:absolute;inset:0;pointer-events:none;z-index:2;display:flex;align-items:center;justify-content:center;opacity:.08">
+    <div style="font-size:80px;animation:artSpin 3s linear infinite;transform-origin:center;user-select:none">⏳</div>
+  </div>
+</div>
 <div class="editor-wrap" id="editorWrap">
                 <div class="edit-bar">
                     <span class="lbl" style="margin:0;flex:1;display:flex;align-items:center">✏️ Edytor artykułu</span>
@@ -1408,7 +1414,7 @@ async function startWorkflow(){
         es.addEventListener('search_variants',e=>{const d=JSON.parse(e.data);const el=document.getElementById('svC');if(!el)return;el.style.display='';let h='';const cats=[['fleksyjne','🔤'],['peryfrazy','🔄'],['potoczne','💬'],['formalne','📋'],['intencja_info','❓'],['intencja_transakcyjna','💰']];cats.forEach(([k,ic])=>{const v=d[k];if(v&&v.length)h+=`<div style="margin:4px 0"><span style="font-size:11px;color:var(--mg)">${ic} ${k}:</span> ${v.map(x=>`<span class="tag d">${esc(x)}</span>`).join('')}</div>`});const sec=d.secondary||{};if(Object.keys(sec).length){h+=`<div style="margin-top:8px;font-weight:600;font-size:12px">Secondary variants:</div>`;for(const[ent,vars] of Object.entries(sec)){h+=`<div style="margin:3px 0"><span style="color:var(--orange);font-size:12px">${esc(ent)}:</span> ${vars.map(v=>`<span class="tag c">${esc(v)}</span>`).join('')}</div>`}}const total=d.all_flat?d.all_flat.length:0;document.getElementById('svH').textContent=`Search Variants (${total})`;document.getElementById('svB').innerHTML=h;});
         es.addEventListener('batch_instructions',e=>{rBI(JSON.parse(e.data))});
         es.addEventListener('batch_start',e=>{const d=JSON.parse(e.data);document.getElementById('bpC').style.display='';document.getElementById('bCt').textContent=`${d.batch}/${d.total}`;document.getElementById('bFill').style.width=((d.batch-1)/d.total*100)+'%'});
-        es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);batchLog.push(d);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}if(d.accepted&&d.text_preview){liveArticle+=(liveArticle?'\n\n':'')+d.text_preview;renderArt(liveArticle)}try{initBatchChart(batchLog)}catch(e){console.warn('batchChart:',e)}});
+        es.addEventListener('batch_result',e=>{const d=JSON.parse(e.data);batchLog.push(d);const c=document.getElementById(`bc${d.batch}`);if(c){c.className=`bchip ${d.accepted?'ok':'bad'}`;c.textContent=`B${d.batch} ${d.quality_score||'?'}`;c.title=`${d.quality_grade||'?'} | D:${d.depth_score||'?'}`}document.getElementById('bFill').style.width=(d.batch/tb*100)+'%';document.getElementById('bCt').textContent=`${d.batch}/${tb}`;const bd=document.getElementById(`bd${d.batch}`);if(bd){let rx=`<div class="sub" style="border-top:2px solid ${d.accepted?'var(--gn)':'var(--rd)'}"><div class="sub-t">${d.accepted?'✅':'❌'} Wynik: ${d.quality_score||'?'}/100 (${d.quality_grade||'?'}) | ${d.word_count||'?'} słów | Depth: ${d.depth_score||'?'}</div>`;if(d.exceeded&&d.exceeded.length)rx+=`<div style="margin:4px 0">${d.exceeded.map(k=>'<span class="chip must">'+esc(k)+'</span>').join('')}</div>`;rx+=`</div>`;bd.innerHTML+=rx;if(!bd.classList.contains('open'))bd.classList.add('open')}const _abo=document.getElementById('artBuildingOverlay');if(_abo)_abo.style.display='flex';if(d.accepted&&d.text_preview){liveArticle+=(liveArticle?'\n\n':'')+d.text_preview;renderArt(liveArticle)}try{initBatchChart(batchLog)}catch(e){console.warn('batchChart:',e)}});
         es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);editorialData=d;
     // Pokaż edMini (pełne szczegóły w workflow card)
     const em=document.getElementById('edMini');if(em)em.style.display='';
@@ -1473,7 +1479,7 @@ async function startWorkflow(){
   });
         es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';try{initKwCoverageChart(d,batchLog)}catch(e){console.warn('kwCoverage:',e)}});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
-        es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';liveArticle=rawArticle;renderArt(rawArticle);const _ap=document.getElementById('artP');if(_ap)_ap.style.display='';document.getElementById('editorWrap').classList.add('visible');const awc=document.getElementById('artWordCount');if(awc)awc.textContent=(rawArticle.split(/\s+/).filter(Boolean).length).toLocaleString()+' słów';});
+        es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';liveArticle=rawArticle;renderArt(rawArticle);const _abo2=document.getElementById('artBuildingOverlay');if(_abo2)_abo2.style.display='none';const _ap=document.getElementById('artP');if(_ap)_ap.style.display='';document.getElementById('editorWrap').classList.add('visible');const awc=document.getElementById('artWordCount');if(awc)awc.textContent=(rawArticle.split(/\s+/).filter(Boolean).length).toLocaleString()+' słów';});
         es.addEventListener('article_memory',e=>{memoryData=JSON.parse(e.data)});
         es.addEventListener('paa_data',e=>{paaData=JSON.parse(e.data)});
         es.addEventListener('ymyl_context',e=>{ymylCtxData=JSON.parse(e.data);renderSourcesBox();});
