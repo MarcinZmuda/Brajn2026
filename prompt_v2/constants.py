@@ -121,3 +121,77 @@ W każdej sekcji dodaj element praktyczny:
 - szybki test,
 - realny scenariusz.
 </praktyka>"""
+
+
+# ════════════════════════════════════════════════════════════
+# ANTYREPETYCJE
+# ════════════════════════════════════════════════════════════
+
+ANTI_REPETITION_RULES = """<antyrepetycje>
+ZASADA PIERWSZEGO UŻYCIA:
+  Każda konkretna wartość (kwota, przepis, data, wymiar, stawka) pojawia się PEŁNĄ FORMĄ tylko raz —
+  tam, gdzie wprowadzasz ją po raz pierwszy. W każdej kolejnej sekcji: skrót lub całkowite pominięcie.
+
+  PIERWSZE UŻYCIE → pełna forma:   "opłata sądowa wynosi 600 zł"
+  DRUGIE UŻYCIE   → skrót:         "do wspomnianej opłaty dochodzi..."
+  TRZECIE UŻYCIE  → pomiń całkowicie lub zastąp nowym faktem
+
+  ❌ ŹLE — ta sama kwota 4×:
+    [S1] "...opłata wynosi 600 zł..."
+    [S2] "...trzeba uiścić 600 zł..."
+    [S3] "...koszt 600 zł obejmuje..."
+  ✅ DOBRZE:
+    [S1] "...opłata wynosi 600 zł..."    ← jedyne pełne użycie
+    [S2] "...poza tą opłatą dochodzi..." ← bez liczby, nowa informacja
+
+PRZEPISY PRAWNE — REGUŁA 1+1:
+  Każdy artykuł prawa (art. X k.r.o., § Y ustawy Z) pojawia się MAKSYMALNIE 2× w całym artykule:
+  — 1× przy definicji lub pierwszym wprowadzeniu
+  — 1× opcjonalnie przy sankcji / wyjątku / odmiennym zastosowaniu
+  Jeśli chcesz użyć go 3+ razy → to sygnał, że sekcje powtarzają tę samą myśl. Przepisz je.
+
+ZAKAZ POWIELANIA WNIOSKÓW:
+  Jeśli sekcja kończy się wnioskiem → następna NIE zaczyna się od niego jako punktu wyjścia.
+  ❌ "Postępowanie trwa 3 mies. [nowy H2] Warto wiedzieć, że postępowanie trwa 3 mies..."
+
+KAŻDA SEKCJA = NOWE INFORMACJE:
+  Przed napisaniem sekcji zadaj sobie pytanie:
+  "Co czytelnik dowie się z TEJ sekcji, czego nie wiedział po poprzedniej?"
+  Jeśli odpowiedź jest ta sama — to nie jest nowa sekcja, to powtórzenie.
+</antyrepetycje>"""
+
+
+# ════════════════════════════════════════════════════════════
+# SPÓJNOŚĆ STRUKTURY
+# ════════════════════════════════════════════════════════════
+
+COHERENCE_RULES = """<spojnosc>
+ARTYKUŁ = JEDEN TEKST, nie sklejone fragmenty.
+
+ZDANIE-MOST (obowiązkowe dla sekcji 2+):
+  Każda nowa sekcja H2 MUSI zaczynać się zdaniem nawiązującym do poprzedniej.
+  Zdanie-most: krótkie (max 15 słów), łączy poprzedni temat z nowym.
+  ✅ Dobre zdania-mosty:
+    "Skoro warunki spełnione — czas na dokumenty." [teoria → procedura]
+    "Samo złożenie pozwu to dopiero początek: teraz sąd ocenia." [procedura → skutki]
+    "Koszty zależą od tego, czy postępowanie jest sporne." [wynik → finanse]
+    "Te przepisy przekładają się na konkretną kwotę i czas." [prawo → praktyka]
+  ❌ Złe otwarcia (nowa sekcja jakby z innego artykułu):
+    "Rozwód za porozumieniem stron to..." ← definicja już była
+    "Art. 56 k.r.o. stanowi, że..." ← przepis już przywołany
+    "Warto wiedzieć, że..." ← filler bez nawiązania
+
+LOGICZNY ŁAŃCUCH — jeden kierunek:
+  ogół → szczegół, teoria → praktyka, warunki → procedura → skutki → koszty.
+  ZAKAZ cofania się: nie wracaj do teorii po praktyce, nie wracaj do definicji po procedurze.
+  Każdy H2 przesuwa czytelnika NAPRZÓD, nie zatrzymuje go w miejscu.
+
+SEKCJA H2 = ZAMKNIĘTA, UNIKALNA MYŚL:
+  "Co czytelnik wie po tej sekcji, czego nie wiedział przed nią?"
+  Jeśli odpowiedź pokrywa się z poprzednią sekcją → to nie jest nowa sekcja.
+  NIE zostawiaj "ogonów" — fragmentów należących do poprzedniego H2.
+
+ZAKAZ PODSUMOWAŃ W ŚRODKU ARTYKUŁU:
+  "Jak widać..." / "Podsumowując..." / "Warto zauważyć, że..." w środku tekstu
+  = sygnał że sekcja nie ma własnej tezy. Każda sekcja kończy się FAKTEM, nie morałem.
+</spojnosc>"""
