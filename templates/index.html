@@ -741,8 +741,8 @@
             </div>
 <div style="position:relative">
   <div id="artP" style="display:none"></div>
-  <div id="artBuildingOverlay" style="display:none;position:absolute;inset:0;pointer-events:none;z-index:2;align-items:center;justify-content:center;opacity:.08">
-    <div style="font-size:80px;animation:artSpin 3s linear infinite;transform-origin:center;user-select:none">⏳</div>
+  <div id="artBuildingOverlay" style="display:none;position:absolute;inset:0;pointer-events:none;z-index:2;align-items:center;justify-content:center;opacity:.35">
+    <div style="font-size:120px;animation:artSpin 2.5s linear infinite;transform-origin:center;user-select:none;filter:drop-shadow(0 0 12px rgba(255,152,0,.6))">⏳</div>
   </div>
 </div>
 <div class="editor-wrap" id="editorWrap">
@@ -2359,11 +2359,14 @@ function renderCompDash(){
 
 function renderArt(text){
     const pv=document.getElementById('artP');
+    // Pre-decode: AI sometimes sends &gt; / &lt; as literal HTML entities in table cells.
+    // esc() would then double-encode them to &amp;gt; — so decode first, then re-encode cleanly.
+    let raw=text.replace(/&gt;/g,'>').replace(/&lt;/g,'<').replace(/&amp;/g,'&');
     // Sanitize: escape HTML first, then apply safe structural formatting
-    let safe=esc(text);
+    let safe=esc(raw);
     // Restore safe HTML tags: headings, lists, tables, strong, em
     safe=safe.replace(/&lt;(\/?(h[2-4]|ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i|p|br|a|sup|sub)(\s[^&]*)?)&gt;/gi,function(_,tag){return '<'+tag+'>'});
-    // Restore text-level &gt; and &lt; (e.g. "> 0.5‰" in tables) — safe because content is AI-generated
+    // Restore text-level &gt; and &lt; (e.g. "> 0.5‰" in tables)
     safe=safe.replace(/&gt;/g,'>').replace(/&lt;/g,'<');
     let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
     if(!html.startsWith('<'))html='<p>'+html;if(!html.endsWith('>'))html+='</p>';
@@ -2375,7 +2378,8 @@ function renderArt(text){
 }
 
 function artToHTML(text){
-    let safe=esc(text);
+    let raw=text.replace(/&gt;/g,'>').replace(/&lt;/g,'<').replace(/&amp;/g,'&');
+    let safe=esc(raw);
     safe=safe.replace(/&lt;(\/?(h[2-4]|ul|ol|li|table|thead|tbody|tr|th|td|strong|em|b|i|p|br|a|sup|sub)(\s[^&]*)?)&gt;/gi,function(_,tag){return '<'+tag+'>'});
     safe=safe.replace(/&gt;/g,'>').replace(/&lt;/g,'<');
     let html=safe.replace(/^h2:\s*(.+)$/gm,'<h2>$1</h2>').replace(/^h3:\s*(.+)$/gm,'<h3>$1</h3>').replace(/\n\n/g,'</p><p>').replace(/^\s*<\/p>/,'');
