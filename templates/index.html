@@ -1555,10 +1555,31 @@ async function startWorkflow(){
             [pl.in_first_sentence,'1. zdanie','W pierwszym zdaniu'],
             [pl.h2_with_entity>0,pl.h2_with_entity+'/'+pl.h2_count+' H2','W nagłówkach H2'],
             [sp.subject_ratio>=20,(sp.subject_ratio||0)+'% zdań','Jako podmiot'],
-            [pl.density_per_1k>=3&&pl.density_per_1k<=20,pl.density_per_1k+'/1k','Gęstość wzmianek'],
+            [pl.density_per_1k>=5&&pl.density_per_1k<=12,pl.density_per_1k+'/1k','Gęstość wzmianek'],
           ];
           checks.forEach(([ok,val,label])=>{const c=ok?G:ok===false?R:M;h+=`<div style="background:var(--s2);border-radius:6px;padding:6px;border:1px solid ${c}22"><div style="font-size:14px;font-weight:700;color:${c}">${ok?'✓':'✗'} ${val}</div><div style="font-size:8px;color:${M};margin-top:2px">${label}</div></div>`});
           h+=`</div>`;
+
+          // ━━━ B2. ENCJE WTÓRNE ━━━
+          const secEnts=sp.secondary_entities||[];
+          if(secEnts.length){
+            h+=`<div style="font-weight:700;font-size:11px;margin:8px 0 5px;color:var(--lg);text-transform:uppercase;letter-spacing:.5px">Encje wtórne</div>`;
+            h+=`<div style="display:grid;grid-template-columns:1fr repeat(4,44px);gap:2px 4px;font-size:10px;align-items:center">`;
+            h+=`<div style="color:${M}">Encja</div><div style="color:${M};text-align:center">1.zd</div><div style="color:${M};text-align:center">H2</div><div style="color:${M};text-align:center">Podmiot</div><div style="color:${M};text-align:center">/1k</div>`;
+            secEnts.forEach(se=>{
+              const ok1=se.first_sentence;
+              const ok2=(se.h2_count||0)>0;
+              const ok3=(se.subject_ratio||0)>=0.2;
+              const ok4=(se.density_per_1k||0)>=1;
+              const clr=se.score>=60?G:se.score>=35?W:R;
+              h+=`<div style="color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500" title="${esc(se.keyword||'')}">${esc(se.keyword||'')}</div>`;
+              h+=`<div style="text-align:center;color:${ok1?G:R}">${ok1?'✓':'✗'}</div>`;
+              h+=`<div style="text-align:center;color:${ok2?G:R}">${se.h2_count||0}</div>`;
+              h+=`<div style="text-align:center;color:${ok3?G:R}">${Math.round((se.subject_ratio||0)*100)}%</div>`;
+              h+=`<div style="text-align:center;color:${ok4?G:R}">${se.density_per_1k||0}</div>`;
+            });
+            h+=`</div>`;
+          }
 
           // ━━━ C. WSPÓŁWYSTĘPOWANIE ━━━
           const cooc=d.cooccurrence||{};
