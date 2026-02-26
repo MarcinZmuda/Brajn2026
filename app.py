@@ -1128,6 +1128,190 @@ def _sanitize_placement_instruction(text):
 
 
 # ============================================================
+# TOPICAL ENTITY FILTERS (v61)
+# ============================================================
+
+# Zaimki wskazujące i nieokreślone które wskazują, że fraza to fragment zdania, nie encja
+_NGRAM_PRONOUN_FRAGMENTS = {
+    "dana", "danej", "danego", "danemu", "danym",
+    "innej", "innego", "innemu", "innym", "inni", "inne", "inny",
+    "tej", "tego", "temu", "tą", "tym",
+    "każdej", "każdego", "każdemu", "każdym", "każda",
+    "takiej", "takiego", "takim", "taka",
+    "pewnej", "pewnego", "pewnym",
+    "swojej", "swojego", "swoim", "swojemu",
+    "własnej", "własnego", "własnym",
+}
+
+# Przyimki polskie — fraza startująca od przyimka to fragment zdania, nie encja
+_POLISH_PREPOSITIONS_START = {
+    "w ", "na ", "do ", "ze ", "z ", "od ", "dla ", "przy ",
+    "przez ", "po ", "za ", "nad ", "pod ", "przed ", "między ",
+    "wokół ", "wobec ", "według ", "wzdłuż ", "oprócz ", "poza ",
+    "pomimo ", "mimo ", "dzięki ", "podczas ", "wśród ",
+    "szczególności ", "względu ", "uwagi ", "podstawie ",
+}
+
+# Stopwords same w sobie nie tworzą encji
+_STOPWORD_ONLY_TOKENS = {
+    "osoby", "osoba", "osobą", "osobie", "stan", "stanu",
+    "przypadek", "przypadku", "przypadki",
+    "życiu", "życia", "życie",
+    "zachowania", "zachowanie", "zachowaniu",
+}
+
+
+def _is_ngram_entity(phrase: str) -> bool:
+    """Sprawdza czy fraza to prawdziwa encja topicalna (nie fragment n-gramowy).
+    
+    Zwraca False dla:
+    - fraz zaczynających się od przyimka
+    - fraz ze zaimkami wskazującymi/nieokreślonymi
+    - zbyt krótkich lub zbyt generycznych fraz
+    - konkretnych liczebnikowych przykładów (np. "28-letni mężczyzna")
+    """
+    if not phrase or not isinstance(phrase, str):
+        return False
+    phrase = phrase.strip()
+    p_lower = phrase.lower()
+    
+    # Za krótka
+    if len(phrase) < 4:
+        return False
+    
+    # Zaczyna się od przyimka polskiego
+    for prep in _POLISH_PREPOSITIONS_START:
+        if p_lower.startswith(prep):
+            return False
+    
+    # Zawiera zaimek wskazujący/nieokreślony jako PIERWSZE słowo
+    first_word = p_lower.split()[0] if p_lower.split() else ""
+    if first_word in _NGRAM_PRONOUN_FRAGMENTS:
+        return False
+    
+    # Fraza to wyłącznie stopword + rzeczownik (bez znaczącej treści)
+    words = p_lower.split()
+    if len(words) == 2 and words[0] in _NGRAM_PRONOUN_FRAGMENTS:
+        return False
+    if len(words) == 2 and words[1] in _STOPWORD_ONLY_TOKENS and words[0] in _NGRAM_PRONOUN_FRAGMENTS:
+        return False
+    
+    # Konkretny przykład liczbowy: "28-letni mężczyzna", "3-osobowa rodzina"
+    import re as _re2
+    if _re2.match(r'^\d+-', phrase):
+        return False
+    
+    # Urwany celownik/dopełniacz kończący się na typowe końcówki bez kontekstu
+    # Blokuj tylko gdy pierwsza słowo jest zaimkiem ORAZ ostatnie jest generycznym stopwordem
+    # "dana osoba" → False, ale "małżonek osoby" → True (małżonek nie jest zaimkiem)
+    if len(words) <= 2 and words[0] in _NGRAM_PRONOUN_FRAGMENTS and words[-1] in _STOPWORD_ONLY_TOKENS:
+        return False
+    
+    return True
+
+
+def _filter_must_cover_concepts(concepts: list) -> list:
+    """Filtruje listę must_cover_concepts usuwając n-gramowe śmieci.
+    
+    Zachowuje tylko prawdziwe encje topicalne.
+    """
+    if not concepts:
+        return []
+    clean = []
+    for c in concepts:
+        text = c.get("text", c.get("entity", "")) if isinstance(c, dict) else str(c)
+        text = text.strip()
+        if not text:
+            continue
+        if _is_css_garbage(text):
+            continue
+        if not _is_ngram_entity(text):
+            continue
+        clean.append(c)
+    return clean
+
+
+def _build_concept_instruction_from_topical(topical_result: dict, main_keyword: str) -> str:
+    """Buduje concept_instruction z wyników topical entity generatora.
+    
+    Zamiast surowych n-gramów z API — grupuje encje wg typu semantycznego
+    i formatuje jako czytelną, merytoryczną instrukcję dla modelu.
+    
+    Zwraca pusty string jeśli brak danych.
+    """
+    if not topical_result:
+        return ""
+    
+    secondary = topical_result.get("secondary_entities", [])
+    ngrams = topical_result.get("semantic_ngrams", [])
+    cooc = topical_result.get("cooccurrence_pairs", [])
+    
+    if not secondary and not ngrams:
+        return ""
+    
+    # Grupuj encje wtórne wg typu
+    type_groups = {}
+    type_labels = {
+        "LAW": "Przepisy",
+        "CONCEPT": "Pojęcia prawne" if any(t in main_keyword.lower() for t in ["prawo", "prawny", "sąd", "ustawa", "ubezwłas", "kodeks", "art.", "paragraf"]) else "Kluczowe pojęcia",
+        "PROCESS": "Procesy i procedury",
+        "PERSON": "Osoby i role",
+        "ORGANIZATION": "Instytucje",
+        "UNIT": "Jednostki",
+        "EVENT": "Zdarzenia",
+        "DEVICE": "Substancje / narzędzia",
+        "OTHER": "Inne",
+    }
+    
+    for ent in secondary[:16]:
+        if not isinstance(ent, dict):
+            continue
+        text = ent.get("text", "").strip()
+        if not text or not _is_ngram_entity(text):
+            continue
+        etype = ent.get("type", "CONCEPT").upper()
+        if etype not in type_labels:
+            etype = "OTHER"
+        if etype not in type_groups:
+            type_groups[etype] = []
+        type_groups[etype].append(text)
+    
+    if not type_groups and not ngrams:
+        return ""
+    
+    lines = [f"📚 ENCJE TEMATYCZNE dla \"{main_keyword}\" (wpleć naturalnie — odmieniaj przez przypadki):"]
+    lines.append("")
+    
+    # Encje pogrupowane wg typu
+    type_order = ["LAW", "CONCEPT", "PROCESS", "PERSON", "ORGANIZATION", "UNIT", "EVENT", "DEVICE", "OTHER"]
+    for etype in type_order:
+        if etype in type_groups and type_groups[etype]:
+            label = type_labels.get(etype, etype)
+            entities_str = " | ".join(type_groups[etype][:6])
+            lines.append(f"[{label}]: {entities_str}")
+    
+    # N-gramy semantyczne jako "wyrażenia obowiązkowe"
+    high_ngrams = [ng for ng in ngrams if isinstance(ng, dict) and ng.get("importance") == "HIGH"]
+    if high_ngrams:
+        lines.append("")
+        phrases = [ng.get("phrase", "") for ng in high_ngrams[:6] if ng.get("phrase")]
+        if phrases:
+            lines.append(f"WYRAŻENIA KLUCZOWE: {' | '.join(phrases)}")
+    
+    # Co-occurrence pairs
+    if cooc:
+        lines.append("")
+        lines.append("RAZEM W JEDNYM AKAPICIE (silny sygnał semantyczny):")
+        for pair in cooc[:4]:
+            e1 = pair.get("entity1", "")
+            e2 = pair.get("entity2", "")
+            if e1 and e2:
+                lines.append(f"  • {e1} + {e2}")
+    
+    return "\n".join(lines)
+
+
+# ============================================================
 # CONFIG
 # ============================================================
 app = Flask(__name__)
@@ -2924,6 +3108,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # v47.0: must_cover_concepts & concept_instruction from semantic_enhancement_hints
         must_cover_concepts = _filter_entities(sem_hints.get("must_cover_concepts", []) or (topical_summary.get("must_cover", []) if isinstance(topical_summary, dict) else []))
         concept_instruction = _sanitize_placement_instruction(sem_hints.get("concept_instruction", "") or (topical_summary.get("agent_instruction", "") if isinstance(topical_summary, dict) else ""))
+        # v61 FIX: Filter must_cover_concepts — remove n-gram fragments (not true entities)
+        must_cover_concepts = _filter_must_cover_concepts(must_cover_concepts)
 
         # ═══ v50.4 FIX 20: Override backend placement with topical-generated data ═══
         # When topical entity generator was used, its output is BETTER than
@@ -3006,7 +3192,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "first_paragraph_entities": _fp_names,
                 "h2_entities": _h2_names,
                 "cooccurrence_pairs": backend_cooccurrence_pairs[:5] if backend_cooccurrence_pairs else [],
-                "concept_instruction": concept_instruction,
+                "concept_instruction": (
+                    # v61 FIX: Build proper entity-first concept instruction from topical generator
+                    # instead of keeping bad n-gram concept_instruction from S1 API
+                    _build_concept_instruction_from_topical(topical_gen_result or {}, main_keyword)
+                    or _build_concept_instruction_from_topical({"secondary_entities": [{
+                        "text": _extract_text(e), "type": (e.get("type","CONCEPT") if isinstance(e,dict) else "CONCEPT")
+                    } for e in (_override_entities or [])[:12]]}, main_keyword)
+                    or concept_instruction
+                ),
                 "checkpoints": {
                     "batch_1": f"H1 contains '{_primary_name}', first paragraph mentions {', '.join(_secondary_names[:2])}",
                     "batch_3": "entity_density >= 2.5, min 50% critical entities, min 30% must_cover_concepts",
