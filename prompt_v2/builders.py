@@ -20,6 +20,7 @@ from prompt_v2.constants import (
     REAL_WORLD_ANCHORS,
     ANTI_REPETITION_RULES,
     COHERENCE_RULES,
+    ENTITY_RULES,
 )
 
 
@@ -77,6 +78,7 @@ def build_system_prompt(pre_batch_or_topic=None, batch_type=None,
     parts.append(WRITING_RULES)
     parts.append(LEAD_RULES)
     parts.append(REAL_WORLD_ANCHORS)
+    parts.append(ENTITY_RULES)
     parts.append(ANTI_REPETITION_RULES)
     parts.append(COHERENCE_RULES)
 
