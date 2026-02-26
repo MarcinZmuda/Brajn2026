@@ -534,7 +534,7 @@ _TOPICAL_ENTITY_PROMPT = """Jesteś ekspertem semantic SEO. Dla podanego tematu 
 
 ZASADY:
 1. Encje MUSZĄ być tematyczne, bezpośrednio powiązane z tematem, nie z komercyjnymi stronami w SERP
-2. Encja główna = sam temat (lub jego najbardziej precyzyjna forma)
+2. Encja główna = DOKŁADNIE podany temat (bez zmiany, bez 'bardziej precyzyjnych' wersji — hasło to jedyna poprawna odpowiedź)
 3. Encje wtórne = 16-20 kluczowych konceptów powiązanych (podtypy, pojęcia prawne/medyczne/techniczne, procesy, konsekwencje, wyjątki, edge cases)
 4. Dla każdej encji: 1 trójka E-A-V (Encja → Atrybut → Wartość)
 5. 5-8 par co-occurrence (encje które powinny występować blisko siebie w tekście)
@@ -800,25 +800,31 @@ def _generate_topical_entities(main_keyword: str, h2_plan: list = None) -> dict:
         return {}
 
 
-def _topical_to_entity_list(topical_result: dict) -> list:
+def _topical_to_entity_list(topical_result: dict, main_keyword: str = "") -> list:
     """Convert topical entity result to standard entity list format.
     
     Returns list of dicts compatible with clean_entities / ai_topical format:
     [{"text": "...", "type": "...", "eav": "...", "source": "topical_generator"}]
+    
+    v61 FIX: primary_entity is ALWAYS overridden by main_keyword.
+    LLMs sometimes choose "more precise" synonyms (e.g. "stan nietrzeźwości" for "jazda po alkoholu").
+    This is wrong - the primary entity must match the keyword the user is targeting.
     """
     if not topical_result:
         return []
     
     entities = []
     
-    # Primary entity first
+    # Primary entity: ALWAYS use main_keyword if provided
+    # The LLM may generate a "more precise" form but that breaks entity salience targeting
     primary = topical_result.get("primary_entity", {})
-    if primary and primary.get("text"):
+    primary_text = main_keyword.strip() if main_keyword else (primary.get("text", "") if primary else "")
+    if primary_text:
         entities.append({
-            "text": primary["text"],
-            "entity": primary["text"],
-            "type": primary.get("type", "CONCEPT"),
-            "eav": primary.get("eav", ""),
+            "text": primary_text,
+            "entity": primary_text,
+            "type": primary.get("type", "CONCEPT") if primary else "CONCEPT",
+            "eav": primary.get("eav", "") if primary else "",
             "source": "topical_generator",
             "is_primary": True
         })
@@ -2996,7 +3002,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 topical_gen_result = _generate_topical_entities(main_keyword)
                 
                 if topical_gen_result:
-                    topical_gen_entities = _topical_to_entity_list(topical_gen_result)
+                    topical_gen_entities = _topical_to_entity_list(topical_gen_result, main_keyword)
                     topical_gen_placement = _topical_to_placement_instruction(topical_gen_result, main_keyword)
                     topical_gen_cooc = _topical_to_cooccurrence(topical_gen_result)
                     topical_gen_ngrams = _topical_to_ngrams(topical_gen_result)
@@ -3034,7 +3040,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 topical_gen_result = _generate_topical_entities(main_keyword)
                 if topical_gen_result:
                     topical_gen_ngrams = _topical_to_ngrams(topical_gen_result)
-                    topical_gen_entities = _topical_to_entity_list(topical_gen_result)
+                    topical_gen_entities = _topical_to_entity_list(topical_gen_result, main_keyword)
                     topical_gen_placement = _topical_to_placement_instruction(topical_gen_result, main_keyword)
                     topical_gen_cooc = _topical_to_cooccurrence(topical_gen_result)
                     topical_gen_eav = _topical_to_eav(topical_gen_result)
