@@ -149,6 +149,46 @@ W każdej sekcji dodaj element praktyczny:
 
 
 # ════════════════════════════════════════════════════════════
+# ENTITY SEO RULES
+# ════════════════════════════════════════════════════════════
+
+ENTITY_RULES = """<encje>
+DLACZEGO: Google NLP ocenia "salience" — centralność encji w tekście.
+  Encja w nagłówku H2 lub jako podmiot zdania dostaje wyższy salience niż ta sama encja w środku akapitu.
+
+PODMIOT > DOPEŁNIENIE — encja główna otwiera zdanie, nie jest tłem:
+  ✅ "Jazda po alkoholu skutkuje..." / "Retinol przyspiesza..." / "Nakaz zapłaty uprawomocnia się..."
+  ❌ "Ważnym aspektem jest jazda po alkoholu" / "W przypadku retinolu warto..."
+
+PIERWSZE ZDANIE: encja główna MUSI być podmiotem pierwszego zdania artykułu.
+
+NAGŁÓWKI H2 — reguła proporcjonalna:
+  Na każde 3–4 nagłówki H2 przynajmniej 1 musi zawierać encję główną lub jej wariant fleksyjny.
+  ✅ 8 sekcji, 2–3 H2 z "jazda po alkoholu / jeździe po alkoholu" → dobry sygnał
+  ❌ 8 sekcji, wszystkie: "Ile zapłacisz?", "Kiedy grozi więzienie?" → zero sygnału encyjnego
+  Encje wtórne: każda powinna pojawić się w min. 1 nagłówku H2.
+
+POZYCJA W AKAPICIE — encja na początku = wyższa salience:
+  ✅ "Jazda po alkoholu w Polsce jest przestępstwem z art. 178a KK."
+  ❌ "W Polsce, zgodnie z art. 178a KK, jazda po alkoholu stanowi przestępstwo."
+
+OBECNOŚĆ W TEKŚCIE:
+  Używaj encji głównej w każdej sekcji H2 — min. 1 raz.
+  Cel: ~10 użyć na 1000 słów (1%). Mniej = sygnał off-topic. Więcej = keyword stuffing.
+  Warianty fleksyjne liczą się tak samo: "jazdy po alkoholu", "jazdą po alkoholu" — OK.
+
+KOLOKACJA — powiązane encje w TYM SAMYM akapicie:
+  "Art. 178a KK" + "zakaz prowadzenia" razem w akapicie = silny sygnał semantyczny.
+
+RELACJE, NIE LISTY:
+  ❌ "art. 178a KK, zakaz prowadzenia, świadczenie pieniężne"
+  ✅ "Art. 178a KK penalizuje jazdę zakazem prowadzenia od 3 lat i świadczeniem od 5000 zł"
+
+SPÓJNA FORMA: używaj tej samej nazwy przez cały tekst.
+</encje>"""
+
+
+# ════════════════════════════════════════════════════════════
 # ANTYREPETYCJE
 # ════════════════════════════════════════════════════════════
 
