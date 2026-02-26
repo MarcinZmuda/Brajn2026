@@ -18,6 +18,8 @@ from prompt_v2.constants import (
     WRITING_RULES,
     LEAD_RULES,
     REAL_WORLD_ANCHORS,
+    ANTI_REPETITION_RULES,
+    COHERENCE_RULES,
 )
 
 
@@ -70,6 +72,8 @@ def build_system_prompt(pre_batch_or_topic=None, batch_type=None,
     parts.append(WRITING_RULES)
     parts.append(LEAD_RULES)
     parts.append(REAL_WORLD_ANCHORS)
+    parts.append(ANTI_REPETITION_RULES)
+    parts.append(COHERENCE_RULES)
 
     persona_text = PERSONAS.get(persona, PERSONAS.get("inne", ""))
     parts.append(f"<persona>{persona_text}</persona>")
