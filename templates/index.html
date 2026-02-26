@@ -444,6 +444,50 @@
     .art-modal-close{width:36px;height:36px;border-radius:50%;border:1px solid var(--b1);background:var(--bg2);color:var(--mg);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .15s}
     .art-modal-close:hover{background:var(--rd);color:#fff;border-color:var(--rd)}
     .copy-ok{color:var(--gn)!important;font-weight:600}
+    /* ───────────────────────────── */
+/* PERSONA SELECT – CONSISTENT UI */
+/* ───────────────────────────── */
+
+#voicePreset-wrapper {
+    position: relative;
+}
+
+#voicePreset {
+    width: 100%;
+    padding: 10px 38px 10px 14px;
+    font-size: 15px;
+    border-radius: var(--rs);
+    border: 1px solid var(--b1);
+    background: var(--s2);
+    color: var(--white);
+    font-family: inherit;
+    appearance: none;
+    cursor: pointer;
+    transition: all .2s;
+}
+
+#voicePreset:hover {
+    border-color: var(--b3);
+    background: var(--s3);
+}
+
+#voicePreset:focus {
+    outline: none;
+    border-color: rgba(251,169,44,.4);
+    box-shadow: 0 0 0 3px var(--og);
+}
+
+/* Custom arrow */
+#voicePreset-wrapper::after {
+    content: "▾";
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    font-size: 12px;
+    color: var(--mg);
+}
     </style>
 </head>
 <body>
@@ -485,13 +529,14 @@
         </div>
         <label class="lbl" for="mainKeyword">Keyword</label>
         <input type="text" id="mainKeyword" placeholder="np. od czego zacząć przeprowadzkę">
-        
-        <label class="lbl" for="voicePreset">Persona / styl</label>
-        <select id="voicePreset">
-            <option value="auto" selected>AUTO (system dobiera)</option>
-            <option value="lifestyle">Lifestyle (high-end vibe)</option>
-            <option value="prawo_rodzinne">Prawo rodzinne (legal-grade)</option>
-        </select>
+<label class="lbl" for="voicePreset">Persona / styl</label>
+<div id="voicePreset-wrapper">
+    <select id="voicePreset">
+        <option value="auto" selected>AUTO (system dobiera)</option>
+        <option value="lifestyle">Lifestyle (high-end vibe)</option>
+        <option value="prawo_rodzinne">Prawo rodzinne (legal-grade)</option>
+    </select>
+</div>
 <div class="lbl">Tryb</div>
         <div class="modes">
             <div class="mbtn on" data-mode="standard" onclick="selMode('standard')"><strong>Standard</strong><small>6–9 batchy</small></div>
