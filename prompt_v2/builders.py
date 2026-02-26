@@ -36,7 +36,12 @@ def _extract_topic_entity(pre_batch):
         or pre_batch.get("_main_entity")
         or topic
     )
-    persona = pre_batch.get("detected_category", "inne")
+    # v2: voice_preset z UI nadpisuje auto-wykrytą kategorię
+    voice_preset = pre_batch.get("voice_preset", "auto") or "auto"
+    if voice_preset != "auto":
+        persona = voice_preset  # "Glossy" / "Prawo rodzinne" / "Prawo karne"
+    else:
+        persona = pre_batch.get("detected_category", "inne")
     return topic, main_entity, persona
 
 
