@@ -208,6 +208,17 @@ def build_system_prompt(pre_batch, batch_type):
     parts = []
 
     detected_category = pre_batch.get("detected_category", "")
+
+    # voice_preset z UI nadpisuje auto-detekcję (mapowanie v2→v1)
+    _voice_preset = pre_batch.get("voice_preset", "auto") or "auto"
+    _voice_map = {
+        "Glossy": "uroda",
+        "Prawo rodzinne": "prawo",
+        "Prawo karne": "prawo",
+    }
+    if _voice_preset != "auto" and _voice_preset in _voice_map:
+        detected_category = _voice_map[_voice_preset]
+
     is_ymyl = detected_category in ("prawo", "medycyna", "finanse")
 
     # ═══ 1. ROLA ═══
