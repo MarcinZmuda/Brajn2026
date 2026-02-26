@@ -69,3 +69,7 @@ def build_user_prompt(*args, **kwargs):
 
 def build_faq_system_prompt(*args, **kwargs):
     return build_system_prompt(*args, **kwargs)
+
+# Dodany alias dla build_faq_user_prompt, aby uniknąć ImportError
+def build_faq_user_prompt(*args, **kwargs):
+    return build_system_prompt(*args, **kwargs)
