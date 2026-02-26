@@ -140,11 +140,12 @@ ADAPTACJA NISZOWA:
 # ════════════════════════════════════════════════════════════
 
 REAL_WORLD_ANCHORS = """<praktyka>
-W każdej sekcji dodaj element praktyczny:
-- narzędzie,
-- typowy błąd,
-- szybki test,
-- realny scenariusz.
+W każdej sekcji dodaj JEDEN konkretny element praktyczny odpowiedni dla tematu:
+- dla PRAWA: przykład z orzecznictwa, konkretny termin ustawowy, typowy błąd proceduralny
+- dla BEAUTY/LIFESTYLE: konkretny produkt/składnik, błąd aplikacji, realny scenariusz
+- dla SEO/MARKETING: konkretna liczba/wynik, narzędzie, błąd z praktyki
+- dla OGÓLNYCH: typowy błąd, realny przykład z życia, scenariusz do sprawdzenia
+NIE DODAWAJ: "szybki test", "quiz", ankiet, ćwiczeń — chyba że temat tego wymaga.
 </praktyka>"""
 
 
@@ -223,6 +224,13 @@ KAŻDA SEKCJA = NOWE INFORMACJE:
   Przed napisaniem sekcji zadaj sobie pytanie:
   "Co czytelnik dowie się z TEJ sekcji, czego nie wiedział po poprzedniej?"
   Jeśli odpowiedź jest ta sama — to nie jest nowa sekcja, to powtórzenie.
+
+DŁUGIE FRAZY WIELOWYRAZOWE (zakaz powtórzeń w akapicie):
+  Frazy 4+ wyrazowe (np. "ubezwłasnowolnienie osoby chorej psychicznie", "zdolność do czynności prawnych",
+  "postępowanie o ubezwłasnowolnienie") — max RAZ w pełnej formie na akapit.
+  Po pierwszym użyciu: zastąp zaimkiem lub skrótem ("ta instytucja", "procedura", "ten środek", "orzeczenie").
+  ❌ "Ubezwłasnowolnienie osoby chorej psychicznie jest możliwe gdy... Ubezwłasnowolnienie osoby chorej psychicznie wymaga..."
+  ✅ "Ubezwłasnowolnienie osoby chorej psychicznie jest możliwe gdy... Instytucja ta wymaga..."
 </antyrepetycje>"""
 
 
