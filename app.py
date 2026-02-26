@@ -1386,36 +1386,36 @@ def _fetch_wikipedia_legal_article(article_ref):
         results = data.get("query", {}).get("search", [])
         if not results:
             return {"found": False, "article_ref": article_ref}
-        # v59 FIX: Much stricter relevance filter for Wikipedia results.
-        # Problem: "art. 178 k.k." matched "Kodeks cywilny" (wrong act!) and
-        # "art. 178a k.k." matched "Maciej Szczęsny" (person, not law!).
-        # Solution: require the SPECIFIC act name in the page TITLE.
+        # v60 FIX: Strict Wikipedia relevance — require article number in page title.
+        # Problem observed: "art. 16 k.c." matched "Kodeks cywilny Królestwa Polskiego"
+        # which is historically irrelevant. Wikipedia articles about specific k.c. articles
+        # are generally low-quality. We now require article NUMBER in the page title
+        # (e.g. "Art. 178a" must appear in "Kodeks karny art. 178a" title).
         best_result = None
         for res in results:
             title_low = res.get("title", "").lower()
-            # STRICT: Page title must contain the specific act name
-            # e.g. "kodeks karny" for k.k., "kodeks wykroczeń" for k.w.
-            if _act_name and _act_name in title_low:
-                best_result = res
-                break
-        # Fallback: if no title match, try title containing "art" + number
-        if not best_result and _art_num:
-            for res in results:
-                title_low = res.get("title", "").lower()
-                # Must have BOTH: article-like prefix AND the number in title
-                if ("art" in title_low or "§" in title_low) and _art_num.lower() in title_low:
+            # STRICTEST: Page title must contain BOTH act name AND article number
+            if _act_name and _art_num:
+                if _act_name in title_low and _art_num.lower() in title_low:
                     best_result = res
                     break
-        # Last resort: search for just the act name (e.g. "Kodeks karny")
-        if not best_result and _act_name:
+        # Second pass: act name + article number anywhere in snippet
+        if not best_result and _act_name and _art_num:
             for res in results:
                 title_low = res.get("title", "").lower()
-                # Accept if title IS the act name (exact or starts with)
+                snippet_low = res.get("snippet", "").lower()
+                if _act_name in title_low and _art_num.lower() in snippet_low:
+                    best_result = res
+                    break
+        # Only fall back to act-name-only for well-known acts (k.k., k.w. — karny/wykroczeń)
+        # Skip this for k.c. (civil code) — Wikipedia articles are typically off-topic
+        if not best_result and _act_name and "kodeks cywilny" not in _act_name:
+            for res in results:
+                title_low = res.get("title", "").lower()
                 if title_low.startswith(_act_name) or _act_name.startswith(title_low):
                     best_result = res
                     break
         if not best_result:
-            # No relevant result — return not found instead of random article
             return {"found": False, "article_ref": article_ref, "reason": "no_relevant_wikipedia_result"}
         page_id = best_result["pageid"]
         extract_url = "https://pl.wikipedia.org/w/api.php?" + _urllib_parse.urlencode({
@@ -5291,7 +5291,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # Subject position analysis: always runs (free, no API)
             if full_text:
                 try:
-                    subject_pos = analyze_subject_position(_full_text_clean, main_keyword)
+                    # v58: pass top-3 secondary entities for panel display
+                    _sec_kws = []
+                    _topical = s1.get("topical_entities") or {}
+                    _sec_raw = _topical.get("secondary_entities") or []
+                    if isinstance(_sec_raw, list):
+                        for _se in _sec_raw[:3]:
+                            if isinstance(_se, dict):
+                                _sec_kws.append(_se.get("name") or _se.get("entity") or "")
+                            elif isinstance(_se, str):
+                                _sec_kws.append(_se)
+                    _sec_kws = [s for s in _sec_kws if s and s.lower() != main_keyword.lower()][:3]
+                    subject_pos = analyze_subject_position(_full_text_clean, main_keyword, secondary_keywords=_sec_kws or None)
                     sp_score = subject_pos.get("score", 0)
                     sr = subject_pos.get("subject_ratio", 0)
                     yield emit("log", {"msg": (
