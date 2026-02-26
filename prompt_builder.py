@@ -363,26 +363,47 @@ ZAKAZ PODSUMOWAŃ W ŚRODKU ARTYKUŁU:
 
         # ═══ 3. ENTITY SEO ═══
     parts.append("""<encje>
-SALIENCE — encja główna MUSI dominować w tekście:
-  PODMIOT > DOPEŁNIENIE: encja główna = podmiot zdania (kto/co?), nie peryferia.
-    ✅ „Jazda po alkoholu skutkuje..." / „Retinol przyspiesza..."
-    ❌ „Ważnym aspektem jest jazda po alkoholu" / „W przypadku retinolu..."
-  POZYCJA: encja główna w pierwszym zdaniu akapitu = wyższa salience.
-  KOLOKACJA: powiązane encje w TYM SAMYM akapicie.
-  SPÓJNA FORMA: nie przeskakuj między wariantami nazwy.
+DLACZEGO ENCJE SĄ WAŻNE: Google NLP ocenia "salience" — centralność encji dla treści.
+  Encja w nagłówku H2 lub jako podmiot zdania dostaje wyższy salience niż ta sama encja w środku akapitu.
+  Im wyższa salience encji głównej, tym wyraźniejszy sygnał topical focus dla algorytmu.
 
-NIE LISTUJ ENCJI — OPISUJ RELACJE:
-  ❌ „art. 178a KK, zakaz prowadzenia, świadczenie pieniężne" (lista)
+PODMIOT > DOPEŁNIENIE — encja główna = kto/co działa, nie kontekst:
+  ✅ „Jazda po alkoholu skutkuje..." / „Retinol przyspiesza..." / „Nakaz zapłaty uprawomocnia się..."
+  ❌ „Ważnym aspektem jest jazda po alkoholu" / „W przypadku retinolu warto..." / „Przepisy dotyczące nakazu..."
+  Zasada: encja główna ma inicjować zdanie lub stać blisko początku — nie być dopowiedziana na końcu.
+
+PIERWSZE ZDANIE: encja główna MUSI być w pierwszym zdaniu artykułu jako podmiot.
+
+NAGŁÓWKI H2 — reguła proporcjonalna:
+  Na każde 3–4 nagłówki H2 przynajmniej jeden musi zawierać encję główną lub jej wariant fleksyjny.
+  Dlaczego: Google interpretuje H2 jako silniejszy sygnał semantyczny niż treść akapitu.
+  ✅ 8 H2, z czego 3 zawierają "jazda po alkoholu/jeździe po alkoholu" → dobry sygnał
+  ❌ 8 H2, wszystkie brzmią "Kiedy grozi więzienie?", "Ile zapłacisz?" → brak sygnału encyjnego
+  Encje wtórne: każda powinna trafić do min. 1 H2.
+
+POZYCJA W AKAPICIE — encja na początku = wyższa salience:
+  ✅ „Jazda po alkoholu w Polsce jest przestępstwem z art. 178a KK."
+  ❌ „W Polsce, zgodnie z art. 178a KK, jazda po alkoholu stanowi przestępstwo."
+
+OBECNOŚĆ W TEKŚCIE — cel behawioralny, nie licznik:
+  Używaj encji głównej naturalnie w każdej sekcji H2 — co najmniej raz.
+  Nie unikaj encji "żeby się nie powtarzać" — to sygnał off-topic dla Google.
+  Nie nadużywaj encji w każdym zdaniu — to sygnał keyword stuffing.
+  Wskazówka: 1 użycie na ~100 słów to zdrowe tempo (ok. 10 razy w 1000-wyrazowym tekście).
+
+KOLOKACJA — powiązane encje w TYM SAMYM akapicie, nie rozrzucone po tekście:
+  Google rozumie relacje między encjami z co-occurrence. "Art. 178a KK" + "zakaz prowadzenia" w jednym akapicie
+  = silny sygnał semantyczny. Te same encje w różnych sekcjach = słabszy sygnał.
+
+SPÓJNA FORMA: używaj tej samej nazwy przez cały tekst. Nie przeskakuj między wariantami.
+
+RELACJE, NIE LISTY — opisuj jak encje się łączą:
+  ❌ „art. 178a KK, zakaz prowadzenia, świadczenie pieniężne" (lista tagów)
   ✅ „Art. 178a KK penalizuje jazdę zakazem prowadzenia od 3 lat i świadczeniem od 5000 zł" (relacja)
-  Używaj fraz: „reguluje", „prowadzi do", „jest typem", „zapobiega", „został wprowadzony przez".
+  Używaj fraz: „reguluje", „prowadzi do", „jest typem", „zapobiega", „wprowadził".
 
+INFORMATION GAIN: w każdej sekcji H2 dodaj MIN 1 element którego NIE MA w danych z konkurencji.
 CZYSTOŚĆ TEMATYCZNA: każda sekcja H2 = JEDEN podtemat, wyczerpany do końca.
-  Nie mieszaj 2 podtematów. Nie wracaj do podtematu omówionego we wcześniejszym H2.
-
-POLISEMIA: gdy encja wieloznaczna — doprecyzuj kontekst przy PIERWSZYM użyciu.
-
-INFORMATION GAIN: w każdej sekcji H2 dodaj MIN 1 element którego NIE MA w danych z konkurencji:
-  unikatowe porównanie, wyjątek od reguły, praktyczna wskazówka, mało znany fakt.
 </encje>""")
 
     # ═══ 4. ANTY-AI ═══
