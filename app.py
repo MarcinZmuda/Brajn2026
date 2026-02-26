@@ -2595,19 +2595,37 @@ def _editor_in_chief_review(article_text, main_keyword, detected_category="inne"
         return {"ran": False, "error": str(e)[:200]}
 
 def _compute_grade(quality_score, salience_score, semantic_score, style_score=None):
-    """Compute letter grade from available scores (A+ through D)."""
-    scores = []
+    """
+    Compute letter grade from independent scores (A+ through D).
+
+    Salience jest celowo WYKLUCZONA z oceny końcowej — jest matematyczną
+    pochodną Semantic Distance (entity_overlap * 60 + must_mention * 40),
+    więc jej uwzględnienie podwójnie liczyłoby tę samą informację.
+
+    Wagi niezależnych metryk:
+      Quality  (backend final_review)  → 45%  — ocenia treść merytorycznie
+      Semantic (competitor distance)   → 35%  — pokrycie tematyczne vs SERP
+      Style    (polish NLP + styl)     → 20%  — jakość językowa
+
+    Jeśli dana metryka jest niedostępna (None), wagi są redystrybuowane
+    proporcjonalnie między dostępnymi.
+    """
+    weights = {}
     if quality_score is not None:
-        scores.append(quality_score)
-    if salience_score is not None:
-        scores.append(salience_score)
+        weights["quality"] = (quality_score, 0.45)
     if semantic_score is not None:
-        scores.append(semantic_score)
+        weights["semantic"] = (semantic_score, 0.35)
     if style_score is not None:
-        scores.append(style_score)
-    if not scores:
+        weights["style"] = (style_score, 0.20)
+
+    if not weights:
         return "?"
-    avg = sum(scores) / len(scores)
+
+    # Redystrybuuj wagi gdy brakuje metryk
+    total_weight = sum(w for _, w in weights.values())
+    weighted_sum = sum(score * (w / total_weight) for score, w in weights.values())
+    avg = round(weighted_sum, 1)
+
     if avg >= 90:
         return "A+"
     elif avg >= 80:
@@ -4511,7 +4529,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 article_memory = pre_batch.get("article_memory")
                 if not article_memory and accepted_batches_log:
                     # Backend didn't provide memory, synthesize locally
-                    if len(accepted_batches_log) >= 3:
+                    # v53.1: próg obniżony z 3 do 1 — AI memory (z concrete_facts_used)
+                    # startuje od batcha 2, żeby zapobiec powtórzeniom już w sekcji 2
+                    if len(accepted_batches_log) >= 1:
                         article_memory = ai_synthesize_memory(accepted_batches_log, main_keyword)
                         yield emit("log", {"msg": f"🧠 AI Middleware: synteza pamięci artykułu ({len(accepted_batches_log)} batchy)"})
                     else:
@@ -5592,7 +5612,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             _word_count = len(full_text.split()) if full_text else 0
             _rec_length = s1.get("recommended_length", 3000) if s1 else 3000
 
-            grade = _compute_grade(_q_score, _sal_score, _sem_score, _st_score)
+            # Salience wykluczona z oceny — jest pochodna Semantic Distance
+            # (entity_overlap*60 + must_mention*40) i podwojnie liczyloby te sama informacje
+            # Wagi: Quality 45% + Semantic 35% + Style 20%
+            grade = _compute_grade(_q_score, None, _sem_score, _st_score)
             yield emit("evaluation_summary", {
                 "quality_score": _q_score,
                 "salience_score": _sal_score,
@@ -5605,8 +5628,9 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "must_mention_coverage_pct": round(semantic_dist_result.get("must_mention_pct", 0) * 100) if semantic_dist_result.get("enabled") else None,
                 "entity_coverage_pct": round(semantic_dist_result.get("entity_overlap", 0) * 100) if semantic_dist_result.get("enabled") else None,
                 "grade": grade,
+                "grade_weights": {"quality": 45, "semantic": 35, "style": 20},
             })
-            yield emit("log", {"msg": f"🎯 Ocena: {grade} | Quality: {_q_score} | Salience: {_sal_score} | Semantic: {_sem_score} | Style: {_st_score}"})
+            yield emit("log", {"msg": f"🎯 Ocena: {grade} | Quality: {_q_score} (45%) | Semantic: {_sem_score} (35%) | Style: {_st_score} (20%) | Salience: {_sal_score} [info]"})
         except Exception as eval_err:
             logger.warning(f"Evaluation summary failed: {eval_err}")
 
