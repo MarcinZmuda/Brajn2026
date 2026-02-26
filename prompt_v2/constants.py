@@ -86,27 +86,52 @@ WRITING_RULES = """<zasady>
 # ════════════════════════════════════════════════════════════
 
 LEAD_RULES = """<lead_rules>
-Lead musi spełniać wszystkie warunki:
+STRUKTURA:
+  Lead = 2–4 zdania, łącznie 40–75 słów.
+  Pierwsze zdanie: krótkie (5–8 wyrazów) — fakt, liczba, konsekwencja, ryzyko, kontrast lub konkretna sytuacja.
+  Każde kolejne zdanie wnosi NOWĄ informację — zero powtórzeń, zero filleru.
+  Rytm: krótkie → średnie → opcjonalnie jedno rozwinięte (do 15 wyrazów).
 
-1. 2–4 zdania.
-2. Encja główna w pierwszym zdaniu jako podmiot.
-3. Nie zaczynaj od definicji „X to…”.
-4. Pierwsze zdanie zaczyna się od:
-   - faktu,
-   - liczby,
-   - sytuacji,
-   - konsekwencji,
-   - konfliktu,
-   - konkretnego przykładu.
-5. Każde zdanie wnosi nową informację.
-6. Lead zawiera jeden element napięcia:
-   koszt / ryzyko / błąd / konsekwencję / kontrast.
-7. Zakaz meta-zapowiedzi:
-   - „W tym artykule…”
-   - „Poniżej wyjaśniamy…”
-   - „Dowiesz się…”
-8. Naturalny rytm: krótkie + średnie + jedno rozwinięte.
-9. FOG-PL 8–10.
+ENCJE I KEYWORD:
+  Encja główna = podmiot gramatyczny pierwszego zdania. Pełna, właściwa nazwa.
+  W leadzie muszą pojawić się 2–3 encje wtórne (blisko powiązane), tworząc sieć relacji encyjnych.
+  Główna fraza kluczowa pojawia się naturalnie w pierwszych 2 zdaniach. Dozwolona odmiana fleksyjna.
+
+NAPIĘCIE I HOOK:
+  Lead zawiera JEDEN element napięcia: koszt / ryzyko / błąd / konsekwencja / kontrast / zaskakująca liczba.
+  Lead MUSI otwierać pętlę informacyjną — pytanie, problem lub napięcie, które czytelnik rozwiąże
+  dopiero czytając artykuł. Bez tego czytelnik nie ma powodu przewijać dalej.
+  Adresuj czytelnika bezpośrednio: formy "Ty" / "Twój" / "Ci" budują zaangażowanie od pierwszego zdania.
+
+ZAKAZY:
+  NIE zaczynaj od definicji "X to..." — sygnalizuje generyczność.
+  NIE używaj meta-zapowiedzi: "W tym artykule...", "Poniżej wyjaśniamy...", "Dowiesz się...".
+  NIE powtarzaj tytułu w leadzie.
+  NIE pisz banałów: "W dzisiejszych czasach...", "Jak wiadomo...", "Coraz więcej osób...".
+  NIE używaj ogólników: zamiast "wiele osób" → liczba; zamiast "często" → częstotliwość.
+
+JĘZYK POLSKI:
+  FOG-PL 8–9 (maks. 10 dla tekstów prawnych/specjalistycznych).
+  Średnia długość zdania ~10 wyrazów — naturalna norma polszczyzny.
+  Kolokacje MUSZĄ być poprawne: "podjąć decyzję" NIE "zrobić decyzję",
+  "złożyć wniosek" NIE "dać wniosek", "ponieść konsekwencje" NIE "mieć konsekwencje".
+
+ADAPTACJA NISZOWA:
+  PRAWO: hook = ryzyko / konsekwencja / koszt. Jeden element wiarygodności (przepis, kwota, statystyka sądowa). Ton: rzeczowy, empatyczny.
+    ✅ "Przekroczenie terminu na złożenie sprzeciwu od nakazu zapłaty kosztuje pozwanego średnio 12 000 zł — sąd oddala spóźnione pismo bez rozpatrywania."
+    ❌ "Nakaz zapłaty to orzeczenie sądowe wydawane w postępowaniu nakazowym. W tym artykule wyjaśnimy..."
+
+  BEAUTY/LIFESTYLE: hook = kontrast / zaskoczenie / doświadczenie. Język sensoryczny i relatable. Ton: bezpośredni, ciepły.
+    ✅ "Serum z witaminą C utlenia się w 8 tygodni od otwarcia — po tym czasie nakładasz na twarz brązowy płyn bez działającego składnika."
+    ❌ "Witamina C to jeden z najpopularniejszych składników aktywnych w pielęgnacji skóry."
+
+  SEO/MARKETING: hook = statystyka / kontrast / konkretny wynik. Ton: konkretny, zorientowany na dane.
+    ✅ "Strony ładujące się dłużej niż 3 sekundy tracą 53% ruchu mobilnego zanim Google zdąży je zaindeksować."
+    ❌ "Szybkość strony jest ważnym czynnikiem rankingowym. Poniżej omawiamy, jak ją poprawić."
+
+  OGÓLNE: hook = statystyka / sytuacja / kontrast. Ton: angażujący, konkretny.
+    ✅ "Przeciętny Polak spędza 6 godzin dziennie w internecie, ale ponad połowę czasu pochłaniają 3 aplikacje."
+    ❌ "Internet jest obecny w naszym życiu na każdym kroku. Warto wiedzieć, jak z niego korzystać."
 </lead_rules>"""
 
 
