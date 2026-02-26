@@ -70,6 +70,32 @@ def build_user_prompt(*args, **kwargs):
 def build_faq_system_prompt(*args, **kwargs):
     return build_system_prompt(*args, **kwargs)
 
-# Dodany alias dla build_faq_user_prompt, aby uniknąć ImportError
+# Dodane aliasy dla brakujących funkcji importowanych w __init__.py
+# Aby uniknąć ImportError i zapewnić pełną kompatybilność
+
 def build_faq_user_prompt(*args, **kwargs):
     return build_system_prompt(*args, **kwargs)
+
+def build_h2_plan_system_prompt(*args, **kwargs):
+    return build_system_prompt(*args, **kwargs)
+
+def build_h2_plan_user_prompt(*args, **kwargs):
+    return build_system_prompt(*args, **kwargs)
+
+def build_category_system_prompt(*args, **kwargs):
+    return build_system_prompt(*args, **kwargs)
+
+def build_category_user_prompt(*args, **kwargs):
+    return build_system_prompt(*args, **kwargs)
+
+# Eksplicitny eksport nazw dla lepszej kompatybilności i zapobiegania błędom importów
+__all__ = [
+    'build_system_prompt',
+    'build_user_prompt',
+    'build_faq_system_prompt',
+    'build_faq_user_prompt',
+    'build_h2_plan_system_prompt',
+    'build_h2_plan_user_prompt',
+    'build_category_system_prompt',
+    'build_category_user_prompt',
+]
