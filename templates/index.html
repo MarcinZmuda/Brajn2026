@@ -1828,16 +1828,17 @@ async function startWorkflow(){
         es.addEventListener('content_editorial',e=>{const d=JSON.parse(e.data);ceData=d;
           document.getElementById('ceC').style.display='';
           const sc=d.score||0;
-          document.getElementById('ceSc').textContent=sc+'/100';
-          document.getElementById('ceSc').style.color=sc>=75?G:sc>=50?W:R;
+          const isErr=d.status==='ERROR';
+          document.getElementById('ceSc').textContent=isErr?'—':sc+'/100';
+          document.getElementById('ceSc').style.color=isErr?'var(--mg)':sc>=75?G:sc>=50?W:R;
           const st=d.status||'?';
           document.getElementById('ceSt').textContent=st.toUpperCase();
-          document.getElementById('ceSt').style.color=st==='pass'||st==='PASS'?G:st==='blocked'||st==='BLOCKED'?R:W;
+          document.getElementById('ceSt').style.color=st==='pass'||st==='PASS'?G:st==='blocked'||st==='BLOCKED'||isErr?R:W;
           document.getElementById('ceCrit').textContent=d.critical_count||0;
           document.getElementById('ceCrit').style.color=(d.critical_count||0)>0?R:G;
           document.getElementById('ceWarn').textContent=d.warning_count||0;
           document.getElementById('ceWarn').style.color=(d.warning_count||0)>0?W:G;
-          if(d.summary){const sEl=document.getElementById('ceSummary');sEl.style.display='';sEl.innerHTML=`<div style="padding:8px;background:var(--s2);border-radius:4px;border-left:3px solid ${sc>=75?G:sc>=50?W:R}">${esc(d.summary)}</div>`;}
+          if(d.summary){const sEl=document.getElementById('ceSummary');sEl.style.display='';sEl.innerHTML=`<div style="padding:8px;background:var(--s2);border-radius:4px;border-left:3px solid ${isErr?'var(--mg)':sc>=75?G:sc>=50?W:R}">${esc(d.summary)}</div>`;}
           const iEl=document.getElementById('ceIssues');let ih='';
           if(d.issues&&d.issues.length){ih+='<div style="font-weight:600;margin-bottom:4px;margin-top:4px">Problemy:</div>';d.issues.forEach(i=>{const sev=i.severity||'warning';const ic=sev==='critical'?'❌':sev==='warning'?'⚠️':'ℹ️';const clr=sev==='critical'?R:sev==='warning'?W:'var(--mg)';ih+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1);color:${clr}">${ic} ${esc(typeof i==='string'?i:(i.message||i.description||JSON.stringify(i)))}</div>`})}
           iEl.innerHTML=ih;
@@ -1899,6 +1900,15 @@ function renderSemAnalysis(){
     document.getElementById('semMust').style.color=(d.must_mention_pct||0)>=0.7?G:(d.must_mention_pct||0)>=0.4?W:R;
     document.getElementById('semCov').textContent=Math.round((d.weighted_coverage||0)*100)+'%';
     document.getElementById('semCov').style.color=(d.weighted_coverage||0)>=0.7?G:(d.weighted_coverage||0)>=0.4?W:R;
+    // v67: Length ratio warning
+    if(d.length_penalty_applied){
+        const lr=d.length_ratio||0;
+        const lpEl=document.createElement('div');
+        lpEl.style.cssText='margin-top:4px;padding:4px 8px;background:rgba(251,191,36,.1);border-left:2px solid var(--yl);border-radius:3px;font-size:9px;color:var(--yl)';
+        lpEl.textContent=`⚠️ Artykuł ${lr}x dłuższy niż zalecany — score skorygowany w dół`;
+        const scoreParent=document.getElementById('semScore').parentElement;
+        if(scoreParent&&!scoreParent.querySelector('.lp-warn')){lpEl.className='lp-warn';scoreParent.appendChild(lpEl);}
+    }
     // H2 Heatmap
     const hm=d.h2_heatmap||[];
     if(hm.length>0){
