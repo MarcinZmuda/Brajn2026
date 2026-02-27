@@ -7078,13 +7078,11 @@ def stream_workflow(job_id):
 
     data = job
 
-    # Pass basic/extended through query params from frontend
-    basic_terms = request.args.get("basic_terms", "")
-    extended_terms = request.args.get("extended_terms", "")
-
+    # v67: basic_terms and extended_terms are stored in active_jobs from /api/start
+    # No longer passed via URL query params (was causing 4260 > 4094 gunicorn error)
     def generate_with_terms():
-        bt = json.loads(basic_terms) if basic_terms else (data.get("basic_terms") or [])
-        et = json.loads(extended_terms) if extended_terms else (data.get("extended_terms") or [])
+        bt = data.get("basic_terms") or []
+        et = data.get("extended_terms") or []
         yield from run_workflow_sse(
             job_id=job_id,
             main_keyword=data["main_keyword"],
