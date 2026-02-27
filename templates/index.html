@@ -438,10 +438,6 @@
     .art-modal-body th{padding:10px 14px;text-align:left;color:var(--orange);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid rgba(251,169,44,.15)}
     .art-modal-body td{padding:10px 14px;border-bottom:1px solid var(--b1);color:rgba(255,255,255,.72)}
     .art-modal-body tr:last-child td{border-bottom:none}
-    .art-modal-body li{margin:4px 0}
-    .art-modal-body table{width:100%;border-collapse:collapse;margin:12px 0 16px;font-size:14px}
-    .art-modal-body th{background:var(--bg2);padding:8px 12px;text-align:left;font-weight:600;border:1px solid var(--b1)}
-    .art-modal-body td{padding:8px 12px;border:1px solid var(--b1)}
     .art-modal-close{width:36px;height:36px;border-radius:50%;border:1px solid var(--b1);background:var(--bg2);color:var(--mg);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .15s}
     .art-modal-close:hover{background:var(--rd);color:#fff;border-color:var(--rd)}
     .copy-ok{color:var(--gn)!important;font-weight:600}
@@ -493,7 +489,7 @@
 </head>
 <body>
 <div class="hd">
-    <div class="hd-l"><button id="mobileMenuBtn" onclick="document.getElementById('sidebarArea').classList.toggle('mobile-open');this.textContent=document.getElementById('sidebarArea').classList.contains('mobile-open')?'✕':'☰'" aria-label="Menu" style="display:none;background:none;border:1px solid var(--b1);color:var(--lg);font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;margin-right:8px">☰</button><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge">V45.3</span></div>
+    <div class="hd-l"><button id="mobileMenuBtn" onclick="document.getElementById('sidebarArea').classList.toggle('mobile-open');this.textContent=document.getElementById('sidebarArea').classList.contains('mobile-open')?'✕':'☰'" aria-label="Menu" style="display:none;background:none;border:1px solid var(--b1);color:var(--lg);font-size:18px;width:32px;height:32px;border-radius:6px;cursor:pointer;margin-right:8px">☰</button><h1>BRAJEN <b>SEO</b></h1><span class="hd-badge" id="versionBadge">V—</span></div>
     <div class="hd-r"><span>{{ username }}</span><a href="/logout">Wyloguj</a></div>
 </div>
 
@@ -512,13 +508,16 @@
   <span class="sp-sep">›</span>
   <div class="step-pill sppend" id="sp7"><div class="sp-dot"></div>PAA</div>
   <span class="sp-sep">›</span>
-  <div class="step-pill sppend" id="sp8"><div class="sp-dot"></div>Final</div>
+  <div class="step-pill sppend" id="sp8"><div class="sp-dot"></div>Content Ed.</div>
   <span class="sp-sep">›</span>
   <div class="step-pill sppend" id="sp9"><div class="sp-dot"></div>Editorial</div>
   <span class="sp-sep">›</span>
-  <div class="step-pill sppend" id="sp10"><div class="sp-dot"></div>Export</div>
+  <div class="step-pill sppend" id="sp10"><div class="sp-dot"></div>Final</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp11"><div class="sp-dot"></div>Redaktor</div>
+  <span class="sp-sep">›</span>
+  <div class="step-pill sppend" id="sp12"><div class="sp-dot"></div>Export</div>
   <div class="sp-timer" id="spTimer" style="display:none">0:00</div>
-  
 </div>
 <div class="layout">
     <div class="sidebar" id="sidebarArea">
@@ -846,7 +845,7 @@
     </div>
 </div>
 <script>
-(function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Content Editorial','Final Review','Editorial Review','Redaktor Naczelny','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
+(function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Content Editorial','Editorial Review','Final Review','Redaktor Naczelny','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
 let mode='standard',engine='openai',openaiModel='gpt-5.2',temperature=0.7,contentType='article',catType='subcategory',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='',semanticDistData=null,evalSummaryData=null;
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
@@ -868,7 +867,9 @@ if(eng.claude&&eng.claude.model)document.getElementById('claudeModel').textConte
 if(eng.openai&&eng.openai.model)document.getElementById('gptModel').textContent=eng.openai.model.toUpperCase();
 if(eng.openai&&!eng.openai.available){document.querySelector('.ebtn[data-engine=openai]').classList.add('unavailable');if(engine==='openai'){selEngine('claude')}}
 if(eng.claude&&!eng.claude.available){document.querySelector('.ebtn[data-engine=claude]').classList.add('unavailable');if(engine==='claude'){selEngine('openai')}}
-}}catch(e){}})()
+}}catch(e){}})();
+// v67: Fetch version from backend
+(async function(){try{const r=await fetch('/api/health');if(r.ok){const d=await r.json();const v=d.version;if(v){document.getElementById('versionBadge').textContent='V'+v;}}}catch(e){}})();
 function tog(id){const e=document.getElementById(id);e.style.display=e.style.display==='none'?'':'none'}
 function log(m,cls){const c=document.getElementById('logC');if(!cls){cls=m.includes('❌')||m.includes('EXCEPTION')||m.includes('error')?'err':m.includes('⚠️')||m.includes('WARNING')?'warn':m.includes('✅')||m.includes('accepted')?'ok':''}c.innerHTML+=`<div class="log-line ${cls}"><span class="ts">${new Date().toLocaleTimeString('pl-PL')}</span> ${esc(m)}</div>`;c.scrollTop=c.scrollHeight}
 function addLog(m,cls){log(m,cls)}
@@ -960,14 +961,14 @@ function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.get
   i.className=`stp-i ${st}`;if(st==='done')i.textContent='✓';else if(st==='running')i.textContent='⟳';else if(st==='warning')i.textContent='!';else if(st==='error')i.textContent='✗';if(d&&dt)dt.textContent=d;
   }
   updateMiniStepper(s,st);
-  // Live Status Bar update
-  const _lsNames=['','📊 Analiza S1 — SERP, encje, konkurencja','⚖️ Analiza YMYL — klasyfikacja treści','📝 Planowanie struktury H2','📁 Tworzenie projektu','🔤 Hierarchia fraz — n-gramy','✍️ Generowanie batchy treści','❓ Zbieranie PAA / FAQ','🔍 Final Review — scoring jakości','✍️ Editorial Review — korekta','📝 Redaktor Naczelny — recenzja ekspercka','📦 Eksport artykułu'];
+  // Live Status Bar update — v67: 12 steps, correct order
+  const _lsNames=['','📊 Analiza S1 — SERP, encje, konkurencja','⚖️ Analiza YMYL — klasyfikacja treści','📝 Planowanie struktury H2','📁 Tworzenie projektu','🔤 Hierarchia fraz — n-gramy','✍️ Generowanie batchy treści','❓ Zbieranie PAA / FAQ','📋 Content Editorial — przegląd merytoryczny','✍️ Editorial Review — korekta gramatyczna','🔍 Final Review — scoring jakości','📝 Redaktor Naczelny — recenzja ekspercka','📦 Eksport artykułu'];
   const lsText=document.getElementById('lsText'),lsDetail=document.getElementById('lsDetail'),lsPulse=document.getElementById('lsPulse'),lsFill=document.getElementById('lsFill');
   if(lsText&&st==='running'){lsText.textContent=_lsNames[s]||`Krok ${s}...`;lsDetail.textContent=d||'';lsPulse.className='ls-pulse';lsFill.style.width=Math.round(((s-1)/12)*100)+'%';}
   if(lsText&&st==='done'){lsFill.style.width=Math.round((s/12)*100)+'%';if(s>=12){lsText.textContent='✅ Workflow zakończony';lsDetail.textContent='';lsPulse.className='ls-pulse done';}}
   if(lsText&&st==='error'){lsText.textContent='❌ Błąd: '+(_lsNames[s]||`Krok ${s}`);lsDetail.textContent=d||'';lsPulse.className='ls-pulse';lsPulse.style.background='var(--rd)';lsPulse.style.animation='none';}
-  // Long-step progress bar (steps 8-12 are slow: Editorial, Final Review, Editorial Review, Redaktor, Export)
-  const LONG={8:'Content Editorial',9:'Final Review',10:'Editorial Review',11:'Redaktor Naczelny',12:'Export'};
+  // Long-step progress bar (steps 8-12 are slow)
+  const LONG={8:'Content Editorial',9:'Editorial Review',10:'Final Review',11:'Redaktor Naczelny',12:'Export'};
   if(LONG[s]&&stpEl){
     let bar=document.getElementById('lsb'+s);
     if(!bar){
@@ -984,8 +985,8 @@ function uStep(s,st,d){const i=document.getElementById(`si${s}`),dt=document.get
       const el=document.getElementById('lse'+s);if(el&&bar._start)el.textContent=Math.round((Date.now()-bar._start)/1000)+'s ✓';
     }
   }
-  // Editorial running state in workflow tab
-  if(s===10){
+  // v67: Editorial running state — step 9 = Editorial Review (was 10 before reorder)
+  if(s===9){
     const edRun=document.getElementById('edRunning');
     if(edRun){
       if(st==='running'){
@@ -1356,7 +1357,7 @@ async function startWorkflow(){
     switchTab('workflow');
     if(window._spTimerInt)clearInterval(window._spTimerInt);const _tstart=Date.now();window._spTimerInt=setInterval(()=>{const e=document.getElementById('spTimer');if(!e){clearInterval(window._spTimerInt);window._spTimerInt=null;return;}const s=Math.round((Date.now()-_tstart)/1000);e.textContent=Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');},1000);
 
-    for(let i=1;i<=10;i++)uStep(i,'pending','—');
+    for(let i=1;i<=12;i++)uStep(i,'pending','—');
     ['logC','bRes','biB','s1B','cpB'].forEach(id=>document.getElementById(id).innerHTML='');
     document.getElementById('tbQuality').textContent='—';document.getElementById('tbS1').textContent='—';document.getElementById('tbCI').textContent='—';
     document.getElementById('qualityBar').style.display='none';document.getElementById('mainTabsBar').style.display='none';
@@ -1416,10 +1417,10 @@ async function startWorkflow(){
         es.addEventListener('editorial',e=>{const d=JSON.parse(e.data);editorialData=d;
     // Pokaż edMini (pełne szczegóły w workflow card)
     const em=document.getElementById('edMini');if(em)em.style.display='';
-    // Fix #35+#43: Ukryj edRunning i oznacz step 10 jako done
+    // Fix #35+#43: Ukryj edRunning i oznacz step 9 jako done (v67: Editorial = step 9)
     const _edRun=document.getElementById('edRunning');if(_edRun){_edRun.classList.remove('active');if(_edRun._timer){clearInterval(_edRun._timer);_edRun._timer=null;}}
-    // Fix #43: Defensive — update step 10 pill when editorial event arrives
-    try{uStep(10,d._failed?'warning':'done',d._failed?'Błąd editorial':`Ocena: ${d.score}/10`)}catch(e2){}
+    // Fix #43: Defensive — update step 9 pill when editorial event arrives
+    try{uStep(9,d._failed?'warning':'done',d._failed?'Błąd editorial':`Ocena: ${d.score}/10`)}catch(e2){}
     // Aktualizuj edMini summary stats
     const ems=document.getElementById('edMiniScore');if(ems){const sc=d.score||0;ems.innerHTML=`${sc}<span style="font-size:15px;color:var(--mg);font-weight:400">/10</span>`;ems.style.color=sc>=7?'var(--gn)':sc>=5?'var(--yl)':'var(--rd)';}
     const emch=document.getElementById('edMiniCh');if(emch)emch.textContent=`${d.changes_applied||0}/${(d.changes_applied||0)+(d.changes_failed||0)}`;
