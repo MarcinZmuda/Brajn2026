@@ -498,7 +498,7 @@ def _detect_ymyl(main_keyword: str) -> dict:
                     import time as _time_ymyl
                     _time_ymyl.sleep(2)
                     try:
-                        enrich_response2 = requests.post(
+                        enrich_response2 = http_requests.post(
                             f"{MASTER_API_URL}/api/ymyl/detect",
                             json={"keyword": main_keyword, "content_type": content_type},
                             headers=headers, timeout=10
@@ -672,7 +672,30 @@ def _generate_search_variants(main_keyword: str, secondary_keywords: list = None
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
-            return {}
+            # v67: Try to repair truncated JSON (common with max_tokens cutoff)
+            # Strategy: close all open brackets/braces, then parse
+            try:
+                repaired = raw
+                # Count unclosed structures
+                open_brackets = repaired.count('[') - repaired.count(']')
+                open_braces = repaired.count('{') - repaired.count('}')
+                # Remove trailing comma or incomplete string
+                repaired = repaired.rstrip()
+                if repaired.endswith(','):
+                    repaired = repaired[:-1]
+                # If last char is a quote-less string start, remove it
+                last_quote = repaired.rfind('"')
+                if last_quote > 0:
+                    # Check if the quote is unclosed (odd number of quotes)
+                    if repaired[last_quote:].count('"') % 2 == 1:
+                        repaired = repaired[:last_quote]
+                        repaired = repaired.rstrip().rstrip(',')
+                # Close structures
+                repaired += ']' * max(0, open_brackets) + '}' * max(0, open_braces)
+                data = json.loads(repaired)
+                logger.info(f"[SEARCH_VARIANTS] ✅ JSON repair successful (closed {open_brackets}[ {open_braces}{{)")
+            except (json.JSONDecodeError, Exception):
+                return {}
         if not isinstance(data, dict):
             return {}
 
@@ -732,7 +755,7 @@ def _generate_search_variants(main_keyword: str, secondary_keywords: list = None
             _client = _openai.OpenAI(api_key=OPENAI_API_KEY)
             resp = _client.chat.completions.create(
                 model="gpt-4.1-mini",
-                max_tokens=800 if sec_list else 500,
+                max_tokens=1200 if sec_list else 700,
                 temperature=0.3,
                 messages=[{"role": "user", "content": prompt}],
                 timeout=25.0
@@ -755,7 +778,7 @@ def _generate_search_variants(main_keyword: str, secondary_keywords: list = None
             client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
             resp = client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=800 if sec_list else 500,
+                max_tokens=1200 if sec_list else 700,
                 temperature=0.3,
                 messages=[{"role": "user", "content": prompt}],
                 timeout=25.0
