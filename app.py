@@ -5139,6 +5139,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         yield emit("log", {"msg": f"ℹ️ Zdania długie (śr. {sl['avg_len']} słów{comma_info}) — skip (anaphora już poprawiła)"})
 
                     # Fix #56: Update globalny licznik głównego keywordu
+                    # Note: exact match jest OK jako local budget tracker —
+                    # prawdziwe zliczanie z lematyzacją robi Brajen API (keyword_counter.py + spaCy)
                     if text and main_keyword:
                         import re as _re_kw
                         _kw_lower = main_keyword.lower()
