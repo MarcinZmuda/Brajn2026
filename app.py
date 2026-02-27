@@ -4578,6 +4578,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         _final_total_max = sum(kw['target_max'] for kw in keywords)
         yield emit("log", {"msg": f"📊 Budget: {_final_total_min}-{_final_total_max} mentions in {_target_length} words ({_final_basic} BASIC, {_final_ext} EXTENDED, density: {_final_total_min*100/_target_length:.1f}-{_final_total_max*100/_target_length:.1f}/100w)"})
 
+        # ═══ v67 FIX: Second dedup pass after budget overflow ═══
+        # Budget overflow demotes BASIC→EXTENDED. The first dedup pass only checked BASIC.
+        # Now re-run dedup to catch the demoted keywords.
+        _pre_dedup2 = sum(kw['target_max'] for kw in keywords)
+        keywords = deduplicate_keywords(keywords, main_keyword)
+        _post_dedup2 = sum(kw['target_max'] for kw in keywords)
+        if _post_dedup2 < _pre_dedup2:
+            yield emit("log", {"msg": f"🧹 Post-overflow dedup: target_max reduced {_pre_dedup2}→{_post_dedup2} (Δ-{_pre_dedup2 - _post_dedup2})"})
+
         project_payload = {
             "main_keyword": main_keyword,
             "mode": mode,
