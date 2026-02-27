@@ -87,6 +87,9 @@ try:
 except ImportError:
     LANGUAGETOOL_AVAILABLE = False
 
+# v67: LLM Cost Tracker
+from llm_cost_tracker import cost_tracker
+
 # ================================================================
 # CSS/JS GARBAGE FILTER: extracted to css_filter.py
 # ================================================================
@@ -2086,17 +2089,20 @@ def generate_batch_text(pre_batch, h2, batch_type, article_memory=None, engine="
                                 temperature=effective_temp)
 
 
-def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False, temperature=None):
+def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False, temperature=None, _cost_job=None, _cost_step="llm_call"):
     """Generate text using Anthropic Claude.
     
     v50.7 FIX 48: Auto-retry on 429/529.
     v50.8 FIX 49: Adaptive thinking (effort) + web search for YMYL.
     v50.9 FIX 52: User-configurable temperature.
+    v67: _cost_job/_cost_step — optional cost tracking via llm_cost_tracker.
     
     Args:
         effort: "high" | "medium" | "low" | None (None = no effort param, uses temperature)
         web_search: True = enable web_search tool (for YMYL fact verification)
         temperature: 0.0-1.0, user-configured. When thinking is enabled, forced to 1.
+        _cost_job: job_id for cost tracking (None = skip tracking)
+        _cost_step: step name for cost breakdown
     """
     # v50.9: User temperature (default 0.7 if not set)
     user_temp = temperature if temperature is not None else 0.7
@@ -2141,6 +2147,15 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False, 
             ]
         
         response = client.messages.create(**kwargs)
+        
+        # v67: Cost tracking
+        if _cost_job:
+            try:
+                _in_t = getattr(response.usage, 'input_tokens', 0)
+                _out_t = getattr(response.usage, 'output_tokens', 0)
+                cost_tracker.record(_cost_job, ANTHROPIC_MODEL, _in_t, _out_t, step=_cost_step)
+            except Exception:
+                pass
         
         # v50.8: Parse response: may contain thinking blocks + text + web search results
         text_parts = []
@@ -4981,6 +4996,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 )
 
             word_count = len(text.split())
+            # v67: Estimate cost from output size (avg 1.3 tokens/word for Polish)
+            _est_out = int(word_count * 1.3)
+            _est_in = int(len(json.dumps(pre_batch, ensure_ascii=False)) * 0.3)  # rough prompt estimate
+            _cost_model = ANTHROPIC_MODEL if engine == "claude" else (effective_openai_model or "gpt-5.2")
+            cost_tracker.record(job_id, _cost_model, _est_in, _est_out, step="batch_generation")
             yield emit("log", {"msg": f"Wygenerowano {word_count} słów"})
 
             # Post-process: strip duplicate ## headers (Claude sometimes outputs both h2: and ##)
@@ -6278,6 +6298,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         "auto_fixed": editor_result.get("fixed_text") is not None,
                         "tokens": editor_result.get("input_tokens", 0) + editor_result.get("output_tokens", 0),
                     })
+                    # v67: Track cost
+                    cost_tracker.record(job_id, ANTHROPIC_MODEL,
+                        editor_result.get("input_tokens", 0),
+                        editor_result.get("output_tokens", 0),
+                        step="editor_in_chief")
 
                     _status_emoji = {"PASS": "✅", "WARN": "⚠️", "FAIL": "❌"}.get(_verdict, "❓")
                     yield emit("log", {"msg": f"{_status_emoji} Redaktor: {_verdict} | {_crit} krytycznych, {_art} artefaktów, {_logic} logiki | {_comment[:120]}"})
@@ -6349,6 +6374,48 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         _circuit_breaker_reset(job_id)  # FIX: reset circuit breaker po zakończeniu joba
         job["status"] = "done"  # FIX: ustaw finalny status
         yield emit("log", {"msg": f"⏱️ Workflow zakończony w {total_elapsed}s"})
+
+        # v67: Readiness Checklist — deterministic, 0 API calls
+        try:
+            _wc = stats.get("word_count", 0) if full_result["ok"] else 0
+            _rec_len = s1.get("recommended_length", 3000) if s1 else 3000
+            _word_ok = _wc >= _rec_len * 0.75 and _wc <= _rec_len * 1.5
+
+            try: _final_ok = isinstance(final_score, (int, float)) and final_score >= 60
+            except NameError: _final_ok = False; final_score = None
+            try: _ed_ok = isinstance(editorial_score, (int, float)) and editorial_score >= 5
+            except NameError: _ed_ok = False; editorial_score = None
+            try: _sal_ok = is_dominant is True or sal_score is None
+            except NameError: _sal_ok = True; sal_score = None; is_dominant = None
+            try: _lt_ok = bool(lt_result) and lt_result.get("api_available") and lt_result.get("score", 0) >= 60
+            except NameError: _lt_ok = False; lt_result = {}
+            try: _style_ok = isinstance(st_score, (int, float)) and st_score >= 50
+            except NameError: _style_ok = False; st_score = None
+            try: _sem_ok = semantic_dist_result.get("enabled") and semantic_dist_result.get("score", 0) >= 50
+            except NameError: _sem_ok = False; semantic_dist_result = {}
+            try: _is_ymyl = is_ymyl
+            except NameError: _is_ymyl = False
+            try: _discl = disclaimer_added
+            except NameError: _discl = False
+            _ymyl_ok = not _is_ymyl or bool(_discl)
+
+            checks = [
+                {"ok": _word_ok, "label": "Długość tekstu", "detail": f"{_wc}/{_rec_len} słów"},
+                {"ok": _final_ok, "label": "Final Review ≥ 60", "detail": f"{final_score}/100" if isinstance(final_score, (int, float)) else "brak"},
+                {"ok": _ed_ok, "label": "Editorial Review ≥ 5", "detail": f"{editorial_score}/10" if isinstance(editorial_score, (int, float)) else "brak"},
+                {"ok": _sal_ok, "label": "Entity Salience", "detail": "dominant" if is_dominant else ("brak API" if sal_score is None else f"{sal_score}/100")},
+                {"ok": _lt_ok, "label": "LanguageTool ≥ 60", "detail": f"{lt_result.get('score', '?')}/100" if isinstance(lt_result, dict) and lt_result.get("api_available") else "niedostępne"},
+                {"ok": _style_ok, "label": "Style score ≥ 50", "detail": f"{st_score}/100" if isinstance(st_score, (int, float)) else "brak"},
+                {"ok": _sem_ok, "label": "Semantic Distance ≥ 50", "detail": f"{semantic_dist_result.get('score', '?')}/100" if isinstance(semantic_dist_result, dict) and semantic_dist_result.get("enabled") else "brak"},
+                {"ok": _ymyl_ok, "label": "YMYL disclaimer", "detail": "dodane" if _discl else ("N/A" if not _is_ymyl else "BRAK!")},
+            ]
+            yield emit("readiness_checklist", {"checks": checks})
+        except Exception as rc_err:
+            logger.warning(f"Readiness checklist failed: {rc_err}")
+
+        # v67: Cost summary
+        _cost_sum = cost_tracker.get_job_summary(job_id)
+
         yield emit("done", {
             "project_id": project_id,
             "word_count": stats.get("word_count", 0) if full_result["ok"] else 0,
@@ -6359,7 +6426,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "timing": {
                 "total_seconds": total_elapsed,
                 "steps": {str(k): v.get("elapsed", 0) for k, v in step_times.items()},
-            }
+            },
+            "cost_summary": _cost_sum,
         })
 
     except Exception as e:
