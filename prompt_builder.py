@@ -294,6 +294,15 @@ FLEKSJA I PERYFRAZY (KRYTYCZNE DLA SEO):
   3. Elipsa (pominięcie gdy kontekst jasny)
   Jeśli przy frazie podano odmiany/peryfrazy — korzystaj z nich.
 
+ZAKAZ ANAFORY FRAZĄ KLUCZOWĄ:
+  NIGDY nie zaczynaj akapitu od frazy kluczowej z listy.
+  ❌ „Jak obniżyć trójglicerydy domowymi sposobami..."
+  ❌ „Jak obniżyć trójglicerydy lekami..."
+  ❌ „Jak obniżyć trójglicerydy zioła..."
+  ✅ „Domowe sposoby obniżania trójglicerydów obejmują..."
+  ✅ „Lekarz rozważa farmakoterapię, gdy..."
+  Frazę kluczową umieszczaj w ŚRODKU zdania — nigdy jako opener.
+
 FORMAT: h2:/h3: dla nagłówków. Zero markdown — żadnych **, __, #, <h2>, <h3>.
   Każdy h2:/h3: MUSI zaczynać się w NOWEJ LINII z pustą linią powyżej.
   ŹLE: "...decyzje procesowe. H3: Co w praktyce"
@@ -771,6 +780,12 @@ def _fmt_keywords(pre_batch):
                  "  'wykroczenie' + 'wykroczenia' + 'wykroczeniem' = 3 uzycia jednego lematu.\n"
                  "  Dlatego: NIE powtarzaj exact match — rotuj przez odmiany i peryfrazy.\n"
                  "  Jesli fraza ma podane odmiany/peryfrazy — UZYWAJ ICH zamiast powtarzac te sama forme.")
+    # v67: Anti-paragraph-opener rule — prevents MK stuffing pattern
+    if main_kw:
+        parts.append(f'🚫 ZAKAZ ANAFORY: NIGDY nie zaczynaj akapitu od frazy kluczowej "{main_kw}".\n'
+                     f'  ❌ "{main_kw} to..." / "{main_kw} bywa..." / "{main_kw} lekami..."\n'
+                     f'  ✅ Zacznij od kontekstu, konsekwencji, pytania lub zaimka.\n'
+                     f'  Jesli musisz uzyc frazy — wstaw ja w SRODEK zdania, nie na poczatku.')
 
     if _kw_force_ban and main_kw:
         parts.append(f'⛔ STOP: Fraza "{main_kw}" jest PRZEKROCZONA — nie używaj w tym batchu.\n')
@@ -1475,6 +1490,9 @@ def _fmt_natural_polish(pre_batch):
     """Anti-stuffing + fleksja — v2.3: uses search_variants for richer variation."""
     parts = ["═══ ANTY-STUFFING ═══"]
 
+    _batch_type = pre_batch.get("batch_type", "")
+    _is_final = _batch_type.upper() in ("FINAL", "CONCLUSION")
+
     parts.append(
         "FLEKSJA: Odmiany = jedno użycie w oczach Google (lematyzacja).\n"
         "  Max 2× ta sama FORMA frazy w jednym akapicie.\n"
@@ -1484,6 +1502,16 @@ def _fmt_natural_polish(pre_batch):
         "  ❌ 'Wykroczenie polega... Wykroczenie grozi... Za wykroczenie kara...'\n"
         "  ✅ 'Wykroczenie polega... Czyn karalny grozi... Za ten delikt kara...'"
     )
+
+    # v67: Extra warning for FINAL batches which tend to keyword-stuff
+    if _is_final:
+        parts.append(
+            "⚠️ LAST BATCH RULE: To jest końcowa sekcja artykułu.\n"
+            "  NIE próbuj 'nadrabiać' brakujących fraz — pisz naturalnie.\n"
+            "  NIE zaczynaj każdego akapitu od frazy kluczowej.\n"
+            "  Użyj MAX 2 fraz EXTENDED z listy — resztę pomiń.\n"
+            "  Lepszy naturalny tekst bez fraz niż sztuczne upychanie."
+        )
 
     # Dynamic anaphora with search variants
     _raw_main = pre_batch.get("main_keyword") or {}
