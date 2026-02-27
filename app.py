@@ -800,6 +800,85 @@ def _generate_topical_entities(main_keyword: str, h2_plan: list = None) -> dict:
         return {}
 
 
+def _compute_topical_salience(topical_result: dict) -> dict:
+    """
+    Compute salience for each secondary entity based on structural signals.
+    
+    Inspired by Google patent US20150278366 (Identifying topical entities):
+    - Co-occurrence count = edge weight proxy (patent: "more times two entities
+      associated with same resource → greater edge weight")
+    - SVO subject count = directed edge proxy (patent: centrality via outgoing edges)
+    - Type weight = domain specificity signal
+    - Ngram HIGH importance = frequency/relevance signal
+    - Position = LLM orders by topic centrality, slight decay
+    
+    Returns dict: {entity_name_lower: salience_float}
+    """
+    TYPE_WEIGHT = {
+        "LAW": 0.15, "PROCESS": 0.10, "DEVICE": 0.08,
+        "CONCEPT": 0.05, "PERSON": 0.05, "ORGANIZATION": 0.05, "EVENT": 0.05
+    }
+    MAX_SALIENCE = 0.82  # Primary entity is 0.85 — secondaries cap below it
+
+    entities = topical_result.get("secondary_entities", [])
+    cooc = topical_result.get("cooccurrence_pairs", [])
+    svo = topical_result.get("svo_triples", [])
+    ngrams = topical_result.get("semantic_ngrams", [])
+
+    # Co-occurrence count per entity
+    cooc_counts = {}
+    for pair in cooc:
+        for field in ("entity1", "entity2"):
+            name = (pair.get(field) or "").lower().strip()
+            if name:
+                cooc_counts[name] = cooc_counts.get(name, 0) + 1
+
+    # SVO subject count (subject = central/active node)
+    svo_subjects = {}
+    for triple in svo:
+        subj = (triple.get("subject") or "").lower().strip()
+        if subj:
+            svo_subjects[subj] = svo_subjects.get(subj, 0) + 1
+
+    # HIGH-importance ngrams set
+    high_ngrams = set(
+        (ng.get("phrase") or "").lower()
+        for ng in ngrams
+        if isinstance(ng, dict) and ng.get("importance") == "HIGH"
+    )
+
+    max_cooc = max(cooc_counts.values(), default=1)
+    max_svo = max(svo_subjects.values(), default=1)
+
+    salience_map = {}
+    for i, ent in enumerate(entities):
+        name = (ent.get("text") or "")
+        name_lower = name.lower().strip()
+        if not name_lower:
+            continue
+        etype = ent.get("type", "CONCEPT")
+
+        # Base: position decay (0.75 → 0.45 across 16 entities)
+        base = max(0.45, 0.75 - i * 0.018)
+
+        # Co-occurrence signal: 0–0.15 (patent: edge weights)
+        cooc_score = (cooc_counts.get(name_lower, 0) / max_cooc) * 0.15
+
+        # SVO subject signal: 0–0.10 (patent: outgoing edges = centrality)
+        svo_score = (svo_subjects.get(name_lower, 0) / max_svo) * 0.10
+
+        # Type weight: domain-specific types are more central
+        type_score = TYPE_WEIGHT.get(etype, 0.05)
+
+        # Ngram HIGH importance: entity appears in core phrases of topic
+        ngram_score = 0.05 if any(name_lower in ng for ng in high_ngrams) else 0
+
+        total = round(min(MAX_SALIENCE, base + cooc_score + svo_score + type_score + ngram_score), 3)
+        salience_map[name_lower] = total
+
+    return salience_map
+
+
 def _topical_to_entity_list(topical_result: dict, main_keyword: str = "") -> list:
     """Convert topical entity result to standard entity list format.
     
@@ -829,14 +908,20 @@ def _topical_to_entity_list(topical_result: dict, main_keyword: str = "") -> lis
             "is_primary": True
         })
     
+    # Compute structural salience for secondary entities (patent-inspired)
+    salience_map = _compute_topical_salience(topical_result)
+
     # Secondary entities — expanded to 20
     for ent in topical_result.get("secondary_entities", [])[:20]:
         if ent and ent.get("text"):
+            name = ent["text"]
+            computed_sal = salience_map.get(name.lower().strip(), 0.5)
             entities.append({
-                "text": ent["text"],
-                "entity": ent["text"],
+                "text": name,
+                "entity": name,
                 "type": ent.get("type", "CONCEPT"),
                 "eav": ent.get("eav", ""),
+                "salience": computed_sal,
                 "source": "topical_generator",
                 "is_primary": False
             })
@@ -3163,12 +3248,21 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # (prevents "Asturianu Azərbaycanca" as primary in dashboard)
             backend_entity_salience = []
             for i, ent in enumerate(_override_entities[:12]):
-                _sal = round(0.85 - (i * 0.06), 2)  # Primary=0.85, decreasing
+                ent_name = _extract_text(ent)
+                ent_type = ent.get("type", "CONCEPT") if isinstance(ent, dict) else "CONCEPT"
+                if i == 0:
+                    # Primary entity always 0.85
+                    _sal = 0.85
+                elif isinstance(ent, dict) and ent.get("salience"):
+                    # v62: Use structurally computed salience (patent-inspired: cooc+svo+type)
+                    _sal = ent["salience"]
+                else:
+                    # Fallback: linear decay
+                    _sal = round(0.85 - (i * 0.06), 2)
                 backend_entity_salience.append({
-                    # v50.7 FIX 47: Use _extract_text(): entities can be str OR dict
-                    "entity": _extract_text(ent),
+                    "entity": ent_name,
                     "salience": max(0.05, _sal),
-                    "type": ent.get("type", "CONCEPT") if isinstance(ent, dict) else "CONCEPT",
+                    "type": ent_type,
                     "source": "topical_override"
                 })
             yield emit("log", {"msg": f"🧬 Entity salience + first_para + H2: nadpisane ({len(backend_entity_salience)} encji, src={'topical_gen' if topical_gen_entities else 'ai_topical'})"})
