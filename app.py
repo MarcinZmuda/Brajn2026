@@ -2688,6 +2688,159 @@ def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
     }
 
 
+def _compute_semantic_analysis(full_text, h2_structure,
+                                clean_semantic_kp, clean_entities,
+                                concept_entities, clean_must_mention,
+                                clean_ngrams, competitor_h2_patterns):
+    """v67: Enhanced semantic analysis for Content Editorial card.
+    
+    Adds:
+    1. Per-H2 section semantic coverage heatmap
+    2. Term gap analysis (missing/overused terms)
+    3. Entity coverage gap with importance weighting
+    4. Composite SEO Similarity score 0-100
+    
+    Uses existing competitor data (entities, n-grams, keyphrases) —
+    no new API calls needed.
+    """
+    import re as _re
+    
+    if not full_text:
+        return {"enabled": False}
+    
+    text_lower = full_text.lower()
+    
+    # ── Build unified term pool from all competitor data ──
+    # Each term gets a weight: must_mention > entity > keyphrase > ngram
+    term_pool = {}  # {term_lower: {"weight": float, "source": str}}
+    
+    for e in (clean_must_mention or []):
+        name = _extract_text(e) if isinstance(e, (dict, str)) else str(e)
+        if name and len(name) > 2:
+            term_pool[name.lower().strip()] = {"weight": 1.0, "source": "must_mention"}
+    
+    for src in [clean_entities, concept_entities]:
+        for e in (src or []):
+            name = _extract_text(e)
+            if name and len(name) > 2:
+                key = name.lower().strip()
+                if key not in term_pool:
+                    term_pool[key] = {"weight": 0.8, "source": "entity"}
+    
+    for kp in (clean_semantic_kp or []):
+        phrase = (kp.get("phrase", kp) if isinstance(kp, dict) else str(kp)).strip()
+        if phrase and len(phrase) > 2:
+            key = phrase.lower().strip()
+            if key not in term_pool:
+                term_pool[key] = {"weight": 0.6, "source": "keyphrase"}
+    
+    for ng in (clean_ngrams or []):
+        ngram_text = (ng.get("ngram", ng) if isinstance(ng, dict) else str(ng)).strip()
+        if ngram_text and len(ngram_text) > 2:
+            key = ngram_text.lower().strip()
+            if key not in term_pool:
+                term_pool[key] = {"weight": 0.4, "source": "ngram"}
+    
+    # ── Check which terms appear in full article ──
+    present_terms = []
+    missing_terms = []
+    for term, info in term_pool.items():
+        if _fuzzy_phrase_in_text(term, text_lower):
+            present_terms.append({"term": term, **info})
+        else:
+            missing_terms.append({"term": term, **info})
+    
+    # Sort missing by weight (most important first)
+    missing_terms.sort(key=lambda x: -x["weight"])
+    present_terms.sort(key=lambda x: -x["weight"])
+    
+    total_weight = sum(t["weight"] for t in term_pool.values()) or 1
+    covered_weight = sum(t["weight"] for t in present_terms)
+    weighted_coverage = round(covered_weight / total_weight, 3)
+    
+    # ── Per-H2 section analysis ──
+    h2_scores = []
+    if h2_structure and full_text:
+        # Split article into sections by h2: markers
+        sections = _re.split(r'(?i)(?:^|\n)\s*h2:\s*', full_text)
+        # First section is intro (before first H2)
+        section_texts = []
+        section_names = ["Intro"]
+        
+        for i, sec in enumerate(sections):
+            if i == 0:
+                section_texts.append(sec)
+            else:
+                # First line is the H2 title
+                lines = sec.split('\n', 1)
+                h2_title = lines[0].strip()
+                body = lines[1] if len(lines) > 1 else ""
+                section_names.append(h2_title[:60])
+                section_texts.append(body)
+        
+        for idx, (sec_name, sec_text) in enumerate(zip(section_names, section_texts)):
+            sec_lower = sec_text.lower()
+            sec_present = 0
+            sec_total = 0
+            for term, info in term_pool.items():
+                if info["weight"] >= 0.6:  # Only check important terms
+                    sec_total += 1
+                    if _fuzzy_phrase_in_text(term, sec_lower):
+                        sec_present += 1
+            sec_pct = round(sec_present / sec_total * 100) if sec_total > 0 else 0
+            h2_scores.append({
+                "name": sec_name,
+                "coverage_pct": sec_pct,
+                "terms_found": sec_present,
+                "terms_checked": sec_total,
+            })
+    
+    # ── Entity coverage gap (with importance) ──
+    comp_entity_names = set()
+    for src in [clean_entities, concept_entities]:
+        for e in (src or []):
+            name = _extract_text(e)
+            if name and len(name) > 1:
+                comp_entity_names.add(name.lower().strip())
+    
+    entity_present = []
+    entity_missing = []
+    for name in sorted(comp_entity_names):
+        if _fuzzy_phrase_in_text(name, text_lower):
+            entity_present.append(name)
+        else:
+            entity_missing.append(name)
+    
+    ent_coverage_pct = round(len(entity_present) / len(comp_entity_names) * 100) if comp_entity_names else 0
+    
+    # ── Composite score ──
+    # Weighted: term coverage 40%, entity coverage 30%, must-mention 30%
+    mm_found_count = sum(1 for t in present_terms if t["source"] == "must_mention")
+    mm_total_count = sum(1 for t in term_pool.values() if t["source"] == "must_mention") or 1
+    mm_pct = mm_found_count / mm_total_count
+    
+    composite = round(weighted_coverage * 40 + (ent_coverage_pct / 100) * 30 + mm_pct * 30)
+    composite = max(0, min(100, composite))
+    
+    return {
+        "enabled": True,
+        "composite_score": composite,
+        "weighted_coverage": weighted_coverage,
+        "term_pool_size": len(term_pool),
+        "terms_present": len(present_terms),
+        "terms_missing": len(missing_terms),
+        "missing_terms": [{"term": t["term"], "source": t["source"], "weight": t["weight"]} 
+                          for t in missing_terms[:15]],
+        "present_terms": [{"term": t["term"], "source": t["source"]}
+                          for t in present_terms[:15]],
+        "entity_coverage_pct": ent_coverage_pct,
+        "entities_present": entity_present[:15],
+        "entities_missing": entity_missing[:15],
+        "must_mention_pct": round(mm_pct, 3),
+        "h2_heatmap": h2_scores,
+    }
+
+
 # ============================================================
 # v2.3: REDAKTOR NACZELNY — final expert review + auto-fix
 # ============================================================
@@ -5975,6 +6128,30 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 except Exception as sd_err:
                     logger.warning(f"Semantic distance calculation failed: {sd_err}")
                     yield emit("log", {"msg": f"⚠️ Semantic distance error: {str(sd_err)[:80]}"})
+                
+                # v67: Enhanced semantic analysis for Content Editorial
+                try:
+                    sem_analysis = _compute_semantic_analysis(
+                        full_text=_full_text_clean or full_text,
+                        h2_structure=h2_structure,
+                        clean_semantic_kp=clean_semantic_kp,
+                        clean_entities=clean_entities,
+                        concept_entities=concept_entities,
+                        clean_must_mention=clean_must_mention,
+                        clean_ngrams=clean_ngrams,
+                        competitor_h2_patterns=clean_h2_patterns,
+                    )
+                    if sem_analysis.get("enabled"):
+                        yield emit("log", {"msg": (
+                            f"🔬 SEO Similarity: {sem_analysis['composite_score']}/100 | "
+                            f"Terms: {sem_analysis['terms_present']}/{sem_analysis['term_pool_size']} | "
+                            f"Entity: {sem_analysis['entity_coverage_pct']}% | "
+                            f"H2 sections: {len(sem_analysis.get('h2_heatmap', []))}"
+                        )})
+                        yield emit("semantic_analysis", sem_analysis)
+                except Exception as sa_err:
+                    logger.warning(f"Semantic analysis failed: {sa_err}")
+                    yield emit("log", {"msg": f"⚠️ Semantic analysis error: {str(sa_err)[:80]}"})
 
             # v55.1 Fix C: Polish — skip Google NLP (returns 400), use entity coverage score
             # System is Polish-only; Google NLP returns 400 for pl, spaCy fallback returns 404
