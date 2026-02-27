@@ -824,6 +824,141 @@ def ai_synthesize_memory(accepted_batches: list, main_keyword: str) -> dict:
         logger.warning(f"[AI_MW] AI memory synthesis failed: {e}")
 
     return synthesize_article_memory(accepted_batches)
+
+
+def structured_article_memory(accepted_batches: list, main_keyword: str, prev_memory: dict = None) -> dict:
+    """v66: Structured article memory — zero LLM calls, deterministic, better than Haiku.
+    
+    Incrementally builds a comprehensive memory dict from accepted batches:
+    - topics_covered: H2 titles written so far
+    - key_facts: specific numbers, names, dates extracted via regex
+    - entities_introduced: entities that appeared in text (tracked by first occurrence)
+    - phrases_used: {phrase: count} for dedup across batches
+    - avoid_repetition: exact sentences that appeared 2+ times
+    - definitions_given: "X to Y" / "X oznacza Y" patterns (must not repeat)
+    - total_words: running total
+    - batch_count: number of batches
+    
+    This replaces ai_synthesize_memory (1 Haiku call per batch = expensive + unreliable JSON).
+    Structured approach is deterministic, free, and captures more detail.
+    """
+    memory = dict(prev_memory) if prev_memory else {
+        "topics_covered": [],
+        "key_facts": [],
+        "entities_introduced": [],
+        "phrases_used": {},
+        "avoid_repetition": [],
+        "definitions_given": [],
+        "total_words": 0,
+        "batch_count": 0,
+    }
+    
+    if not accepted_batches:
+        return memory
+    
+    import re as _re_mem
+    
+    # Process only new batches (incremental update)
+    start_idx = memory.get("batch_count", 0)
+    new_batches = accepted_batches[start_idx:]
+    
+    for batch in new_batches:
+        text = batch.get("text", "")
+        h2 = batch.get("h2", "")
+        
+        if not text:
+            continue
+            
+        text_lower = text.lower()
+        text_clean = _re_mem.sub(r'<[^>]+>', '', text)  # strip HTML
+        
+        # 1. Topics covered
+        if h2 and h2 not in memory["topics_covered"]:
+            memory["topics_covered"].append(h2)
+        
+        # 2. Key facts — extract numbers, dates, percentages, legal refs
+        # Numbers with context (e.g., "3 lata", "0,5 promila", "art. 178a")
+        _facts_patterns = [
+            r'\b(?:art\.\s*\d+\w*(?:\s*§\s*\d+)?(?:\s+k\.\w\.)?)',  # legal articles
+            r'\b\d+[,.]?\d*\s*(?:promil[aey]?|‰|mg\/[dl])',  # alcohol levels
+            r'\b\d+[,.]?\d*\s*(?:lat|roku?|miesięc|tygodni|dni)',  # time periods
+            r'\b\d+[,.]?\d*\s*(?:złot|zł|PLN|EUR|USD|%|procent)',  # money/percent
+            r'\b\d{4}\s*(?:rok|r\.)',  # years
+            r'\b(?:od|do|max|min|co najmniej|nie więcej niż)\s*\d+[,.]?\d*\s*\w+',  # ranges
+        ]
+        for pattern in _facts_patterns:
+            for match in _re_mem.findall(pattern, text_clean, _re_mem.IGNORECASE):
+                fact = match.strip()
+                if fact and len(fact) >= 4 and fact not in memory["key_facts"]:
+                    memory["key_facts"].append(fact)
+        # Cap to avoid bloat
+        memory["key_facts"] = memory["key_facts"][:50]
+        
+        # 3. Entities introduced — words/phrases that appear in H2 or are capitalized multi-word
+        _entities_in_text = set()
+        # From H2
+        if h2:
+            _entities_in_text.add(h2.strip())
+        # Capitalized multi-word (potential named entities)
+        for match in _re_mem.findall(r'\b([A-ZŁŚŻŹĆĘĄÓ][a-ząćęłńóśźż]+ [A-ZŁŚŻŹĆĘĄÓ][a-ząćęłńóśźż]+)\b', text_clean):
+            if len(match) >= 5:
+                _entities_in_text.add(match)
+        # Main keyword variants
+        _mk_lower = main_keyword.lower()
+        if _mk_lower in text_lower:
+            _entities_in_text.add(main_keyword)
+        
+        for ent in _entities_in_text:
+            if ent not in memory["entities_introduced"]:
+                memory["entities_introduced"].append(ent)
+        memory["entities_introduced"] = memory["entities_introduced"][:40]
+        
+        # 4. Phrases used — track 3+ word phrases that repeat across batches
+        # Split into sentences, then extract 3-5 word n-grams
+        sentences = _re_mem.split(r'(?<=[.!?])\s+', text_clean)
+        for sent in sentences:
+            words = sent.lower().split()
+            for n in (3, 4, 5):
+                for i in range(len(words) - n + 1):
+                    phrase = " ".join(words[i:i+n])
+                    # Skip very common patterns
+                    if any(phrase.startswith(s) for s in ("w tym ", "na co ", "to jest ", "w przypadku ")):
+                        continue
+                    if phrase in memory["phrases_used"]:
+                        memory["phrases_used"][phrase] += 1
+                    else:
+                        memory["phrases_used"][phrase] = 1
+        
+        # 5. Definitions — "X to Y" / "X oznacza Y" / "X polega na Y"
+        for pattern in [
+            r'([^.]{5,40})\s+(?:to|oznacza|polega na|jest to|definiuje się jako)\s+([^.]{10,80})',
+        ]:
+            for match in _re_mem.finditer(pattern, text_clean, _re_mem.IGNORECASE):
+                defn = match.group(0).strip()[:120]
+                if defn not in memory["definitions_given"]:
+                    memory["definitions_given"].append(defn)
+        memory["definitions_given"] = memory["definitions_given"][:20]
+        
+        # Update totals
+        memory["total_words"] += len(text.split())
+    
+    memory["batch_count"] = len(accepted_batches)
+    
+    # 6. Build avoid_repetition from phrases_used (count >= 2 across batches)
+    memory["avoid_repetition"] = [
+        phrase for phrase, count in sorted(
+            memory["phrases_used"].items(), key=lambda x: -x[1]
+        ) if count >= 3
+    ][:15]
+    
+    # 7. Prune phrases_used — keep only those with count >= 2 to avoid memory bloat
+    memory["phrases_used"] = {
+        k: v for k, v in memory["phrases_used"].items() if v >= 2
+    }
+    
+    return memory
+
+
 def smart_retry_per_sentence(text: str, exceeded_keywords: list, attempt_num: int = 1) -> str:
     """
     v45.3: Per-sentence smart retry — chirurgiczny fix jednego zdania zamiast całego batcha.
