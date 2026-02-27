@@ -1369,6 +1369,31 @@ def check_anaphora(text: str, main_entity: str = "") -> dict:
         if len(examples) < 3:
             examples.append(f"[To-subject] {len(to_subject)}x zdanie zaczyna się od 'To'")
 
+    # 4. v67: MK paragraph opener — main keyword starts 3+ paragraphs globally
+    # This catches "Jak obniżyć X lekami...\n\nJak obniżyć X zioła...\n\nJak obniżyć X dom..."
+    if entity_lower:
+        _mk_para_openers = 0
+        for para in paragraphs:
+            _p = para.strip()
+            if _p and _p.lower().startswith(entity_lower):
+                _mk_para_openers += 1
+        if _mk_para_openers >= 3:
+            total_runs += _mk_para_openers - 2  # Each occurrence above 2 is a problem
+            if len(examples) < 3:
+                examples.append(f"[MK-opener] {_mk_para_openers}x akapit zaczyna się od '{entity_lower[:30]}'")
+
+    # 5. v67: MK+suffix pattern — sentences starting with MK followed by different words
+    # Catches: "MK lekami...", "MK zioła...", "MK domowymi...", "MK suplementami..."
+    if entity_lower and len(entity_lower) > 5:
+        _mk_suffixed = re.findall(
+            r'(?:^|\n)\s*' + re.escape(entity_lower[:20]) + r'[a-ząćęłńóśźż\s]{2,20}',
+            text.lower()
+        )
+        if len(_mk_suffixed) >= 4:
+            total_runs += 1
+            if len(examples) < 3:
+                examples.append(f"[MK+suffix] {len(_mk_suffixed)}x '{entity_lower[:20]}...' z różnymi kontynuacjami")
+
     return {
         "needs_fix": total_runs > 0,
         "anaphora_count": total_runs,
