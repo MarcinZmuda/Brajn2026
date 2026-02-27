@@ -284,7 +284,15 @@ OTWIERANIE SEKCJI: Każda sekcja H2 MUSI zaczynać się INNYM zdaniem.
   DOBRZE: "Salon 30 m² z panelami zamyka się w 1 500–3 000 zł — ale lista na tym się nie kończy."
 
 INTERPUNKCJA: przecinki przed: że, który, ponieważ, aby.
-FLEKSJA: odmieniaj frazy przez przypadki — to jedno użycie, nie powtórzenie.
+
+FLEKSJA I PERYFRAZY (KRYTYCZNE DLA SEO):
+  Google stosuje lematyzację — „wykroczenie" i „wykroczenia" to TEN SAM lemat.
+  Powtarzanie exact match = keyword stuffing mimo różnych form fleksyjnych.
+  ZASADA: max 2× ta sama forma w jednym akapicie. Potem ROTUJ:
+  1. Odmiana (jazda po alkoholu → jazdę/jazdy/jeździe po alkoholu)
+  2. Peryfraza (jazda po alkoholu → prowadzenie pojazdu pod wpływem)
+  3. Elipsa (pominięcie gdy kontekst jasny)
+  Jeśli przy frazie podano odmiany/peryfrazy — korzystaj z nich.
 
 FORMAT: h2:/h3: dla nagłówków. Zero markdown — żadnych **, __, #, <h2>, <h3>.
   Każdy h2:/h3: MUSI zaczynać się w NOWEJ LINII z pustą linią powyżej.
@@ -387,6 +395,8 @@ POZYCJA W AKAPICIE — encja na początku = wyższa salience:
 
 OBECNOŚĆ W TEKŚCIE — cel behawioralny, nie licznik:
   Używaj encji głównej naturalnie w każdej sekcji H2 — co najmniej raz.
+  ROTUJ FORMĘ: nie powtarzaj mianownika — odmieniaj przez przypadki.
+  Co 2-3 użycia encji głównej → wstaw peryfrazę lub zaimek kontekstowy.
   Nie unikaj encji "żeby się nie powtarzać" — to sygnał off-topic dla Google.
   Nie nadużywaj encji w każdym zdaniu — to sygnał keyword stuffing.
   Wskazówka: 1 użycie na ~100 słów to zdrowe tempo (ok. 10 razy w 1000-wyrazowym tekście).
@@ -587,6 +597,44 @@ def _parse_target_max(target_total_str):
         return 0
 
 
+def _get_kw_variants(name, pre_batch):
+    """v67: Get fleksyjne + peryfrazy for a keyword from search_variants.
+    
+    Returns (fleksyjne_list, peryfrazy_list) — both may be empty.
+    Checks: search_variants.secondary[name], search_variants.fleksyjne (for main kw),
+    and entity_variants as fallback.
+    """
+    sv = pre_batch.get("_search_variants") or {}
+    secondary = sv.get("secondary", {})
+    
+    # 1. Check secondary dict (per-keyword variants)
+    name_lower = name.lower().strip()
+    for key, variants in secondary.items():
+        if key.lower().strip() == name_lower:
+            # secondary variants are a mixed list — split into fleksyjne/peryfrazy
+            # heuristic: short variants (±3 words diff) = fleksyjne, longer = peryfrazy
+            base_words = len(name.split())
+            fleks = [v for v in variants if abs(len(v.split()) - base_words) <= 1]
+            peri = [v for v in variants if abs(len(v.split()) - base_words) > 1]
+            return fleks[:3], peri[:3]
+    
+    # 2. For main keyword — use top-level fleksyjne/peryfrazy
+    _raw_main = pre_batch.get("main_keyword") or {}
+    main_kw = _raw_main.get("keyword", "") if isinstance(_raw_main, dict) else str(_raw_main)
+    if main_kw and name_lower == main_kw.lower().strip():
+        fleks = sv.get("fleksyjne", [])[:3]
+        peri = sv.get("peryfrazy", [])[:3]
+        return fleks, peri
+    
+    # 3. Fallback to entity_variants
+    entity_variants = pre_batch.get("_entity_variants") or secondary
+    variants = _find_variants(name, entity_variants)
+    if variants:
+        return variants[:2], []
+    
+    return [], []
+
+
 def _fmt_keywords(pre_batch):
     keywords_info = pre_batch.get("keywords") or {}
     keyword_limits = pre_batch.get("keyword_limits") or {}
@@ -619,18 +667,44 @@ def _fmt_keywords(pre_batch):
                 line += f" (max {hard_max}×)"
             elif remaining and int(remaining) <= 2:
                 line += f" (jeszcze {remaining}×)"
+            # v67: Add variant hints — fleksyjne + peryfrazy
+            fleks, peri = _get_kw_variants(name, pre_batch)
+            if fleks:
+                line += f'\n    odmiany: {", ".join(fleks)}'
+            if peri:
+                line += f'\n    peryfrazy: {", ".join(peri)}'
             must_lines.append(line)
         else:
-            must_lines.append(f'  • "{kw}"')
+            line = f'  • "{kw}"'
+            fleks, peri = _get_kw_variants(str(kw), pre_batch)
+            if fleks:
+                line += f'\n    odmiany: {", ".join(fleks)}'
+            if peri:
+                line += f'\n    peryfrazy: {", ".join(peri)}'
+            must_lines.append(line)
 
     # ── EXTENDED ──
     ext_raw = keywords_info.get("extended_this_batch", [])
     ext_lines = []
     for kw in ext_raw:
         if isinstance(kw, dict):
-            ext_lines.append(f'  • "{kw.get("keyword", "")}"')
+            name = kw.get("keyword", "")
+            line = f'  • "{name}"'
+            # v67: Variant hints for extended too
+            fleks, peri = _get_kw_variants(name, pre_batch)
+            if peri:
+                line += f' (lub: {", ".join(peri[:2])})'
+            elif fleks:
+                line += f' (lub: {", ".join(fleks[:2])})'
+            ext_lines.append(line)
         else:
-            ext_lines.append(f'  • "{kw}"')
+            line = f'  • "{kw}"'
+            fleks, peri = _get_kw_variants(str(kw), pre_batch)
+            if peri:
+                line += f' (lub: {", ".join(peri[:2])})'
+            elif fleks:
+                line += f' (lub: {", ".join(fleks[:2])})'
+            ext_lines.append(line)
 
     # ── STOP ──
     stop_raw = keyword_limits.get("stop_keywords") or []
@@ -693,6 +767,10 @@ def _fmt_keywords(pre_batch):
 
     # ── BUILD ──
     parts = ["═══ FRAZY KLUCZOWE ═══"]
+    parts.append("⚡ ROTACJA FORM: Google liczy odmiany jako to samo slowo (lematyzacja).\n"
+                 "  'wykroczenie' + 'wykroczenia' + 'wykroczeniem' = 3 uzycia jednego lematu.\n"
+                 "  Dlatego: NIE powtarzaj exact match — rotuj przez odmiany i peryfrazy.\n"
+                 "  Jesli fraza ma podane odmiany/peryfrazy — UZYWAJ ICH zamiast powtarzac te sama forme.")
 
     if _kw_force_ban and main_kw:
         parts.append(f'⛔ STOP: Fraza "{main_kw}" jest PRZEKROCZONA — nie używaj w tym batchu.\n')
@@ -1398,8 +1476,13 @@ def _fmt_natural_polish(pre_batch):
     parts = ["═══ ANTY-STUFFING ═══"]
 
     parts.append(
-        "FLEKSJA: Odmiany = jedno użycie. Max 2× ta sama fraza w jednym akapicie.\n"
-        "Rozkładaj frazy RÓWNOMIERNIE po tekście — nie skupiaj w jednym akapicie."
+        "FLEKSJA: Odmiany = jedno użycie w oczach Google (lematyzacja).\n"
+        "  Max 2× ta sama FORMA frazy w jednym akapicie.\n"
+        "  Max 3× ta sama FORMA frazy w całym batchu — potem rotuj na odmianę lub peryfrazę.\n"
+        "Rozkładaj frazy RÓWNOMIERNIE po tekście — nie skupiaj w jednym akapicie.\n"
+        "PERYFRAZY > POWTÓRZENIA: gdy fraza blisko limitu — użyj peryfrazy.\n"
+        "  ❌ 'Wykroczenie polega... Wykroczenie grozi... Za wykroczenie kara...'\n"
+        "  ✅ 'Wykroczenie polega... Czyn karalny grozi... Za ten delikt kara...'"
     )
 
     # Dynamic anaphora with search variants
