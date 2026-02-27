@@ -823,6 +823,42 @@
             <div class="pnl" id="cpP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('cpP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('cpP')}"><span>✅ S1 Compliance</span><span class="arr">▼</span></div><div class="pnl-b" id="cpB"></div></div>
             <div class="crd" id="esC" style="display:none"><div class="crd-t"><b>🔬 Entity</b> Salience (Google NLP)</div><div class="sg sg3"><div class="sc"><div class="sv" id="esSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="esSal">—</div><div class="sl">Main Salience</div></div><div class="sc"><div class="sv" id="esDom">—</div><div class="sl">Dominacja</div></div></div><div id="esSP" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--b1)"><div style="font-size:9px;font-weight:600;margin-bottom:4px">📐 Subject Position</div><div class="sg sg4" style="font-size:8px"><div class="sc"><div class="sv" id="spSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="spSR">—</div><div class="sl">Podmiot %</div></div><div class="sc"><div class="sv" id="spH2">—</div><div class="sl">H2</div></div><div class="sc"><div class="sv" id="sp1st">—</div><div class="sl">1. zdanie</div></div></div></div><div id="esEnts" style="margin-top:10px;font-size:9px;display:none"></div><div id="esIss" style="margin-top:8px;font-size:9px;color:var(--mg)"></div></div>
             <div class="crd" id="afC" style="display:none"><div class="crd-t"><b>🎭 Anti-Frankenstein</b> Style Analysis</div><div class="sg sg4"><div class="sc"><div class="sv" id="afSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="afCV">—</div><div class="sl">CV Zdań</div></div><div class="sc"><div class="sv" id="afP">—</div><div class="sl">Passive</div></div><div class="sc"><div class="sv" id="afSL">—</div><div class="sl">Śr. zdanie</div></div></div><div id="afIss" style="margin-top:8px;font-size:9px;color:var(--mg)"></div></div>
+
+            <!-- ═══ v67: LANGUAGETOOL PANEL ═══ -->
+            <div class="crd" id="ltC" style="display:none"><div class="crd-t"><b>🔍 LanguageTool</b> Gramatyka korpusowa</div><div class="sg sg4"><div class="sc"><div class="sv" id="ltSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="ltTotal">—</div><div class="sl">Problemy</div></div><div class="sc"><div class="sv" id="ltGram">—</div><div class="sl">Gramatyka</div></div><div class="sc"><div class="sv" id="ltColl">—</div><div class="sl">Kolokacje</div></div></div>
+              <div id="ltCats" style="margin-top:10px;display:none"></div>
+              <div id="ltIssues" style="margin-top:8px;font-size:9px;max-height:200px;overflow-y:auto"></div>
+            </div>
+
+            <!-- ═══ v67: POLISH NLP PANEL ═══ -->
+            <div class="crd" id="pnlpC" style="display:none"><div class="crd-t"><b>🇵🇱 Polish NLP</b> Naturalność NKJP</div><div class="sg sg4"><div class="sc"><div class="sv" id="pnlpSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="pnlpFog">—</div><div class="sl">FOG-PL</div></div><div class="sc"><div class="sv" id="pnlpDia">—</div><div class="sl">Diakrytyki</div></div><div class="sc"><div class="sv" id="pnlpTTR">—</div><div class="sl">TTR</div></div></div>
+              <div id="pnlpMetrics" style="margin-top:10px;display:none"></div>
+              <div id="pnlpIss" style="margin-top:8px;font-size:9px;color:var(--mg)"></div>
+            </div>
+
+            <!-- ═══ v67: CONTENT EDITORIAL CARD ═══ -->
+            <div class="crd" id="ceC" style="display:none"><div class="crd-t"><b>📋 Content Editorial</b> Przegląd merytoryczny</div><div class="sg sg4"><div class="sc"><div class="sv" id="ceSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="ceSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="ceCrit">—</div><div class="sl">Krytyczne</div></div><div class="sc"><div class="sv" id="ceWarn">—</div><div class="sl">Ostrzeżenia</div></div></div>
+              <div id="ceSummary" style="margin-top:8px;font-size:10px;color:var(--mg);display:none"></div>
+              <div id="ceIssues" style="margin-top:8px;font-size:9px;max-height:200px;overflow-y:auto"></div>
+            </div>
+
+            <!-- ═══ v67: CONSISTENCY WARNINGS ═══ -->
+            <div class="crd" id="cwC" style="display:none"><div class="crd-t"><b>⚠️ Consistency</b> Sprzeczności między batchami</div>
+              <div id="cwList" style="font-size:10px"></div>
+            </div>
+
+            <!-- ═══ v67: EXPORT READINESS CHECKLIST ═══ -->
+            <div class="crd" id="ercC" style="display:none"><div class="crd-t"><b>✅ Publication</b> Readiness</div>
+              <div id="ercScore" style="text-align:center;margin:8px 0"></div>
+              <div id="ercChecks" style="font-size:11px"></div>
+            </div>
+
+            <!-- ═══ v67: COST SUMMARY ═══ -->
+            <div class="crd" id="costC" style="display:none"><div class="crd-t"><b>💰 Token</b> Cost Summary</div>
+              <div class="sg sg4"><div class="sc"><div class="sv" id="costTotal">—</div><div class="sl">Koszt ($)</div></div><div class="sc"><div class="sv" id="costCalls">—</div><div class="sl">Wywołania</div></div><div class="sc"><div class="sv" id="costIn">—</div><div class="sl">Input tok</div></div><div class="sc"><div class="sv" id="costOut">—</div><div class="sl">Output tok</div></div></div>
+              <div id="costBreakdown" style="margin-top:10px;font-size:9px;display:none"></div>
+            </div>
+
             <div class="crd" id="ymC" style="display:none"><div class="crd-t"><b>⚖️🏥 YMYL</b> Analiza wiarygodności</div><div class="sg sg4"><div class="sc"><div class="sv" id="ymLS">—</div><div class="sl">Prawo</div></div><div class="sc"><div class="sv" id="ymMS">—</div><div class="sl">Medycyna</div></div><div class="sc"><div class="sv" id="ymR">—</div><div class="sl">Źródła</div></div><div class="sc"><div class="sv" id="ymD">—</div><div class="sl">Zastrzeżenie</div></div></div><div id="ymDetail" style="margin-top:8px;font-size:10px;color:var(--mg)"></div></div>
             <div class="pnl" id="schP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('schP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('schP')}"><span>📋 Schema.org JSON-LD</span><span class="arr">▼</span></div><div class="pnl-b" id="schB"><pre id="schCode" style="font-size:8px;background:var(--bg2);padding:10px;border-radius:6px;overflow-x:auto;max-height:300px;white-space:pre-wrap"></pre><button class="tbtn" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('schCode').textContent).then(()=>this.textContent='✓ Skopiowano!').catch(()=>this.textContent='Błąd')">📋 Kopiuj JSON-LD</button></div></div>
             <div class="pnl" id="tmP" style="display:none"><div class="pnl-h" role="button" tabindex="0" aria-expanded="false" onclick="tPnl('tmP')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();tPnl('tmP')}"><span>🗺️ Topical Map (rekomendacje klastrów)</span><span class="arr">▼</span></div><div class="pnl-b" id="tmB"></div></div>
@@ -847,7 +883,7 @@
 <script>
 (function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Content Editorial','Editorial Review','Final Review','Redaktor Naczelny','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
-let mode='standard',engine='openai',openaiModel='gpt-5.2',temperature=0.7,contentType='article',catType='subcategory',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='',semanticDistData=null,evalSummaryData=null;
+let mode='standard',engine='openai',openaiModel='gpt-5.2',temperature=0.7,contentType='article',catType='subcategory',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='',semanticDistData=null,evalSummaryData=null,ltData=null,pnlpData=null,ceData=null,cwData=[],costData=null;
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
 // XSS sanitization for SSE data
@@ -1362,14 +1398,14 @@ async function startWorkflow(){
     document.getElementById('tbQuality').textContent='—';document.getElementById('tbS1').textContent='—';document.getElementById('tbCI').textContent='—';
     document.getElementById('qualityBar').style.display='none';document.getElementById('mainTabsBar').style.display='none';
     const _em=document.getElementById('edMini');if(_em)_em.style.display='none';
-    ['bpC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','edMini','batchChartPane','kwCoveragePane','timelinePane','entityCovPane','evalSummaryPane','editorReviewPane','eiPane'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
+    ['bpC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','edMini','batchChartPane','kwCoveragePane','timelinePane','entityCovPane','evalSummaryPane','editorReviewPane','eiPane','ltC','pnlpC','ceC','cwC','ercC','costC'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
     const _edDetR=document.getElementById('edDet');if(_edDetR){_edDetR.innerHTML='';_edDetR.style.display='none';}
     // Reset live status bar
     const _ls=document.getElementById('lsText');if(_ls){_ls.textContent='Przygotowanie...';document.getElementById('lsDetail').textContent='';document.getElementById('lsFill').style.width='0%';document.getElementById('lsPulse').className='ls-pulse';document.getElementById('lsPulse').style.background='';document.getElementById('lsPulse').style.animation='';document.getElementById('lsTimer').textContent='0:00';}
     document.getElementById('editorWrap').classList.remove('visible');
     document.getElementById('chatHist').innerHTML=`<div class="chat-msg ai">${contentType==='category'?'Opis kategorii gotowy':'Artykuł gotowy'}! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>`;
     document.getElementById('valResult').classList.remove('vis');
-    rawArticle='';selTxt='';s1Data=null;batchLog=[];finalData=null;salienceData=null;styleData=null;memoryData=null;articleData=null;editorialData=null;stepTimingData=null;paaData=null;ymylCtxData=null;ymylAnalysisData=null;ymylValData=null;liveArticle='';semanticDistData=null;evalSummaryData=null;
+    rawArticle='';selTxt='';s1Data=null;batchLog=[];finalData=null;salienceData=null;styleData=null;memoryData=null;articleData=null;editorialData=null;stepTimingData=null;paaData=null;ymylCtxData=null;ymylAnalysisData=null;ymylValData=null;liveArticle='';semanticDistData=null;evalSummaryData=null;ltData=null;pnlpData=null;ceData=null;cwData=[];costData=null;
     try{closeArtModal()}catch(e){}
     log(`Start: "${kw}" [${contentType}] [${mode}] [${engine}] [temp=${temperature}]`);
     // Start live status timer
@@ -1669,7 +1705,98 @@ async function startWorkflow(){
         });
         es.addEventListener('article_update',e=>{const d=JSON.parse(e.data);if(d.full_text){liveArticle=d.full_text;renderArt(liveArticle);}});
         es.addEventListener('topical_map',e=>{const d=JSON.parse(e.data);document.getElementById('tmP').style.display='';let h=`<div style="font-size:13px"><div style="font-weight:600;margin-bottom:8px">🏛️ Filar: "${esc(d.pillar.entity)}" | ${d.total_clusters} klastrów</div>`;const prio={'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'};d.clusters.forEach(c=>{h+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1)"><span>${prio[c.priority]||'⚪'}</span> <b>${esc(c.entity)}</b><br><span style="color:var(--mg);font-size:12px">${esc(c.relation_to_pillar)} · źródło: ${c.source}</span></div>`});if(d.internal_links&&d.internal_links.length){h+=`<div style="margin-top:10px;font-weight:600">🔗 Sugerowane linki wewnętrzne (${d.internal_links.length}):</div>`;d.internal_links.slice(0,10).forEach(l=>{h+=`<div style="font-size:12px;color:var(--mg);padding:2px 0">${esc(l.from_page)} → ${esc(l.to_page)} | anchor: "${esc(l.anchor_text)}"</div>`})}h+='</div>';document.getElementById('tmB').innerHTML=h});
+
+        // ═══ v67: LANGUAGETOOL EVENT ═══
+        es.addEventListener('languagetool',e=>{const d=JSON.parse(e.data);ltData=d;
+          document.getElementById('ltC').style.display='';
+          const sc=d.score||0;
+          document.getElementById('ltSc').textContent=sc+'/100';
+          document.getElementById('ltSc').style.color=sc>=75?G:sc>=50?W:R;
+          document.getElementById('ltTotal').textContent=d.total_issues||0;
+          document.getElementById('ltTotal').style.color=(d.total_issues||0)<=5?G:(d.total_issues||0)<=15?W:R;
+          const cats=d.categories||{};
+          document.getElementById('ltGram').textContent=cats.GRAMMAR||0;
+          document.getElementById('ltGram').style.color=(cats.GRAMMAR||0)===0?G:(cats.GRAMMAR||0)<=3?W:R;
+          document.getElementById('ltColl').textContent=cats.COLLOCATIONS||0;
+          document.getElementById('ltColl').style.color=(cats.COLLOCATIONS||0)===0?G:R;
+          // Category breakdown bars
+          const catsEl=document.getElementById('ltCats');
+          if(Object.keys(cats).length){catsEl.style.display='';const labels={'GRAMMAR':'Gramatyka','COLLOCATIONS':'Kolokacje','PUNCTUATION':'Interpunkcja','STYLE':'Styl','REDUNDANCY':'Redundancja','TYPOS':'Literówki'};let ch='<div style="display:grid;grid-template-columns:100px 1fr 30px;gap:4px 8px;font-size:10px;align-items:center">';for(const[k,v] of Object.entries(cats)){if(v>0){const pct=Math.min(v*8,100);const clr=v<=2?G:v<=5?W:R;ch+=`<div style="color:var(--mg)">${labels[k]||k}</div><div style="height:6px;background:var(--b1);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${clr};border-radius:3px"></div></div><div style="color:${clr};font-weight:600">${v}</div>`}}ch+='</div>';catsEl.innerHTML=ch}
+          // Top issues
+          const issEl=document.getElementById('ltIssues');let ih='';
+          const allIss=[...(d.grammar_issues||[]),...(d.collocation_issues||[]),...(d.punctuation_issues||[]),...(d.style_issues||[])];
+          if(allIss.length){ih+='<div style="font-weight:600;margin-bottom:4px">Top problemy:</div>';allIss.slice(0,8).forEach(i=>{const msg=i.message||i.msg||'';const repl=(i.replacements||[]).slice(0,2).join(', ');ih+=`<div style="padding:3px 0;border-bottom:1px solid var(--b1)"><span style="color:var(--yl)">[${esc(i.category_name||i.category||'')}]</span> ${esc(msg.substring(0,100))}${repl?` <span style="color:var(--gn)">→ ${esc(repl)}</span>`:''}</div>`})}
+          issEl.innerHTML=ih;
+        });
+
+        // ═══ v67: POLISH NLP EVENT ═══
+        es.addEventListener('polish_nlp',e=>{const d=JSON.parse(e.data);pnlpData=d;
+          document.getElementById('pnlpC').style.display='';
+          const sc=d.score||0;
+          document.getElementById('pnlpSc').textContent=sc+'/100';
+          document.getElementById('pnlpSc').style.color=sc>=75?G:sc>=50?W:R;
+          const fog=d.fog_pl||0;
+          document.getElementById('pnlpFog').textContent=fog.toFixed(1);
+          document.getElementById('pnlpFog').style.color=fog>=7&&fog<=12?G:fog>=5&&fog<=14?W:R;
+          const dia=(d.diacritics_pct||0);
+          document.getElementById('pnlpDia').textContent=(dia*100).toFixed(1)+'%';
+          document.getElementById('pnlpDia').style.color=Math.abs(dia-0.069)<0.015?G:Math.abs(dia-0.069)<0.03?W:R;
+          const ttr=d.type_token_ratio||0;
+          document.getElementById('pnlpTTR').textContent=ttr.toFixed(2);
+          document.getElementById('pnlpTTR').style.color=ttr>=0.35?G:ttr>=0.25?W:R;
+          // Metrics grid
+          const mEl=document.getElementById('pnlpMetrics');mEl.style.display='';
+          const norms=[['Śr. słowo',d.avg_word_length,'zn.',6.0,0.5],['Śr. zdanie',d.avg_sentence_length,'sł.',12,4],['Samogłoski',(d.vowel_pct||0)*100,'%',36.5,2.5],['Przecinki+że',d.comma_conjunction_ratio,'',0.015,0.01],['CV zdań',d.sentence_cv,'',0.35,0.15],['Hapax ratio',d.hapax_ratio,'',0.5,0.15],['Kol. błędy',d.collocation_errors,'',0,2]];
+          let mh='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:9px">';
+          norms.forEach(([label,val,unit,target,tol])=>{if(val==null)return;const v=typeof val==='number'?val:0;const ok=Math.abs(v-target)<=tol;const clr=ok?G:Math.abs(v-target)<=tol*2?W:R;mh+=`<div style="text-align:center;padding:4px;background:var(--s2);border-radius:4px"><div style="font-size:12px;font-weight:700;color:${clr}">${typeof val==='number'?val.toFixed(2):val}${unit?'&nbsp;'+unit:''}</div><div style="color:var(--mg);margin-top:1px">${label}</div><div style="font-size:7px;color:var(--b3)">NKJP: ${target}</div></div>`});
+          mh+='</div>';mEl.innerHTML=mh;
+          // Issues + recommendations
+          let ih='';
+          if(d.issues&&d.issues.length)ih+=d.issues.map(i=>`<div style="color:${W};margin-top:3px">⚠️ ${esc(i)}</div>`).join('');
+          if(d.recommendations&&d.recommendations.length)ih+=d.recommendations.map(r=>`<div style="color:var(--mg);margin-top:2px">💡 ${esc(r)}</div>`).join('');
+          document.getElementById('pnlpIss').innerHTML=ih;
+        });
+
+        // ═══ v67: CONTENT EDITORIAL EVENT ═══
+        es.addEventListener('content_editorial',e=>{const d=JSON.parse(e.data);ceData=d;
+          document.getElementById('ceC').style.display='';
+          const sc=d.score||0;
+          document.getElementById('ceSc').textContent=sc+'/100';
+          document.getElementById('ceSc').style.color=sc>=75?G:sc>=50?W:R;
+          const st=d.status||'?';
+          document.getElementById('ceSt').textContent=st.toUpperCase();
+          document.getElementById('ceSt').style.color=st==='pass'||st==='PASS'?G:st==='blocked'||st==='BLOCKED'?R:W;
+          document.getElementById('ceCrit').textContent=d.critical_count||0;
+          document.getElementById('ceCrit').style.color=(d.critical_count||0)>0?R:G;
+          document.getElementById('ceWarn').textContent=d.warning_count||0;
+          document.getElementById('ceWarn').style.color=(d.warning_count||0)>0?W:G;
+          if(d.summary){const sEl=document.getElementById('ceSummary');sEl.style.display='';sEl.innerHTML=`<div style="padding:8px;background:var(--s2);border-radius:4px;border-left:3px solid ${sc>=75?G:sc>=50?W:R}">${esc(d.summary)}</div>`;}
+          const iEl=document.getElementById('ceIssues');let ih='';
+          if(d.issues&&d.issues.length){ih+='<div style="font-weight:600;margin-bottom:4px;margin-top:4px">Problemy:</div>';d.issues.forEach(i=>{const sev=i.severity||'warning';const ic=sev==='critical'?'❌':sev==='warning'?'⚠️':'ℹ️';const clr=sev==='critical'?R:sev==='warning'?W:'var(--mg)';ih+=`<div style="padding:4px 0;border-bottom:1px solid var(--b1);color:${clr}">${ic} ${esc(typeof i==='string'?i:(i.message||i.description||JSON.stringify(i)))}</div>`})}
+          iEl.innerHTML=ih;
+        });
+
+        // ═══ v67: CONSISTENCY WARNINGS EVENT ═══
+        es.addEventListener('consistency_warning',e=>{const d=JSON.parse(e.data);
+          if(!cwData)cwData=[];cwData.push(d);
+          const el=document.getElementById('cwC');el.style.display='';
+          const lEl=document.getElementById('cwList');
+          lEl.innerHTML+= `<div style="padding:6px 8px;margin-bottom:4px;background:rgba(251,191,36,.08);border-left:3px solid var(--yl);border-radius:4px"><div style="font-weight:600;color:var(--yl)">Batch ${d.batch||'?'}</div><div style="color:var(--mg);margin-top:2px">${esc((d.warning||'').substring(0,200))}</div></div>`;
+        });
+
+        // ═══ v67: READINESS CHECKLIST EVENT ═══
+        es.addEventListener('readiness_checklist',e=>{const d=JSON.parse(e.data);
+          document.getElementById('ercC').style.display='';
+          const checks=d.checks||[];const passed=checks.filter(c=>c.ok).length;const total=checks.length;const pct=total?Math.round(passed/total*100):0;
+          const grade=pct>=90?'A+':pct>=80?'A':pct>=70?'B+':pct>=60?'B':pct>=50?'C':'D';
+          const clr=pct>=80?G:pct>=60?W:R;
+          document.getElementById('ercScore').innerHTML=`<div style="font-size:36px;font-weight:800;color:${clr}">${grade}</div><div style="font-size:12px;color:var(--mg)">${passed}/${total} kryteriów (${pct}%)</div><div style="height:6px;background:var(--b1);border-radius:3px;margin:8px 40px 0;overflow:hidden"><div style="height:100%;width:${pct}%;background:${clr};border-radius:3px"></div></div>`;
+          let ch='';checks.forEach(c=>{const ic=c.ok?'✅':'❌';const clr2=c.ok?G:R;ch+=`<div style="padding:4px 0;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--b1)"><span>${ic}</span><span style="flex:1;color:${clr2}">${esc(c.label||'')}</span>${c.detail?`<span style="font-size:9px;color:var(--mg)">${esc(c.detail)}</span>`:''}</div>`});
+          document.getElementById('ercChecks').innerHTML=ch;
+        });
         es.addEventListener('done',e=>{const d=JSON.parse(e.data);stepTimingData=d.timing||null;if(window._lsTimerInt){clearInterval(window._lsTimerInt);window._lsTimerInt=null;}renderCompDash();document.getElementById('tbCI').textContent='✓';document.getElementById('doneB').style.display='';document.getElementById('doneH').textContent=contentType==='category'?'✓ Opis kategorii gotowy':'✓ Artykuł gotowy';const tm=d.timing;const tmStr=tm?` · ${Math.round(tm.total_seconds)}s`:'';document.getElementById('doneD').textContent=`${d.project_id} · ${d.word_count} słów${tmStr}`;
+        // v67: Cost summary
+        if(d.cost_summary){costData=d.cost_summary;const cs=d.cost_summary;document.getElementById('costC').style.display='';document.getElementById('costTotal').textContent='$'+cs.total_cost_usd.toFixed(3);document.getElementById('costTotal').style.color=cs.total_cost_usd<0.10?G:cs.total_cost_usd<0.50?W:R;document.getElementById('costCalls').textContent=cs.call_count||0;document.getElementById('costIn').textContent=(cs.total_input_tokens||0).toLocaleString();document.getElementById('costOut').textContent=(cs.total_output_tokens||0).toLocaleString();if(cs.breakdown&&Object.keys(cs.breakdown).length){const bEl=document.getElementById('costBreakdown');bEl.style.display='';const stepNames={'s1_analysis':'S1 Analysis','batch_generation':'Batche','editorial_review':'Editorial','final_review':'Final Review','content_editorial':'Content Ed.','paa_generation':'PAA','editor_in_chief':'Redaktor','ymyl_detection':'YMYL','h2_planning':'H2 Plan'};let bh='<div style="display:grid;grid-template-columns:1fr 60px 50px 50px;gap:2px 8px;font-weight:600"><div>Krok</div><div>Koszt</div><div>Calls</div><div>Tokeny</div></div>';const sorted=Object.entries(cs.breakdown).sort((a,b)=>b[1].cost-a[1].cost);sorted.forEach(([k,v])=>{bh+=`<div style="display:grid;grid-template-columns:1fr 60px 50px 50px;gap:2px 8px"><div style="color:var(--mg)">${stepNames[k]||k}</div><div style="color:var(--orange)">$${v.cost.toFixed(3)}</div><div>${v.calls}</div><div>${((v.input_tokens||0)+(v.output_tokens||0)).toLocaleString()}</div></div>`});bEl.innerHTML=bh}}
         // Fix #47: Ukryj frazy BASIC z panelu + wyczyść pola po zakończeniu workflow
         try{const _bsc=document.getElementById('bsc');if(_bsc)_bsc.style.display='none';const _bt=document.getElementById('basicTerms');if(_bt)_bt.value='';document.querySelectorAll('.tag').forEach(t=>{const txt=(t.textContent||'').trim();if(txt.startsWith('Basic:'))t.style.display='none';});}catch(e47){}if(d.exports){document.getElementById('expB').style.display='';if(d.exports.html){document.getElementById('exH').href=`/api/export/${jid}/html`;const exH2=document.getElementById('exH2');if(exH2){exH2.href=`/api/export/${jid}/html`;exH2.style.display=''}};if(d.exports.docx)document.getElementById('exD').href=`/api/export/${jid}/docx`}try{initTimelineChart(stepTimingData)}catch(e2){console.warn('timelineChart:',e2)}try{initBatchChart(batchLog)}catch(e2){console.warn('batchChart:',e2)}try{initAllCharts()}catch(e2){console.warn('initAllCharts:',e2)}document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);try{const _fs=finalData||{};showArtModal(d.word_count,_fs.score,d.timing?d.timing.total_seconds:null)}catch(e2){console.warn('artModal:',e2)}es.close()});
         es.addEventListener('workflow_error',e=>{const d=JSON.parse(e.data);log(`❌ ${d.msg}`);if(d.step)uStep(d.step,'error',d.msg);document.getElementById('btnStart').disabled=false;document.getElementById('btnStart').textContent='Uruchom workflow →';_setStopBtn(false);es.close()});
