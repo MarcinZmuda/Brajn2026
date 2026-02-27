@@ -876,6 +876,31 @@
             <div class="crd" id="ceC" style="display:none"><div class="crd-t"><b>📋 Content Editorial</b> Przegląd merytoryczny</div><div class="sg sg4"><div class="sc"><div class="sv" id="ceSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="ceSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="ceCrit">—</div><div class="sl">Krytyczne</div></div><div class="sc"><div class="sv" id="ceWarn">—</div><div class="sl">Ostrzeżenia</div></div></div>
               <div id="ceSummary" style="margin-top:8px;font-size:10px;color:var(--mg);display:none"></div>
               <div id="ceIssues" style="margin-top:8px;font-size:9px;max-height:200px;overflow-y:auto"></div>
+              <!-- ═══ v67: SEO SIMILARITY (inside Content Editorial) ═══ -->
+              <div id="semA" style="display:none;margin-top:12px;border-top:1px solid rgba(255,255,255,0.06);padding-top:12px">
+                <div style="font-weight:700;font-size:11px;margin-bottom:8px">🔬 SEO Similarity <span id="semScore" style="float:right;font-size:13px;font-weight:800">—</span></div>
+                <div class="sg sg4" style="margin-bottom:8px">
+                  <div class="sc"><div class="sv" id="semTerms">—</div><div class="sl">Termy</div></div>
+                  <div class="sc"><div class="sv" id="semEnt">—</div><div class="sl">Encje</div></div>
+                  <div class="sc"><div class="sv" id="semMust">—</div><div class="sl">Must-mention</div></div>
+                  <div class="sc"><div class="sv" id="semCov">—</div><div class="sl">Coverage</div></div>
+                </div>
+                <!-- H2 Heatmap -->
+                <div id="semH2" style="display:none;margin-bottom:8px">
+                  <div style="font-size:9px;font-weight:600;margin-bottom:4px;color:var(--mg)">Per-sekcja H2 coverage</div>
+                  <div id="semH2Bars"></div>
+                </div>
+                <!-- Missing Terms -->
+                <div id="semMissing" style="display:none;margin-bottom:6px">
+                  <div style="font-size:9px;font-weight:600;margin-bottom:3px;color:var(--mg)">⚠️ Brakujące termy (TOP5 mają, Ty nie)</div>
+                  <div id="semMissingList" style="font-size:9px;display:flex;flex-wrap:wrap;gap:3px"></div>
+                </div>
+                <!-- Missing Entities -->
+                <div id="semEntMissing" style="display:none">
+                  <div style="font-size:9px;font-weight:600;margin-bottom:3px;color:var(--mg)">🔴 Brakujące encje</div>
+                  <div id="semEntMissingList" style="font-size:9px;display:flex;flex-wrap:wrap;gap:3px"></div>
+                </div>
+              </div>
             </div>
 
             <!-- ═══ v67: CONSISTENCY WARNINGS ═══ -->
@@ -919,7 +944,7 @@
 <script>
 (function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Content Editorial','Editorial Review','Final Review','Redaktor Naczelny','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
-let mode='standard',engine='openai',openaiModel='gpt-5.2',temperature=0.7,contentType='article',catType='subcategory',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='',semanticDistData=null,evalSummaryData=null,ltData=null,pnlpData=null,ceData=null,cwData=[],costData=null;
+let mode='standard',engine='openai',openaiModel='gpt-5.2',temperature=0.7,contentType='article',catType='subcategory',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='',semanticDistData=null,evalSummaryData=null,ltData=null,pnlpData=null,ceData=null,cwData=[],costData=null,semAnalysisData=null;
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
 // XSS sanitization for SSE data
@@ -1445,7 +1470,7 @@ async function startWorkflow(){
     document.getElementById('editorWrap').classList.remove('visible');
     document.getElementById('chatHist').innerHTML=`<div class="chat-msg ai">${contentType==='category'?'Opis kategorii gotowy':'Artykuł gotowy'}! Napisz co chcesz zmienić, albo zaznacz fragment tekstu powyżej.<div class="meta">💡 zaznacz tekst w podglądzie → pojawi się mini-edytor</div></div>`;
     document.getElementById('valResult').classList.remove('vis');
-    rawArticle='';selTxt='';s1Data=null;batchLog=[];finalData=null;salienceData=null;styleData=null;memoryData=null;articleData=null;editorialData=null;stepTimingData=null;paaData=null;ymylCtxData=null;ymylAnalysisData=null;ymylValData=null;liveArticle='';semanticDistData=null;evalSummaryData=null;ltData=null;pnlpData=null;ceData=null;cwData=[];costData=null;
+    rawArticle='';selTxt='';s1Data=null;batchLog=[];finalData=null;salienceData=null;styleData=null;memoryData=null;articleData=null;editorialData=null;stepTimingData=null;paaData=null;ymylCtxData=null;ymylAnalysisData=null;ymylValData=null;liveArticle='';semanticDistData=null;evalSummaryData=null;ltData=null;pnlpData=null;ceData=null;cwData=[];costData=null;semAnalysisData=null;
     try{closeArtModal()}catch(e){}
     log(`Start: "${kw}" [${contentType}] [${mode}] [${engine}] [temp=${temperature}]`);
     // Start live status timer
@@ -1576,6 +1601,8 @@ async function startWorkflow(){
         es.addEventListener('style_analysis',e=>{const d=JSON.parse(e.data);styleData=d;document.getElementById('afC').style.display='';document.getElementById('afSc').textContent=`${d.score}/100`;document.getElementById('afSc').style.color=d.score>=75?G:d.score>=50?W:R;document.getElementById('afCV').textContent=d.cv_sentences!=null?d.cv_sentences.toFixed(2):'?';const cvOk=d.cv_sentences>=0.25&&d.cv_sentences<=0.5;document.getElementById('afCV').style.color=cvOk?G:d.cv_sentences>0.6?R:W;document.getElementById('afP').textContent=d.passive_ratio!=null?Math.round(d.passive_ratio*100)+'%':'?';document.getElementById('afP').style.color=d.passive_ratio<=0.2?G:d.passive_ratio<=0.3?W:R;document.getElementById('afSL').textContent=d.avg_sentence_length!=null?d.avg_sentence_length.toFixed(0):'?';let iss='';if(d.issues&&d.issues.length)iss=d.issues.map(i=>`<div style="margin-top:3px">⚠️ ${esc(i)}</div>`).join('');document.getElementById('afIss').innerHTML=iss;updateQualityBar()});
         es.addEventListener('schema_org',e=>{const d=JSON.parse(e.data);document.getElementById('schP').style.display='';document.getElementById('schCode').textContent=d.html||JSON.stringify(d.json_ld,null,2)});
         es.addEventListener('semantic_distance',e=>{const d=JSON.parse(e.data);semanticDistData=d;updateQualityBar()});
+        // v67: Enhanced semantic analysis → Content Editorial card
+        es.addEventListener('semantic_analysis',e=>{const d=JSON.parse(e.data);semAnalysisData=d;renderSemAnalysis()});
         es.addEventListener('evaluation_summary',e=>{const d=JSON.parse(e.data);evalSummaryData=d;try{initEvalSummaryPane(d)}catch(e2){console.warn('evalSummary:',e2)}});
         es.addEventListener('editor_review',e=>{const d=JSON.parse(e.data);document.getElementById('editorReviewPane').style.display='';const vc={'PASS':'var(--gn)','WARN':'var(--yl)','FAIL':'var(--rd)'};document.getElementById('erVerdict').textContent=d.verdict||'?';document.getElementById('erVerdict').style.color=vc[d.verdict]||'var(--mg)';document.getElementById('erCritical').textContent=d.critical_count||0;document.getElementById('erCritical').style.color=d.critical_count>0?'var(--rd)':'var(--gn)';document.getElementById('erArtifacts').textContent=d.artifact_count||0;document.getElementById('erLogic').textContent=d.logic_count||0;document.getElementById('erComment').textContent=d.comment||'';let dt='';if(d.critical&&d.critical.length){dt+='<div style="margin:6px 0;font-weight:600;color:var(--rd)">❌ Błędy krytyczne:</div>';d.critical.forEach(c=>{dt+=`<div style="margin:4px 0;padding:6px;background:rgba(248,113,113,.08);border-radius:4px"><div style="color:var(--rd)">${esc(c.blad||'')}</div><div style="color:var(--mg);font-style:italic">"${esc((c.cytat||'').substring(0,100))}"</div><div style="color:var(--gn)">→ ${esc(c.poprawka||'')}</div></div>`;});}if(d.artifacts&&d.artifacts.length){dt+='<div style="margin:6px 0;font-weight:600;color:var(--yl)">⚠️ Artefakty:</div>';d.artifacts.forEach(a=>{dt+=`<div style="margin:2px 0;color:var(--mg)">"${esc((a.cytat||'').substring(0,80))}" — ${esc(a.blad||'')}</div>`;});}if(d.logic&&d.logic.length){dt+='<div style="margin:6px 0;font-weight:600;color:var(--yl)">🔄 Logika:</div>';d.logic.forEach(l=>{dt+=`<div style="margin:2px 0;color:var(--mg)">${esc(l.opis||'')}</div>`;});}if(d.auto_fixed)dt+='<div style="margin:8px 0;padding:6px;background:rgba(52,211,153,.1);border-radius:4px;color:var(--gn);font-weight:600">🔧 Auto-fix zastosowany</div>';document.getElementById('erDetails').innerHTML=dt;});
 
@@ -1852,6 +1879,64 @@ async function startWorkflow(){
 }
 
 // ═══ ARTICLE EDITOR ═══
+// ═══ v67: SEO SIMILARITY RENDER ═══
+function renderSemAnalysis(){
+    const d=semAnalysisData;if(!d||!d.enabled)return;
+    // Show Content Editorial card if hidden
+    document.getElementById('ceC').style.display='';
+    const wrap=document.getElementById('semA');wrap.style.display='';
+    // Composite score
+    const sc=d.composite_score||0;
+    const scEl=document.getElementById('semScore');
+    scEl.textContent=sc+'/100';
+    scEl.style.color=sc>=70?G:sc>=40?W:R;
+    // Stats row
+    document.getElementById('semTerms').textContent=d.terms_present+'/'+d.term_pool_size;
+    document.getElementById('semTerms').style.color=(d.terms_present/d.term_pool_size)>=0.7?G:(d.terms_present/d.term_pool_size)>=0.4?W:R;
+    document.getElementById('semEnt').textContent=d.entity_coverage_pct+'%';
+    document.getElementById('semEnt').style.color=d.entity_coverage_pct>=70?G:d.entity_coverage_pct>=40?W:R;
+    document.getElementById('semMust').textContent=Math.round((d.must_mention_pct||0)*100)+'%';
+    document.getElementById('semMust').style.color=(d.must_mention_pct||0)>=0.7?G:(d.must_mention_pct||0)>=0.4?W:R;
+    document.getElementById('semCov').textContent=Math.round((d.weighted_coverage||0)*100)+'%';
+    document.getElementById('semCov').style.color=(d.weighted_coverage||0)>=0.7?G:(d.weighted_coverage||0)>=0.4?W:R;
+    // H2 Heatmap
+    const hm=d.h2_heatmap||[];
+    if(hm.length>0){
+        document.getElementById('semH2').style.display='';
+        let h='';
+        hm.forEach(s=>{
+            const pct=s.coverage_pct||0;
+            const clr=pct>=60?G:pct>=30?W:R;
+            const name=esc(s.name||'?').substring(0,40);
+            h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;font-size:9px">
+                <div style="width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mg)" title="${esc(s.name)}">${name}</div>
+                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:3px;height:12px;position:relative">
+                    <div style="width:${pct}%;height:100%;background:${clr};border-radius:3px;transition:width .3s"></div>
+                </div>
+                <div style="width:30px;text-align:right;color:${clr};font-weight:600">${pct}%</div>
+            </div>`;
+        });
+        document.getElementById('semH2Bars').innerHTML=h;
+    }
+    // Missing terms
+    const mt=d.missing_terms||[];
+    if(mt.length>0){
+        document.getElementById('semMissing').style.display='';
+        const srcClr={'must_mention':'#f87171','entity':'#fba92c','keyphrase':'#60a5fa','ngram':'#9e9e9e'};
+        document.getElementById('semMissingList').innerHTML=mt.map(t=>
+            `<span style="display:inline-block;padding:1px 6px;border-radius:3px;background:rgba(255,255,255,0.06);border-left:2px solid ${srcClr[t.source]||'#666'};font-size:8px" title="${t.source} (waga: ${t.weight})">${esc(t.term)}</span>`
+        ).join('');
+    }
+    // Missing entities
+    const me=d.entities_missing||[];
+    if(me.length>0){
+        document.getElementById('semEntMissing').style.display='';
+        document.getElementById('semEntMissingList').innerHTML=me.map(e=>
+            `<span style="display:inline-block;padding:1px 6px;border-radius:3px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);font-size:8px">${esc(e)}</span>`
+        ).join('');
+    }
+}
+
 // ═══ YMYL INTELLIGENCE CARD ═══
 function renderYmylCard(){
     const d=ymylAnalysisData;if(!d)return;
