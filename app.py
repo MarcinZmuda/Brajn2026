@@ -6651,7 +6651,7 @@ def download_export(job_id, fmt):
 @app.route("/api/health")
 def health():
     """Health check."""
-    return jsonify({"status": "ok", "version": "45.3.2"})
+    return jsonify({"status": "ok", "version": "67.0.0"})
 
 
 # ============================================================
