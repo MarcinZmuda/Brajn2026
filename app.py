@@ -486,14 +486,34 @@ def _detect_ymyl(main_keyword: str) -> dict:
                 f"{master_api_url}/api/ymyl/detect_and_enrich",
                 json={"keyword": main_keyword, "local_detection": local_result},
                 headers=headers,
-                timeout=5
+                timeout=8
             )
 
             if enrich_response.status_code == 200:
                 # Fix #55: Guard against HTML error page (cold start / 502 z Render)
                 raw_text = enrich_response.text.strip()
                 if not raw_text.startswith("{"):
-                    logger.warning(f"[YMYL_ENRICH] Response not valid JSON (starts with: {raw_text[:40]!r}), using local result")
+                    logger.warning(f"[YMYL_ENRICH] Response not valid JSON (starts with: {raw_text[:40]!r}), retrying once...")
+                    # v67: Retry once — cold start often resolves in 2nd attempt
+                    import time as _time_ymyl
+                    _time_ymyl.sleep(2)
+                    try:
+                        enrich_response2 = requests.post(
+                            f"{MASTER_API_URL}/api/ymyl/detect",
+                            json={"keyword": main_keyword, "content_type": content_type},
+                            headers=headers, timeout=10
+                        )
+                        raw_text2 = enrich_response2.text.strip()
+                        if enrich_response2.status_code == 200 and raw_text2.startswith("{"):
+                            enriched = enrich_response2.json()
+                            enriched["detected_category"] = enriched.get("detected_category", detected_category)
+                            enriched["enrichment_method"] = "master_api_enriched_retry"
+                            logger.info(f"[YMYL_ENRICH] {main_keyword} enriched via retry")
+                            return enriched
+                        else:
+                            logger.warning(f"[YMYL_ENRICH] Retry also failed, using local result")
+                    except Exception as _retry_err:
+                        logger.warning(f"[YMYL_ENRICH] Retry error: {_retry_err}")
                 else:
                     enriched = enrich_response.json()
                     # Normalize detected_category from response
@@ -715,7 +735,7 @@ def _generate_search_variants(main_keyword: str, secondary_keywords: list = None
                 max_tokens=800 if sec_list else 500,
                 temperature=0.3,
                 messages=[{"role": "user", "content": prompt}],
-                timeout=15.0
+                timeout=25.0
             )
             raw = resp.choices[0].message.content.strip()
             result = _parse_variants(raw)
@@ -724,6 +744,8 @@ def _generate_search_variants(main_keyword: str, secondary_keywords: list = None
                 sec_count = len(result.get("secondary", {}))
                 logger.info(f"[SEARCH_VARIANTS] ✅ OpenAI: {total} main + {sec_count} secondary dla '{main_keyword}'")
                 return result
+            else:
+                logger.warning(f"[SEARCH_VARIANTS] OpenAI returned unparseable: {raw[:120]}")
         except Exception as e:
             logger.warning(f"[SEARCH_VARIANTS] OpenAI error: {e}")
 
@@ -736,7 +758,7 @@ def _generate_search_variants(main_keyword: str, secondary_keywords: list = None
                 max_tokens=800 if sec_list else 500,
                 temperature=0.3,
                 messages=[{"role": "user", "content": prompt}],
-                timeout=15.0
+                timeout=25.0
             )
             result = _parse_variants(resp.content[0].text.strip())
             if result:
@@ -747,8 +769,109 @@ def _generate_search_variants(main_keyword: str, secondary_keywords: list = None
         except Exception as e:
             logger.warning(f"[SEARCH_VARIANTS] Haiku error: {e}")
 
-    logger.warning(f"[SEARCH_VARIANTS] All providers failed for '{main_keyword}'")
-    return {}
+    # v67: Deterministic fallback — generate basic Polish inflections without LLM
+    logger.warning(f"[SEARCH_VARIANTS] All LLM providers failed for '{main_keyword}', using deterministic fallback")
+    return _deterministic_variant_fallback(main_keyword, sec_list)
+
+
+def _deterministic_variant_fallback(main_keyword: str, secondary_keywords: list = None) -> dict:
+    """Generate basic Polish variant hints when LLM fails.
+    
+    Uses simple suffix rules for common Polish inflection patterns.
+    Not perfect, but gives the model SOMETHING to rotate with.
+    """
+    result = {}
+    all_flat = []
+    mk = main_keyword.strip()
+    mk_lower = mk.lower()
+    words = mk_lower.split()
+    
+    # Basic Polish noun/adjective inflection patterns
+    _PL_SUFFIXES = {
+        # nominative → other cases (approximate)
+        "ów": ["om", "ami", "ach"],
+        "ów ": ["om ", "ami ", "ach "],
+        "ie": ["iu", "iem"],
+        "a": ["ę", "y", "ie", "ą"],
+        "o": ["a", "u", "em"],
+        "y": ["ów", "om", "ami"],
+        "i": ["ów", "om", "ami"],
+        "ść": ["ści", "ścią"],
+        "ek": ["ku", "kiem"],
+    }
+    
+    fleksyjne = []
+    # Try to generate inflected forms of the last significant word
+    for suffix, replacements in _PL_SUFFIXES.items():
+        if words[-1].endswith(suffix):
+            base = words[-1][:-len(suffix)]
+            for repl in replacements:
+                variant_words = words[:-1] + [base + repl]
+                variant = " ".join(variant_words)
+                if variant != mk_lower and variant not in fleksyjne:
+                    fleksyjne.append(variant)
+            break
+    
+    # For "jak + verb" patterns, add noun forms
+    if len(words) >= 2 and words[0] in ("jak", "co", "czy", "ile", "kiedy"):
+        # Drop the question word for a declarative variant
+        declarative = " ".join(words[1:])
+        if declarative != mk_lower:
+            fleksyjne.append(declarative)
+        # Add "sposoby na" variant
+        peryfrazy_base = " ".join(words[1:])
+        all_flat.append(f"sposoby na {peryfrazy_base}")
+    
+    if fleksyjne:
+        result["fleksyjne"] = fleksyjne[:5]
+        all_flat.extend(fleksyjne[:5])
+    
+    # Generate basic periphrases
+    peryfrazy = []
+    for w in words:
+        if len(w) >= 6:
+            # Just note the word can be replaced — gives the model a hint
+            pass
+    if peryfrazy:
+        result["peryfrazy"] = peryfrazy[:4]
+        all_flat.extend(peryfrazy[:4])
+    
+    # Secondary keywords — generate case variants
+    if secondary_keywords:
+        sec_result = {}
+        for kw in secondary_keywords[:8]:
+            kw_clean = kw.strip() if isinstance(kw, str) else str(kw).strip()
+            kw_words = kw_clean.lower().split()
+            variants = []
+            if kw_words:
+                last = kw_words[-1]
+                for suffix, replacements in _PL_SUFFIXES.items():
+                    if last.endswith(suffix):
+                        base = last[:-len(suffix)]
+                        for repl in replacements[:2]:
+                            v = " ".join(kw_words[:-1] + [base + repl])
+                            if v != kw_clean.lower():
+                                variants.append(v)
+                        break
+            if variants:
+                sec_result[kw_clean] = variants[:3]
+        if sec_result:
+            result["secondary"] = sec_result
+    
+    # Deduplicated flat list
+    seen = set()
+    unique_flat = []
+    for v in all_flat:
+        vl = v.lower()
+        if vl not in seen and vl != mk_lower:
+            seen.add(vl)
+            unique_flat.append(v)
+    result["all_flat"] = unique_flat
+    
+    total = len(unique_flat)
+    sec_count = len(result.get("secondary", {}))
+    logger.info(f"[SEARCH_VARIANTS] ⚠️ Deterministic fallback: {total} main + {sec_count} secondary dla '{main_keyword}'")
+    return result
 
 
 def _generate_topical_entities(main_keyword: str, h2_plan: list = None) -> dict:
@@ -1892,6 +2015,52 @@ def _clean_batch_text(text):
     return text.strip()
 
 
+def _fix_citation_hallucinations(text: str) -> dict:
+    """v67: Fix common LLM hallucinations in medical/legal citations.
+    
+    LLMs often:
+    - Misspell journal names: "J Chin Endocrinol Metal" → "J Clin Endocrinol Metab"
+    - Mix languages in abbreviations: "ESC/ZAŚ" → "ESC/EAS"  
+    - Corrupt author names: "Grunty" → "Grundy"
+    - Misspell "Eur Hart J" → "Eur Heart J"
+    
+    Returns: {"text": fixed_text, "fixes": ["desc1", ...]}
+    """
+    import re as _re
+    fixes = []
+    
+    # Known medical/legal citation corrections
+    _CITATION_FIXES = {
+        # Journal names
+        r"J\s+Chin\s+Endocrinol\s+Metal": "J Clin Endocrinol Metab",
+        r"J\s+Clin\s+Endocrinol\s+Metal": "J Clin Endocrinol Metab",
+        r"Eur\s+Hart\s+J\b": "Eur Heart J",
+        r"Eur\s+Hear\s+J\b": "Eur Heart J",
+        r"N\s+Eng\s+J\s+Med\b": "N Engl J Med",
+        r"Lancett?\b(?=\s*[,;.\)])": "Lancet",
+        # Organization abbreviations (Polish hallucinations)
+        r"ESC/ZAŚ\b": "ESC/EAS",
+        r"ESC/EAŚ\b": "ESC/EAS",
+        r"AHA/ACC\b\.?\s*[Oo]pisują": "AHA/ACC opisują",
+        # Common author name hallucinations
+        r"\bGrunty\s+(i\s+wsp|et\s+al)": "Grundy \\1",
+        r"\bGrundy\s+i\s+wsp": "Grundy et al",
+        # Polish grammar in citations
+        r"\(Gru[a-z]+\s+i\s+wsp\.\s*,\s*(\d{4})\s*,\s*Circulation\)": "(Grundy et al., \\1, Circulation)",
+        # Remove broken parentheses in citations
+        r"\.\s*\(Gr[a-z]+\s*\)": ".",
+    }
+    
+    result = text
+    for pattern, replacement in _CITATION_FIXES.items():
+        matches = _re.findall(pattern, result, _re.IGNORECASE)
+        if matches:
+            result = _re.sub(pattern, replacement, result, flags=_re.IGNORECASE)
+            fixes.append(f"{pattern[:25]}→{replacement[:25]}")
+    
+    return {"text": result, "fixes": fixes}
+
+
 def _normalize_html_tags(text):
     """v56: Safety net — normalize malformed HTML tags in any text.
     Strips code fences, fixes <p.>→<p>, <H2>→<h2>, etc.
@@ -2691,7 +2860,8 @@ def _compute_semantic_distance(full_text, clean_semantic_kp, clean_entities,
 def _compute_semantic_analysis(full_text, h2_structure,
                                 clean_semantic_kp, clean_entities,
                                 concept_entities, clean_must_mention,
-                                clean_ngrams, competitor_h2_patterns):
+                                clean_ngrams, competitor_h2_patterns,
+                                recommended_length=None):
     """v67: Enhanced semantic analysis for Content Editorial card.
     
     Adds:
@@ -2699,6 +2869,7 @@ def _compute_semantic_analysis(full_text, h2_structure,
     2. Term gap analysis (missing/overused terms)
     3. Entity coverage gap with importance weighting
     4. Composite SEO Similarity score 0-100
+    5. Length ratio penalty (articles 2x+ recommended get score reduction)
     
     Uses existing competitor data (entities, n-grams, keyphrases) —
     no new API calls needed.
@@ -2822,6 +2993,20 @@ def _compute_semantic_analysis(full_text, h2_structure,
     composite = round(weighted_coverage * 40 + (ent_coverage_pct / 100) * 30 + mm_pct * 30)
     composite = max(0, min(100, composite))
     
+    # v67: Length ratio penalty — articles much longer than recommended score too easily
+    # A 2400-word article covering 24 terms is trivial; a 1100-word article doing the same is impressive
+    length_ratio = 1.0
+    _length_penalty_applied = False
+    if recommended_length and recommended_length > 0:
+        actual_words = len(full_text.split())
+        length_ratio = actual_words / recommended_length
+        if length_ratio > 1.5:
+            # Penalty: reduce score proportional to excess length
+            # 1.5x → no penalty, 2x → -10pts, 3x → -20pts
+            _penalty = min(25, int((length_ratio - 1.5) * 20))
+            composite = max(30, composite - _penalty)
+            _length_penalty_applied = True
+    
     return {
         "enabled": True,
         "composite_score": composite,
@@ -2838,6 +3023,8 @@ def _compute_semantic_analysis(full_text, h2_structure,
         "entities_missing": entity_missing[:15],
         "must_mention_pct": round(mm_pct, 3),
         "h2_heatmap": h2_scores,
+        "length_ratio": round(length_ratio, 2),
+        "length_penalty_applied": _length_penalty_applied,
     }
 
 
@@ -2855,6 +3042,11 @@ SZUKAJ WYŁĄCZNIE:
    - Złe jednostki (np. promile zamiast mg/dm³ w kontekście wydychanego powietrza)
    - Zmyślone dane, daty, sygnatury orzeczeń
    - Sprzeczności wewnętrzne (np. raz „2 lata" a dalej „3 lata" za to samo)
+   - BŁĘDNE CYTOWANIA I NAZWY ŹRÓDEŁ:
+     * Przekręcone nazwy czasopism (np. „J Chin" zamiast „J Clin", „Eur Hart J" zamiast „Eur Heart J")
+     * Spolszczone skróty organizacji (np. „ESC/ZAŚ" zamiast „ESC/EAS")
+     * Przekręcone nazwiska autorów (np. „Grunty" zamiast „Grundy")
+     * Niepoprawne tytuły publikacji / zmyślone PMID
 2. ARTEFAKTY TECHNICZNE:
    - Pozostałości HTML (<Tt>, <Span>, <Font> itp.)
    - Urwane zdania, lorem ipsum, placeholder tekst
@@ -5013,6 +5205,26 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             _ctx_items = sum(len(v) if isinstance(v, list) else (1 if v else 0) for v in _s1_ctx.values())
             yield emit("log", {"msg": f"🎯 S1 context: {_ctx_items} items matched to H2"})
 
+            # v67: Word budget cap — prevent article from being 2x+ recommended length
+            # Calculate max words per batch from target_length
+            _budget_per_batch = max(150, _target_length // total_batches)
+            _batch_bl = pre_batch.get("batch_length") or {}
+            _orig_max = _batch_bl.get("suggested_max", _batch_bl.get("max_words", 500))
+            if isinstance(_orig_max, (int, float)) and _orig_max > _budget_per_batch * 1.3:
+                # Cap the batch word range to fit target_length
+                _capped_max = int(_budget_per_batch * 1.2)
+                _capped_min = max(100, int(_budget_per_batch * 0.7))
+                pre_batch["batch_length"] = {
+                    **_batch_bl,
+                    "suggested_min": _capped_min,
+                    "suggested_max": _capped_max,
+                    "min_words": _capped_min,
+                    "max_words": _capped_max,
+                    "_original_max": _orig_max,
+                    "_capped_by": "target_length_guard",
+                }
+                yield emit("log", {"msg": f"📏 Word cap: {_orig_max}→{_capped_max} words/batch (target {_target_length} / {total_batches} batchy)"})
+
 
             # Emit batch instructions for UI display
             caution_kw = (pre_batch.get("keyword_limits") or {}).get("caution_keywords", [])
@@ -5580,7 +5792,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 step_done(8)
                 yield emit("step", {"step": 8, "name": "Content Editorial", "status": "done", "detail": detail})
         else:
-            yield emit("step", {"step": 8, "name": "Content Editorial", "status": "warning", "detail": "Nie udało się, kontynuuję"})
+            _ce_err = content_editorial_result.get("error", "Unknown error")
+            yield emit("log", {"msg": f"⚠️ Content Editorial failed: {str(_ce_err)[:100]}"})
+            # v67: Emit partial content_editorial event so UI card still shows something
+            yield emit("content_editorial", {
+                "status": "ERROR",
+                "score": 0,
+                "critical_count": 0,
+                "warning_count": 0,
+                "issues": [{"severity": "info", "message": f"Analiza niedostępna: {str(_ce_err)[:80]}"}],
+                "summary": "Content editorial nie zwrócił wyniku — artykuł kontynuuje normalnie.",
+                "blocked": False,
+            })
+            yield emit("step", {"step": 8, "name": "Content Editorial", "status": "warning", "detail": f"Błąd: {str(_ce_err)[:60]}"})
 
         # ═══════════════════════════════════════════════════════════════════
         # v67: CORRECT ORDER — Editorial Review FIRST, then Final Review
@@ -5892,6 +6116,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         except Exception as _gfix_err:
                             yield emit("log", {"msg": f"⚠️ Grammar auto-fix error: {str(_gfix_err)[:60]}"})
 
+                        # v67: YMYL citation cleanup — fix common LLM hallucinations in references
+                        if is_legal or is_medical:
+                            try:
+                                _cit_fixes = _fix_citation_hallucinations(article_text)
+                                if _cit_fixes["fixes"]:
+                                    article_text = _cit_fixes["text"]
+                                    _analysis_text = _strip_html_for_analysis(article_text) if article_text else article_text
+                                    yield emit("log", {"msg": f"🔬 Citation cleanup: {len(_cit_fixes['fixes'])} poprawek ({', '.join(_cit_fixes['fixes'][:3])})"})
+                            except Exception as _cit_err:
+                                yield emit("log", {"msg": f"⚠️ Citation cleanup error: {str(_cit_err)[:60]}"})
+
             # v56: Safety net — normalize HTML tags before final emit
             article_text = _normalize_html_tags(article_text)
 
@@ -6140,13 +6375,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         clean_must_mention=clean_must_mention,
                         clean_ngrams=clean_ngrams,
                         competitor_h2_patterns=clean_h2_patterns,
+                        recommended_length=_target_length,
                     )
                     if sem_analysis.get("enabled"):
+                        _lp_msg = ""
+                        if sem_analysis.get("length_penalty_applied"):
+                            _lp_msg = f" | ⚠️ length penalty (ratio {sem_analysis.get('length_ratio', '?')}x)"
                         yield emit("log", {"msg": (
                             f"🔬 SEO Similarity: {sem_analysis['composite_score']}/100 | "
                             f"Terms: {sem_analysis['terms_present']}/{sem_analysis['term_pool_size']} | "
                             f"Entity: {sem_analysis['entity_coverage_pct']}% | "
-                            f"H2 sections: {len(sem_analysis.get('h2_heatmap', []))}"
+                            f"H2 sections: {len(sem_analysis.get('h2_heatmap', []))}{_lp_msg}"
                         )})
                         yield emit("semantic_analysis", sem_analysis)
                 except Exception as sa_err:
