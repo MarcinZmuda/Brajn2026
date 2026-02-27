@@ -1,6 +1,6 @@
 """
 ═══════════════════════════════════════════════════════════
-BRAJEN KEYWORD DEDUP v1.0 — Word-boundary safe deduplication
+BRAJEN KEYWORD DEDUP v2.0 — Word-boundary safe deduplication
 ═══════════════════════════════════════════════════════════
 Prevents double-counting of nested keywords by adjusting targets.
 
@@ -8,6 +8,11 @@ Key principles:
   - WORD-BOUNDARY matching only (no substring within words)
   - NEVER removes keywords — only reduces target_max
   - Works universally across all topics (legal, medical, travel, etc.)
+  
+v2.0 changes:
+  - remove_subsumed works on BASIC AND EXTENDED (not just BASIC)
+  - deduplicate_keywords reduces targets of phrases nested in MAIN
+  - Accounts for cascading overlaps (MAIN → BASIC → sub-BASIC)
   
 False positives prevented:
   "rok" ≠ "wyrok" (different words)
@@ -62,35 +67,30 @@ def _word_boundary_overlap(short_phrase: str, long_phrase: str) -> str:
 
 def remove_subsumed_basic(keywords: list, main_keyword: str = "") -> list:
     """
-    v60 FIX: Remove BASIC keywords that are fully contained in another BASIC/ENTITY keyword.
+    v67 FIX: Remove BASIC AND EXTENDED keywords that are fully contained 
+    in another longer BASIC/ENTITY/EXTENDED keyword.
     
-    Example:
-      - "kara pozbawienia wolności" (BASIC) exists → "pozbawienia wolności" (BASIC) REMOVED
-      - "zakaz prowadzenia pojazdów" (BASIC) exists → "prowadzenia pojazdów" (BASIC) REMOVED
-      - "zakaz prowadzenia pojazdów" (BASIC) exists → "zakaz prowadzenia" (BASIC) REMOVED
+    v60 only checked BASIC → missed all demoted BASIC→EXTENDED.
+    v67 checks both BASIC and EXTENDED.
     
     Rules:
-      - Only removes BASIC keywords (never MAIN, ENTITY, EXTENDED)
-      - The "parent" (longer phrase) must be BASIC or ENTITY
-      - Uses word-boundary matching (same logic as _word_boundary_overlap)
-      - If a keyword is subsumed by MULTIPLE parents, one match is enough to remove it
-    
-    This prevents keyword stuffing: GPT no longer needs to insert both
-    "zakaz prowadzenia pojazdów" AND "prowadzenia pojazdów" separately.
+      - Removes BASIC and EXTENDED keywords (never MAIN, ENTITY)
+      - The "parent" (longer phrase) must be BASIC, ENTITY, EXTENDED, or MAIN
+      - Uses word-boundary matching
+      - Never removes the main keyword or its exact synonyms
+      - Only removes if short phrase has ≤2 words (single words and 2-word fragments)
     """
     if not keywords or len(keywords) < 2:
         return keywords
     
     main_kw_lower = main_keyword.lower().strip()
     
-    # Build lookup of all BASIC and ENTITY keywords (potential parents)
+    # Build lookup of all potential parent phrases (any type)
     parent_phrases = []
     for kw in keywords:
-        kw_type = kw.get("type", "BASIC")
-        if kw_type in ("BASIC", "ENTITY"):
-            phrase = kw.get("keyword", "").strip().lower()
-            if phrase:
-                parent_phrases.append(phrase)
+        phrase = kw.get("keyword", "").strip().lower()
+        if phrase and len(phrase.split()) >= 2:  # parents must be 2+ words
+            parent_phrases.append(phrase)
     
     # Also include MAIN keyword as parent
     if main_kw_lower:
@@ -100,11 +100,21 @@ def remove_subsumed_basic(keywords: list, main_keyword: str = "") -> list:
     
     for kw in keywords:
         kw_type = kw.get("type", "BASIC")
-        if kw_type != "BASIC":
+        # v67: Check BASIC and EXTENDED (not just BASIC)
+        if kw_type not in ("BASIC", "EXTENDED"):
             continue
         
         short_phrase = kw.get("keyword", "").strip().lower()
         if not short_phrase:
+            continue
+        
+        # Never remove main keyword
+        if short_phrase == main_kw_lower:
+            continue
+        
+        # Only remove short fragments (1-2 words) subsumed by longer phrases
+        # Don't remove 3+ word phrases — they're specific enough to matter
+        if len(short_phrase.split()) > 2:
             continue
         
         short_words = set(short_phrase.split())
@@ -120,14 +130,15 @@ def remove_subsumed_basic(keywords: list, main_keyword: str = "") -> list:
             # Check: are ALL words of short contained in parent?
             if short_words.issubset(set(parent_words)):
                 to_remove.add(short_phrase)
-                logger.info(f"[DEDUP_REMOVE] '{short_phrase}' ⊂ '{parent}' → REMOVING from BASIC")
+                logger.info(f"[DEDUP_REMOVE] '{short_phrase}' ⊂ '{parent}' → REMOVING ({kw_type})")
                 break  # one parent match is enough
     
     if to_remove:
         original_count = len(keywords)
         keywords = [kw for kw in keywords 
-                    if not (kw.get("type") == "BASIC" and kw.get("keyword", "").strip().lower() in to_remove)]
-        logger.info(f"[DEDUP_REMOVE] Removed {original_count - len(keywords)} subsumed BASIC keywords: {to_remove}")
+                    if not (kw.get("type") in ("BASIC", "EXTENDED") 
+                            and kw.get("keyword", "").strip().lower() in to_remove)]
+        logger.info(f"[DEDUP_REMOVE] Removed {original_count - len(keywords)} subsumed keywords: {to_remove}")
     
     return keywords
 
@@ -139,25 +150,29 @@ def deduplicate_keywords(keywords: list, main_keyword: str = "") -> list:
     NEVER removes keywords — only adjusts target_max downward to compensate
     for double-counting that occurs when the backend counts substring matches.
     
+    v67 FIX: Also reduces targets of phrases nested in MAIN keyword.
+    When MAIN="olej z czarnuszki dla dzieci" has target 9, every use of MAIN
+    also counts as use of "olej z czarnuszki" and "czarnuszka".
+    So "olej z czarnuszki" target should be reduced by MAIN's target.
+    
     Reduction rules (conservative):
-      - prefix_compound: reduce by 1/3 of parent's max (e.g., bagaż + bagaż podręczny)
+      - prefix_compound: reduce by 1/3 of parent's max
       - word_inside: reduce by 1/4 of parent's max
       - multi_word_prefix: reduce by 1/3 of parent's max
-      - If parent is MAIN keyword: reduce by 1/4 of MAIN's max (MAIN gets heavy use)
+      - Nested in MAIN: reduce by 2/3 of MAIN's max (MAIN gets heavy use)
     
     Floor: target_max never drops below max(1, target_min).
-    
-    Args:
-        keywords: list of dicts with {keyword, type, target_min, target_max}
-        main_keyword: the main keyword string
-    
-    Returns:
-        Modified keywords list (same objects, target_max adjusted in-place)
     """
     if not keywords or len(keywords) < 2:
         return keywords
     
     main_kw_lower = main_keyword.lower().strip()
+    main_max = 0
+    for kw in keywords:
+        if kw.get("type") == "MAIN":
+            main_max = kw.get("target_max", 9)
+            break
+    
     adjustments = 0
     
     for i, kw_short in enumerate(keywords):
@@ -167,13 +182,27 @@ def deduplicate_keywords(keywords: list, main_keyword: str = "") -> list:
         if not short_phrase:
             continue
         
-        # Don't adjust MAIN keyword's targets
+        # v67 FIX: Don't skip non-MAIN keywords for MAIN overlap check
+        # But still skip adjusting MAIN keyword itself
         if short_type == "MAIN":
             continue
         
         total_reduction = 0
         found_in_main = False
         
+        # Check overlap with MAIN keyword FIRST (biggest source of double-counting)
+        if main_kw_lower:
+            main_overlap = _word_boundary_overlap(short_phrase, main_kw_lower)
+            if main_overlap:
+                found_in_main = True
+                # v67: MAIN overlap is the PRIMARY source of over-optimization
+                # Every use of MAIN counts as +1 for this sub-phrase
+                # So reduce by ~2/3 of MAIN's target (MAIN will be used heavily)
+                reduction = max(1, main_max * 2 // 3)
+                total_reduction += reduction
+                logger.info(f"[DEDUP] '{short_phrase}' ∈ MAIN '{main_keyword}' → reduce by {reduction} (main_max={main_max})")
+        
+        # Check overlap with other keywords
         for j, kw_long in enumerate(keywords):
             if i == j:
                 continue
@@ -183,6 +212,10 @@ def deduplicate_keywords(keywords: list, main_keyword: str = "") -> list:
             long_max = kw_long.get("target_max", 5)
             
             if not long_phrase:
+                continue
+            
+            # Skip MAIN (already handled above)
+            if long_type == "MAIN":
                 continue
             
             overlap = _word_boundary_overlap(short_phrase, long_phrase)
@@ -202,18 +235,6 @@ def deduplicate_keywords(keywords: list, main_keyword: str = "") -> list:
             if reduction > 0:
                 total_reduction += reduction
                 logger.info(f"[DEDUP] '{short_phrase}' ∈ '{long_phrase}' ({overlap}) → reduce by {reduction}")
-                
-                # Track if this keyword is nested in MAIN
-                if long_type == "MAIN":
-                    found_in_main = True
-        
-        # Additional MAIN keyword overlap (if not already caught above)
-        if not found_in_main and main_kw_lower:
-            main_overlap = _word_boundary_overlap(short_phrase, main_kw_lower)
-            if main_overlap:
-                reduction = max(1, 25 // 4)  # MAIN typically 8-25 uses
-                total_reduction += reduction
-                logger.info(f"[DEDUP] '{short_phrase}' ∈ MAIN '{main_keyword}' → reduce by {reduction}")
         
         if total_reduction > 0:
             old_max = kw_short.get("target_max", 5)
@@ -222,6 +243,9 @@ def deduplicate_keywords(keywords: list, main_keyword: str = "") -> list:
             
             if new_max < old_max:
                 kw_short["target_max"] = new_max
+                # Also reduce target_min if it's now above target_max
+                if kw_short.get("target_min", 1) > new_max:
+                    kw_short["target_min"] = max(1, new_max)
                 adjustments += 1
                 logger.info(f"[DEDUP] '{short_phrase}' target_max: {old_max} → {new_max}")
     
