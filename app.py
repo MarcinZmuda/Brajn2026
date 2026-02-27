@@ -50,6 +50,7 @@ from ai_middleware import (
     should_use_smart_retry,
     synthesize_article_memory,
     ai_synthesize_memory,
+    structured_article_memory,
     check_sentence_length,
     sentence_length_retry,
     check_anaphora,
@@ -3615,195 +3616,123 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         legal_context = None
         medical_context = None
         ymyl_enrichment = {}  # Claude's hints for downstream
+        judgments_clean = []  # v2.4: init before conditional block
 
-        if is_legal:
-            legal_hints = ymyl_data.get("legal", {})
-            articles_raw = legal_hints.get("articles", [])
-            # v56 FIX 1B: Validate articles — reject hallucinated act names from Haiku
-            articles = _validate_legal_articles(articles_raw)
-            if len(articles) < len(articles_raw):
-                rejected = [a for a in articles_raw if a not in articles]
-                logger.warning(f"[YMYL] Rejected {len(rejected)} hallucinated articles: {rejected}")
-            arts_str = ", ".join(articles[:4]) if articles else "brak"
-            yield emit("log", {"msg": f"⚖️ Temat prawny YMYL, przepisy: {arts_str}. Pobieram orzeczenia..."})
-            
-            # v47.2: Pass Claude's article hints to SAOS search
-            # v2.4: Short timeout (30s) — SAOS is often down; don't block article generation
-            lc = brajen_call("post", "/api/legal/get_context", {
-                "main_keyword": main_keyword,
-                "force_enable": True,  # Claude already classified, skip keyword gate
-                "article_hints": articles,  # art. 178a k.k. etc.
-                "search_queries": legal_hints.get("search_queries", []),
-            }, timeout=30)
-            if lc["ok"]:
-                legal_context = lc["data"]
-                yield emit("log", {"msg": f"✅ Orzeczenia pobrane"})
-            else:
-                yield emit("log", {"msg": f"⚠️ SAOS/legal niedostępny — kontynuuję bez orzeczeń"})
-            
-            # Wikipedia enrichment for legal articles
-            _wiki_articles = []
-            if articles:
-                yield emit("log", {"msg": f"📖 Wikipedia: szukam {len(articles[:4])} przepisów..."})
-                _wiki_articles = _enrich_legal_with_wikipedia(articles)
-                if _wiki_articles:
-                    yield emit("log", {"msg": f"✅ Wikipedia: {len(_wiki_articles)} artykułów ({', '.join(w['title'][:25] for w in _wiki_articles)})"})
-                    yield emit("legal_wiki_sources", {"articles": _wiki_articles})
-                else:
-                    yield emit("log", {"msg": "⚠️ Wikipedia: brak wyników"})
-            
-            ymyl_enrichment["legal"] = legal_hints
-            ymyl_enrichment["_wiki_articles"] = _wiki_articles
+        # ═══ v66: ASYNC YMYL ENRICHMENT — fetch SAOS/PubMed/Wikipedia in background ═══
+        # Classification is done (fast). Data fetching is slow (SAOS 30s timeout).
+        # Launch in background thread — data will be ready before batch loop.
+        import threading
+        _ymyl_enrichment_result = {"legal_context": None, "medical_context": None,
+                                   "ymyl_enrichment": {}, "judgments_clean": [],
+                                   "_wiki_articles": [], "done": False}
+        _ymyl_thread = None
 
-        if is_medical:
-            medical_hints = ymyl_data.get("medical", {})
-            mesh = medical_hints.get("mesh_terms", [])
-            spec = medical_hints.get("specialization", "")
-            yield emit("log", {"msg": f"🏥 Temat medyczny YMYL: {spec} | MeSH: {', '.join(mesh[:3])}. Pobieram źródła..."})
-            
-            # v47.2: Pass Claude's MeSH hints to PubMed search
-            mc = brajen_call("post", "/api/medical/get_context", {
-                "main_keyword": main_keyword,
-                "force_enable": True,  # Claude already classified
-                "mesh_hints": mesh,  # MeSH terms for PubMed
-                "condition_en": medical_hints.get("condition_latin", ""),
-                "specialization": spec,
-                "key_drugs": medical_hints.get("key_drugs", []),
-                "evidence_note": medical_hints.get("evidence_note", ""),
-            })
-            if mc["ok"]:
-                medical_context = mc["data"]
-            
-            # Fix #58: Fallback medical_context gdy master API niedostępny → YMYL score 0 bez tego
-            if medical_context is None:
-                logger.warning("[MEDICAL] master API niedostępny — używam fallback medical_context")
-                medical_context = {
-                    "fallback": True,
-                    "disclaimer": "Informacje zawarte w artykule mają charakter wyłącznie edukacyjny i informacyjny. Nie zastępują porady lekarskiej ani diagnozy. W razie wątpliwości skonsultuj się z lekarzem.",
-                    "institutions": ["WHO", "NFZ", "PTOiAu"],
-                    "evidence_note": "Treść oparta na aktualnych wytycznych medycznych.",
-                    "mesh_terms": mesh,
-                    "specialization": spec,
-                }
-            
-            ymyl_enrichment["medical"] = medical_hints
-        
-        if is_finance:
-            ymyl_enrichment["finance"] = ymyl_data.get("finance", {})
-            yield emit("log", {"msg": f"💰 Temat finansowy YMYL: {ymyl_reasoning[:60]}"})
+        def _fetch_ymyl_enrichment_async():
+            """Background thread for YMYL data fetching."""
+            try:
+                _lc = None
+                _mc = None
+                _ye = {}
+                _jc = []
+                _wa = []
+
+                if is_legal:
+                    legal_hints = ymyl_data.get("legal", {})
+                    articles_raw = legal_hints.get("articles", [])
+                    articles = _validate_legal_articles(articles_raw)
+
+                    # SAOS fetch
+                    lc = brajen_call("post", "/api/legal/get_context", {
+                        "main_keyword": main_keyword,
+                        "force_enable": True,
+                        "article_hints": articles,
+                        "search_queries": legal_hints.get("search_queries", []),
+                    }, timeout=30)
+                    if lc["ok"]:
+                        _lc = lc["data"]
+
+                    # Wikipedia enrichment
+                    if articles:
+                        _wa = _enrich_legal_with_wikipedia(articles)
+
+                    _ye["legal"] = legal_hints
+                    _ye["_wiki_articles"] = _wa
+
+                    # Process judgments
+                    if _lc:
+                        judgments_raw = _lc.get("top_judgments") or []
+                        _legal_enrich_hints = _ye.get("legal", {})
+                        _articles_hints = _legal_enrich_hints.get("articles", [])
+                        _arts_str = " ".join(_articles_hints).lower()
+                        _is_criminal = any(x in _arts_str for x in ["k.k.", "kk", "k.w.", "kw", "kodeks karny"])
+                        _is_civil = any(x in _arts_str for x in ["k.c.", "kc", "k.r.o.", "kodeks cywilny"])
+                        _CRIM_SIG = ("ii k", "iii k", "iv k", "aka", "ako", "akz", "ii ka", "iii ka", "iv ka")
+                        _CIV_SIG = (" i c ", " ii c ", " iii c ", " aca ", " aco ")
+                        for j in judgments_raw[:10]:
+                            if not isinstance(j, dict): continue
+                            sig = (j.get("signature", j.get("caseNumber", "")) or "").lower()
+                            sig_p = " " + sig + " "
+                            if _is_criminal and not _is_civil and any(p in sig_p for p in _CIV_SIG):
+                                continue
+                            if _is_civil and not _is_criminal and any(p in sig_p for p in _CRIM_SIG):
+                                continue
+                            _jc.append({
+                                "signature": j.get("signature", j.get("caseNumber", "")),
+                                "court": j.get("court", j.get("courtName", "")),
+                                "date": j.get("date", j.get("judgmentDate", "")),
+                                "summary": (j.get("summary", j.get("excerpt", "")))[:150],
+                                "type": j.get("type", j.get("judgmentType", "")),
+                                "matched_article": j.get("matched_article", ""),
+                            })
+
+                if is_medical:
+                    medical_hints = ymyl_data.get("medical", {})
+                    mesh = medical_hints.get("mesh_terms", [])
+                    mc = brajen_call("post", "/api/medical/get_context", {
+                        "main_keyword": main_keyword,
+                        "force_enable": True,
+                        "mesh_hints": mesh,
+                        "condition_en": medical_hints.get("condition_latin", ""),
+                        "specialization": medical_hints.get("specialization", ""),
+                        "key_drugs": medical_hints.get("key_drugs", []),
+                        "evidence_note": medical_hints.get("evidence_note", ""),
+                    })
+                    if mc["ok"]:
+                        _mc = mc["data"]
+                    if _mc is None:
+                        spec = medical_hints.get("specialization", "")
+                        _mc = {
+                            "fallback": True,
+                            "disclaimer": "Informacje zawarte w artykule mają charakter wyłącznie edukacyjny i informacyjny. Nie zastępują porady lekarskiej ani diagnozy. W razie wątpliwości skonsultuj się z lekarzem.",
+                            "institutions": ["WHO", "NFZ", "PTOiAu"],
+                            "evidence_note": "Treść oparta na aktualnych wytycznych medycznych.",
+                            "mesh_terms": mesh,
+                            "specialization": spec,
+                        }
+                    _ye["medical"] = medical_hints
+
+                if is_finance:
+                    _ye["finance"] = ymyl_data.get("finance", {})
+
+                _ymyl_enrichment_result["legal_context"] = _lc
+                _ymyl_enrichment_result["medical_context"] = _mc
+                _ymyl_enrichment_result["ymyl_enrichment"] = _ye
+                _ymyl_enrichment_result["judgments_clean"] = _jc
+                _ymyl_enrichment_result["_wiki_articles"] = _wa
+            except Exception as _ye_err:
+                logger.warning(f"[YMYL_ASYNC] Enrichment failed: {_ye_err}")
+            finally:
+                _ymyl_enrichment_result["done"] = True
+
+        if is_legal or is_medical or is_finance:
+            yield emit("log", {"msg": "🔄 YMYL enrichment: uruchamiam w tle (nie blokuję H2 planning)..."})
+            _ymyl_thread = threading.Thread(target=_fetch_ymyl_enrichment_async, daemon=True)
+            _ymyl_thread.start()
 
         ymyl_detail = f"Legal: {'TAK' if is_legal else 'NIE'} | Medical: {'TAK' if is_medical else 'NIE'} | Finance: {'TAK' if is_finance else 'NIE'}"
 
-        # ═══ EMIT YMYL CONTEXT FOR DASHBOARD ═══
-        ymyl_panel_data = {
-            "is_legal": is_legal,
-            "is_medical": is_medical,
-            "is_finance": is_finance,
-            "ymyl_intensity": ymyl_intensity,
-            "classification": {
-                "category": ymyl_data.get("category", "general"),
-                "confidence": ymyl_confidence,
-                "reasoning": ymyl_reasoning,
-                "method": ymyl_data.get("detection_method", "unknown"),
-                "ymyl_intensity": ymyl_intensity,
-            },
-            "enrichment": ymyl_enrichment,  # v47.2: Claude's articles/MeSH/etc.
-            "legal": {},
-            "medical": {},
-        }
-        judgments_clean = []  # v2.4: init before conditional block
-        if legal_context:
-            judgments_raw = legal_context.get("top_judgments") or []
-            judgments_clean = []
-            _legal_enrich_hints = ymyl_enrichment.get("legal", {})
-            _articles_hints = _legal_enrich_hints.get("articles", [])
-            _arts_str = " ".join(_articles_hints).lower()
-            _is_criminal = any(x in _arts_str for x in ["k.k.", "kk", "k.w.", "kw", "kodeks karny"])
-            _is_civil = any(x in _arts_str for x in ["k.c.", "kc", "k.r.o.", "kodeks cywilny"])
-            _CRIM_SIG = ("ii k", "iii k", "iv k", "aka", "ako", "akz", "ii ka", "iii ka", "iv ka")
-            _CIV_SIG = (" i c ", " ii c ", " iii c ", " aca ", " aco ")
-            _skipped_sigs = []
-            for j in judgments_raw[:10]:
-                if not isinstance(j, dict): continue
-                sig = (j.get("signature", j.get("caseNumber", "")) or "").lower()
-                sig_p = " " + sig + " "
-                if _is_criminal and not _is_civil and any(p in sig_p for p in _CIV_SIG):
-                    _skipped_sigs.append(sig); continue
-                if _is_civil and not _is_criminal and any(p in sig_p for p in _CRIM_SIG):
-                    _skipped_sigs.append(sig); continue
-                judgments_clean.append({
-                    "signature": j.get("signature", j.get("caseNumber", "")),
-                    "court": j.get("court", j.get("courtName", "")),
-                    "date": j.get("date", j.get("judgmentDate", "")),
-                    "summary": (j.get("summary", j.get("excerpt", "")))[:150],
-                    "type": j.get("type", j.get("judgmentType", "")),
-                    "matched_article": j.get("matched_article", ""),
-                })
-            if _skipped_sigs:
-                yield emit("log", {"msg": f"⚠️ Pominięto {len(_skipped_sigs)} orzeczeń (błędna gałąź): {', '.join(_skipped_sigs[:3])}"})
-            # v47.2: Use Claude's article hints as primary source for legal acts
-            legal_enrich = ymyl_enrichment.get("legal", {})
-            legal_acts = legal_enrich.get("acts", [])
-            if legal_acts and isinstance(legal_acts, list):
-                legal_acts = [{"name": a} if isinstance(a, str) else a for a in legal_acts[:8]]
-            else:
-                # Fallback: extract from context
-                legal_acts = legal_context.get("legal_acts") or legal_context.get("acts") or []
-                if not legal_acts and legal_context.get("legal_instruction"):
-                    import re as _re
-                    act_patterns = _re.findall(
-                        r'(?:ustaw[aąy]?\s+(?:z\s+dnia\s+)?\d{1,2}\s+\w+\s+\d{4}[^.]*|'
-                        r'[Kk]odeks\s+\w+[^.]*|'
-                        r'[Rr]ozporządzeni[eua][^.]*\d{4}[^.]*|'
-                        r'[Dd]yrektyw[aąy][^.]*\d{4}[^.]*)',
-                        legal_context.get("legal_instruction", "")
-                    )
-                    legal_acts = [{"name": a.strip()[:120]} for a in act_patterns[:8]]
-            
-            # v47.2: Add Claude's specific articles to panel
-            legal_articles = legal_enrich.get("articles", [])
-
-            ymyl_panel_data["legal"] = {
-                "instruction_preview": (legal_context.get("legal_instruction", ""))[:300],
-                "judgments": judgments_clean,
-                "judgments_count": len(judgments_raw),
-                "judgments_skipped": _skipped_sigs[:5],
-                "legal_acts": legal_acts[:8] if isinstance(legal_acts, list) else [],
-                "legal_articles": legal_articles[:6],
-                "citation_hint": legal_context.get("citation_hint", ""),
-                "wiki_articles": ymyl_enrichment.get("_wiki_articles", []),
-            }
-
-        if medical_context:
-            pubs_raw = medical_context.get("top_publications") or []
-            pubs_clean = []
-            for p in pubs_raw[:10]:
-                if isinstance(p, dict):
-                    pubs_clean.append({
-                        "title": (p.get("title", ""))[:120],
-                        "authors": (p.get("authors", ""))[:80],
-                        "year": p.get("year", ""),
-                        "pmid": p.get("pmid", ""),
-                        "journal": (p.get("journal", ""))[:60],
-                        "evidence_level": p.get("evidence_level", p.get("level", "")),
-                        "study_type": p.get("study_type", p.get("type", "")),
-                    })
-            # Evidence level breakdown
-            evidence_levels = {}
-            for p in pubs_clean:
-                lvl = p.get("evidence_level") or p.get("study_type") or "unknown"
-                evidence_levels[lvl] = evidence_levels.get(lvl, 0) + 1
-
-            ymyl_panel_data["medical"] = {
-                "instruction_preview": (medical_context.get("medical_instruction", ""))[:300],
-                "publications": pubs_clean,
-                "publications_count": len(pubs_raw),
-                "evidence_levels": evidence_levels,
-                "guidelines": medical_context.get("guidelines") or [],
-            }
-
-        yield emit("ymyl_context", ymyl_panel_data)
-
+        # v66: Mark YMYL step as done immediately after classification
+        # Enrichment data will be collected before batch loop
         step_done(2)
         yield emit("step", {"step": 2, "name": "YMYL Detection", "status": "done", "detail": ymyl_detail})
 
@@ -3920,6 +3849,67 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             if auto_extended_long:
                 extended_terms = list(extended_terms) + auto_extended_long
                 yield emit("log", {"msg": f"📊 Long n-grams→EXTENDED: {len(auto_extended_long)} fraz (≥4 słowa)"})
+
+            # ═══ v66: Auto-EXTENDED enrichment — related searches, PAA keyphrases, low-salience entities ═══
+            auto_extended_extra = []
+            _ext_seen = set(t.split(":")[0].strip().lower() for t in extended_terms)
+            _ext_seen.update(seen_texts)
+
+            # 1. Related searches → extended (long-tail coverage, low target)
+            _related_for_ext = s1.get("related_searches") or serp_analysis.get("related_searches") or []
+            for rs in _related_for_ext[:10]:
+                rs_text = (rs if isinstance(rs, str) else (rs.get("query", "") or rs.get("text", ""))).strip()
+                if rs_text and rs_text.lower() not in _ext_seen and rs_text.lower() != main_keyword.lower():
+                    auto_extended_extra.append(f"{rs_text}: 1-2x")
+                    _ext_seen.add(rs_text.lower())
+
+            # 2. PAA questions → extract keyphrases for extended
+            _paa_for_ext = s1.get("paa") or s1.get("paa_questions") or serp_analysis.get("paa_questions") or []
+            for pq in _paa_for_ext[:8]:
+                pq_text = (pq.get("question", pq) if isinstance(pq, dict) else str(pq)).strip()
+                # Extract the core keyphrase (strip question words)
+                _q_strip = pq_text.lower()
+                for _qw in ("jak ", "co ", "czy ", "ile ", "jaki ", "jaka ", "jakie ", "kiedy ",
+                            "gdzie ", "dlaczego ", "w jaki sposób ", "czym jest ", "co to jest ",
+                            "na czym polega "):
+                    if _q_strip.startswith(_qw):
+                        _q_strip = _q_strip[len(_qw):]
+                        break
+                _q_strip = _q_strip.rstrip("?").strip()
+                if _q_strip and len(_q_strip) >= 5 and _q_strip not in _ext_seen and _q_strip != main_keyword.lower():
+                    auto_extended_extra.append(f"{_q_strip}: 1-2x")
+                    _ext_seen.add(_q_strip)
+
+            # 3. Low-salience entities (present in competition but marginal)
+            _low_sal_entities = []
+            for ent in (clean_entities or []):
+                if not isinstance(ent, dict):
+                    continue
+                text = (ent.get("text") or ent.get("entity") or "").strip()
+                if not text or text.lower() in _ext_seen:
+                    continue
+                sal = ent.get("salience", ent.get("entity_salience", 0))
+                sources = ent.get("sources_count", 0)
+                # Low salience but present in competition = worth mentioning once
+                if 0 < sal < 0.3 and sources >= 1 and text.lower() != main_keyword.lower():
+                    _low_sal_entities.append(f"{text}: 1x")
+                    _ext_seen.add(text.lower())
+
+            auto_extended_extra.extend(_low_sal_entities[:5])
+
+            if auto_extended_extra:
+                extended_terms = list(extended_terms) + auto_extended_extra[:15]
+                _src_counts = []
+                _rs_count = sum(1 for x in auto_extended_extra if any(
+                    x.split(":")[0].strip().lower() == (rs if isinstance(rs, str) else rs.get("query", "")).strip().lower()
+                    for rs in _related_for_ext[:10]
+                ))
+                _paa_count = len(auto_extended_extra) - _rs_count - len(_low_sal_entities[:5])
+                if _rs_count: _src_counts.append(f"{_rs_count} related")
+                if _paa_count > 0: _src_counts.append(f"{_paa_count} PAA")
+                if _low_sal_entities: _src_counts.append(f"{len(_low_sal_entities[:5])} low-sal entities")
+                yield emit("log", {"msg": f"📊 Auto-EXTENDED enrichment: +{len(auto_extended_extra[:15])} fraz ({', '.join(_src_counts)})"})
+                yield emit("auto_extended_terms", {"terms": auto_extended_extra[:15]})
 
         # ─── KROK 3: H2 Planning (auto from S1 + phrase optimization) ───
         step_start(3)
@@ -4288,6 +4278,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
         # ═══ AI MIDDLEWARE: Track accepted batches for memory ═══
         accepted_batches_log = []
+        _structured_memory = {}  # v66: structured memory tracker (replaces Haiku calls)
         _style_anchor = ""  # v2.5: voice continuity — representative sentences from INTRO
 
         # ═══ v2: Entity tracker — tracks which entities introduced in which batch ═══
@@ -4446,45 +4437,101 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             return ctx
 
         def _build_entity_content_plan(h2_list, main_kw, secondary_entities):
-            """Returns list[str]: lead entity name per batch (index 0 = batch 1)."""
-            plan = []
-            used_indices = set()
+            """v66: LLM-based semantic entity→H2 assignment.
+            Returns list[str]: lead entity name per batch (index 0 = batch 1).
+            Uses Haiku for semantic matching instead of word overlap."""
+            if not secondary_entities or not h2_list:
+                return [main_kw] * len(h2_list)
 
-            def _best_entity_for_h2(h2_title, exclude=None):
-                """Find secondary entity most relevant to given H2 title."""
-                h2_words = set(h2_title.lower().split())
-                best_idx, best_score = None, 0
-                for i, ent in enumerate(secondary_entities):
-                    if exclude and i in exclude:
-                        continue
-                    name = (_extract_text(ent) if isinstance(ent, dict) else str(ent)).lower()
-                    ent_words = set(name.split())
-                    overlap = len(h2_words & ent_words)
-                    # Partial match — check if any ent word is substring of h2
-                    partial = sum(1 for w in ent_words if any(w in hw or hw in w for hw in h2_words))
-                    score = overlap * 2 + partial
-                    if score > best_score and i not in used_indices:
-                        best_idx, best_score = i, score
-                return best_idx
+            ent_names = []
+            for e in secondary_entities:
+                name = (_extract_text(e) if isinstance(e, dict) else str(e))
+                if name and name != main_kw:
+                    ent_names.append(name)
 
+            if not ent_names:
+                return [main_kw] * len(h2_list)
+
+            # Build H2 list (skip first = INTRO)
+            h2_for_matching = []
             for i, h2 in enumerate(h2_list):
-                batch_num_local = i + 1
-                if batch_num_local == 1:
-                    # INTRO always uses main keyword
-                    plan.append(main_kw)
-                else:
-                    idx = _best_entity_for_h2(h2)
-                    if idx is not None:
-                        ent = secondary_entities[idx]
-                        plan.append(_extract_text(ent) if isinstance(ent, dict) else str(ent))
-                        used_indices.add(idx)
-                    else:
-                        # Fallback: cycle unused secondary entities
-                        cycle_idx = (batch_num_local - 2) % max(1, len(secondary_entities))
-                        ent = secondary_entities[cycle_idx]
-                        plan.append(_extract_text(ent) if isinstance(ent, dict) else str(ent))
+                if i == 0:
+                    continue  # INTRO always gets main_kw
+                h2_for_matching.append({"idx": i, "title": h2})
 
-            return plan
+            if not h2_for_matching:
+                return [main_kw] * len(h2_list)
+
+            # LLM call for semantic matching
+            try:
+                _ent_list = "\n".join(f"  {i+1}. {n}" for i, n in enumerate(ent_names[:15]))
+                _h2_list = "\n".join(f"  {h['idx']}. {h['title']}" for h in h2_for_matching)
+                _match_prompt = (
+                    f'Artykuł o: "{main_kw}"\n\n'
+                    f'ENCJE TEMATYCZNE (secondary entities):\n{_ent_list}\n\n'
+                    f'NAGŁÓWKI H2 (sekcje artykułu):\n{_h2_list}\n\n'
+                    f'Przypisz JEDNĄ najlepiej pasującą encję do każdego H2.\n'
+                    f'Encja powinna dominować semantycznie w danej sekcji.\n'
+                    f'Każda encja może być użyta max 1 raz. Jeśli żadna nie pasuje, użyj "{main_kw}".\n\n'
+                    f'Zwróć TYLKO JSON object: {{"idx": "entity_name", ...}}\n'
+                    f'Przykład: {{"1": "odpowiedzialność karna", "2": "badanie alkomatem"}}'
+                )
+                _match_response = _generate_claude(
+                    system_prompt="Przypisujesz encje tematyczne do sekcji artykułu. Zwracasz TYLKO JSON.",
+                    user_prompt=_match_prompt,
+                    temperature=0,
+                )
+                _match_clean = _match_response.replace("```json", "").replace("```", "").strip()
+                _match_map = json.loads(_match_clean)
+
+                plan = []
+                for i, h2 in enumerate(h2_list):
+                    if i == 0:
+                        plan.append(main_kw)
+                    else:
+                        assigned = _match_map.get(str(i), main_kw)
+                        # Validate assigned entity exists in our list
+                        if assigned not in ent_names and assigned != main_kw:
+                            # Fuzzy fallback: find closest match
+                            _best = main_kw
+                            for en in ent_names:
+                                if en.lower() in assigned.lower() or assigned.lower() in en.lower():
+                                    _best = en
+                                    break
+                            assigned = _best
+                        plan.append(assigned)
+                return plan
+
+            except Exception as ecp_err:
+                logger.warning(f"[ENTITY_PLAN] LLM matching failed: {ecp_err}, falling back to word overlap")
+                # ═══ FALLBACK: original word-overlap method ═══
+                plan = []
+                used_indices = set()
+                for i, h2 in enumerate(h2_list):
+                    if i == 0:
+                        plan.append(main_kw)
+                    else:
+                        h2_words = set(h2.lower().split())
+                        best_idx, best_score = None, 0
+                        for j, ent in enumerate(secondary_entities):
+                            if j in used_indices:
+                                continue
+                            name = (_extract_text(ent) if isinstance(ent, dict) else str(ent)).lower()
+                            ent_words = set(name.split())
+                            overlap = len(h2_words & ent_words)
+                            partial = sum(1 for w in ent_words if any(w in hw or hw in w for hw in h2_words))
+                            score = overlap * 2 + partial
+                            if score > best_score:
+                                best_idx, best_score = j, score
+                        if best_idx is not None and best_score > 0:
+                            ent = secondary_entities[best_idx]
+                            plan.append(_extract_text(ent) if isinstance(ent, dict) else str(ent))
+                            used_indices.add(best_idx)
+                        else:
+                            cycle_idx = (i - 1) % max(1, len(secondary_entities))
+                            ent = secondary_entities[cycle_idx]
+                            plan.append(_extract_text(ent) if isinstance(ent, dict) else str(ent))
+                return plan
 
         _secondary_for_plan = [e for e in (must_cover_concepts or []) if
                                (_extract_text(e) if isinstance(e, dict) else str(e)) != main_keyword]
@@ -4500,6 +4547,84 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # Fix #56: Globalny licznik głównego keywordu przez wszystkie batche
         _GLOBAL_KW_MAX = 6  # max 6 wystąpień main keyword w całym artykule
         _global_main_kw_count = 0
+
+        # ═══ v66: COLLECT ASYNC YMYL ENRICHMENT — wait for background thread ═══
+        if _ymyl_thread is not None:
+            yield emit("log", {"msg": "⏳ Czekam na YMYL enrichment z tła..."})
+            _ymyl_thread.join(timeout=35)  # Max wait = SAOS timeout + margin
+            if _ymyl_enrichment_result.get("done"):
+                legal_context = _ymyl_enrichment_result["legal_context"]
+                medical_context = _ymyl_enrichment_result["medical_context"]
+                ymyl_enrichment = _ymyl_enrichment_result["ymyl_enrichment"]
+                judgments_clean = _ymyl_enrichment_result["judgments_clean"]
+
+                _src_parts = []
+                if legal_context:
+                    _src_parts.append(f"orzeczenia: {len(judgments_clean)}")
+                _wa = _ymyl_enrichment_result.get("_wiki_articles", [])
+                if _wa:
+                    _src_parts.append(f"Wikipedia: {len(_wa)}")
+                    yield emit("legal_wiki_sources", {"articles": _wa})
+                if medical_context:
+                    _pubs = (medical_context.get("top_publications") or [])
+                    _src_parts.append(f"publikacje: {len(_pubs)}")
+                if _src_parts:
+                    yield emit("log", {"msg": f"✅ YMYL enrichment gotowy: {', '.join(_src_parts)}"})
+                else:
+                    yield emit("log", {"msg": "⚠️ YMYL enrichment: brak danych (SAOS/PubMed niedostępne)"})
+
+                # Emit YMYL context panel
+                ymyl_panel_data = {
+                    "is_legal": is_legal, "is_medical": is_medical, "is_finance": is_finance,
+                    "ymyl_intensity": ymyl_intensity,
+                    "classification": {
+                        "category": ymyl_data.get("category", "general"),
+                        "confidence": ymyl_confidence, "reasoning": ymyl_reasoning,
+                        "method": ymyl_data.get("detection_method", "unknown"),
+                        "ymyl_intensity": ymyl_intensity,
+                    },
+                    "enrichment": ymyl_enrichment, "legal": {}, "medical": {},
+                }
+                if legal_context:
+                    legal_enrich = ymyl_enrichment.get("legal", {})
+                    legal_acts = legal_enrich.get("acts", [])
+                    if legal_acts and isinstance(legal_acts, list):
+                        legal_acts = [{"name": a} if isinstance(a, str) else a for a in legal_acts[:8]]
+                    else:
+                        legal_acts = legal_context.get("legal_acts") or legal_context.get("acts") or []
+                    legal_articles = legal_enrich.get("articles", [])
+                    ymyl_panel_data["legal"] = {
+                        "instruction_preview": (legal_context.get("legal_instruction", ""))[:300],
+                        "judgments": judgments_clean,
+                        "judgments_count": len(legal_context.get("top_judgments") or []),
+                        "legal_acts": legal_acts[:8],
+                        "legal_articles": legal_articles[:6],
+                        "citation_hint": legal_context.get("citation_hint", ""),
+                        "wiki_articles": _wa,
+                    }
+                if medical_context:
+                    pubs_raw = medical_context.get("top_publications") or []
+                    pubs_clean = [{
+                        "title": (p.get("title", ""))[:120],
+                        "authors": (p.get("authors", ""))[:80],
+                        "year": p.get("year", ""), "pmid": p.get("pmid", ""),
+                        "journal": (p.get("journal", ""))[:60],
+                        "evidence_level": p.get("evidence_level", p.get("level", "")),
+                        "study_type": p.get("study_type", p.get("type", "")),
+                    } for p in pubs_raw[:10] if isinstance(p, dict)]
+                    evidence_levels = {}
+                    for p in pubs_clean:
+                        lvl = p.get("evidence_level") or p.get("study_type") or "unknown"
+                        evidence_levels[lvl] = evidence_levels.get(lvl, 0) + 1
+                    ymyl_panel_data["medical"] = {
+                        "instruction_preview": (medical_context.get("medical_instruction", ""))[:300],
+                        "publications": pubs_clean, "publications_count": len(pubs_raw),
+                        "evidence_levels": evidence_levels,
+                        "guidelines": medical_context.get("guidelines") or [],
+                    }
+                yield emit("ymyl_context", ymyl_panel_data)
+            else:
+                yield emit("log", {"msg": "⚠️ YMYL enrichment timeout — kontynuuję bez danych"})
 
         # Bug A Fix: Lokalny tracker zuzycia H2
         # Gdy backend (brajen_api) utknął na tym samym h2_remaining[0] (tryb FINAL),
@@ -4819,19 +4944,18 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 paa_data = paa_result["data"] if paa_result["ok"] else {}
                 text = generate_faq_text(paa_data, pre_batch, engine=engine, openai_model=effective_openai_model, temperature=temperature)
             else:
-                # ═══ AI MIDDLEWARE: Article memory fallback ═══
+                # ═══ v66: STRUCTURED ARTICLE MEMORY — zero LLM calls, deterministic ═══
                 article_memory = pre_batch.get("article_memory")
                 if not article_memory and accepted_batches_log:
-                    # Backend didn't provide memory, synthesize locally
-                    # v53.1: próg obniżony z 3 do 1 — AI memory (z concrete_facts_used)
-                    # startuje od batcha 2, żeby zapobiec powtórzeniom już w sekcji 2
-                    if len(accepted_batches_log) >= 1:
-                        article_memory = ai_synthesize_memory(accepted_batches_log, main_keyword)
-                        yield emit("log", {"msg": f"🧠 AI Middleware: synteza pamięci artykułu ({len(accepted_batches_log)} batchy)"})
-                    else:
-                        article_memory = synthesize_article_memory(accepted_batches_log)
-                        if article_memory.get("topics_covered"):
-                            yield emit("log", {"msg": f"🧠 Lokalna pamięć: {len(article_memory.get('topics_covered', []))} tematów"})
+                    # v66: Structured tracker — incremental update, no Haiku call
+                    _structured_memory = structured_article_memory(
+                        accepted_batches_log, main_keyword, prev_memory=_structured_memory
+                    )
+                    article_memory = _structured_memory
+                    _rep_count = len(_structured_memory.get("avoid_repetition", []))
+                    _fact_count = len(_structured_memory.get("key_facts", []))
+                    _def_count = len(_structured_memory.get("definitions_given", []))
+                    yield emit("log", {"msg": f"🧠 Structured memory: {_fact_count} faktów, {_def_count} definicji, {_rep_count} do unikania"})
                 
                 # ═══ v2.5: VOICE CONTINUITY — inject style reference into pre_batch ═══
                 if batch_num > 1 and accepted_batches_log:
@@ -4863,23 +4987,24 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             text = _clean_batch_text(text)
 
             # 6d-6g: Submit with retry logic
-            # v45.3 FIX: Progressive relaxation — 5 attempts instead of 4
-            # attempt 0: normal validation
-            # v62: Retry strategy:
-            # attempt 1: submit as-is
+            # v66: Adaptive retry strategy:
+            # attempt 1: submit as-is (normal validation)
             # attempt 2: relaxed threshold (85%) — accept if quality decent
-            # attempt 3: forced save (last resort)
-            # Previously 5 attempts caused text degradation from rewrites.
+            # attempt 3: ADAPTIVE — shorten batch + relax keyword requirements
+            # No more forced save — quality over completion.
             max_attempts = 3
             batch_accepted = False
             _failed_keywords = set()  # Track which keywords keep failing
 
             for attempt in range(max_attempts):
-                forced = (attempt == max_attempts - 1)  # Last attempt is always forced
                 submit_data = {"text": text, "attempt": attempt + 1}
-                if forced:
-                    submit_data["forced"] = True
-                    yield emit("log", {"msg": f"⚡ Forced mode ON (attempt {attempt+1}/{max_attempts}), wymuszam zapis"})
+                if attempt >= 2:
+                    # v66: ADAPTIVE strategy — relax keyword requirements instead of forced save
+                    # Tell backend to relax: drop EXTENDED requirements, lower BASIC thresholds
+                    submit_data["relaxed_threshold"] = 60  # Accept at 60% quality
+                    submit_data["drop_extended"] = True  # Don't fail on EXTENDED keywords
+                    submit_data["relax_basic_factor"] = 0.5  # Accept 50% of BASIC targets
+                    yield emit("log", {"msg": f"🔧 Adaptive strategy: relaxed requirements (attempt {attempt + 1}/{max_attempts})"})
                 elif attempt >= 1:
                     # v62: Relax threshold earlier — accept on attempt 2 if quality decent
                     submit_data["relaxed_threshold"] = 70 + (attempt) * 15  # 85% on attempt 2
@@ -5018,12 +5143,47 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         "text": text, "h2": current_h2, "batch_num": batch_num,
                         "depth_score": depth
                     })
+
+                    # ═══ v66: CONSISTENCY CHECK — detect contradictions between batches ═══
+                    if batch_num >= 3 and len(accepted_batches_log) >= 2 and ANTHROPIC_API_KEY:
+                        try:
+                            _prev_texts = []
+                            for _pb in accepted_batches_log[-3:-1]:  # previous 2 batches
+                                _pt = _pb.get("text", "")
+                                if _pt:
+                                    _prev_texts.append(_pt[:400])
+                            if _prev_texts:
+                                _consist_prompt = (
+                                    f'POPRZEDNIE SEKCJE artykułu o "{main_keyword}":\n'
+                                    + "\n---\n".join(_prev_texts) + "\n\n"
+                                    f'NOWA SEKCJA:\n{text[:500]}\n\n'
+                                    f'Czy nowa sekcja ZAPRZECZA czemuś z poprzednich? '
+                                    f'Szukaj: sprzecznych liczb, dat, definicji, twierdzeń.\n'
+                                    f'Odpowiedz TYLKO: "OK" jeśli brak sprzeczności, '
+                                    f'lub "SPRZECZNOŚĆ: [opis]" jeśli jest.'
+                                )
+                                _consist_res = _generate_claude(
+                                    system_prompt="Sprawdzasz spójność artykułu. Zwracasz TYLKO 'OK' lub 'SPRZECZNOŚĆ: [opis]'.",
+                                    user_prompt=_consist_prompt,
+                                    temperature=0,
+                                )
+                                if _consist_res and "SPRZECZNOŚĆ" in _consist_res.upper():
+                                    yield emit("log", {"msg": f"⚠️ CONSISTENCY: {_consist_res[:120]}"})
+                                    yield emit("consistency_warning", {
+                                        "batch": batch_num,
+                                        "warning": _consist_res[:200]
+                                    })
+                        except Exception as _ce:
+                            pass  # Non-critical, don't block pipeline
+
                     break
 
                 # Not accepted, decide retry strategy
-                if forced:
-                    yield emit("log", {"msg": f"⚠️ Batch {batch_num} w forced mode, kontynuuję"})
-                    # Bug A Fix: update H2 tracker also in forced mode (INTRO excluded)
+                if attempt == max_attempts - 1:
+                    # v66: Last attempt with adaptive strategy — accept with warning
+                    # Quality is likely decent after relaxed thresholds
+                    yield emit("log", {"msg": f"⚠️ Batch {batch_num}: accepting after adaptive strategy (attempt {attempt + 1})"})
+                    # Bug A Fix: update H2 tracker also in adaptive mode (INTRO excluded)
                     if batch_type not in ("INTRO", "intro"):
                         _h2_key_f = current_h2.strip().lower()
                         if _h2_key_f not in _h2_local_done:
@@ -5035,6 +5195,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         "text": text, "h2": current_h2, "batch_num": batch_num,
                         "depth_score": depth
                     })
+                    batch_accepted = True
                     break
 
                 # ═══ AI MIDDLEWARE: Smart retry ═══
@@ -5246,30 +5407,114 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         else:
             yield emit("step", {"step": 8, "name": "Content Editorial", "status": "warning", "detail": "Nie udało się, kontynuuję"})
 
-        # ─── KROK 9: Final Review ───
+        # ═══════════════════════════════════════════════════════════════════
+        # v67: CORRECT ORDER — Editorial Review FIRST, then Final Review
+        # Editorial changes the text (grammar/style), Final Review scores it.
+        # Scoring pre-editorial text was pointless — score changed after edit.
+        # ═══════════════════════════════════════════════════════════════════
+
+        # ─── KROK 9: Editorial Review (gramatyczny) ───
         step_start(9)
-        yield emit("step", {"step": 9, "name": "Final Review", "status": "running"})
-        yield emit("log", {"msg": "GET /final_review..."})
+        yield emit("step", {"step": 9, "name": "Editorial Review", "status": "running"})
+        yield emit("log", {"msg": "POST /editorial_review, to może chwilę potrwać..."})
+
+        editorial_result = {"ok": False}
+        editorial_score = None
+        editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review", json_data={}, timeout=HEAVY_REQUEST_TIMEOUT)
+        if editorial_result["ok"]:
+            ed = editorial_result["data"]
+            score = ed.get("overall_score", "?")
+            diff = (ed.get("diff_result") or {})
+            rollback = (ed.get("rollback") or {})
+            word_guard = (ed.get("word_count_guard") or {})
+
+            detail = f"Ocena: {score}/10 | Zmiany: {diff.get('applied', 0)}/{diff.get('total_changes_parsed', 0)}"
+            if word_guard:
+                detail += f" | Słowa: {word_guard.get('original', '?')}→{word_guard.get('corrected', '?')}"
+
+            yield emit("editorial", {
+                "score": score,
+                "changes_applied": diff.get("applied", 0),
+                "changes_failed": diff.get("failed", 0),
+                "word_count_before": word_guard.get("original"),
+                "word_count_after": word_guard.get("corrected"),
+                "rollback": rollback.get("triggered", False),
+                "rollback_reason": rollback.get("reason", ""),
+                "feedback": (ed.get("editorial_feedback") or {}),
+                "applied_changes": (ed.get("applied_changes") or diff.get("applied_changes") or [])[:20],
+                "failed_changes": (ed.get("failed_changes") or diff.get("failed_changes") or [])[:15],
+                "summary": (ed.get("editorial_feedback") or {}).get("summary", ed.get("summary", "")),
+                "errors_found": (ed.get("editorial_feedback") or {}).get("errors_to_fix", [])[:15],
+                "grammar_fixes": (ed.get("grammar_correction") or {}).get("fixes", 0),
+                "grammar_removed": (ed.get("grammar_correction") or {}).get("removed", [])[:5],
+            })
+
+            if rollback.get("triggered"):
+                yield emit("log", {"msg": f"⚠️ ROLLBACK: {rollback.get('reason', 'unknown')}"})
+
+            # Integrity checks — don't apply corrupted/truncated editorial
+            if not rollback.get("triggered"):
+                corrected_text = ed.get("corrected_article", "")
+                original_wc = word_guard.get("original", 0) or 0
+                corrected_wc = len(corrected_text.split()) if corrected_text else 0
+                changes_parsed = diff.get("total_changes_parsed", 0)
+                editorial_score = score if isinstance(score, (int, float)) else 0
+
+                skip_reason = None
+                if not corrected_text or len(corrected_text.strip()) <= 50:
+                    skip_reason = "tekst pusty lub za krótki"
+                elif original_wc > 0 and corrected_wc < original_wc * 0.6:
+                    skip_reason = f"obcięty ({corrected_wc} vs {original_wc} słów)"
+                elif ("<h2" not in corrected_text.lower() and "h2:" not in corrected_text.lower()
+                      and "h3:" not in corrected_text.lower()
+                      and "<p" not in corrected_text.lower()):
+                    skip_reason = "brak struktury HTML (h2/p)"
+                elif editorial_score <= 2 and changes_parsed == 0:
+                    skip_reason = f"niska ocena ({editorial_score}/10) i 0 zmian"
+
+                if skip_reason:
+                    yield emit("log", {"msg": f"⚠️ Editorial: pominięto aktualizację — {skip_reason}"})
+                else:
+                    corrected_text = _normalize_html_tags(corrected_text)
+                    yield emit("article", {
+                        "text": corrected_text,
+                        "word_count": corrected_wc,
+                        "source": "editorial_review",
+                    })
+                    yield emit("log", {"msg": f"📝 Podgląd zaktualizowany po editorial ({corrected_wc} słów)"})
+            step_done(9)
+            yield emit("step", {"step": 9, "name": "Editorial Review", "status": "done", "detail": detail})
+        else:
+            ed_error = editorial_result.get("error", "unknown")
+            ed_status = editorial_result.get("status", "?")
+            yield emit("log", {"msg": f"⚠️ Editorial Review → {ed_status}: {ed_error[:200]}"})
+            yield emit("step", {"step": 9, "name": "Editorial Review", "status": "warning",
+                                "detail": f"Nie udało się ({ed_status}), artykuł bez recenzji"})
+
+        # ─── KROK 10: Final Review + YMYL Validation ─── [v67: now runs AFTER editorial]
+        step_start(10)
+        yield emit("step", {"step": 10, "name": "Final Review", "status": "running"})
+        yield emit("log", {"msg": "GET /final_review (po editorial — ocena finalnego tekstu)..."})
         final_score = None
 
         final_result = brajen_call("get", f"/api/project/{project_id}/final_review", timeout=HEAVY_REQUEST_TIMEOUT)
         if final_result["ok"]:
             final = final_result["data"]
-            # Unwrap cached response format (GET returns {"status":"EXISTS","final_review":{...}})
+            # Unwrap cached response format
             if final.get("status") == "EXISTS" and "final_review" in final:
                 final = final["final_review"]
             final_score = final.get("quality_score", final.get("score", "?"))
             final_status = final.get("status", "?")
-            
+
             # v51 FIX: Read structured data from correct paths
             validations = final.get("validations") or {}
             kw_validation = validations.get("missing_keywords") or {}
-            
+
             # Build proper missing/overuse lists from structured data
             actual_missing = []
             for kw in (kw_validation.get("priority_to_add", {}).get("to_add_by_claude", []) or [])[:5]:
                 actual_missing.append(f"Wpleć '{kw.get('keyword', '')}' min. {kw.get('target_min', 1)}x")
-            
+
             # Overuse warnings (separate from missing)
             overuse_warnings = []
             for kw in (kw_validation.get("within_tolerance", []) or [])[:3]:
@@ -5278,52 +5523,43 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             for kw in (kw_validation.get("stuffing", []) or [])[:3]:
                 excess = kw.get("actual", 0) - kw.get("target_max", 0)
                 overuse_warnings.append(f"🔴 USUŃ {excess}x '{kw.get('keyword', '')}' ({kw.get('actual', 0)}/{kw.get('target_max', 0)})")
-            
+
             # H3 length issues
             h3_issues = []
             for issue in (validations.get("h3_length", {}).get("issues", []) or [])[:3]:
                 h3_issues.append(f"Rozbuduj H3 '{issue.get('h3', '')}' o {issue.get('deficit', 0)} słów")
-            
+
             # Combined recommendations from API (fallback)
             all_recommendations = final.get("recommendations") or []
-            
-            # What we show in "Brakujące" = only actual missing keywords
             missing_kw = actual_missing
-            # Issues = overuse + H3 + other issues from API
             issues = (final.get("issues") or final.get("all_issues") or [])
 
             yield emit("final_review", {
                 "score": final_score,
                 "status": final_status,
-                # v51: Separate missing vs overuse vs H3
                 "missing_keywords_count": len(missing_kw),
                 "missing_keywords": missing_kw[:10],
                 "overuse_warnings": overuse_warnings[:5],
                 "h3_issues": h3_issues[:5],
                 "issues_count": len(issues) if isinstance(issues, list) else 0,
                 "issues": issues[:5] if isinstance(issues, list) else [],
-                # v51: Full recommendations from API
                 "recommendations": all_recommendations[:10],
                 "recommendations_count": len(all_recommendations),
-                # v50.7: Add issues_summary for dashboard
                 "issues_summary": final.get("issues_summary") or {},
-                # v50.7: Stuffing info
                 "stuffing": (final.get("validations") or {}).get("missing_keywords", {}).get("stuffing", [])[:5],
                 "priority_to_add": (final.get("validations") or {}).get("missing_keywords", {}).get("priority_to_add", {}).get("to_add_by_claude", [])[:5],
-                # P5: density/coverage
                 "density": final.get("density") or final.get("keyword_density"),
                 "word_count": final.get("word_count") or final.get("total_words"),
                 "basic_coverage": final.get("basic_coverage"),
                 "extended_coverage": final.get("extended_coverage"),
-                # v50.7: Entity scoring
                 "entity_scoring": final.get("entity_scoring") or {},
             })
 
-            step_done(8)
-            yield emit("step", {"step": 8, "name": "Final Review", "status": "done",
+            step_done(10)
+            yield emit("step", {"step": 10, "name": "Final Review", "status": "done",
                                 "detail": f"Score: {final_score}/100 | Status: {final_status}"})
 
-            # YMYL validation
+            # YMYL validation (on post-editorial text)
             ymyl_validation = {"legal": None, "medical": None}
             if is_legal:
                 yield emit("log", {"msg": "Walidacja prawna..."})
@@ -5348,7 +5584,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         else:
             fr_error = final_result.get("error", "unknown")
             yield emit("log", {"msg": f"⚠️ Final Review failed: {fr_error[:150]}"})
-            yield emit("step", {"step": 8, "name": "Final Review", "status": "warning",
+            yield emit("step", {"step": 10, "name": "Final Review", "status": "warning",
                                 "detail": "Nie udało się, kontynuuję"})
 
         # ─── CITATION PASS (YMYL only) ───
@@ -5397,85 +5633,6 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             except Exception as _ce:
                 yield emit("log", {"msg": f"⚠️ Citation pass błąd: {str(_ce)[:80]}"})
 
-        # ─── KROK 10: Editorial Review ───
-        step_start(10)
-        yield emit("step", {"step": 10, "name": "Editorial Review", "status": "running"})
-        yield emit("log", {"msg": "POST /editorial_review, to może chwilę potrwać..."})
-
-        editorial_result = {"ok": False}  # v50.7: safety init for FIX 41
-        editorial_score = None  # v2.3: init for local quality breakdown
-        editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review", json_data={}, timeout=HEAVY_REQUEST_TIMEOUT)
-        if editorial_result["ok"]:
-            ed = editorial_result["data"]
-            score = ed.get("overall_score", "?")
-            diff = (ed.get("diff_result") or {})
-            rollback = (ed.get("rollback") or {})
-            word_guard = (ed.get("word_count_guard") or {})
-
-            detail = f"Ocena: {score}/10 | Zmiany: {diff.get('applied', 0)}/{diff.get('total_changes_parsed', 0)}"
-            if word_guard:
-                detail += f" | Słowa: {word_guard.get('original', '?')}→{word_guard.get('corrected', '?')}"
-
-            yield emit("editorial", {
-                "score": score,
-                "changes_applied": diff.get("applied", 0),
-                "changes_failed": diff.get("failed", 0),
-                "word_count_before": word_guard.get("original"),
-                "word_count_after": word_guard.get("corrected"),
-                "rollback": rollback.get("triggered", False),
-                "rollback_reason": rollback.get("reason", ""),
-                "feedback": (ed.get("editorial_feedback") or {}),
-                # v50.7 FIX 41: Add change details for expanded panel
-                "applied_changes": (ed.get("applied_changes") or diff.get("applied_changes") or [])[:20],
-                "failed_changes": (ed.get("failed_changes") or diff.get("failed_changes") or [])[:15],
-                "summary": (ed.get("editorial_feedback") or {}).get("summary", ed.get("summary", "")),
-                "errors_found": (ed.get("editorial_feedback") or {}).get("errors_to_fix", [])[:15],
-                "grammar_fixes": (ed.get("grammar_correction") or {}).get("fixes", 0),
-                "grammar_removed": (ed.get("grammar_correction") or {}).get("removed", [])[:5],
-            })
-
-            if rollback.get("triggered"):
-                yield emit("log", {"msg": f"⚠️ ROLLBACK: {rollback.get('reason', 'unknown')}"})
-
-            # v50.7 FIX 41: Re-emit corrected article to update preview
-            # v52: Integrity checks — don't apply corrupted/truncated editorial
-            if not rollback.get("triggered"):
-                corrected_text = ed.get("corrected_article", "")
-                original_wc = word_guard.get("original", 0) or 0
-                corrected_wc = len(corrected_text.split()) if corrected_text else 0
-                changes_parsed = diff.get("total_changes_parsed", 0)
-                editorial_score = score if isinstance(score, (int, float)) else 0
-
-                skip_reason = None
-                if not corrected_text or len(corrected_text.strip()) <= 50:
-                    skip_reason = "tekst pusty lub za krótki"
-                elif original_wc > 0 and corrected_wc < original_wc * 0.6:
-                    skip_reason = f"obcięty ({corrected_wc} vs {original_wc} słów)"
-                elif ("<h2" not in corrected_text.lower() and "h2:" not in corrected_text.lower()
-                      and "h3:" not in corrected_text.lower()
-                      and "<p" not in corrected_text.lower()):
-                    skip_reason = "brak struktury HTML (h2/p)"
-                elif editorial_score <= 2 and changes_parsed == 0:
-                    skip_reason = f"niska ocena ({editorial_score}/10) i 0 zmian"
-
-                if skip_reason:
-                    yield emit("log", {"msg": f"⚠️ Editorial: pominięto aktualizację — {skip_reason}"})
-                else:
-                    corrected_text = _normalize_html_tags(corrected_text)
-                    yield emit("article", {
-                        "text": corrected_text,
-                        "word_count": corrected_wc,
-                        "source": "editorial_review",
-                    })
-                    yield emit("log", {"msg": f"📝 Podgląd zaktualizowany po editorial ({corrected_wc} słów)"})
-            step_done(9)
-            yield emit("step", {"step": 10, "name": "Editorial Review", "status": "done", "detail": detail})
-        else:
-            ed_error = editorial_result.get("error", "unknown")
-            ed_status = editorial_result.get("status", "?")
-            yield emit("log", {"msg": f"⚠️ Editorial Review → {ed_status}: {ed_error[:200]}"})
-            yield emit("step", {"step": 10, "name": "Editorial Review", "status": "warning",
-                                "detail": f"Nie udało się ({ed_status}), artykuł bez recenzji"})
 
         # ─── KROK 11: Export ───
         step_start(11)
