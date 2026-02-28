@@ -830,6 +830,18 @@
                 <div class="chart-wrap" style="height:260px"><canvas id="kwCoverageChart"></canvas></div>
               </div>
 
+            <!-- ═══ v68: KEYWORD BUDGET PANEL ═══ -->
+            <div class="crd" id="kwBudgetPane" style="display:none">
+              <div class="crd-t"><b>📊 Keyword</b> Budget</div>
+              <div class="sg sg4" id="kwBudgetStats">
+                <div class="sc"><div class="sv" id="kbTotal">—</div><div class="sl">Użycia (excl.)</div></div>
+                <div class="sc"><div class="sv" id="kbCeiling">—</div><div class="sl">Ceiling 2.5%</div></div>
+                <div class="sc"><div class="sv" id="kbDensity">—</div><div class="sl">Density</div></div>
+                <div class="sc"><div class="sv" id="kbCascade">—</div><div class="sl">Cascade</div></div>
+              </div>
+              <div id="kwBudgetTable" style="font-size:10px;max-height:400px;overflow-y:auto;margin-top:10px"></div>
+            </div>
+
             <div class="crd" id="timelinePane" style="display:none">
               <div class="crd-t"><b>⏱️ Workflow</b> Timeline</div>
               <div class="chart-wrap" style="height:240px"><canvas id="timelineChart"></canvas></div>
@@ -1467,7 +1479,7 @@ async function startWorkflow(){
     const _artP2=document.getElementById('artP');if(_artP2){_artP2.classList.add('building');_artP2._artDone=false;}
     const _abb2=document.getElementById('artBuildBanner');if(_abb2)_abb2.style.display='none';
     const _cwL=document.getElementById('cwList');if(_cwL)_cwL.innerHTML='';
-    ['bpC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','edMini','batchChartPane','kwCoveragePane','timelinePane','entityCovPane','evalSummaryPane','editorReviewPane','eiPane','ltC','pnlpC','ceC','cwC','ercC','costC','artBuildBanner'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
+    ['bpC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','edMini','batchChartPane','kwCoveragePane','kwBudgetPane','timelinePane','entityCovPane','evalSummaryPane','editorReviewPane','eiPane','ltC','pnlpC','ceC','cwC','ercC','costC','artBuildBanner'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
     const _edDetR=document.getElementById('edDet');if(_edDetR){_edDetR.innerHTML='';_edDetR.style.display='none';}
     // Reset live status bar
     const _ls=document.getElementById('lsText');if(_ls){_ls.textContent='Przygotowanie...';document.getElementById('lsDetail').textContent='';document.getElementById('lsFill').style.width='0%';document.getElementById('lsPulse').className='ls-pulse';document.getElementById('lsPulse').style.background='';document.getElementById('lsPulse').style.animation='';document.getElementById('lsTimer').textContent='0:00';}
@@ -1588,7 +1600,7 @@ async function startWorkflow(){
     if(_ps2)_ps2.style.display='flex';updateQualityBar();
     }
   });
-        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';try{initKwCoverageChart(d,batchLog)}catch(e){console.warn('kwCoverage:',e)}});
+        es.addEventListener('final_review',e=>{const d=JSON.parse(e.data);finalData=d;document.getElementById('frC').style.display='';document.getElementById('frS').textContent=`${d.score}/100`;document.getElementById('frSt').textContent=d.status;document.getElementById('frSt').style.color=d.status==='PASS'?G:d.status==='WARN'?W:R;document.getElementById('frM').textContent=d.missing_keywords_count||0;document.getElementById('frI').textContent=(d.issues_count||0)+((d.overuse_warnings||[]).length)+((d.h3_issues||[]).length);let dt='';if(d.missing_keywords&&d.missing_keywords.length)dt+=`<div>Brakujące: ${esc(d.missing_keywords.map(k=>typeof k==='string'?k:k.keyword||JSON.stringify(k)).join(', '))}</div>`;if(d.overuse_warnings&&d.overuse_warnings.length)dt+=`<div style="color:${W}">Nadużyte: ${esc(d.overuse_warnings.join(', '))}</div>`;if(d.h3_issues&&d.h3_issues.length)dt+=`<div style="color:${W}">Struktura: ${esc(d.h3_issues.join(', '))}</div>`;if(d.issues&&d.issues.length)dt+=`<div>Issues: ${esc(d.issues.map(i=>typeof i==='string'?i:i.message||JSON.stringify(i)).join('; '))}</div>`;document.getElementById('frD').innerHTML=dt;document.getElementById('frD').style.maxHeight='120px';updateQualityBar();document.getElementById('tbQuality').textContent='📊';try{initKwCoverageChart(d,batchLog)}catch(e){console.warn('kwCoverage:',e)}try{initKwBudgetPanel(d)}catch(e){console.warn('kwBudget:',e)}});
         es.addEventListener('s1_compliance',e=>{rCP(JSON.parse(e.data))});
         es.addEventListener('article',e=>{const d=JSON.parse(e.data);articleData=d;rawArticle=d.text||'';liveArticle=rawArticle;renderArt(rawArticle);const _ap=document.getElementById('artP');if(_ap)_ap.style.display='';document.getElementById('editorWrap').classList.add('visible');const awc=document.getElementById('artWordCount');if(awc)awc.textContent=(rawArticle.split(/\s+/).filter(Boolean).length).toLocaleString()+' słów';const _abd2=document.getElementById('artBuildDetail');if(_abd2)_abd2.textContent='— czeka na editorial review + final review'});
         es.addEventListener('article_memory',e=>{memoryData=JSON.parse(e.data)});
@@ -2962,6 +2974,65 @@ function initKwCoverageChart(fd,bl){
       plugins:{legend:{position:'bottom',labels:{color:'#9e9e9e',font:{size:11},padding:12,usePointStyle:true,pointStyleWidth:8}}}
     }
   });
+}
+
+// 4b. TABLE — Keyword Budget Panel (v68)
+function initKwBudgetPanel(fd){
+  if(!fd)return;
+  const kb=fd.keyword_budget_summary;
+  if(!kb||!kb.items||!kb.items.length)return;
+  const pane=document.getElementById('kwBudgetPane');
+  if(!pane)return;
+  pane.style.display='';
+  // Stats
+  const R='var(--rd)',G='var(--gn)',W='var(--yl)',M='var(--mg)';
+  const el=id=>document.getElementById(id);
+  el('kbTotal').textContent=kb.total_mentions_exclusive||0;
+  el('kbTotal').style.color=kb.budget_status==='over'?R:G;
+  el('kbCeiling').textContent=kb.budget_ceiling||'—';
+  el('kbDensity').textContent=(kb.total_density_pct||0).toFixed(1)+'%';
+  el('kbDensity').style.color=(kb.total_density_pct||0)>2.5?R:(kb.total_density_pct||0)>1.5?W:G;
+  el('kbCascade').textContent=kb.cascade_count||0;
+  // Table
+  let h='<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="border-bottom:1px solid var(--b2);text-align:left">';
+  h+='<th style="padding:4px 6px">Fraza</th>';
+  h+='<th style="padding:4px 3px;text-align:center">Typ</th>';
+  h+='<th style="padding:4px 3px;text-align:center" title="Overlapping (jak Google widzi)">Overlap</th>';
+  h+='<th style="padding:4px 3px;text-align:center" title="Exclusive (standalone)">Excl.</th>';
+  h+='<th style="padding:4px 3px;text-align:center" title="Odziedziczone z dłuższych fraz">Inher.</th>';
+  h+='<th style="padding:4px 3px;text-align:center">Target</th>';
+  h+='<th style="padding:4px 3px;text-align:center">Density</th>';
+  h+='<th style="padding:4px 3px;text-align:center">Status</th>';
+  h+='</tr></thead><tbody>';
+  const statusIcons={ok:'✅',over:'⚠️',under:'📌',missing:'❌',covered:'🔗'};
+  const statusColors={ok:G,over:R,under:W,missing:R,covered:M};
+  const typeColors={MAIN:'#60a5fa',BASIC:'#34d399',EXTENDED:'#fbbf24',ENTITY:'#a78bfa'};
+  for(const it of kb.items){
+    const sc=statusColors[it.status]||M;
+    const tc=typeColors[it.type]||M;
+    const si=statusIcons[it.status]||'—';
+    const cascade=it.is_cascade?'<span title="Cascade deducted" style="color:var(--mg);font-size:8px"> 🔗</span>':'';
+    const rawHint=it.is_cascade?` (raw: ${it.raw_target_min}-${it.raw_target_max})`:'';
+    h+=`<tr style="border-bottom:1px solid var(--b1)">`;
+    h+=`<td style="padding:3px 6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.keyword)}${rawHint}">${esc(it.keyword)}${cascade}</td>`;
+    h+=`<td style="padding:3px;text-align:center;color:${tc};font-size:9px;font-weight:600">${it.type.charAt(0)}</td>`;
+    h+=`<td style="padding:3px;text-align:center">${it.overlap}</td>`;
+    h+=`<td style="padding:3px;text-align:center;font-weight:600">${it.exclusive}</td>`;
+    h+=`<td style="padding:3px;text-align:center;color:var(--mg)">${it.inherited||0}</td>`;
+    h+=`<td style="padding:3px;text-align:center;font-size:9px">${it.target_min}-${it.target_max}</td>`;
+    h+=`<td style="padding:3px;text-align:center;font-size:9px;color:${it.density>1.5?R:it.density>0.8?W:M}">${it.density.toFixed(1)}%</td>`;
+    h+=`<td style="padding:3px;text-align:center;color:${sc}">${si}</td>`;
+    h+=`</tr>`;
+  }
+  h+='</tbody></table>';
+  // Legend
+  h+='<div style="margin-top:8px;font-size:9px;color:var(--mg);display:flex;gap:12px;flex-wrap:wrap">';
+  h+='<span>🔗 = pokryte kaskadowo</span>';
+  h+='<span>Overlap = Google widzi</span>';
+  h+='<span>Excl. = standalone</span>';
+  h+='<span>Inher. = z dłuższych fraz</span>';
+  h+='</div>';
+  document.getElementById('kwBudgetTable').innerHTML=h;
 }
 
 // 5. BAR — Word Distribution vs Competitors
