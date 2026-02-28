@@ -79,6 +79,8 @@
             transition:all .2s;font-family:inherit
         }
         .ebtn.on{border-color:var(--orange);color:var(--orange);background:var(--og)}
+        .qtbtn{flex:1;padding:8px 10px;border:1px solid var(--b2);border-radius:var(--rs);cursor:pointer;text-align:center;transition:all .2s;font-size:10px;background:var(--s2)}
+        .qtbtn.on{border-color:var(--orange);color:var(--orange);background:var(--og)}
         .ebtn:hover:not(.on){border-color:var(--b3);background:var(--s3)}
         .ebtn.unavailable{opacity:.4;pointer-events:none}
         .ebtn.unavailable small::after{content:' (brak klucza)';color:var(--mg)}
@@ -588,6 +590,11 @@
             </select>
             <div class="hint" style="margin-top:2px">Zmienia model na jedną sesję. Env var OPENAI_MODEL = domyślny.</div>
         </div>
+        <div class="lbl">Jakość / koszt</div>
+        <div class="modes">
+            <div class="qtbtn on" data-tier="ekonomiczny" onclick="selQualityTier('ekonomiczny')"><strong>💰 Sonnet</strong><small>~$0.30/art</small></div>
+            <div class="qtbtn" data-tier="premium" onclick="selQualityTier('premium')"><strong>💎 Opus</strong><small>~$1.50/art</small></div>
+        </div>
         <div class="adv-section" id="advSection">
         <label class="lbl" for="tempSlider">Temperatura <span id="tempVal" style="opacity:.6;font-weight:400">0.7</span></label>
         <input type="range" id="tempSlider" min="0" max="10" value="7" style="width:100%;accent-color:var(--orange)" oninput="setTemp(this.value)">
@@ -960,7 +967,7 @@
 <script>
 (function(){const n=['S1 Analysis','YMYL','H2 Plan','Create Project','Phrase Hierarchy','Batch Loop','PAA / FAQ','Content Editorial','Editorial Review','Final Review','Redaktor Naczelny','Export'],c=document.getElementById('stC');n.forEach((x,i)=>{c.innerHTML+=`<div class="stp"><div class="stp-i pending" id="si${i+1}">${i+1}</div><div><div class="stp-n">${x}</div><div class="stp-d" id="sd${i+1}">—</div></div></div>`;})})();
 
-let mode='standard',engine='openai',openaiModel='gpt-5.2',temperature=0.7,contentType='article',catType='subcategory',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='',semanticDistData=null,evalSummaryData=null,ltData=null,pnlpData=null,ceData=null,cwData=[],costData=null,semAnalysisData=null;
+let mode='standard',engine='openai',openaiModel='gpt-5.2',temperature=0.7,contentType='article',catType='subcategory',qualityTier='ekonomiczny',jid=null,tb=0,es=null,rawArticle='',selTxt='',s1Data=null,batchLog=[],finalData=null,salienceData=null,styleData=null,memoryData=null,articleData=null,editorialData=null,stepTimingData=null,paaData=null,ymylCtxData=null,ymylAnalysisData=null,ymylValData=null,liveArticle='',semanticDistData=null,evalSummaryData=null,ltData=null,pnlpData=null,ceData=null,cwData=[],costData=null,semAnalysisData=null;
 const O='#fba92c',G='#34d399',R='#f87171',W='#fbbf24',M='#9e9e9e';
 
 // XSS sanitization for SSE data
@@ -970,6 +977,7 @@ function escUrl(u){if(!u)return'#';const s=u.trim().toLowerCase();if(s.startsWit
 
 function selMode(m){mode=m;document.querySelectorAll('.mbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===m))}
 function selEngine(e){engine=e;document.querySelectorAll('.ebtn').forEach(b=>b.classList.toggle('on',b.dataset.engine===e));document.getElementById('modelPicker').style.display=e==='openai'?'':'none'}
+function selQualityTier(t){qualityTier=t;document.querySelectorAll('.qtbtn').forEach(b=>b.classList.toggle('on',b.dataset.tier===t))}
 function selContentType(ct){contentType=ct;document.querySelectorAll('.ctbtn[data-ctype]').forEach(b=>b.classList.toggle('on',b.dataset.ctype===ct));document.getElementById('catFields').style.display=ct==='category'?'':'none';document.getElementById('mainKeyword').placeholder=ct==='category'?'np. buty do biegania damskie':'np. od czego zacząć przeprowadzkę'}
 function selCatType(t){catType=t;document.querySelectorAll('.ctbtn[data-cattype]').forEach(b=>b.classList.toggle('on',b.dataset.cattype===t))}
 function setTemp(v){temperature=v/10;document.getElementById('tempVal').textContent=temperature.toFixed(1)}
@@ -1497,7 +1505,7 @@ async function startWorkflow(){
 
     try{
         const voicePreset=(document.getElementById('voicePreset')?.value||'auto');
-        const payload={voice_preset:voicePreset,main_keyword:kw,mode:mode,engine:engine,openai_model:engine==='openai'?openaiModel:null,temperature:temperature,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci,content_type:contentType};
+        const payload={voice_preset:voicePreset,quality_tier:qualityTier,main_keyword:kw,mode:mode,engine:engine,openai_model:engine==='openai'?openaiModel:null,temperature:temperature,h2_structure:h2,basic_terms:bt,extended_terms:et,custom_instructions:ci,content_type:contentType};
         if(contentType==='category'){
             payload.category_type=catType;
             payload.store_name=(document.getElementById('catStoreName').value||'').trim();
