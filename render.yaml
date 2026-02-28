@@ -3,13 +3,13 @@ services:
     name: brajen-seo-frontend
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1 --worker-tmp-dir /dev/shm --preload --access-logfile - --limit-request-line 8190
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300 --workers 2 --worker-tmp-dir /dev/shm --preload --access-logfile - --limit-request-line 8190 --max-requests 200 --max-requests-jitter 30
     healthCheckPath: /api/health
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: ANTHROPIC_MODEL
-        value: claude-opus-4-6
+        value: claude-sonnet-4-6
       - key: BRAJEN_API_URL
         value: https://master-seo-api.onrender.com
       - key: APP_USERNAME
