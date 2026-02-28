@@ -53,8 +53,19 @@ _BANNED_PHRASES = [
 ]
 
 
+import time as _lt_time
+_lt_call_times = []
+_LT_RATE_LIMIT = 18  # v68 M19: stay under 20 req/min public limit
+
 def _lt_check(text: str) -> list:
     """Call LanguageTool REST API. Returns list of match dicts."""
+    # v68 M19: Rate limit — public API allows 20 req/min
+    now = _lt_time.time()
+    _lt_call_times[:] = [t for t in _lt_call_times if now - t < 60]
+    if len(_lt_call_times) >= _LT_RATE_LIMIT:
+        logger.warning("[GRAMMAR] LT rate limit reached (18/min), skipping")
+        return []
+    _lt_call_times.append(now)
     try:
         import requests
         resp = requests.post(
