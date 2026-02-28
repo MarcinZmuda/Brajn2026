@@ -143,6 +143,149 @@ def remove_subsumed_basic(keywords: list, main_keyword: str = "") -> list:
     return keywords
 
 
+def _fuzzy_word_match(word_a: str, word_b: str) -> bool:
+    """
+    Check if two Polish words are likely the same lemma.
+    Handles inflection: czarnuszka ≈ czarnuszki, oleju ≈ olej, etc.
+    
+    Uses shared prefix ratio: words must share ≥75% prefix.
+    For short words (≤3 chars): exact match only (prevents 'rok' ≈ 'rol').
+    """
+    if word_a == word_b:
+        return True
+    a, b = word_a.lower(), word_b.lower()
+    min_len = min(len(a), len(b))
+    max_len = max(len(a), len(b))
+    if min_len <= 3:
+        return False  # short words: exact only
+    # Length difference > 3 chars is suspicious (different words)
+    if max_len - min_len > 3:
+        return False
+    # Find common prefix length
+    common = 0
+    for ca, cb in zip(a, b):
+        if ca == cb:
+            common += 1
+        else:
+            break
+    # Must share ≥75% of the shorter word as prefix
+    return common >= max(4, int(min_len * 0.75))
+
+
+def cascade_deduct_targets(keywords: list, main_keyword: str = "") -> list:
+    """
+    v68: CASCADE DEDUCTION — Inclusion-Exclusion Principle.
+    
+    When phrase A contains phrase B, every occurrence of A is automatically 
+    an occurrence of B. So B's standalone target should be reduced by A's target.
+    
+    Formula:
+      adj_min(K) = max(0, raw_min(K) - Σ raw_max(children))
+      adj_max(K) = max(0, raw_max(K) - Σ raw_min(children))
+    
+    Where "children" = longer phrases that CONTAIN K.
+    
+    Example:
+      MAIN "olej z czarnuszki dla dzieci" [4,7] contains "olej z czarnuszki" [1,3]
+      → adj("olej z czarnuszki") = [max(0, 1-7), max(0, 3-4)] = [0, 0]
+      → GPT knows: don't add "olej z czarnuszki" separately, MAIN covers it.
+    
+    NEVER removes keywords. Sets adj_min/adj_max and saves originals as
+    raw_target_min/raw_target_max for audit trail.
+    """
+    if not keywords or len(keywords) < 2:
+        return keywords
+    
+    main_kw_lower = main_keyword.lower().strip()
+    
+    # Build phrase → keyword mapping
+    kw_map = {}
+    for kw in keywords:
+        phrase = kw.get("keyword", "").strip().lower()
+        if phrase:
+            kw_map[phrase] = kw
+    
+    # For each keyword, find all "children" (longer phrases that contain it)
+    deductions = 0
+    for kw in keywords:
+        phrase = kw.get("keyword", "").strip().lower()
+        kw_type = kw.get("type", "BASIC")
+        if not phrase:
+            continue
+        
+        # MAIN keyword is the top of hierarchy — don't deduct from it
+        if kw_type == "MAIN":
+            continue
+        
+        phrase_words = set(phrase.split())
+        
+        # Find children: longer phrases that CONTAIN all words of this phrase
+        children_sum_min = 0
+        children_sum_max = 0
+        children_found = []
+        
+        for other_kw in keywords:
+            other_phrase = other_kw.get("keyword", "").strip().lower()
+            if not other_phrase or other_phrase == phrase:
+                continue
+            
+            other_words = other_phrase.split()
+            # Child must be LONGER
+            if len(other_words) <= len(phrase.split()):
+                continue
+            
+            # Check containment: all words of phrase appear in other
+            # Use fuzzy matching for Polish morphology (czarnuszka ≈ czarnuszki)
+            all_match = True
+            for pw in phrase_words:
+                found = False
+                for ow in other_words:
+                    if pw == ow or _fuzzy_word_match(pw, ow):
+                        found = True
+                        break
+                if not found:
+                    all_match = False
+                    break
+            
+            if all_match:
+                children_sum_min += other_kw.get("target_min", 1)
+                children_sum_max += other_kw.get("target_max", 5)
+                children_found.append(other_phrase)
+        
+        if not children_found:
+            continue
+        
+        # Apply Inclusion-Exclusion formula
+        raw_min = kw.get("target_min", 1)
+        raw_max = kw.get("target_max", 5)
+        
+        adj_min = max(0, raw_min - children_sum_max)
+        adj_max = max(0, raw_max - children_sum_min)
+        
+        # Ensure adj_min <= adj_max
+        if adj_min > adj_max:
+            adj_min = adj_max
+        
+        if adj_min != raw_min or adj_max != raw_max:
+            # Save originals for audit trail
+            kw["raw_target_min"] = raw_min
+            kw["raw_target_max"] = raw_max
+            kw["target_min"] = adj_min
+            kw["target_max"] = adj_max
+            kw["_cascade_deducted"] = True
+            kw["_cascade_children"] = children_found[:5]
+            deductions += 1
+            logger.info(
+                f"[CASCADE] '{phrase}' deducted: [{raw_min},{raw_max}]→[{adj_min},{adj_max}] "
+                f"(children: {', '.join(children_found[:3])})"
+            )
+    
+    if deductions > 0:
+        logger.info(f"[CASCADE] Deducted targets for {deductions} keywords")
+    
+    return keywords
+
+
 def deduplicate_keywords(keywords: list, main_keyword: str = "") -> list:
     """
     Word-boundary safe keyword deduplication.
