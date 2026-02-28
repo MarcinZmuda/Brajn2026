@@ -140,8 +140,10 @@ def analyze_entities_google_nlp(text, language="pl", main_keyword=""):
 
     try:
         import requests
+        # v68 H12: API key in header instead of URL (prevents leak in logs/tracebacks)
         response = requests.post(
-            f"{GOOGLE_NLP_ENDPOINT}?key={GOOGLE_NLP_API_KEY}",
+            GOOGLE_NLP_ENDPOINT,
+            headers={"X-Goog-Api-Key": GOOGLE_NLP_API_KEY, "Content-Type": "application/json"},
             json={
                 "document": {
                     "type": "PLAIN_TEXT",
