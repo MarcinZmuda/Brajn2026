@@ -506,7 +506,7 @@ def _detect_ymyl(main_keyword: str) -> dict:
                     _time_ymyl.sleep(2)
                     try:
                         enrich_response2 = http_requests.post(
-                            f"{master_api_url}/api/ymyl/detect",
+                            f"{master_api_url}/api/ymyl/detect_and_enrich",
                             json={"keyword": main_keyword, "content_type": content_type},
                             headers=headers, timeout=10
                         )
@@ -1573,7 +1573,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 # ============================================================
 _rate_limit_store = {}
 _RATE_LIMIT_WINDOW = 60  # seconds
-_RATE_LIMIT_MAX_API = int(os.environ.get("RATE_LIMIT_MAX", "10"))  # /api/ endpoints per minute
+_RATE_LIMIT_MAX_API = int(os.environ.get("RATE_LIMIT_MAX", "30"))  # /api/ endpoints per minute
+_rate_limit_last_cleanup = 0  # v68 M15: periodic cleanup
 
 @app.before_request
 def _rate_limit():
@@ -1589,10 +1590,32 @@ def _rate_limit():
     if len(_rate_limit_store[ip]) >= _RATE_LIMIT_MAX_API:
         return jsonify({"error": "Too many requests", "retry_after": _RATE_LIMIT_WINDOW}), 429
     _rate_limit_store[ip].append(now)
+    # v68 M15: Periodically purge stale IPs (every 5 min)
+    global _rate_limit_last_cleanup
+    if now - _rate_limit_last_cleanup > 300:
+        _rate_limit_last_cleanup = now
+        stale = [k for k, v in _rate_limit_store.items() if not v or now - max(v) > _RATE_LIMIT_WINDOW]
+        for k in stale:
+            del _rate_limit_store[k]
 
 BRAJEN_API = os.environ.get("BRAJEN_API_URL", "https://master-seo-api.onrender.com")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+# v68 H1: Thread-local model override — prevents race condition between concurrent SSE streams
+import threading as _threading
+_thread_local = _threading.local()
+
+def _get_anthropic_model():
+    """Return thread-local model override, or global default."""
+    return getattr(_thread_local, "anthropic_model", None) or ANTHROPIC_MODEL
+
+def _set_anthropic_model(model):
+    """Set thread-local model override for current workflow."""
+    _thread_local.anthropic_model = model
+
+def _clear_anthropic_model():
+    """Clear thread-local override, revert to global."""
+    _thread_local.anthropic_model = None
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.2")
 
@@ -1603,8 +1626,8 @@ RETRY_DELAYS = [5, 15, 30]
 
 # v50.7 FIX 48: Auto-retry for transient LLM API errors (429 quota, 529 overloaded, 503 unavailable)
 LLM_RETRY_MAX = 3
-LLM_RETRY_DELAYS = [10, 30, 60]  # seconds between retries (429/503)
-LLM_RETRY_DELAYS_529 = [5, 15, 30, 60]   # 529 = overloaded — longer backoff before giving up
+LLM_RETRY_DELAYS = [10, 20, 30]  # v68 M18: capped at 30s (was 60s — blocks SSE generator)
+LLM_RETRY_DELAYS_529 = [5, 10, 20, 30]   # v68 M18: capped at 30s (was 60s)
 LLM_RETRYABLE_CODES = {429, 503, 529}
 LLM_529_MAX_RETRIES = 4  # 4 retry dla 529 — daje Anthropic czas na odciążenie
 
@@ -2313,7 +2336,7 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False, 
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, max_retries=0)
         
         kwargs = {
-            "model": ANTHROPIC_MODEL,
+            "model": _get_anthropic_model(),
             "max_tokens": 4000,
             "system": [
                 {
@@ -2355,7 +2378,7 @@ def _generate_claude(system_prompt, user_prompt, effort=None, web_search=False, 
             try:
                 _in_t = getattr(response.usage, 'input_tokens', 0)
                 _out_t = getattr(response.usage, 'output_tokens', 0)
-                cost_tracker.record(_cost_job, ANTHROPIC_MODEL, _in_t, _out_t, step=_cost_step)
+                cost_tracker.record(_cost_job, _get_anthropic_model(), _in_t, _out_t, step=_cost_step)
             except Exception:
                 pass
         
@@ -3154,7 +3177,7 @@ def _editor_in_chief_review(article_text, main_keyword, detected_category="inne"
         )
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL,
+            model=_get_anthropic_model(),
             max_tokens=2000,
             temperature=0,
             messages=[{"role": "user", "content": review_prompt}]
@@ -3238,7 +3261,7 @@ def _editor_in_chief_review(article_text, main_keyword, detected_category="inne"
             )
 
             fix_response = client.messages.create(
-                model=ANTHROPIC_MODEL,
+                model=_get_anthropic_model(),
                 max_tokens=8000,
                 temperature=0,
                 messages=[{"role": "user", "content": fix_prompt}]
@@ -3337,10 +3360,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
     else:
         _workflow_model = _SONNET_MODEL
     
-    # Override global for this workflow (gunicorn worker=1, safe)
-    global ANTHROPIC_MODEL
-    _saved_model = ANTHROPIC_MODEL
-    ANTHROPIC_MODEL = _workflow_model
+    # v68 H1: Thread-local model override (thread-safe, no race condition)
+    _set_anthropic_model(_workflow_model)
 
     # Category: force fast mode for short descriptions
     if content_type == "category":
@@ -3354,7 +3375,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
     step_times = {}  # {step_num: {"start": time, "end": time}}
     workflow_start = time.time()
 
-    engine_label = "OpenAI " + effective_openai_model if engine == "openai" else "Claude " + ANTHROPIC_MODEL
+    engine_label = "OpenAI " + effective_openai_model if engine == "openai" else "Claude " + _get_anthropic_model()
     temp_label = f" [temp={temperature}]" if temperature is not None else ""
     ct_label = " [📦 Kategoria]" if content_type == "category" else ""
     tier_label = " [💎 Premium]" if quality_tier == "premium" else " [💰 Ekonomiczny]"
@@ -5387,7 +5408,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             _effort = "high" if _ymyl_int == "full" else ("medium" if _ymyl_int == "light" else None)
             _effort_label = _effort or f"temp={temperature or 0.7}"
             _web = _is_ymyl and _ymyl_int == "full"
-            yield emit("log", {"msg": f"Generuję tekst przez {'🟢 ' + effective_openai_model if engine == 'openai' else '🟣 ' + ANTHROPIC_MODEL}... [effort={_effort_label} web={'✅' if _web else '—'} instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'}]"})
+            yield emit("log", {"msg": f"Generuję tekst przez {'🟢 ' + effective_openai_model if engine == 'openai' else '🟣 ' + _get_anthropic_model()}... [effort={_effort_label} web={'✅' if _web else '—'} instr={'✅' if has_instructions else '❌'} enhanced={'✅' if has_enhanced else '❌'} memory={'✅' if has_memory else '❌'}]"})
 
             if batch_type == "FAQ":
                 # FAQ batch: first analyze PAA
@@ -5435,7 +5456,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             # v67: Estimate cost from output size (avg 1.3 tokens/word for Polish)
             _est_out = int(word_count * 1.3)
             _est_in = int(len(json.dumps(pre_batch, ensure_ascii=False)) * 0.3)  # rough prompt estimate
-            _cost_model = ANTHROPIC_MODEL if engine == "claude" else (effective_openai_model or "gpt-5.2")
+            _cost_model = _get_anthropic_model() if engine == "claude" else (effective_openai_model or "gpt-5.2")
             cost_tracker.record(job_id, _cost_model, _est_in, _est_out, step="batch_generation")
             yield emit("log", {"msg": f"Wygenerowano {word_count} słów"})
 
@@ -6803,7 +6824,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                         "tokens": editor_result.get("input_tokens", 0) + editor_result.get("output_tokens", 0),
                     })
                     # v67: Track cost
-                    cost_tracker.record(job_id, ANTHROPIC_MODEL,
+                    cost_tracker.record(job_id, _get_anthropic_model(),
                         editor_result.get("input_tokens", 0),
                         editor_result.get("output_tokens", 0),
                         step="editor_in_chief")
@@ -6846,17 +6867,19 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("log", {"msg": f"⚠️ Redaktor Naczelny error: {str(editor_err)[:100]}"})
 
         # Export HTML
+        import tempfile as _tempfile
         export_result = brajen_call("get", f"/api/project/{project_id}/export/html")
         if export_result["ok"]:
             if export_result.get("binary"):
-                # Save binary export
-                export_path = f"/tmp/brajen_export_{project_id}.html"
+                _fd, export_path = _tempfile.mkstemp(suffix=".html", prefix="brajen_")
+                os.close(_fd)
                 with open(export_path, "wb") as f:
                     f.write(export_result["content"])
                 job["export_html"] = export_path
             else:
                 content = export_result["data"] if isinstance(export_result["data"], str) else json.dumps(export_result["data"])
-                export_path = f"/tmp/brajen_export_{project_id}.html"
+                _fd, export_path = _tempfile.mkstemp(suffix=".html", prefix="brajen_")
+                os.close(_fd)
                 with open(export_path, "w", encoding="utf-8") as f:
                     f.write(content)
                 job["export_html"] = export_path
@@ -6864,12 +6887,13 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         # Export DOCX
         export_docx = brajen_call("get", f"/api/project/{project_id}/export/docx")
         if export_docx["ok"] and export_docx.get("binary"):
-            export_path = f"/tmp/brajen_export_{project_id}.docx"
+            _fd, export_path = _tempfile.mkstemp(suffix=".docx", prefix="brajen_")
+            os.close(_fd)
             with open(export_path, "wb") as f:
                 f.write(export_docx["content"])
             job["export_docx"] = export_path
 
-        step_done(10)
+        step_done(11)
         yield emit("step", {"step": 12, "name": "Export", "status": "done",
                             "detail": "HTML + DOCX gotowe"})
 
@@ -6935,10 +6959,10 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         })
 
         # v68: Restore global model
-        ANTHROPIC_MODEL = _saved_model
+        _clear_anthropic_model()
 
     except Exception as e:
-        ANTHROPIC_MODEL = _saved_model  # v68: Restore on error too
+        _clear_anthropic_model()  # v68: Restore on error too
         _circuit_breaker_reset(job_id)  # FIX: reset circuit breaker nawet przy błędzie
         job["status"] = "error"  # FIX: ustaw finalny status
         logger.exception(f"Workflow error: {e}")
@@ -7023,10 +7047,7 @@ def validate_article():
     if not project_id:
         return jsonify({"error": "Brak project_id, uruchom najpierw workflow"}), 400
     try:
-        result = brajen_call("post", f"/api/project/{project_id}/validate_full_article",
-                             {"full_text": article_text})
-        if result["ok"]:
-            return jsonify({"ok": True, "validation": result["data"]})
+        # v68 H7: validate_full_article endpoint doesn't exist — go straight to final_review
         fr = brajen_call("get", f"/api/project/{project_id}/final_review")
         if fr["ok"]:
             return jsonify({"ok": True, "validation": fr["data"]})
@@ -7053,7 +7074,7 @@ def get_engines():
         "engines": {
             "claude": {
                 "available": bool(ANTHROPIC_API_KEY),
-                "model": ANTHROPIC_MODEL,
+                "model": _get_anthropic_model(),
             },
             "openai": {
                 "available": bool(OPENAI_API_KEY) and OPENAI_AVAILABLE,
@@ -7209,6 +7230,10 @@ def download_export(job_id, fmt):
     job = active_jobs.get(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
+
+    # v68 M14: Validate fmt to prevent path injection
+    if fmt not in ("html", "docx", "txt"):
+        return jsonify({"error": "Invalid format"}), 400
 
     key = f"export_{fmt}"
     path = job.get(key)
