@@ -59,7 +59,7 @@ from ai_middleware import (
     fix_batch_domain_errors,
     analyze_entity_gaps,
 )
-from keyword_dedup import deduplicate_keywords, remove_subsumed_basic
+from keyword_dedup import deduplicate_keywords, remove_subsumed_basic, cascade_deduct_targets
 from entity_salience import (
     check_entity_salience,
     generate_article_schema,
@@ -4578,6 +4578,17 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         _final_total_max = sum(kw['target_max'] for kw in keywords)
         yield emit("log", {"msg": f"📊 Budget: {_final_total_min}-{_final_total_max} mentions in {_target_length} words ({_final_basic} BASIC, {_final_ext} EXTENDED, density: {_final_total_min*100/_target_length:.1f}-{_final_total_max*100/_target_length:.1f}/100w)"})
 
+        # ═══ v68: CASCADE DEDUCTION (Inclusion-Exclusion) ═══
+        # When "olej z czarnuszki dla dzieci" (MAIN) has target [4,7],
+        # every use also counts as "olej z czarnuszki" and "czarnuszka".
+        # So standalone targets for sub-phrases must be reduced.
+        _pre_cascade_max = sum(kw['target_max'] for kw in keywords)
+        keywords = cascade_deduct_targets(keywords, main_keyword)
+        _post_cascade_max = sum(kw['target_max'] for kw in keywords)
+        _cascade_count = sum(1 for kw in keywords if kw.get("_cascade_deducted"))
+        if _cascade_count:
+            yield emit("log", {"msg": f"🔗 Cascade deduction: {_cascade_count} fraz zredukowanych, target_max: {_pre_cascade_max}→{_post_cascade_max} (Δ-{_pre_cascade_max - _post_cascade_max})"})
+
         # ═══ v67 FIX: Second dedup pass after budget overflow ═══
         # Budget overflow demotes BASIC→EXTENDED. The first dedup pass only checked BASIC.
         # Now re-run dedup to catch the demoted keywords.
@@ -5984,6 +5995,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                 "basic_coverage": final.get("basic_coverage"),
                 "extended_coverage": final.get("extended_coverage"),
                 "entity_scoring": final.get("entity_scoring") or {},
+                "keyword_budget_summary": final.get("keyword_budget_summary") or {},
             })
 
             step_done(10)
