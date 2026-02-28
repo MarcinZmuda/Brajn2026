@@ -506,7 +506,7 @@ def _detect_ymyl(main_keyword: str) -> dict:
                     _time_ymyl.sleep(2)
                     try:
                         enrich_response2 = http_requests.post(
-                            f"{MASTER_API_URL}/api/ymyl/detect",
+                            f"{master_api_url}/api/ymyl/detect",
                             json={"keyword": main_keyword, "content_type": content_type},
                             headers=headers, timeout=10
                         )
@@ -1890,13 +1890,16 @@ def brajen_call(method, endpoint, json_data=None, timeout=None):
     """Call BRAJEN API with retry logic for cold starts. Uses session pooling."""
     url = f"{BRAJEN_API}{endpoint}"
     req_timeout = timeout or REQUEST_TIMEOUT
+    # v68 C3: Send Authorization header if MASTER_SEO_API_KEY is set
+    _api_key = os.environ.get("MASTER_SEO_API_KEY", "")
+    _headers = {"Authorization": f"Bearer {_api_key}"} if _api_key else {}
 
     for attempt in range(MAX_RETRIES):
         try:
             if method == "get":
-                resp = _brajen_session.get(url, timeout=req_timeout)
+                resp = _brajen_session.get(url, headers=_headers, timeout=req_timeout)
             else:
-                resp = _brajen_session.post(url, json=json_data, timeout=req_timeout)
+                resp = _brajen_session.post(url, json=json_data, headers=_headers, timeout=req_timeout)
 
             if resp.status_code in (200, 201):
                 content_type = resp.headers.get("content-type", "")
