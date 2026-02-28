@@ -3,6 +3,26 @@ import re as _re
 # ================================================================
 # CSS/JS GARBAGE FILTER: czyści śmieci z S1 danych
 # ================================================================
+
+# v68 M17: Module-level constants (were rebuilt per _is_css_garbage() call)
+_CSS_TOKENS = frozenset({
+    "inherit", "color", "display", "flex", "block", "inline", "grid",
+    "none", "auto", "hidden", "visible", "solid", "dotted", "dashed",
+    "bold", "normal", "italic", "pointer", "cursor", "border",
+    "margin", "padding", "font", "section", "strong", "help",
+    "center", "wrap", "cover", "contain", "serif", "sans",
+    "position", "relative", "absolute", "fixed", "opacity",
+    "background", "transform", "overflow", "scroll", "width",
+    "height", "text", "decoration", "underline", "uppercase",
+    "hover", "focus", "active", "image", "repeat", "content",
+    "table", "row", "column", "collapse", "weight", "size", "style",
+})
+
+_FONT_NAMES = frozenset({
+    "menlo", "monaco", "consolas", "courier", "arial", "helvetica",
+    "verdana", "georgia", "tahoma", "trebuchet", "lucida", "roboto",
+    "poppins", "raleway", "montserrat", "lato", "inter",
+})
 _CSS_GARBAGE_PATTERNS = _re.compile(
     r'(?:'
     # CSS properties & values
@@ -163,28 +183,11 @@ def _is_css_garbage(text):
     # v47.2: CSS compound tokens: inherit;color, section{display, serif;font
     t_lower = text.lower()
     if _re.match(r'^[\w-]+[;{}\[\]:]+[\w-]+$', t_lower):
-        _CSS_TOKENS = {
-            "inherit", "color", "display", "flex", "block", "inline", "grid",
-            "none", "auto", "hidden", "visible", "solid", "dotted", "dashed",
-            "bold", "normal", "italic", "pointer", "cursor", "border",
-            "margin", "padding", "font", "section", "strong", "help",
-            "center", "wrap", "cover", "contain", "serif", "sans",
-            "position", "relative", "absolute", "fixed", "opacity",
-            "background", "transform", "overflow", "scroll", "width",
-            "height", "text", "decoration", "underline", "uppercase",
-            "hover", "focus", "active", "image", "repeat", "content",
-            "table", "row", "column", "collapse", "weight", "size", "style",
-        }
         parts = _re.split(r'[;{}\[\]:]+', t_lower)
         parts = [p.strip('-') for p in parts if p]
         if parts and any(p in _CSS_TOKENS for p in parts):
             return True
     # v47.2: Font names
-    _FONT_NAMES = {
-        "menlo", "monaco", "consolas", "courier", "arial", "helvetica",
-        "verdana", "georgia", "tahoma", "trebuchet", "lucida", "roboto",
-        "poppins", "raleway", "montserrat", "lato", "inter",
-    }
     if t_lower in _FONT_NAMES:
         return True
     # v45.4.1: Detect repeated-word patterns ("list list list", "heading heading")
