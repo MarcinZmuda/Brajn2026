@@ -25,6 +25,13 @@ from flask import (
     session, redirect, url_for, stream_with_context, send_file
 )
 import requests as http_requests
+# v68: HTTP session pooling — reuse TCP/TLS connections across brajen_call
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry as _Urllib3Retry
+_brajen_session = http_requests.Session()
+_brajen_adapter = HTTPAdapter(pool_connections=5, pool_maxsize=10, max_retries=0)
+_brajen_session.mount("https://", _brajen_adapter)
+_brajen_session.mount("http://", _brajen_adapter)
 import anthropic
 from prompt_v2.integration import (
     build_system_prompt, build_user_prompt,
@@ -1880,16 +1887,16 @@ def _enrich_legal_with_wikipedia(articles):
 # BRAJEN API CLIENT
 # ============================================================
 def brajen_call(method, endpoint, json_data=None, timeout=None):
-    """Call BRAJEN API with retry logic for cold starts."""
+    """Call BRAJEN API with retry logic for cold starts. Uses session pooling."""
     url = f"{BRAJEN_API}{endpoint}"
     req_timeout = timeout or REQUEST_TIMEOUT
 
     for attempt in range(MAX_RETRIES):
         try:
             if method == "get":
-                resp = http_requests.get(url, timeout=req_timeout)
+                resp = _brajen_session.get(url, timeout=req_timeout)
             else:
-                resp = http_requests.post(url, json=json_data, timeout=req_timeout)
+                resp = _brajen_session.post(url, json=json_data, timeout=req_timeout)
 
             if resp.status_code in (200, 201):
                 content_type = resp.headers.get("content-type", "")
@@ -3302,7 +3309,7 @@ def _compute_grade(quality_score, salience_score, semantic_score, style_score=No
 # ============================================================
 # WORKFLOW ORCHESTRATOR (SSE)
 # ============================================================
-def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None, temperature=None, content_type="article", category_data=None, voice_preset="auto"):
+def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, extended_terms, engine="claude", openai_model=None, temperature=None, content_type="article", category_data=None, voice_preset="auto", quality_tier="ekonomiczny"):
     """
     Full BRAJEN workflow as a generator yielding SSE events.
     Follows PROMPT_v45_2.md EXACTLY:
@@ -3311,9 +3318,26 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
 
     content_type: "article" (default) or "category" (e-commerce category description)
     category_data: dict with store_name, hierarchy, products, etc. (only for category)
+    quality_tier: "ekonomiczny" (Sonnet, cheaper) or "premium" (Opus, more expensive)
     """
     # Per-session model override for OpenAI
     effective_openai_model = openai_model or OPENAI_MODEL
+
+    # v68: Quality tier — model selection per step
+    # Ekonomiczny: Sonnet 4 for everything (5× cheaper)
+    # Premium: Opus 4 for batch generation + editorial, Sonnet for utility calls
+    _SONNET_MODEL = "claude-sonnet-4-6"
+    _OPUS_MODEL = "claude-opus-4-6"
+    
+    if quality_tier == "premium":
+        _workflow_model = _OPUS_MODEL
+    else:
+        _workflow_model = _SONNET_MODEL
+    
+    # Override global for this workflow (gunicorn worker=1, safe)
+    global ANTHROPIC_MODEL
+    _saved_model = ANTHROPIC_MODEL
+    ANTHROPIC_MODEL = _workflow_model
 
     # Category: force fast mode for short descriptions
     if content_type == "category":
@@ -3330,7 +3354,8 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
     engine_label = "OpenAI " + effective_openai_model if engine == "openai" else "Claude " + ANTHROPIC_MODEL
     temp_label = f" [temp={temperature}]" if temperature is not None else ""
     ct_label = " [📦 Kategoria]" if content_type == "category" else ""
-    yield emit("log", {"msg": f"🚀 Workflow: {main_keyword} [{mode}] [🤖 {engine_label}]{temp_label}{ct_label}"})
+    tier_label = " [💎 Premium]" if quality_tier == "premium" else " [💰 Ekonomiczny]"
+    yield emit("log", {"msg": f"🚀 Workflow: {main_keyword} [{mode}] [🤖 {engine_label}]{tier_label}{temp_label}{ct_label}"})
     
     if engine == "openai" and not OPENAI_API_KEY:
         yield emit("log", {"msg": "⚠️ OPENAI_API_KEY nie ustawiony, fallback na Claude"})
@@ -5804,14 +5829,46 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             yield emit("step", {"step": 7, "name": "PAA Analyze & Save", "status": "warning",
                                 "detail": "Błąd FAQ, pominięto"})
 
-        # ─── KROK 8: Content Editorial (merytoryczny) ───
+        # ─── KROK 8+9: Content Editorial + Editorial Review (PARALLEL) ───
+        # v68: Run both concurrently — Content Editorial is analysis-only,
+        # Editorial Review is rewrite. Both read the same text, don't conflict.
+        import concurrent.futures
+
         step_start(8)
+        step_start(9)
         yield emit("step", {"step": 8, "name": "Content Editorial", "status": "running"})
-        yield emit("log", {"msg": "POST /content_editorial..."})
-        # v60 FIX: Send article_text directly instead of relying on Firestore lookup
+        yield emit("step", {"step": 9, "name": "Editorial Review", "status": "running"})
+        yield emit("log", {"msg": "🔀 Content Editorial + Editorial Review (równolegle)..."})
+
         _ce_article = "\n\n".join(b.get("text", "") for b in accepted_batches_log if b.get("text"))
         _ce_payload = {"article_text": _ce_article} if _ce_article else {}
-        content_editorial_result = brajen_call("post", f"/api/project/{project_id}/content_editorial", json_data=_ce_payload, timeout=HEAVY_REQUEST_TIMEOUT)
+
+        def _run_content_editorial():
+            return brajen_call("post", f"/api/project/{project_id}/content_editorial", json_data=_ce_payload, timeout=HEAVY_REQUEST_TIMEOUT)
+
+        def _run_editorial_review():
+            return brajen_call("post", f"/api/project/{project_id}/editorial_review", json_data={}, timeout=HEAVY_REQUEST_TIMEOUT)
+
+        content_editorial_result = {"ok": False}
+        editorial_result = {"ok": False}
+        editorial_score = None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as _pool:
+            _ce_future = _pool.submit(_run_content_editorial)
+            _er_future = _pool.submit(_run_editorial_review)
+            
+            # Collect results (with timeout safety)
+            try:
+                content_editorial_result = _ce_future.result(timeout=HEAVY_REQUEST_TIMEOUT + 10)
+            except Exception as _ce_ex:
+                yield emit("log", {"msg": f"⚠️ Content Editorial error: {str(_ce_ex)[:100]}"})
+            
+            try:
+                editorial_result = _er_future.result(timeout=HEAVY_REQUEST_TIMEOUT + 10)
+            except Exception as _er_ex:
+                yield emit("log", {"msg": f"⚠️ Editorial Review error: {str(_er_ex)[:100]}"})
+
+        # Process Content Editorial result
         if content_editorial_result["ok"]:
             ced = content_editorial_result["data"]
             ced_status = ced.get("status", "OK")
@@ -5837,32 +5894,15 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         else:
             _ce_err = content_editorial_result.get("error", "Unknown error")
             yield emit("log", {"msg": f"⚠️ Content Editorial failed: {str(_ce_err)[:100]}"})
-            # v67: Emit partial content_editorial event so UI card still shows something
             yield emit("content_editorial", {
-                "status": "ERROR",
-                "score": 0,
-                "critical_count": 0,
-                "warning_count": 0,
+                "status": "ERROR", "score": 0, "critical_count": 0, "warning_count": 0,
                 "issues": [{"severity": "info", "message": f"Analiza niedostępna: {str(_ce_err)[:80]}"}],
                 "summary": "Content editorial nie zwrócił wyniku — artykuł kontynuuje normalnie.",
                 "blocked": False,
             })
             yield emit("step", {"step": 8, "name": "Content Editorial", "status": "warning", "detail": f"Błąd: {str(_ce_err)[:60]}"})
 
-        # ═══════════════════════════════════════════════════════════════════
-        # v67: CORRECT ORDER — Editorial Review FIRST, then Final Review
-        # Editorial changes the text (grammar/style), Final Review scores it.
-        # Scoring pre-editorial text was pointless — score changed after edit.
-        # ═══════════════════════════════════════════════════════════════════
-
-        # ─── KROK 9: Editorial Review (gramatyczny) ───
-        step_start(9)
-        yield emit("step", {"step": 9, "name": "Editorial Review", "status": "running"})
-        yield emit("log", {"msg": "POST /editorial_review, to może chwilę potrwać..."})
-
-        editorial_result = {"ok": False}
-        editorial_score = None
-        editorial_result = brajen_call("post", f"/api/project/{project_id}/editorial_review", json_data={}, timeout=HEAVY_REQUEST_TIMEOUT)
+        # Process Editorial Review result (from parallel execution above)
         if editorial_result["ok"]:
             ed = editorial_result["data"]
             score = ed.get("overall_score", "?")
@@ -5907,8 +5947,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
                     skip_reason = "tekst pusty lub za krótki"
                 elif original_wc > 0 and corrected_wc < original_wc * 0.6:
                     skip_reason = f"obcięty ({corrected_wc} vs {original_wc} słów)"
-                elif ("<h2" not in corrected_text.lower() and "h2:" not in corrected_text.lower()
-                      and "h3:" not in corrected_text.lower()
+                elif ("h2" not in corrected_text.lower() and "h3:" not in corrected_text.lower()
                       and "<p" not in corrected_text.lower()):
                     skip_reason = "brak struktury HTML (h2/p)"
                 elif editorial_score <= 2 and changes_parsed == 0:
@@ -5929,7 +5968,7 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
         else:
             ed_error = editorial_result.get("error", "unknown")
             ed_status = editorial_result.get("status", "?")
-            yield emit("log", {"msg": f"⚠️ Editorial Review → {ed_status}: {ed_error[:200]}"})
+            yield emit("log", {"msg": f"⚠️ Editorial Review → {ed_status}: {str(ed_error)[:200]}"})
             yield emit("step", {"step": 9, "name": "Editorial Review", "status": "warning",
                                 "detail": f"Nie udało się ({ed_status}), artykuł bez recenzji"})
 
@@ -6892,7 +6931,11 @@ def run_workflow_sse(job_id, main_keyword, mode, h2_structure, basic_terms, exte
             "cost_summary": _cost_sum,
         })
 
+        # v68: Restore global model
+        ANTHROPIC_MODEL = _saved_model
+
     except Exception as e:
+        ANTHROPIC_MODEL = _saved_model  # v68: Restore on error too
         _circuit_breaker_reset(job_id)  # FIX: reset circuit breaker nawet przy błędzie
         job["status"] = "error"  # FIX: ustaw finalny status
         logger.exception(f"Workflow error: {e}")
@@ -7034,6 +7077,7 @@ def start_workflow():
     extended_terms = [t.strip() for t in (data.get("extended_terms") or []) if t.strip()]
     custom_instructions = (data.get("custom_instructions") or "").strip()
     engine = data.get("engine", "claude")  # "claude" or "openai"
+    quality_tier = data.get("quality_tier", "ekonomiczny")  # "ekonomiczny" or "premium"
     voice_preset = (data.get("voice_preset") or "auto").strip() or "auto"
     openai_model_override = data.get("openai_model")  # per-session model override
     user_temperature = data.get("temperature")  # 0.0-1.0 or None
@@ -7068,6 +7112,7 @@ def start_workflow():
         "main_keyword": main_keyword,
         "mode": mode,
         "engine": engine,
+        "quality_tier": quality_tier,
         "voice_preset": voice_preset,
         "openai_model": openai_model_override,
         "temperature": user_temperature,
@@ -7139,7 +7184,8 @@ def stream_workflow(job_id):
             temperature=data.get("temperature"),
             content_type=data.get("content_type", "article"),
             category_data=data.get("category_data"),
-            voice_preset=data.get("voice_preset","auto")
+            voice_preset=data.get("voice_preset","auto"),
+            quality_tier=data.get("quality_tier", "ekonomiczny")
         )
 
     return Response(
