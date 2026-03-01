@@ -284,9 +284,21 @@ def build_system_prompt(pre_batch, batch_type):
 
     detected_category = pre_batch.get("detected_category", "")
 
-    # voice_preset z UI nadpisuje auto-detekcję (mapowanie v2→v1)
+    # voice_preset z UI nadpisuje auto-detekcję
+    # Nowy dropdown wysyła bezpośrednio nazwę kategorii (prawo, medycyna, ...)
+    # Legacy presety zachowane dla kompatybilności wstecznej
     _voice_preset = pre_batch.get("voice_preset", "auto") or "auto"
     _voice_map = {
+        # Direct category names (nowy dropdown)
+        "prawo": "prawo",
+        "medycyna": "medycyna",
+        "finanse": "finanse",
+        "technologia": "technologia",
+        "budownictwo": "budownictwo",
+        "uroda": "uroda",
+        "lifestyle": "lifestyle",
+        "inne": "inne",
+        # Legacy presets (stary dropdown — backward compat)
         "Glossy": "uroda",
         "Prawo rodzinne": "prawo",
         "Prawo karne": "prawo",
