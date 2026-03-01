@@ -566,9 +566,20 @@
 <div id="voicePreset-wrapper">
     <select id="voicePreset">
         <option value="auto" selected>AUTO (system dobiera)</option>
-        <option value="Glossy">✨ Glossy — lifestyle premium (ELLE/Vogue)</option>
-        <option value="Prawo rodzinne">⚖️ Prawo rodzinne — doradczo-praktyczny</option>
-        <option value="Prawo karne">🔒 Prawo karne — dydaktyczno-wyjaśniający</option>
+        <optgroup label="YMYL">
+            <option value="prawo">⚖️ Prawo — Prawo.pl / GazetaPrawna</option>
+            <option value="medycyna">🏥 Medycyna — MP.pl / evidence-based</option>
+            <option value="finanse">💰 Finanse — Bankier.pl SMART</option>
+        </optgroup>
+        <optgroup label="Specjalistyczne">
+            <option value="technologia">💻 Technologia — Benchmark.pl</option>
+            <option value="budownictwo">🏠 Budownictwo — MuratorDom</option>
+            <option value="uroda">✨ Uroda — Wizaz.pl / Paula's Choice</option>
+            <option value="lifestyle">👗 Lifestyle — Vogue Polska</option>
+        </optgroup>
+        <optgroup label="Uniwersalne">
+            <option value="inne">📝 Uniwersalny — dziennikarstwo ogólne</option>
+        </optgroup>
     </select>
 </div>
 <div class="lbl">Tryb</div>
