@@ -1,30 +1,28 @@
 """
-Shared sentence length constants for Brajn2026.
-Fix #9 v4.2: Ujednolicenie targetow dlugosci zdan.
-Fix #53 v4.3: Nowe limity — naturalna polszczyzna publicystyczna.
-Fix #45.3 v4.4: Ujednolicenie z prompt_builder.py
-v5.0: Prompt v2 — rozluznione limity. Prompt NIE wymusza dlugosci zdan.
-      Validator uzywa szerszych tolerancji (NKJP: naturalna wariancja 3-30+).
+Shared sentence length constants for Brajn2026 + master-seo-api.
+v6.0: SYNCHRONIZED — musi być identyczny w obu repozytoriach.
+      prompt_builder <zasady>: "max 2 przecinki, zdanie > 22 słów → rozbij, FOG-PL 8-9"
+      Validator tolerancje szersze (naturalna wariancja).
 
 Uzywany przez: prompt_builder.py, ai_middleware.py
 """
 
 # Srednia dlugosc zdania (target)
-SENTENCE_AVG_TARGET = 13       # NKJP publicystyczny (bylo: 15)
-SENTENCE_AVG_TARGET_MIN = 8    # dolna granica (bylo: 12)
-SENTENCE_AVG_TARGET_MAX = 20   # gorna granica (bylo: 18)
+SENTENCE_AVG_TARGET = 14       # kompromis prompt(FOG8-9) + NKJP publicystyczny
+SENTENCE_AVG_TARGET_MIN = 8    # dolna granica — krótkie zdania OK
+SENTENCE_AVG_TARGET_MAX = 20   # gorna granica
 
 # Maksymalna dlugosc pojedynczego zdania
-SENTENCE_SOFT_MAX = 30         # warning (bylo: 22)
-SENTENCE_HARD_MAX = 40         # odrzucenie (bylo: 25)
+SENTENCE_SOFT_MAX = 25         # warning (prompt mówi >22 → rozbij)
+SENTENCE_HARD_MAX = 30         # odrzucenie (twarda granica)
 
 # Progi dla walidatora
-SENTENCE_AVG_MAX_ALLOWED = 22  # max srednia zanim retry (bylo: 20)
-SENTENCE_RETRY_THRESHOLD = 30  # hard retry (bylo: 25)
+SENTENCE_AVG_MAX_ALLOWED = 22  # max srednia zanim retry
+SENTENCE_RETRY_THRESHOLD = 28  # hard retry
 
 # Max przecinkow w jednym zdaniu
-SENTENCE_MAX_COMMAS = 4        # NKJP: przecinek czestszy niz litera "b" (bylo: 2)
+SENTENCE_MAX_COMMAS = 2        # prompt <zasady>: "max 2 przecinki"
 
-# Fix #44: Keyword anti-stuffing — bez zmian
+# Keyword anti-stuffing
 KEYWORD_MAIN_MAX_PER_BATCH = 2
 KEYWORD_MIN_SPACING_WORDS = 80
