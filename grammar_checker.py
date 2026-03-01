@@ -33,6 +33,10 @@ _SKIP_RULES = {
     "UPPERCASE_SENTENCE_START",
     "PUNCTUATION_PARAGRAPH_END",
     "PL_WORD_REPEAT",
+    # Ortografia 2026: nie+przymiotnik łącznie (LT trained on pre-2026 norms)
+    "PL_NIE_Z_PRZYMIOTNIKIEM",
+    "PL_NIE_RAZEM",
+    "NIE_Z_IMIE",
 }
 
 # AI-filler phrases to strip
