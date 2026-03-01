@@ -877,6 +877,38 @@
                 <div id="entityCovChart" style="padding:12px"></div>
             </div>
 
+            <!-- ═══ SEO SIMILARITY CARD (moved here for visibility) ═══ -->
+            <div class="crd" id="semCard" style="display:none">
+              <div class="crd-t"><b>🔬 SEO Similarity</b> Pokrycie semantyczne vs konkurencja</div>
+              <div id="semA">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <div style="font-weight:700;font-size:12px">Composite Score</div>
+                  <div id="semScore" style="font-size:18px;font-weight:800">—</div>
+                </div>
+                <div class="sg sg4" style="margin-bottom:10px">
+                  <div class="sc"><div class="sv" id="semTerms">—</div><div class="sl">Termy</div></div>
+                  <div class="sc"><div class="sv" id="semEnt">—</div><div class="sl">Encje</div></div>
+                  <div class="sc"><div class="sv" id="semMust">—</div><div class="sl">Must-mention</div></div>
+                  <div class="sc"><div class="sv" id="semCov">—</div><div class="sl">Coverage</div></div>
+                </div>
+                <!-- H2 Heatmap -->
+                <div id="semH2" style="display:none;margin-bottom:10px">
+                  <div style="font-size:10px;font-weight:600;margin-bottom:6px;color:var(--mg)">📊 Pokrycie semantyczne per sekcja H2</div>
+                  <div id="semH2Bars"></div>
+                </div>
+                <!-- Missing Terms -->
+                <div id="semMissing" style="display:none;margin-bottom:8px">
+                  <div style="font-size:10px;font-weight:600;margin-bottom:4px;color:var(--yl)">⚠️ Brakujące termy (TOP konkurencji mają, Ty nie)</div>
+                  <div id="semMissingList" style="font-size:9px;display:flex;flex-wrap:wrap;gap:4px"></div>
+                </div>
+                <!-- Missing Entities -->
+                <div id="semEntMissing" style="display:none">
+                  <div style="font-size:10px;font-weight:600;margin-bottom:4px;color:#f87171">🔴 Brakujące encje</div>
+                  <div id="semEntMissingList" style="font-size:9px;display:flex;flex-wrap:wrap;gap:4px"></div>
+                </div>
+              </div>
+            </div>
+
             </div><!-- /chartsSection -->
 
         </div><!-- /tabWorkflow -->
@@ -910,31 +942,6 @@
             <div class="crd" id="ceC" style="display:none"><div class="crd-t"><b>📋 Content Editorial</b> Przegląd merytoryczny</div><div class="sg sg4"><div class="sc"><div class="sv" id="ceSc">—</div><div class="sl">Score</div></div><div class="sc"><div class="sv" id="ceSt">—</div><div class="sl">Status</div></div><div class="sc"><div class="sv" id="ceCrit">—</div><div class="sl">Krytyczne</div></div><div class="sc"><div class="sv" id="ceWarn">—</div><div class="sl">Ostrzeżenia</div></div></div>
               <div id="ceSummary" style="margin-top:8px;font-size:10px;color:var(--mg);display:none"></div>
               <div id="ceIssues" style="margin-top:8px;font-size:9px;max-height:200px;overflow-y:auto"></div>
-              <!-- ═══ v67: SEO SIMILARITY (inside Content Editorial) ═══ -->
-              <div id="semA" style="display:none;margin-top:12px;border-top:1px solid rgba(255,255,255,0.06);padding-top:12px">
-                <div style="font-weight:700;font-size:11px;margin-bottom:8px">🔬 SEO Similarity <span id="semScore" style="float:right;font-size:13px;font-weight:800">—</span></div>
-                <div class="sg sg4" style="margin-bottom:8px">
-                  <div class="sc"><div class="sv" id="semTerms">—</div><div class="sl">Termy</div></div>
-                  <div class="sc"><div class="sv" id="semEnt">—</div><div class="sl">Encje</div></div>
-                  <div class="sc"><div class="sv" id="semMust">—</div><div class="sl">Must-mention</div></div>
-                  <div class="sc"><div class="sv" id="semCov">—</div><div class="sl">Coverage</div></div>
-                </div>
-                <!-- H2 Heatmap -->
-                <div id="semH2" style="display:none;margin-bottom:8px">
-                  <div style="font-size:9px;font-weight:600;margin-bottom:4px;color:var(--mg)">Per-sekcja H2 coverage</div>
-                  <div id="semH2Bars"></div>
-                </div>
-                <!-- Missing Terms -->
-                <div id="semMissing" style="display:none;margin-bottom:6px">
-                  <div style="font-size:9px;font-weight:600;margin-bottom:3px;color:var(--mg)">⚠️ Brakujące termy (TOP5 mają, Ty nie)</div>
-                  <div id="semMissingList" style="font-size:9px;display:flex;flex-wrap:wrap;gap:3px"></div>
-                </div>
-                <!-- Missing Entities -->
-                <div id="semEntMissing" style="display:none">
-                  <div style="font-size:9px;font-weight:600;margin-bottom:3px;color:var(--mg)">🔴 Brakujące encje</div>
-                  <div id="semEntMissingList" style="font-size:9px;display:flex;flex-wrap:wrap;gap:3px"></div>
-                </div>
-              </div>
             </div>
 
             <!-- ═══ v67: CONSISTENCY WARNINGS ═══ -->
@@ -1498,7 +1505,7 @@ async function startWorkflow(){
     const _artP2=document.getElementById('artP');if(_artP2){_artP2.classList.add('building');_artP2._artDone=false;}
     const _abb2=document.getElementById('artBuildBanner');if(_abb2)_abb2.style.display='none';
     const _cwL=document.getElementById('cwList');if(_cwL)_cwL.innerHTML='';
-    ['bpC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','edMini','batchChartPane','kwCoveragePane','kwBudgetPane','timelinePane','entityCovPane','evalSummaryPane','editorReviewPane','eiPane','ltC','pnlpC','ceC','cwC','ercC','costC','artBuildBanner'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
+    ['bpC','frC','h2C','s1P','biP','cpP','esC','afC','ymC','schP','tmP','ciP','doneB','expB','artP','edMini','batchChartPane','kwCoveragePane','kwBudgetPane','timelinePane','entityCovPane','evalSummaryPane','editorReviewPane','eiPane','ltC','pnlpC','ceC','semCard','cwC','ercC','costC','artBuildBanner'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
     const _edDetR=document.getElementById('edDet');if(_edDetR){_edDetR.innerHTML='';_edDetR.style.display='none';}
     // Reset live status bar
     const _ls=document.getElementById('lsText');if(_ls){_ls.textContent='Przygotowanie...';document.getElementById('lsDetail').textContent='';document.getElementById('lsFill').style.width='0%';document.getElementById('lsPulse').className='ls-pulse';document.getElementById('lsPulse').style.background='';document.getElementById('lsPulse').style.animation='';document.getElementById('lsTimer').textContent='0:00';}
@@ -1925,8 +1932,8 @@ async function startWorkflow(){
 // ═══ v67: SEO SIMILARITY RENDER ═══
 function renderSemAnalysis(){
     const d=semAnalysisData;if(!d||!d.enabled)return;
-    // Show Content Editorial card if hidden
-    document.getElementById('ceC').style.display='';
+    // Show SEO Similarity card (independent from Content Editorial)
+    document.getElementById('semCard').style.display='';
     const wrap=document.getElementById('semA');wrap.style.display='';
     // Composite score
     const sc=d.composite_score||0;
