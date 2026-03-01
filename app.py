@@ -482,7 +482,7 @@ def _detect_ymyl(main_keyword: str) -> dict:
 
         # Step 3: If YMYL, try to enrich via master-seo-api
         try:
-            master_api_url = os.environ.get("MASTER_SEO_API_URL", "http://localhost:5001")
+            master_api_url = os.environ.get("BRAJEN_API_URL", os.environ.get("MASTER_SEO_API_URL", "https://master-seo-api.onrender.com"))
             api_key = os.environ.get("MASTER_SEO_API_KEY", "")
 
             headers = {}
