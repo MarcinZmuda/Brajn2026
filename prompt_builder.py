@@ -176,7 +176,17 @@ _CATEGORY_STYLE = {
         "SYGNAŁY ALARMOWE: 'Wizyta u lekarza jest konieczna, gdy...' (nie 'warto skonsultować').\n"
         "BLACKLISTA: 'rewolucyjny lek', 'skuteczne leczenie', 'cudowne właściwości',\n"
         "  'nowoczesna terapia', 'groźna choroba', 'w 100 % bezpieczny', 'detox',\n"
-        "  'wzmacnia odporność', 'oczyszcza organizm'."
+        "  'wzmacnia odporność', 'oczyszcza organizm'.\n"
+        "NATURALNY POLSKI MEDYCZNY — pisz jak lekarz do pacjenta, nie jak translator Google:\n"
+        "  ❌ 'narastająca trudność przełykania' → ✅ 'narastające trudności z przełykaniem'\n"
+        "  ❌ 'problem z szerokim otwieraniem ust' → ✅ 'szczękościsk' lub 'ograniczone otwieranie ust'\n"
+        "  ❌ 'zbiornik ropy' → ✅ 'ropień'\n"
+        "  ❌ 'W praktyce alarmuje też' → ✅ 'Niepokojącym objawem jest również'\n"
+        "  ❌ 'szerzenie się zakażenia w głąb szyi' → ✅ 'rozprzestrzenienie się zakażenia na tkanki szyi'\n"
+        "  ❌ 'stan może pogorszyć się' → ✅ 'stan może się pogorszyć'\n"
+        "  ❌ 'typowo daje jednostronny ból' → ✅ 'typowo objawia się jednostronnym bólem'\n"
+        "  ZASADA: jeśli zdanie brzmi jak przetłumaczone z angielskiego — przepisz po polsku.\n"
+        "  Testuj: 'Czy lekarz w gabinecie powiedziałby to tak pacjentowi?' Jeśli nie → zmień."
     ),
     "finanse": (
         "WYLICZENIE > KOMENTARZ:\n"
@@ -392,6 +402,38 @@ CZYSTOŚĆ: każda sekcja H2 = JEDEN podtemat, wyczerpany do końca.
 
     # ═══ 4. JĘZYK: NATURALNOŚĆ + KOLOKACJE + ORTOGRAFIA ═══
     parts.append("""<jezyk>
+🔴 NADRZĘDNA ZASADA: KAŻDE ZDANIE MUSI BYĆ POPRAWNE GRAMATYCZNIE I BRZMIEĆ NATURALNIE PO POLSKU.
+Zanim napiszesz zdanie — przeczytaj je w głowie. Jeśli brzmi sztucznie, niezręcznie,
+jak tłumaczenie z angielskiego lub jak tekst wygenerowany przez maszynę → PRZEPISZ.
+Test: „Czy polski dziennikarz / lekarz / prawnik napisałby to zdanie w artykule?"
+Jeśli nie → zdanie jest złe i musisz je przeformułować.
+
+TYPOWE BŁĘDY LLM W POLSZCZYŹNIE (szukaj ich w KAŻDYM zdaniu):
+  🔴 ZŁY SZYK ZAIMKA ZWROTNEGO „SIĘ":
+    ❌ „stan może pogorszyć się" → ✅ „stan może się pogorszyć"
+    ❌ „objawy mogą nasilać się" → ✅ „objawy mogą się nasilać"
+    ❌ „choroba może rozwijać się" → ✅ „choroba może się rozwijać"
+    ZASADA: „się" stoi PRZED bezokolicznikiem, nie po nim.
+  🔴 KALKI SKŁADNIOWE Z ANGIELSKIEGO:
+    ❌ „narastającą trudnością przełykania" → ✅ „narastające trudności z przełykaniem"
+    ❌ „problem z szerokim otwieraniem ust" → ✅ „szczękościsk" / „ograniczone otwieranie ust"
+    ❌ „szerzenie się zakażenia w głąb szyi" → ✅ „rozprzestrzenienie zakażenia na tkanki szyi"
+    ❌ „Powikłanie to typowo daje jednostronny ból" → ✅ „Powikłanie to objawia się jednostronnym bólem"
+    ZASADA: jeśli zdanie brzmi jak z Google Translate → przepisz od nowa.
+  🔴 BRAK PODMIOTU / DZIWNE KONSTRUKCJE:
+    ❌ „W praktyce alarmuje też widoczne uwypuklenie" (co alarmuje?)
+    ✅ „Niepokojącym objawem jest również widoczny obrzęk"
+    ❌ „Taki przebieg wymaga pilnej oceny" (zbyt ogólnikowe)
+    ✅ „Te objawy wymagają pilnej konsultacji lekarskiej"
+  🔴 NOMINALIZACJE (rzeczowniki zamiast czasowników):
+    ❌ „dokonanie oceny stanu pacjenta" → ✅ „ocena stanu pacjenta" / „lekarz ocenia stan"
+    ❌ „przeprowadzenie zabiegu usunięcia" → ✅ „usunięcie" / „chirurg usuwa"
+  🔴 SZTUCZNA KWIECISTOŚĆ:
+    ❌ „widoczne uwypuklenie łuku podniebiennego" → ✅ „obrzęk podniebienia"
+    ❌ „zbiornik ropy" → ✅ „ropień"
+    ❌ „odchylenie języczka na stronę przeciwną" → ✅ „przemieszczenie języczka"
+    ZASADA: jeśli istnieje prostsze polskie słowo — użyj go.
+
 NATURALNY POLSKI — pisz jak redaktor, nie jak tłumacz z angielskiego.
   Podmiot + orzeczenie + dopełnienie. Zdanie od podmiotu, nie od okolicznika.
   ✅ „Sąd orzeka zakaz prowadzenia."  ❌ „W odniesieniu do orzekania — sąd może..."
