@@ -454,7 +454,7 @@ def validate_polish_text(text: str, style: str = "publicystyczny") -> Dict:
     # ── Recommendations ──
     recommendations = []
     if diac < 0.05:
-        recommendations.append("Diakrytyki za niskie - sprawdz czy tekst uzywa polskich znakow (a nie ASCII)")
+        recommendations.append("Diakrytyki za niskie - sprawdź czy tekst używa polskich znaków (a nie ASCII)")
     if comma_check["ratio"] < 0.9 and comma_check["violations"]:
         top_conjs = set(v["conjunction"] for v in comma_check["violations"][:5])
         recommendations.append(f"Dodaj przecinki przed: {', '.join(top_conjs)}")
