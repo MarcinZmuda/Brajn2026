@@ -1260,7 +1260,7 @@ def sentence_length_retry(text: str, h2: str = "", avg_len: float = 0, long_coun
     if comma_count > 0:
         comma_note = f" Zdań z 3+ przecinkami: {comma_count} (limit: max {max_commas} przecinki/zdanie)."
 
-    problem_desc = f"Srednia dlugos zdania: {avg_len:.0f} slow (cel: 14-18). Zdan powyzej 28 slow: {long_count}.{comma_note}"
+    problem_desc = f"Średnia długość zdania: {avg_len:.0f} słów (cel: 14-18). Zdań powyżej 28 słów: {long_count}.{comma_note}"
 
     prompt = f"""Skroc i uprosz zdania w ponizszym fragmencie artykulu SEO po polsku.
 

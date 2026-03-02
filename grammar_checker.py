@@ -83,7 +83,7 @@ def _lt_check(text: str) -> list:
         )
         if resp.status_code == 200:
             return resp.json().get("matches", [])
-        logger.warning(f"[GRAMMAR] LT API {resp.status_code}")
+        logger.warning(f"[GRAMMAR] LT API returned {resp.status_code}")
         return []
     except Exception as e:
         logger.warning(f"[GRAMMAR] LT API error: {e}")
