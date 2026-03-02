@@ -441,14 +441,25 @@ ORTOGRAFIA 2026 (reforma RJP weszła w życie):
     if is_ymyl:
         parts.append("""<zrodla>
 YMYL — zero tolerancji dla zmyśleń.
-Wiedza WYŁĄCZNIE z: stron SERP (podane), przepisów (podane), Wikipedia (podane).
+Wiedza WYŁĄCZNIE z: stron SERP (podane), przepisów (podane), Wikipedia (podane), publikacji z PMID (podane).
 Nie wymyślaj liczb, dat, sygnatur, nazw badań. Nie znasz → pomiń.
+Fakt bez źródła jest LEPSZY niż fakt z wymyślonym źródłem.
+⛔ ZAKAZ HALUCYNACJI ŹRÓDEŁ:
+  Cytuj WYŁĄCZNIE źródła podane w tym prompcie (z PMID, sygnaturą, URL lub z listy DOZWOLONYCH ŹRÓDEŁ).
+  Jeśli potrzebujesz powołać się na instytucję/wytyczne których NIE MA w podanych danych
+  → pisz merytorycznie BEZ nazwy instytucji.
+  ✅ "Uszkodzenie nerwów jest częstym powikłaniem cukrzycy"
+  ❌ "Americana Diabetes Association wskazuje, że uszkodzenie nerwów..."
+  ❌ "Według CDC uszkodzenie nerwów..."
+  NIE tłumacz nazw anglojęzycznych na polski. NIE rekonstruuj nazw z pamięci.
 </zrodla>""")
     else:
         parts.append("""<zrodla>
 Wiedza z: stron SERP, Wikipedia, danych liczbowych (podane).
 Nie wymyślaj liczb, dat, nazw badań. Brak danych → opisz ogólnie.
 Gdy SERP podaje cenę/stawkę → PRZEPISZ widełki. Nie streszczaj liczb słowami.
+⛔ NIE wymyślaj nazw instytucji, organizacji ani publikacji.
+  Cytuj TYLKO źródła podane w tym prompcie. Resztę pisz BEZ przypisywania źródła.
 </zrodla>""")
 
     # ═══ 5b. STYL KATEGORII ═══
@@ -1260,7 +1271,9 @@ def _fmt_legal_medical(pre_batch):
 
     if legal_ctx and legal_ctx.get("active"):
         parts.append("═══ KONTEKST PRAWNY (YMYL) ═══")
-        parts.append("NIE wymyślaj sygnatur, dat orzeczeń ani numerów artykułów.")
+        parts.append("NIE wymyślaj sygnatur, dat orzeczeń, numerów artykułów ANI nazw instytucji.")
+        parts.append("Cytuj WYŁĄCZNIE źródła podane niżej (orzeczenia z SAOS, Wikipedia, przepisy).")
+        parts.append("Jeśli potrzebujesz źródła którego NIE MA na liście → pisz BEZ cytowania nazwy.")
         parts.append("Placeholder 'odpowiednich przepisów' → zawsze podaj konkretny art.")
         parts.append("""⚠️ KRYTYCZNE ZASADY DLA TREŚCI PRAWNYCH:
   1. SPRAWDŹ NAZWĘ USTAWY — nie mylij ustaw:
@@ -1322,13 +1335,33 @@ def _fmt_legal_medical(pre_batch):
         if citation_hint:
             parts.append(f'\n{citation_hint}')
 
+        # v70: Twarda zasada cytowania dla treści prawnych
+        parts.append("\n  ═══ ZASADA CYTOWANIA (KRYTYCZNE!) ═══")
+        parts.append("  🔴 CYTUJ TYLKO źródła dostarczone przez system:")
+        parts.append("    • Orzeczenia z SAOS (podane powyżej z sygnaturą) → cytuj z sygnaturą")
+        parts.append("    • Artykuły ustaw (podane w PODSTAWA PRAWNA) → cytuj z pełnym art. § ustawy")
+        parts.append("    • Wikipedia (podane powyżej z URL) → odwołaj się z linkiem")
+        parts.append("  🔴 JEŚLI NIE MASZ ŹRÓDŁA Z POWYŻSZEJ LISTY:")
+        parts.append('    → Pisz merytorycznie BEZ przypisywania:')
+        parts.append('    ❌ "Jak wskazuje Sąd Najwyższy w wyroku z dnia..."')
+        parts.append('    ✅ "W orzecznictwie przyjmuje się, że..."')
+        parts.append('    ❌ "Zgodnie z wyrokiem SA w Krakowie z 12.03.2022 (sygn. II AKa 45/22)..."')
+        parts.append('    ✅ "Sądy apelacyjne wskazują na..."')
+        parts.append("  🔴 ABSOLUTNY ZAKAZ:")
+        parts.append("    ❌ NIE wymyślaj sygnatur orzeczeń, dat wyroków, nazw sądów")
+        parts.append("    ❌ NIE rekonstruuj orzeczeń z pamięci")
+        parts.append("  Twierdzenie prawne bez sygnatury jest LEPSZE niż z wymyśloną.")
+
     if medical_ctx and medical_ctx.get("active"):
         if parts:
             parts.append("")
         parts.append("═══ KONTEKST MEDYCZNY (YMYL) ═══")
         parts.append("MUSISZ:")
-        parts.append("  1. Cytować źródła naukowe (podane niżej)")
-        parts.append("  2. NIE wymyślać statystyk ani nazw badań")
+        parts.append("  1. Cytować WYŁĄCZNIE źródła podane niżej (z PMID lub z DOZWOLONYCH ŹRÓDEŁ)")
+        parts.append("  2. NIE wymyślać statystyk, nazw badań, nazw instytucji ani wytycznych")
+        parts.append("  3. Jeśli potrzebujesz źródła którego NIE MA na liście → pisz BEZ cytowania")
+        parts.append("     ✅ OK: \"Uszkodzenie nerwów jest częstym powikłaniem cukrzycy\"")
+        parts.append("     ❌ ŹLE: \"Americana Diabetes Association wskazuje, że uszkodzenie nerwów...\"")
 
         med_enrich = ymyl_enrich.get("medical", {})
         if med_enrich.get("specialization"):
@@ -1342,6 +1375,29 @@ def _fmt_legal_medical(pre_batch):
             parts.append(f"  Leki: {', '.join(med_enrich['key_drugs'][:5])}")
         if med_enrich.get("evidence_note"):
             parts.append(f"\n  ⚠️ WYTYCZNE: {med_enrich['evidence_note']}")
+
+        # v70: DOZWOLONE ŹRÓDŁA — twarda zasada: bez danych z pipeline = bez cytowania
+        allowed_refs = med_enrich.get("allowed_references") or []
+        parts.append("\n  ═══ ZASADA CYTOWANIA ŹRÓDEŁ (KRYTYCZNE!) ═══")
+        parts.append("  🔴 CYTUJ TYLKO źródła dostarczone przez system:")
+        parts.append("    • Publikacje z PubMed (podane niżej z PMID) → cytuj z PMID")
+        parts.append("    • Badania z ClinicalTrials (podane niżej z NCT) → cytuj z NCT")
+        if allowed_refs:
+            parts.append("    • Instytucje/wytyczne z poniższej listy → KOPIUJ nazwę DOSŁOWNIE:")
+            for ref in allowed_refs[:6]:
+                parts.append(f"      ✅ {ref}")
+        parts.append("  🔴 JEŚLI POTRZEBUJESZ ŹRÓDŁA KTÓREGO NIE MA POWYŻEJ:")
+        parts.append("    → Pisz merytorycznie BEZ przypisywania:")
+        parts.append('    ❌ "American Diabetes Association wskazuje, że..."')
+        parts.append('    ✅ "Uszkodzenie nerwów jest częstym powikłaniem cukrzycy"')
+        parts.append('    ❌ "Według CDC, ryzyko rośnie..."')
+        parts.append('    ✅ "Ryzyko rośnie wraz z czasem trwania choroby"')
+        parts.append("  🔴 ABSOLUTNY ZAKAZ:")
+        parts.append("    ❌ NIE wymyślaj nazw instytucji, organizacji, wytycznych")
+        parts.append("    ❌ NIE tłumacz nazw anglojęzycznych na polski")
+        parts.append("    ❌ NIE rekonstruuj tytułów publikacji z pamięci")
+        parts.append("    ❌ NIE pisz 'badania pokazują' z wymyśloną nazwą badania")
+        parts.append("  Fakt bez źródła jest LEPSZY niż fakt z wymyślonym źródłem.")
 
         parts.append("")
         parts.append("HIERARCHIA DOWODÓW:")
@@ -1743,10 +1799,11 @@ def build_faq_user_prompt(paa_data, pre_batch=None):
 h2: Najczęściej zadawane pytania
 
 h3: [Pytanie, 5-10 słów]
-[Odpowiedź 60-120 słów]
-→ Zdanie 1: BEZPOŚREDNIA odpowiedź
-→ Zdanie 2-3: rozwinięcie
-→ Zdanie 4: praktyczna wskazówka
+[Odpowiedź 40-80 słów, MAX 3-4 zdania]
+→ Zdanie 1: BEZPOŚREDNIA odpowiedź na pytanie (snippet-ready)
+→ Zdanie 2-3: krótkie rozwinięcie z jednym konkretem
+→ Opcjonalnie zdanie 4: praktyczna wskazówka
+⛔ Dłuższe odpowiedzi NIE trafią do Google Featured Snippet. MAX 4 zdania.
 
 Zero markdown (**, __, #). Zero tagów HTML (<h3>, <b>, <strong>).
 Każdy h3: na OSOBNEJ linii z pustą linią powyżej.
